@@ -740,6 +740,7 @@ export default function CoachDashboard() {
   const [selectedStudent, setSelectedStudent] = useState<StudentStatus | null>(null);
   const [showProfile, setShowProfile] = useState(false);
   const [unlinkTarget, setUnlinkTarget] = useState<StudentStatus | null>(null);
+  const [historyStudent, setHistoryStudent] = useState<StudentStatus | null>(null);
   const qc = useQueryClient();
 
   // FIX: lê feedbackIntervalDays do perfil do coach para passar ao hook
@@ -889,6 +890,7 @@ export default function CoachDashboard() {
                     onAnamnesis={(st) => { setSelectedStudent(st); setView("anamnesis"); }}
                     onProtocol={(st) => { setSelectedStudent(st); setView("protocol"); }}
                     onUnlink={setUnlinkTarget}
+                    onHistory={setHistoryStudent}
                   />
                 ))}
               </div>
