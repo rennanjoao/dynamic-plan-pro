@@ -17,9 +17,9 @@ serve(async (req: Request) => {
   }
 
   try {
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) {
-      return new Response(JSON.stringify({ error: "ANTHROPIC_API_KEY ausente" }), {
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      return new Response(JSON.stringify({ error: "LOVABLE_API_KEY ausente" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -39,27 +39,39 @@ serve(async (req: Request) => {
       systemContent += `\n\nDADOS DO USUÁRIO:\n${JSON.stringify(body.userContext, null, 2)}`;
     }
 
-    const anthropicMessages = messages.map((m: { role: string; content: string }) => ({
-      role: m.role === "assistant" ? "assistant" : "user",
-      content: String(m.content ?? ""),
-    }));
+    const chatMessages = [
+      { role: "system", content: systemContent },
+      ...messages.map((m: { role: string; content: string }) => ({
+        role: m.role === "assistant" ? "assistant" : "user",
+        content: String(m.content ?? ""),
+      })),
+    ];
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
+        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 512,
-        system: systemContent,
-        messages: anthropicMessages,
+        model: "google/gemini-2.5-flash",
+        messages: chatMessages,
       }),
     });
 
     if (!response.ok) {
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em instantes." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: "Créditos de IA esgotados. Contate o administrador." }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
       const err = await response.json().catch(() => ({}));
       return new Response(
         JSON.stringify({ error: err?.error?.message ?? "Erro na IA" }),
@@ -68,10 +80,7 @@ serve(async (req: Request) => {
     }
 
     const json = await response.json();
-    const text =
-      Array.isArray(json?.content)
-        ? json.content.map((p: { type: string; text?: string }) => (p.type === "text" ? p.text ?? "" : "")).join("")
-        : "";
+    const text = json?.choices?.[0]?.message?.content ?? "";
 
     return new Response(JSON.stringify({ text }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
