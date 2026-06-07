@@ -14,7 +14,6 @@ import {
   Loader2, User, AlertCircle, Copy, Check, X, LogOut, Sparkles, ShoppingCart
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import ProtocolQuestionButton from "@/components/student/ProtocolQuestionButton";
 
 export default function StudentArea() {
   const navigate = useNavigate();
