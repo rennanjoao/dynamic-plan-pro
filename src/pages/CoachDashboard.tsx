@@ -18,7 +18,7 @@ import {
   AlertTriangle, CheckCircle2, Search, Filter, Users,
   Dumbbell, ClipboardList, ArrowLeft,
   Loader2, Plus, Trash2, DollarSign, UserPlus, Calendar, X, User, LogOut,
-  MessageSquare
+  MessageSquare, History, FileDown
 } from "lucide-react";
 import CoachNotificationBell from "@/components/coach/CoachNotificationBell";
 import { Input } from "@/components/ui/input";
@@ -85,12 +85,13 @@ function AlertBadge({ level }: { level: AlertLevel }) {
 }
 
 function StudentRow({
-  student, onAnamnesis, onProtocol, onUnlink,
+  student, onAnamnesis, onProtocol, onUnlink, onHistory,
 }: {
   student: StudentStatus;
   onAnamnesis: (s: StudentStatus) => void;
   onProtocol: (s: StudentStatus) => void;
   onUnlink: (s: StudentStatus) => void;
+  onHistory: (s: StudentStatus) => void;
 }) {
   const lastActivity =
     student.daysInactive === 0 ? "Hoje" :
@@ -156,11 +157,190 @@ function StudentRow({
         <button onClick={() => onProtocol(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Protocolo">
           <Dumbbell className="w-4 h-4" />
         </button>
+        <button onClick={() => onHistory(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Histórico de Check-ins">
+          <History className="w-4 h-4" />
+        </button>
         <button onClick={() => onUnlink(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-destructive transition-colors" title="Desvincular">
           <X className="w-4 h-4" />
         </button>
       </div>
     </div>
+  );
+}
+
+// ─── Check-ins History Dialog ─────────────────────────────────────────────────
+
+interface CheckinRow {
+  id: string;
+  submitted_at: string;
+  current_metrics: Record<string, unknown> | null;
+  payload: Record<string, unknown> | null;
+  coach_feedback: string | null;
+  photo_url: string | null;
+}
+
+function CheckinHistoryDialog({
+  student, open, onClose,
+}: {
+  student: StudentStatus | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [items, setItems] = useState<CheckinRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (!open || !student) return;
+    (async () => {
+      setLoading(true);
+      const { data } = await sb
+        .from("check_ins")
+        .select("id, submitted_at, current_metrics, payload, coach_feedback, photo_url")
+        .eq("student_id", student.id)
+        .order("submitted_at", { ascending: false });
+      setItems((data || []) as CheckinRow[]);
+      setLoading(false);
+      setExpanded({});
+    })();
+  }, [open, student]);
+
+  const fmtDate = (iso: string) =>
+    new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+  const getWeight = (c: CheckinRow) => {
+    const m = c.current_metrics || {};
+    return (m as Record<string, unknown>).peso ?? (m as Record<string, unknown>).weight ?? "—";
+  };
+
+  const hasPhotos = (c: CheckinRow) => {
+    const fotos = ((c.payload as Record<string, unknown> | null)?.fotos as Record<string, string> | undefined) || {};
+    return Object.values(fotos).some((v) => typeof v === "string" && v.length > 0);
+  };
+
+  const renderCheckinHTML = (c: CheckinRow, studentName: string) => {
+    const metrics = c.current_metrics || {};
+    const rows = Object.entries(metrics)
+      .map(([k, v]) => `<div class="row"><span class="lbl">${k}</span><span class="val">${typeof v === "object" ? JSON.stringify(v) : String(v ?? "—")}</span></div>`)
+      .join("");
+    return `
+      <h2>Check-in — ${fmtDate(c.submitted_at)}</h2>
+      ${rows}
+      ${c.coach_feedback ? `<h3>Feedback do Coach</h3><p>${c.coach_feedback}</p>` : ""}
+    `;
+  };
+
+  const exportOne = (c: CheckinRow) => {
+    if (!student) return;
+    const w = window.open("", "_blank");
+    if (!w) { toast.error("Permita popups para exportar"); return; }
+    w.document.write(`
+      <!doctype html><html><head><meta charset="utf-8"><title>Check-in — ${student.name}</title>
+      <style>body{font-family:Arial,sans-serif;padding:24px;max-width:780px;margin:auto;color:#111}
+      h1{font-size:20px;border-bottom:2px solid #C0392B;padding-bottom:8px}
+      h2{font-size:14px;color:#C0392B;margin-top:22px;text-transform:uppercase;letter-spacing:.05em}
+      h3{font-size:13px;color:#444;margin-top:14px}
+      .row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee;font-size:13px}
+      .lbl{color:#555;font-weight:600;text-transform:capitalize}.val{max-width:55%;text-align:right}
+      @media print{body{padding:0}}</style></head><body>
+      <h1>Check-in — ${student.name}</h1>
+      ${renderCheckinHTML(c, student.name)}
+      <script>window.onload=()=>setTimeout(()=>window.print(),300);</script>
+      </body></html>`);
+    w.document.close();
+  };
+
+  const exportAll = () => {
+    if (!student || items.length === 0) return;
+    const w = window.open("", "_blank");
+    if (!w) { toast.error("Permita popups para exportar"); return; }
+    w.document.write(`
+      <!doctype html><html><head><meta charset="utf-8"><title>Check-ins — ${student.name}</title>
+      <style>body{font-family:Arial,sans-serif;padding:24px;max-width:780px;margin:auto;color:#111}
+      h1{font-size:20px;border-bottom:2px solid #C0392B;padding-bottom:8px}
+      h2{font-size:14px;color:#C0392B;margin-top:22px;text-transform:uppercase;letter-spacing:.05em}
+      h3{font-size:13px;color:#444;margin-top:14px}
+      .row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee;font-size:13px}
+      .lbl{color:#555;font-weight:600;text-transform:capitalize}.val{max-width:55%;text-align:right}
+      .checkin{page-break-after:always;margin-bottom:30px}
+      @media print{body{padding:0}}</style></head><body>
+      <h1>Histórico de Check-ins — ${student.name}</h1>
+      ${items.map((c) => `<div class="checkin">${renderCheckinHTML(c, student.name)}</div>`).join("")}
+      <script>window.onload=()=>setTimeout(()=>window.print(),300);</script>
+      </body></html>`);
+    w.document.close();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Check-ins — {student?.name ?? "Aluno"}</DialogTitle>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+        ) : items.length === 0 ? (
+          <p className="text-sm text-muted-foreground italic text-center py-10">Nenhum check-in registrado ainda.</p>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex justify-end">
+              <Button size="sm" variant="outline" onClick={exportAll}>
+                <FileDown className="w-4 h-4 mr-1.5" /> Exportar todos em PDF
+              </Button>
+            </div>
+            {items.map((c) => {
+              const isOpen = !!expanded[c.id];
+              return (
+                <div key={c.id} className="rounded-lg border border-border bg-card p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="text-sm">
+                      <p className="font-semibold text-foreground">{fmtDate(c.submitted_at)}</p>
+                      <p className="text-xs text-muted-foreground">Peso: <span className="font-medium text-foreground">{String(getWeight(c))} kg</span></p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1">
+                      {hasPhotos(c) && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-blue-500/10 text-blue-600 border-blue-500/30">Com fotos</span>
+                      )}
+                      {c.coach_feedback && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-500/10 text-emerald-600 border-emerald-500/30">Com feedback</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button size="sm" variant="ghost" className="h-7 text-xs"
+                      onClick={() => setExpanded((p) => ({ ...p, [c.id]: !isOpen }))}>
+                      {isOpen ? "Ocultar" : "Ver detalhes"}
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => exportOne(c)}>
+                      <FileDown className="w-3 h-3 mr-1" /> Exportar PDF
+                    </Button>
+                  </div>
+                  {isOpen && (
+                    <div className="border-t border-border pt-2 mt-1 space-y-1">
+                      {Object.entries(c.current_metrics || {}).map(([k, v]) => (
+                        <div key={k} className="flex justify-between text-xs py-0.5">
+                          <span className="text-muted-foreground capitalize">{k}</span>
+                          <span className="font-medium text-right max-w-[60%]">
+                            {typeof v === "object" && v !== null ? JSON.stringify(v) : String(v ?? "—")}
+                          </span>
+                        </div>
+                      ))}
+                      {c.coach_feedback && (
+                        <div className="mt-2 pt-2 border-t border-border">
+                          <p className="text-xs font-semibold text-primary mb-1">Feedback do Coach</p>
+                          <p className="text-xs whitespace-pre-wrap text-foreground/85">{c.coach_feedback}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
