@@ -28,6 +28,7 @@ const DynamicRoutine   = lazyWithRetry(() => import("./pages/DynamicRoutine"));
 const WorkoutPlanPage  = lazyWithRetry(() => import("./pages/WorkoutPlan"));
 const Supplements      = lazyWithRetry(() => import("./pages/Supplements"));
 const Planos          = lazyWithRetry(() => import("./pages/Planos"));
+const ShoppingList    = lazyWithRetry(() => import("./pages/ShoppingList"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -77,6 +78,7 @@ const App = () => {
               <Route path="/workout-plan" element={<AnamnesisGuard><WorkoutPlanPage /></AnamnesisGuard>} />
               <Route path="/daily"        element={<AnamnesisGuard><StudentDashboard /></AnamnesisGuard>} />
               <Route path="/supplements"  element={<AnamnesisGuard><Supplements /></AnamnesisGuard>} /> {/* Nova rota */}
+              <Route path="/shopping-list" element={<AnamnesisGuard><ShoppingList /></AnamnesisGuard>} />
 
               {/* Coach */}
               <Route path="/coach" element={<AdminGuard requiredRole="coach"><CoachGuard><CoachDashboard /></CoachGuard></AdminGuard>} />
