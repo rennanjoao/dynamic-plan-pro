@@ -11,8 +11,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { ProgressChart } from "@/components/student/ProgressChart";
 import { toast } from "sonner";
-import { FileDown, Loader2 } from "lucide-react";
+import { FileDown, Loader2, ImageIcon } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -21,6 +23,13 @@ interface Props {
   studentId: string;
   studentName?: string;
 }
+
+const PHOTO_KEYS: Array<{ key: string; label: string }> = [
+  { key: "frente", label: "Frente" },
+  { key: "costas", label: "Costas" },
+  { key: "lateral_dir", label: "Lateral Direita" },
+  { key: "lateral_esq", label: "Lateral Esquerda" },
+];
 
 // FORMATADOR BLINDADO: Impede Crash caso o valor seja Array ou Objeto JSON
 function fmt(val: unknown): string {
@@ -35,6 +44,7 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [zoomPhoto, setZoomPhoto] = useState<{ url: string; label: string } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -105,6 +115,9 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
     );
   }
 
+  const fotos = (data.fotos as Record<string, string>) || {};
+  const fotosWithUrl = PHOTO_KEYS.filter(p => fotos[p.key]);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -120,6 +133,40 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
           <FileDown className="w-4 h-4 mr-1.5" /> Exportar PDF
         </Button>
       </div>
+
+      {/* Fotos do aluno (4 ângulos) — Cloudinary */}
+      {fotosWithUrl.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <h3 className="text-sm font-bold text-primary flex items-center gap-2 mb-3 uppercase tracking-wide">
+              <ImageIcon className="w-4 h-4" /> Fotos do Aluno
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {fotosWithUrl.map(p => (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => setZoomPhoto({ url: fotos[p.key], label: p.label })}
+                  className="group relative overflow-hidden rounded-lg border border-border hover:border-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <img
+                    src={fotos[p.key]}
+                    alt={p.label}
+                    loading="lazy"
+                    className="w-full aspect-[3/4] object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent py-2 px-2">
+                    <span className="text-xs font-semibold text-white">{p.label}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Gráfico de evolução (peso + % gordura estimada) */}
+      <ProgressChart studentId={studentId} />
 
       <Accordion type="multiple" defaultValue={["identificacao", "composicao"]} className="space-y-2">
         {ANAMNESIS_SECTIONS.map((s) => (
@@ -140,6 +187,23 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
           </AccordionItem>
         ))}
       </Accordion>
+
+      {/* Modal de zoom de foto */}
+      <Dialog open={!!zoomPhoto} onOpenChange={(o) => !o && setZoomPhoto(null)}>
+        <DialogContent className="max-w-3xl bg-card p-2">
+          <DialogTitle className="sr-only">{zoomPhoto?.label ?? "Foto do aluno"}</DialogTitle>
+          {zoomPhoto && (
+            <div className="flex flex-col items-center">
+              <img
+                src={zoomPhoto.url}
+                alt={zoomPhoto.label}
+                className="max-h-[80vh] w-auto rounded-md object-contain"
+              />
+              <p className="text-sm font-semibold text-foreground mt-2 mb-1">{zoomPhoto.label}</p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

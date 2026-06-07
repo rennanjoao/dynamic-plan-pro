@@ -2,8 +2,8 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { useStudentData } from "@/hooks/useStudentData";
 import { TrendingUp, Loader2 } from "lucide-react";
 
-export const ProgressChart = () => {
-  const { anamnesis, checkIns, loading } = useStudentData();
+export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
+  const { anamnesis, checkIns, loading } = useStudentData(studentId);
 
   if (loading) {
     return (

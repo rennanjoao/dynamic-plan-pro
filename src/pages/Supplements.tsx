@@ -23,14 +23,34 @@ export default function Supplements() {
     queryKey: ["student-supps-json", userId],
     enabled: !!userId,
     queryFn: async () => {
-      const { data } = await supabase
+      // 1) Try active protocol first (most recent data structure)
+      const { data: protocol } = await supabase
+        .from("protocols")
+        .select("payload, updated_at")
+        .eq("student_id", userId)
+        .eq("is_template", false)
+        .eq("active", true)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const pPayload = (protocol?.payload as Record<string, unknown> | null) ?? null;
+      const hasProtocolData =
+        pPayload &&
+        ((pPayload.guidelines && Object.keys(pPayload.guidelines as object).length > 0) ||
+          (Array.isArray(pPayload.supplements) && (pPayload.supplements as unknown[]).length > 0));
+
+      if (hasProtocolData) return pPayload;
+
+      // 2) Fallback: legacy coach_plans.diet_strategy_json
+      const { data: plan } = await supabase
         .from("coach_plans")
         .select("diet_strategy_json")
         .eq("student_id", userId)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      return data ?? null;
+      return plan?.diet_strategy_json ?? null;
     },
   });
 
@@ -40,7 +60,7 @@ export default function Supplements() {
     </div>
   );
 
-  const rawPayload = planData?.diet_strategy_json || {};
+  const rawPayload = planData || {};
   const parsed = ProtocolPayloadSchema.safeParse(rawPayload);
   const safePayload: any = parsed.success ? parsed.data : rawPayload;
 
