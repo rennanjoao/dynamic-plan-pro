@@ -1,17 +1,1 @@
-project_id = "nleqkimtokqkifwxdenx"
-
-[functions.generate-avatar]
-verify_jwt = false
-
-[functions.send-plan-email]
-verify_jwt = false
-
-[functions.fitness-chat]
-verify_jwt = false
-
-[functions.info-chat]
-verify_jwt = false
-
-[functions.link-coach-student]
-verify_jwt = false
-
+project_id = "firqzdnmwfhcbykixxbu"
