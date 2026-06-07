@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useStudentData } from "@/hooks/useStudentData";
 import ComparisonBoard from "@/components/student/ComparisonBoard";
 import EvolutionTimeline from "@/components/student/EvolutionTimeline";
+import { ProgressChart } from "@/components/student/ProgressChart";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -54,6 +55,7 @@ export default function Evolution() {
             </TabsList>
 
             <TabsContent value="dashboard" className="space-y-4 mt-0">
+              <ProgressChart />
               <ComparisonBoard
                 anamnesis={anamnesis}
                 latestCheckIn={checkIns[0] ?? null}
