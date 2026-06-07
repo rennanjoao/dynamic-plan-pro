@@ -169,6 +169,10 @@ serve(async (req) => {
         .insert({ user_id: newUser.user.id, role: assignRole });
 
       // Ensure a profiles row exists so invite_code/notification_email edits work
+      const trialEndsAt =
+        assignRole === "coach"
+          ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+          : null;
       await adminClient
         .from("profiles")
         .upsert({
@@ -177,6 +181,7 @@ serve(async (req) => {
           team_name: teamName || null,
           email,
           notification_email: notificationEmail || email,
+          ...(trialEndsAt ? { trial_ends_at: trialEndsAt } : {}),
         }, { onConflict: "user_id" });
 
       return new Response(JSON.stringify({ success: true, userId: newUser.user.id }), {

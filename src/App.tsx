@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AdminGuard } from "./components/admin/AdminGuard";
 import { AnamnesisGuard } from "./components/student/AnamnesisGuard";
+import { CoachGuard } from "./components/coach/CoachGuard";
 import { NavigationControls } from "@/components/NavigationControls";
 import { GlobalAIAssistant } from "@/components/GlobalAIAssistant";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
@@ -26,6 +27,7 @@ const Evolution        = lazyWithRetry(() => import("./pages/Evolution"));
 const DynamicRoutine   = lazyWithRetry(() => import("./pages/DynamicRoutine"));
 const WorkoutPlanPage  = lazyWithRetry(() => import("./pages/WorkoutPlan"));
 const Supplements      = lazyWithRetry(() => import("./pages/Supplements"));
+const Planos          = lazyWithRetry(() => import("./pages/Planos"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -77,7 +79,8 @@ const App = () => {
               <Route path="/supplements"  element={<AnamnesisGuard><Supplements /></AnamnesisGuard>} /> {/* Nova rota */}
 
               {/* Coach */}
-              <Route path="/coach" element={<AdminGuard requiredRole="coach"><CoachDashboard /></AdminGuard>} />
+              <Route path="/coach" element={<AdminGuard requiredRole="coach"><CoachGuard><CoachDashboard /></CoachGuard></AdminGuard>} />
+              <Route path="/planos" element={<Planos />} />
 
               {/* Admin */}
               <Route path="/admin" element={<AdminGuard><Admin /></AdminGuard>} />

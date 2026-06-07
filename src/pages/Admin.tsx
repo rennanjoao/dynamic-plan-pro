@@ -7,6 +7,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { TrainerManagement } from "@/components/admin/TrainerManagement";
 import { StudentLinksManagement } from "@/components/admin/StudentLinksManagement";
 import { AlertManager } from "@/components/admin/AlertManager";
+import { PlansSettings } from "@/components/admin/PlansSettings";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -51,6 +52,7 @@ const Admin = () => {
         <TrainerManagement />
         <StudentLinksManagement />
         <AlertManager />
+        <PlansSettings />
       </div>
     </div>
   );
