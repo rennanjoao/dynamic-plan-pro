@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
   Apple, Dumbbell, Pill, TrendingUp, CheckCircle2, 
-  Loader2, User, AlertCircle, Copy, Check, X, LogOut, Sparkles
+  Loader2, User, AlertCircle, Copy, Check, X, LogOut, Sparkles, ShoppingCart
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import ProtocolQuestionButton from "@/components/student/ProtocolQuestionButton";
@@ -146,6 +146,7 @@ export default function StudentArea() {
     { title: "Suplementação", description: "Fármacos, vitaminas e horários de uso.", icon: Pill, color: "text-purple-500", bg: "bg-purple-500/10", border: "border-purple-500/20", route: "/supplements", questionContext: "supplement" },
     { title: "Evolução", description: "Fotos de progresso, gráficos e anamnese.", icon: TrendingUp, color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", route: "/evolution", questionContext: "general" },
     { title: "Check-in", description: "Envie seu feedback periódico para o treinador.", icon: CheckCircle2, color: "text-rose-500", bg: "bg-rose-500/10", border: "border-rose-500/20", route: "/check-in", questionContext: "general" },
+    { title: "Lista de Compras", description: "Quantidades agregadas por período e exportação em PDF.", icon: ShoppingCart, color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/20", route: "/shopping-list", questionContext: "meal" },
   ];
 
   if (!userId || profileLoading) {
