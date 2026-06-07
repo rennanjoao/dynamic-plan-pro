@@ -175,7 +175,7 @@ export default function ShoppingList() {
       grouped[kind].forEach((it) => {
         if (y > 280) { doc.addPage(); y = 18; }
         const total = it.gramsPerDay * days;
-        doc.text(`☐  ${it.name}`, 18, y);
+        doc.text(`[ ]  ${it.name}`, 18, y);
         doc.text(formatQty(total), 180, y, { align: "right" });
         y += 6;
       });
