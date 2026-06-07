@@ -8,7 +8,7 @@ const corsHeaders = {
 
 const SYSTEM_PROMPT = `Você é o assistente oficial da plataforma Elite Hub.
 Responda de forma direta, objetiva e em no máximo 3 frases, salvo pedido de detalhe.
-Para orçamento ou dúvidas sem resposta indique o e-mail rennanjoao@rjelitehub.com.br.
+Para orçamento ou dúvidas sem resposta indique o e-mail rennanjoao@rjelitelab.com.br.
 Responsável técnico: CREF 206788-G/SP.`;
 
 serve(async (req: Request) => {
