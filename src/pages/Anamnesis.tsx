@@ -137,10 +137,10 @@ const Anamnesis = () => {
     
     setValidating(true);
     try {
-      const { data, error } = await supabase.rpc('get_coach_by_invite_code', { p_code: code });
-      if (error || !data || data.length === 0) throw new Error("Código inválido ou inexistente.");
+      const { data, error } = await supabase.functions.invoke('validate-invite-code', { body: { code } });
+      if (error || !data?.coach_id) throw new Error(data?.error || "Código inválido ou inexistente.");
       
-      setCoach({ id: data[0].coach_id, name: data[0].coach_name, email: data[0].notification_email });
+      setCoach({ id: data.coach_id, name: data.coach_name, email: data.notification_email });
       setStep("form"); // Avança para a Anamnese
     } catch (e: any) {
       showToast(e.message || "Erro ao validar código.");
