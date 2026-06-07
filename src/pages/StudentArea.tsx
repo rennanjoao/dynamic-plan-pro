@@ -143,7 +143,7 @@ export default function StudentArea() {
   }> = [
     { title: "Dieta", description: "Plano alimentar, substituições e macros.", icon: Apple, color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20", route: "/routine", questionContext: "meal" },
     { title: "Treino", description: "Séries, cadência e diretrizes biomecânicas.", icon: Dumbbell, color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/20", route: "/workout-plan", questionContext: "exercise" },
-    { title: "Suplementação", description: "Fármacos, vitaminas e horários de uso.", icon: Pill, color: "text-purple-500", bg: "bg-purple-500/10", border: "border-purple-500/20", route: "/supplements", questionContext: "supplement" },
+    { title: "Diretrizes & Suplementação", description: "Fármacos, vitaminas e horários de uso.", icon: Pill, color: "text-purple-500", bg: "bg-purple-500/10", border: "border-purple-500/20", route: "/supplements", questionContext: "supplement" },
     { title: "Evolução", description: "Fotos de progresso, gráficos e anamnese.", icon: TrendingUp, color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", route: "/evolution", questionContext: "general" },
     { title: "Check-in", description: "Envie seu feedback periódico para o treinador.", icon: CheckCircle2, color: "text-rose-500", bg: "bg-rose-500/10", border: "border-rose-500/20", route: "/check-in", questionContext: "general" },
     { title: "Lista de Compras", description: "Quantidades agregadas por período e exportação em PDF.", icon: ShoppingCart, color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/20", route: "/shopping-list", questionContext: "meal" },

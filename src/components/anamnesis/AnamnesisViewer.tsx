@@ -45,6 +45,9 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [zoomPhoto, setZoomPhoto] = useState<{ url: string; label: string } | null>(null);
+  const [showPhotoCompare, setShowPhotoCompare] = useState(false);
+  const [lastCheckin, setLastCheckin] = useState<{ submitted_at: string; fotos: Record<string, string> } | null>(null);
+  const [loadingCheckin, setLoadingCheckin] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -62,6 +65,25 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
       setLoading(false);
     })();
   }, [studentId]);
+
+  async function openPhotoCompare() {
+    setShowPhotoCompare(true);
+    setLoadingCheckin(true);
+    const { data: row } = await sb
+      .from("check_ins")
+      .select("submitted_at, payload")
+      .eq("student_id", studentId)
+      .order("submitted_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (row) {
+      const fotos = ((row.payload as Record<string, unknown>)?.fotos as Record<string, string>) || {};
+      setLastCheckin({ submitted_at: row.submitted_at as string, fotos });
+    } else {
+      setLastCheckin(null);
+    }
+    setLoadingCheckin(false);
+  }
 
   function exportPDF() {
     if (!data) return;
@@ -129,41 +151,17 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
             </p>
           )}
         </div>
-        <Button onClick={exportPDF} variant="outline" size="sm">
-          <FileDown className="w-4 h-4 mr-1.5" /> Exportar PDF
-        </Button>
+        <div className="flex gap-2">
+          {fotosWithUrl.length > 0 && (
+            <Button onClick={openPhotoCompare} variant="outline" size="sm">
+              <ImageIcon className="w-4 h-4 mr-1.5" /> Ver fotos
+            </Button>
+          )}
+          <Button onClick={exportPDF} variant="outline" size="sm">
+            <FileDown className="w-4 h-4 mr-1.5" /> Exportar PDF
+          </Button>
+        </div>
       </div>
-
-      {/* Fotos do aluno (4 ângulos) — Cloudinary */}
-      {fotosWithUrl.length > 0 && (
-        <Card>
-          <CardContent className="p-4">
-            <h3 className="text-sm font-bold text-primary flex items-center gap-2 mb-3 uppercase tracking-wide">
-              <ImageIcon className="w-4 h-4" /> Fotos do Aluno
-            </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {fotosWithUrl.map(p => (
-                <button
-                  key={p.key}
-                  type="button"
-                  onClick={() => setZoomPhoto({ url: fotos[p.key], label: p.label })}
-                  className="group relative overflow-hidden rounded-lg border border-border hover:border-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <img
-                    src={fotos[p.key]}
-                    alt={p.label}
-                    loading="lazy"
-                    className="w-full aspect-[3/4] object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent py-2 px-2">
-                    <span className="text-xs font-semibold text-white">{p.label}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Gráfico de evolução (peso + % gordura estimada) */}
       <ProgressChart studentId={studentId} />
@@ -202,6 +200,93 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
               <p className="text-sm font-semibold text-foreground mt-2 mb-1">{zoomPhoto.label}</p>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de comparação de fotos */}
+      <Dialog open={showPhotoCompare} onOpenChange={setShowPhotoCompare}>
+        <DialogContent className="max-w-4xl bg-card max-h-[90vh] overflow-y-auto">
+          <DialogTitle>
+            Comparação de Fotos — {(data.nome as string) || studentName || "Aluno"}
+          </DialogTitle>
+
+          <div className="space-y-6 mt-2">
+            {/* Fileira superior: Anamnese */}
+            <div>
+              <h4 className="text-sm font-semibold text-foreground mb-3">
+                📸 Fotos Iniciais (Anamnese)
+                {updatedAt && (
+                  <span className="text-xs text-muted-foreground font-normal ml-2">
+                    · {new Date(updatedAt).toLocaleDateString("pt-BR")}
+                  </span>
+                )}
+              </h4>
+              <div className="grid grid-cols-4 gap-3">
+                {PHOTO_KEYS.map((p) => (
+                  <div key={p.key} className="space-y-1">
+                    {fotos[p.key] ? (
+                      <button
+                        type="button"
+                        onClick={() => setZoomPhoto({ url: fotos[p.key], label: `Anamnese — ${p.label}` })}
+                        className="block w-full overflow-hidden rounded-lg border border-border hover:border-primary transition-colors"
+                      >
+                        <img src={fotos[p.key]} alt={p.label} loading="lazy" className="w-full aspect-[3/4] object-cover" />
+                      </button>
+                    ) : (
+                      <div className="w-full aspect-[3/4] rounded-lg border border-dashed border-border bg-muted/30 flex items-center justify-center text-[10px] text-muted-foreground">
+                        Sem foto
+                      </div>
+                    )}
+                    <p className="text-xs text-center text-muted-foreground">{p.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="border-t border-border" />
+
+            {/* Fileira inferior: Check-in recente */}
+            <div>
+              <h4 className="text-sm font-semibold text-foreground mb-3">
+                📸 Check-in mais recente
+                {lastCheckin?.submitted_at && (
+                  <span className="text-xs text-muted-foreground font-normal ml-2">
+                    · {new Date(lastCheckin.submitted_at).toLocaleDateString("pt-BR")}
+                  </span>
+                )}
+              </h4>
+              {loadingCheckin ? (
+                <div className="flex justify-center py-6">
+                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                </div>
+              ) : !lastCheckin || !PHOTO_KEYS.some(p => lastCheckin.fotos[p.key]) ? (
+                <p className="text-sm text-muted-foreground italic text-center py-6">
+                  Nenhum check-in com fotos ainda.
+                </p>
+              ) : (
+                <div className="grid grid-cols-4 gap-3">
+                  {PHOTO_KEYS.map((p) => (
+                    <div key={p.key} className="space-y-1">
+                      {lastCheckin.fotos[p.key] ? (
+                        <button
+                          type="button"
+                          onClick={() => setZoomPhoto({ url: lastCheckin.fotos[p.key], label: `Check-in — ${p.label}` })}
+                          className="block w-full overflow-hidden rounded-lg border border-border hover:border-primary transition-colors"
+                        >
+                          <img src={lastCheckin.fotos[p.key]} alt={p.label} loading="lazy" className="w-full aspect-[3/4] object-cover" />
+                        </button>
+                      ) : (
+                        <div className="w-full aspect-[3/4] rounded-lg border border-dashed border-border bg-muted/30 flex items-center justify-center text-[10px] text-muted-foreground">
+                          Sem foto
+                        </div>
+                      )}
+                      <p className="text-xs text-center text-muted-foreground">{p.label}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

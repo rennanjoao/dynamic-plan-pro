@@ -41,6 +41,7 @@ export default function CoachNotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [checkinCount, setCheckinCount] = useState(0);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -84,8 +85,42 @@ export default function CoachNotificationBell() {
       )
       .subscribe();
 
+    const checkinsChannel = supabase
+      .channel("coach-checkins-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "check_ins" },
+        async (payload) => {
+          const studentId = (payload.new as { student_id?: string })?.student_id;
+          if (!studentId) return;
+          // Verifica se esse aluno pertence a este coach
+          const { data: link } = await supabase
+            .from("coach_students")
+            .select("coach_id")
+            .eq("student_id", studentId)
+            .eq("coach_id", coachId)
+            .eq("status", "active")
+            .maybeSingle();
+          if (!link) return;
+          const { data: prof } = await supabase
+            .from("profiles")
+            .select("full_name")
+            .eq("user_id", studentId)
+            .maybeSingle();
+          const nome = prof?.full_name ?? "Aluno";
+          toast(`✅ ${nome} enviou um check-in!`, {
+            description: `Recebido em ${new Date().toLocaleString("pt-BR")}`,
+            duration: 8000,
+            action: { label: "Ver", onClick: () => setOpen(true) },
+          });
+          setCheckinCount((prev) => prev + 1);
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(checkinsChannel);
     };
   }, [coachId]);
 
@@ -108,9 +143,15 @@ export default function CoachNotificationBell() {
   };
 
   const unreadCount = notifications.length;
+  const totalBadge = unreadCount + checkinCount;
+
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (next) setCheckinCount(0);
+  };
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetTrigger asChild>
         <button
           type="button"
@@ -118,9 +159,9 @@ export default function CoachNotificationBell() {
           aria-label="Caixa de dúvidas"
         >
           <Bell className="w-5 h-5 text-foreground" />
-          {unreadCount > 0 && (
+          {totalBadge > 0 && (
             <span className="absolute top-0 right-0 inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold leading-none text-white transform translate-x-1/4 -translate-y-1/4 bg-red-600 rounded-full border-2 border-background">
-              {unreadCount > 99 ? "99+" : unreadCount}
+              {totalBadge > 99 ? "99+" : totalBadge}
             </span>
           )}
         </button>
@@ -133,6 +174,11 @@ export default function CoachNotificationBell() {
         </SheetHeader>
 
         <div className="mt-4 space-y-3">
+          {checkinCount > 0 && (
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-400">
+              {checkinCount} novo(s) check-in(s) recebido(s) — acesse o painel de alunos para visualizar.
+            </div>
+          )}
           {loading ? (
             <div className="flex justify-center py-10">
               <Loader2 className="w-5 h-5 animate-spin text-primary" />
