@@ -1,77 +1,39 @@
-# Retomada das melhorias — Ondas 2, 3 e 4
+## Plano de execução
 
-Já concluído na sessão anterior (Onda 1): info-chat invoke, fix de flash de navegação, toggle tema claro/escuro, botão "Tenho uma dúvida" reposicionado em todos os cards.
+### 1. Criar usuário admin
+- Criar `rennanjoao@rjelitelab.com.br` (senha `010909`) via migration usando `auth.users` com `crypt()` + `email_confirmed_at = now()`.
+- Inserir registros correspondentes em `public.profiles` e `public.user_roles` com `role = 'admin'`.
 
-A seguir, o que falta. Vou executar **uma onda por mensagem** para você revisar progressivamente. Esta plano cobre as 3 ondas; ao aprovar, começo pela **Onda 2**.
+### 2. Corrigir e-mail em `supabase/functions/info-chat/index.ts`
+- Linha ~11 do SYSTEM_PROMPT: `rjelitehub.com.br` → `rjelitelab.com.br`. Nada mais é alterado. Redeploy da função.
 
----
+### 3. Corrigir e-mail em `supabase/functions/fitness-chat/index.ts`
+- Duas ocorrências de `rennanjoao@elitelab.com.br` → `rennanjoao@rjelitelab.com.br`. Redeploy da função.
 
-## Onda 2 — Coach: visualização e dados
+### 4. Remover dados públicos expostos
+- Deletar `public/data/alunos.json` e `public/data/matheus.json`.
+- Remover a pasta `public/data/` se ficar vazia.
+- (Confirmado: nenhum import/fetch no `src/` referencia esses arquivos.)
 
-### 2. Fotos do aluno na anamnese (painel do coach)
-No `AnamnesisViewer` do coach, renderizar grid 2x2 clicável (frente, costas, lateral direita, lateral esquerda) com URLs do Cloudinary salvas no payload da anamnese. Modal de zoom ao clicar.
+### 5. Remover componentes órfãos de gamificação
+- Deletar `src/components/gamification/ScoreCard.tsx` e `RankingTeaser.tsx`.
+- Remover a pasta `src/components/gamification/`.
+- (Confirmado via `rg`: nenhum import externo aponta para esses arquivos.)
 
-### 3. Email do coach via `profiles.email`
-Garantir que `notify-coach` (e qualquer envio de e-mail disparado por `Anamnesis.tsx`, `CheckIn.tsx`, `ProtocolQuestionButton.tsx`) busque o e-mail do coach em `profiles.notification_email` (ou `profiles.email` se preferir) — não em `auth.users`. Ajustar a edge function para receber `coach_id` e resolver o e-mail via service role.
+### 6. `.gitignore`
+- Já contém `.env`, `.env.*`, `!.env.example` (linhas 26-28). Nenhuma alteração.
 
-### 4. Gráfico de estimativa de % de gordura
-Componente novo no `StudentDashboard` e no `AnamnesisViewer` do coach:
-- Cálculo: Jackson & Pollock 3 ou 7 dobras quando houver dobras cutâneas; fallback para Marinha dos EUA (circunferências) ou Deurenberg (BMI+idade+sexo).
-- Linha temporal: ponto inicial vindo da anamnese, pontos seguintes vindos de cada check-in.
-- Gráfico `Recharts` (LineChart) com banda de meta opcional.
+### 7. Verificação do fluxo de e-mail aluno → coach (sem alterações de código)
+Confirmação de que o sistema já funciona para **qualquer** professor cadastrado, não apenas o admin:
 
-### 7. Card "Diretrizes e Suplementação"
-Auditar o componente renderizador do protocolo de suplementação. Garantir que campos vazios não renderizem; substituir por estado "—" ou ocultar. Validar que `supplements_json`/`hydration` do protocolo ativo são lidos corretamente.
+- **`notify-coach`** (linha 128) envia com `from: no-reply@rjelitelab.com.br` (domínio verificado no Resend) e `to: [body.coachEmail]` — o destinatário é dinâmico, recebido no payload. Não há allowlist nem hardcode de e-mail de coach.
+- **`src/lib/notifyCoach.ts`** resolve `coachEmail` a partir de `profiles.notification_email` (ou `email` como fallback) do coach vinculado ao aluno via `coach_students`. Cada coach novo que se cadastrar e preencher seu `notification_email` no perfil receberá normalmente.
+- **Vínculo aluno↔coach** ocorre via `get_coach_by_invite_code` + inserção em `coach_students` (status `active`), de modo que `anamnesis`, `check_ins` e perguntas disparam o notify para o coach correto.
+- **RLS `coach_notifications`**: política `Students insert notifications to their coach` exige `auth.uid() = student_id` e relação ativa em `coach_students` — funciona para qualquer par coach/aluno legítimo.
 
----
+Nada será editado nesses arquivos; apenas confirmação de funcionamento.
 
-## Onda 3 — Monetização do coach (link externo, sem Stripe)
-
-### 9. Cadastro do coach + trial 30 dias
-- Página `/coach-register` (form: nome, e-mail, senha, telefone).
-- Migration: coluna `trial_ends_at TIMESTAMPTZ` em `profiles` (default `now() + interval '30 days'` quando role = `coach`).
-- Função `is_coach_trial_active(_user_id uuid)` SECURITY DEFINER.
-- `CoachGuard`: se trial expirou e plano não está ativo, renderiza overlay desfocado com CTA para `/planos`.
-
-### 10. Página `/planos` + link de pagamento configurável pelo admin
-- Migration: nova tabela `app_settings (key text PK, value jsonb, updated_at)`. GRANTs corretos. RLS: `SELECT` para todos autenticados, `UPDATE/INSERT` apenas para role `admin`.
-- Admin: aba "Pagamentos" com input para colar o link externo (Pix/cartão/boleto) — salva em `app_settings` chave `coach_payment_link`.
-- `/planos`: mostra Mensal R$ 20, Semestral (R$ 108 ≈ 10% off), Anual (R$ 192 ≈ 20% off). Botão "Pagar agora" abre o link salvo em nova aba.
-- Sem Stripe, sem webhooks. Renovação manual confirmada pelo admin (botão "Marcar como pago" estende `trial_ends_at`).
-
----
-
-## Onda 4 — Dados e nova feature
-
-### 11. Cascade delete + limpeza de órfãos
-Migration única:
-- `ON DELETE CASCADE` em todas as FKs que referenciam `auth.users(id)` (profiles, user_roles, coach_students, anamnesis, check_ins, protocols, coach_plans, player_doubts).
-- `DELETE` de órfãos existentes (`coach_students` com `student_id`/`coach_id` sem usuário, anamnesis sem profile, etc).
-- Trigger no `auth.users` AFTER DELETE só onde CASCADE não cobre.
-
-### 12. Lista de Compras
-- Nova aba "Lista de Compras" no `StudentArea` (após "Semana").
-- Lê o protocolo ativo (`diet_strategy_json`) e extrai todos os alimentos por dia.
-- Seletor de período: 1 / 7 / 15 / 30 dias.
-- **Múltiplas opções de dieta**: seletor "Opção A / Opção B / Todas". Quando "Todas": deduplica por nome do alimento, **soma** quantidades quando o mesmo item aparece em opções do mesmo dia.
-- Lista agrupada por categoria (carbo, proteína, gordura, vegetal, outros) com checkbox por item.
-- Botão **Exportar PDF** (`jsPDF` + logo Elite Hub).
-- Botão **WhatsApp** abrindo `wa.me` com texto formatado (emoji + categorias) conforme o template enviado.
-
----
-
-## Detalhes técnicos transversais
-
-- Todas as migrations seguem o padrão obrigatório: `CREATE TABLE` → `GRANT` → `ALTER ... ENABLE RLS` → `CREATE POLICY`.
-- Toda lógica de e-mail/admin com privilégios usa `SECURITY DEFINER` ou `service_role` na edge function — nunca no client.
-- Componentes novos seguem o design system (tokens HSL em `index.css`, `text-primary` para destaques vermelhos, glassmorphism nos cards).
-- Pacote de mudanças por onda em uma única resposta; deploy das edge functions ao final de cada onda.
-
-## Fora de escopo
-- Stripe / pagamento integrado (decisão já foi "só link externo").
-- Mudanças em fluxo de autenticação ou roles além das necessárias para o trial.
-- Refatorações estéticas não pedidas.
-
----
-
-**Aprove para eu começar pela Onda 2.** Cada onda termina com lista de arquivos alterados e o que testar.
+### Detalhes técnicos
+- Não alterar `notify-coach`, `send-plan-email`, rotas, hooks ou componentes de auth.
+- Após edição das edge functions, fazer deploy de `info-chat` e `fitness-chat`.
+- Build será validado automaticamente para garantir que a remoção dos arquivos de gamificação não quebrou imports.
