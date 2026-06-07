@@ -916,6 +916,12 @@ export default function CoachDashboard() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <CheckinHistoryDialog
+          student={historyStudent}
+          open={!!historyStudent}
+          onClose={() => setHistoryStudent(null)}
+        />
       </main>
     </div>
   );
