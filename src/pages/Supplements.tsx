@@ -111,24 +111,55 @@ export default function Supplements() {
           </div>
         )}
 
-        {/* Suplementos estruturados */}
-        {supplements.length > 0 && (
-          <div className="space-y-3">
-            <h2 className="font-bold text-sm text-foreground flex items-center gap-2">
-              <Pill className="w-4 h-4 text-primary" /> Suplementos
-            </h2>
-            {supplements.map((s: any, i: number) => (
-              <Card key={i} className="bg-card border border-border rounded-xl p-4">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-bold text-foreground">{s.name}</span>
-                  {s.timing && <Badge variant="outline" className="text-xs">{s.timing}</Badge>}
+        {/* Suplementos agrupados por horário */}
+        {supplements.length > 0 && (() => {
+          const groups = supplements.reduce((acc: Record<string, any[]>, s: any) => {
+            const key = (s.timing && String(s.timing).trim()) || "Outros";
+            (acc[key] = acc[key] || []).push(s);
+            return acc;
+          }, {});
+          const order = ["Ao acordar", "Manhã", "Pré-treino", "Pós-treino", "Tarde", "Noite", "Antes de dormir"];
+          const keys = Object.keys(groups).sort((a, b) => {
+            if (a === "Outros") return 1;
+            if (b === "Outros") return -1;
+            const ia = order.indexOf(a); const ib = order.indexOf(b);
+            if (ia === -1 && ib === -1) return a.localeCompare(b);
+            if (ia === -1) return 1;
+            if (ib === -1) return -1;
+            return ia - ib;
+          });
+          return (
+            <div className="space-y-3">
+              <h2 className="font-bold text-sm text-foreground flex items-center gap-2">
+                <Pill className="w-4 h-4 text-primary" /> Suplementos
+              </h2>
+              {keys.map((timing) => (
+                <div key={timing} className="glass rounded-2xl p-4 border border-white/[0.06] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Badge variant="outline" className="text-xs border-primary/40 text-primary bg-primary/5">
+                      {timing}
+                    </Badge>
+                    <span className="text-[10px] text-muted-foreground">{groups[timing].length} item(ns)</span>
+                  </div>
+                  <ul className="space-y-2 pt-1">
+                    {groups[timing].map((s: any, i: number) => (
+                      <li key={i} className="border-b border-border/40 last:border-0 pb-2 last:pb-0">
+                        <p className="text-sm text-foreground">
+                          <span className="text-primary">•</span>{" "}
+                          <span className="font-bold">{s.name}</span>
+                          {s.dose && <span className="font-bold"> — {s.dose}</span>}
+                        </p>
+                        {s.notes && (
+                          <p className="text-xs text-muted-foreground italic mt-0.5 pl-3">{s.notes}</p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                {s.dose  && <p className="text-sm text-primary font-semibold">{s.dose}</p>}
-                {s.notes && <p className="text-xs text-muted-foreground italic mt-1">{s.notes}</p>}
-              </Card>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          );
+        })()}
 
         {/* Observações gerais de suplementação */}
         {supplementationGuideline.trim() && (
