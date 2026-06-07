@@ -47,6 +47,27 @@ export type Database = {
         }
         Relationships: []
       }
+      app_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+        }
+        Relationships: []
+      }
       avatar_customization: {
         Row: {
           clothing_color: string
@@ -561,6 +582,7 @@ export type Database = {
           notification_email: string | null
           pix_key: string | null
           team_name: string | null
+          trial_ends_at: string | null
           updated_at: string
           user_id: string
         }
@@ -576,6 +598,7 @@ export type Database = {
           notification_email?: string | null
           pix_key?: string | null
           team_name?: string | null
+          trial_ends_at?: string | null
           updated_at?: string
           user_id: string
         }
@@ -591,6 +614,7 @@ export type Database = {
           notification_email?: string | null
           pix_key?: string | null
           team_name?: string | null
+          trial_ends_at?: string | null
           updated_at?: string
           user_id?: string
         }
