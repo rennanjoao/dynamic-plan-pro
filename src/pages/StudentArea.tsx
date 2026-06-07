@@ -14,7 +14,6 @@ import {
   Loader2, User, AlertCircle, Copy, Check, X, LogOut, Sparkles, ShoppingCart
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import ProtocolQuestionButton from "@/components/student/ProtocolQuestionButton";
 
 export default function StudentArea() {
   const navigate = useNavigate();
@@ -256,7 +255,7 @@ export default function StudentArea() {
               key={mod.title} 
               className={`hover:shadow-md transition-all bg-card/60 border ${mod.border}`}
             >
-              <CardContent className="p-5 space-y-3">
+              <CardContent className="p-5">
                 <div className="flex items-center gap-4 cursor-pointer" onClick={() => navigate(mod.route)}>
                   <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${mod.bg}`}>
                     <mod.icon className={`w-6 h-6 ${mod.color}`} />
@@ -268,7 +267,6 @@ export default function StudentArea() {
                     </p>
                   </div>
                 </div>
-                <ProtocolQuestionButton context={mod.questionContext} studentName={profile?.full_name} variant="full" />
               </CardContent>
             </Card>
           ))}
