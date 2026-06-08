@@ -283,12 +283,23 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         <SheetContent side="right" className="w-full sm:max-w-[640px] overflow-y-auto">
           <SheetHeader>
             <SheetTitle>Anamnese & Feedback — {studentName}</SheetTitle>
-            <SheetDescription className="text-xs">Consulte sem perder o estado da dieta. O builder permanece montado.</SheetDescription>
+            <SheetDescription className="text-xs">Compare anamnese × último feedback ou feedback atual × anterior.</SheetDescription>
           </SheetHeader>
           <div className="mt-4">
             {consultOpen && (
               <Suspense fallback={<div className="py-12 text-center"><Loader2 className="w-5 h-5 animate-spin text-primary mx-auto" /></div>}>
-                <AnamnesisViewerLazy studentId={studentId} studentName={studentName} />
+                <Tabs defaultValue="anamnese" className="w-full">
+                  <TabsList className="grid grid-cols-2 w-full">
+                    <TabsTrigger value="anamnese" className="text-xs">Anamnese × Último feedback</TabsTrigger>
+                    <TabsTrigger value="feedbacks" className="text-xs">Feedback atual × anterior</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="anamnese" className="mt-4">
+                    <AnamnesisViewerLazy studentId={studentId} studentName={studentName} />
+                  </TabsContent>
+                  <TabsContent value="feedbacks" className="mt-4">
+                    <CompareCheckinsLazy studentId={studentId} />
+                  </TabsContent>
+                </Tabs>
               </Suspense>
             )}
           </div>
