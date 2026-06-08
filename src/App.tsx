@@ -19,7 +19,6 @@ const Auth         = lazyWithRetry(() => import("./pages/Auth"));
 const StudentArea  = lazyWithRetry(() => import("./pages/StudentArea"));
 const NotFound     = lazyWithRetry(() => import("./pages/NotFound"));
 
-const StudentDashboard = lazyWithRetry(() => import("./pages/StudentDashboard"));
 const CoachDashboard   = lazyWithRetry(() => import("./pages/CoachDashboard"));
 const Anamnesis        = lazyWithRetry(() => import("./pages/Anamnesis"));
 const CheckIn          = lazyWithRetry(() => import("./pages/CheckIn"));
@@ -27,8 +26,8 @@ const Evolution        = lazyWithRetry(() => import("./pages/Evolution"));
 const DynamicRoutine   = lazyWithRetry(() => import("./pages/DynamicRoutine"));
 const WorkoutPlanPage  = lazyWithRetry(() => import("./pages/WorkoutPlan"));
 const Supplements      = lazyWithRetry(() => import("./pages/Supplements"));
-const Planos          = lazyWithRetry(() => import("./pages/Planos"));
-const ShoppingList    = lazyWithRetry(() => import("./pages/ShoppingList"));
+const Planos           = lazyWithRetry(() => import("./pages/Planos"));
+const ShoppingList     = lazyWithRetry(() => import("./pages/ShoppingList"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -65,19 +64,20 @@ const App = () => {
               <Route path="/student"     element={<Student />} />
               <Route path="/auth"        element={<Auth />} />
               <Route path="/admin-login" element={<AdminLogin />} />
-              
-              {/* PORTA DE ENTRADA (NOVO CADASTRO) - Agora é pública */}
+
+              {/* PORTA DE ENTRADA (NOVO CADASTRO) */}
               <Route path="/anamnesis"    element={<Anamnesis />} />
 
               {/* Aluno autenticado */}
               <Route path="/student-area" element={<AnamnesisGuard><StudentArea /></AnamnesisGuard>} />
               <Route path="/fitness"      element={<Navigate to="/student-area" replace />} />
+              {/* /daily removido — redireciona para não quebrar links antigos */}
+              <Route path="/daily"        element={<Navigate to="/student-area" replace />} />
               <Route path="/check-in"     element={<AnamnesisGuard><CheckIn /></AnamnesisGuard>} />
               <Route path="/evolution"    element={<AnamnesisGuard><Evolution /></AnamnesisGuard>} />
               <Route path="/routine"      element={<AnamnesisGuard><DynamicRoutine /></AnamnesisGuard>} />
               <Route path="/workout-plan" element={<AnamnesisGuard><WorkoutPlanPage /></AnamnesisGuard>} />
-              <Route path="/daily"        element={<AnamnesisGuard><StudentDashboard /></AnamnesisGuard>} />
-              <Route path="/supplements"  element={<AnamnesisGuard><Supplements /></AnamnesisGuard>} /> {/* Nova rota */}
+              <Route path="/supplements"  element={<AnamnesisGuard><Supplements /></AnamnesisGuard>} />
               <Route path="/shopping-list" element={<AnamnesisGuard><ShoppingList /></AnamnesisGuard>} />
 
               {/* Coach */}
