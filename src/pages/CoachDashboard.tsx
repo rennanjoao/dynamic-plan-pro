@@ -18,7 +18,7 @@ import {
   AlertTriangle, CheckCircle2, Search, Filter, Users,
   Dumbbell, ClipboardList, ArrowLeft,
   Loader2, Plus, Trash2, DollarSign, UserPlus, Calendar, X, User, LogOut,
-  MessageSquare, History, FileDown
+  MessageSquare, History, FileDown, FileText, Camera
 } from "lucide-react";
 import CoachNotificationBell from "@/components/coach/CoachNotificationBell";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,9 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import BFDisplay from "@/components/shared/BFDisplay";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -44,6 +47,145 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 
 const AnamnesisViewer = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
 const ProtocolBuilder = lazy(() => import("@/components/coach/ProtocolBuilder"));
+
+// ─── Quick Anamnesis Sheet ────────────────────────────────────────────────────
+
+function QuickAnamnesisSheet({
+  student, open, onClose, onOpenEvolution,
+}: {
+  student: StudentStatus | null;
+  open: boolean;
+  onClose: () => void;
+  onOpenEvolution: (s: StudentStatus) => void;
+}) {
+  return (
+    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent side="right" className="sm:max-w-[440px] w-full p-0">
+        <SheetHeader className="px-4 py-3 border-b border-border">
+          <SheetTitle className="text-sm">Anamnese — {student?.name || "Aluno"}</SheetTitle>
+        </SheetHeader>
+        <ScrollArea className="h-[calc(100vh-110px)]">
+          <div className="p-4 space-y-3">
+            {student ? (
+              <Suspense fallback={<div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>}>
+                <AnamnesisViewer studentId={student.id} studentName={student.name} />
+              </Suspense>
+            ) : null}
+          </div>
+        </ScrollArea>
+        <div className="border-t border-border p-3">
+          <Button variant="outline" className="w-full" onClick={() => student && onOpenEvolution(student)}>
+            <Camera className="w-4 h-4 mr-2" /> Ver Evolução Visual
+          </Button>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// ─── Evolution (Visual) Dialog ────────────────────────────────────────────────
+
+interface EvoCheckin {
+  id: string;
+  submitted_at: string;
+  current_metrics: Record<string, unknown> | null;
+  payload: Record<string, unknown> | null;
+  photo_url: string | null;
+  body_fat: number | null;
+}
+
+function EvolutionDialog({ student, open, onClose }: { student: StudentStatus | null; open: boolean; onClose: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [anamPhoto, setAnamPhoto] = useState<string | null>(null);
+  const [anamBF, setAnamBF] = useState<number | null>(null);
+  const [items, setItems] = useState<EvoCheckin[]>([]);
+
+  useEffect(() => {
+    if (!open || !student) return;
+    (async () => {
+      setLoading(true);
+      const { data: anam } = await sb.from("anamnesis").select("payload, body_fat").eq("student_id", student.id).order("submitted_at", { ascending: false }).limit(1).maybeSingle();
+      const fotos = (anam?.payload as any)?.fotos || {};
+      const firstPhoto = fotos.frente || fotos.lado || fotos.costas || fotos.relax || null;
+      setAnamPhoto(firstPhoto);
+      setAnamBF(anam?.body_fat ?? (anam?.payload as any)?.composicao?.body_fat ?? null);
+      const { data: ci } = await sb.from("check_ins").select("id, submitted_at, current_metrics, payload, photo_url, body_fat").eq("student_id", student.id).order("submitted_at", { ascending: false });
+      setItems((ci || []) as EvoCheckin[]);
+      setLoading(false);
+    })();
+  }, [open, student]);
+
+  const latest = items[0];
+  const latestPhoto = latest?.photo_url || (latest?.payload as any)?.fotos?.frente || null;
+
+  const getWeight = (c: EvoCheckin) => {
+    const m: any = c.current_metrics || {};
+    return m.peso ?? m.weight ?? "—";
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-3xl max-h-[88vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Evolução Visual — {student?.name || "Aluno"}</DialogTitle>
+        </DialogHeader>
+        {loading ? (
+          <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+        ) : (
+          <div className="space-y-4">
+            {/* Comparativo: inicial × mais recente */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg border border-border bg-card p-3">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Inicial (anamnese)</p>
+                {anamPhoto ? (
+                  <img src={anamPhoto} alt="Foto inicial" className="w-full aspect-[3/4] object-cover rounded" />
+                ) : (
+                  <div className="w-full aspect-[3/4] rounded bg-muted/30 flex items-center justify-center text-xs text-muted-foreground">Sem foto</div>
+                )}
+                {anamBF != null && <div className="mt-2"><BFDisplay value={anamBF} /></div>}
+              </div>
+              <div className="rounded-lg border border-border bg-card p-3">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Mais recente</p>
+                {latestPhoto ? (
+                  <img src={latestPhoto} alt="Foto recente" className="w-full aspect-[3/4] object-cover rounded" />
+                ) : (
+                  <div className="w-full aspect-[3/4] rounded bg-muted/30 flex items-center justify-center text-xs text-muted-foreground">Sem foto</div>
+                )}
+                {latest?.body_fat != null && <div className="mt-2"><BFDisplay value={latest.body_fat} /></div>}
+              </div>
+            </div>
+
+            {/* Grid de todos os check-ins */}
+            <div>
+              <p className="text-xs font-semibold mb-2">Histórico de check-ins</p>
+              {items.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic text-center py-6">Nenhum check-in registrado.</p>
+              ) : (
+                <div className="grid grid-cols-3 gap-3">
+                  {items.map((c) => {
+                    const photo = c.photo_url || (c.payload as any)?.fotos?.frente || null;
+                    return (
+                      <div key={c.id} className="rounded-lg border border-border bg-card p-2">
+                        {photo ? (
+                          <img src={photo} alt="" className="w-full aspect-square object-cover rounded" />
+                        ) : (
+                          <div className="w-full aspect-square rounded bg-muted/30 flex items-center justify-center text-[10px] text-muted-foreground">Sem foto</div>
+                        )}
+                        <p className="text-[10px] text-muted-foreground mt-1.5">{new Date(c.submitted_at).toLocaleDateString("pt-BR")}</p>
+                        <p className="text-xs font-semibold">{String(getWeight(c))} kg</p>
+                        {c.body_fat != null && <div className="mt-1 text-[10px]"><BFDisplay value={c.body_fat} /></div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 type CoachView = "list" | "anamnesis" | "protocol";
 
@@ -85,13 +227,14 @@ function AlertBadge({ level }: { level: AlertLevel }) {
 }
 
 function StudentRow({
-  student, onAnamnesis, onProtocol, onUnlink, onHistory,
+  student, onAnamnesis, onProtocol, onUnlink, onHistory, onQuickAnamnesis,
 }: {
   student: StudentStatus;
   onAnamnesis: (s: StudentStatus) => void;
   onProtocol: (s: StudentStatus) => void;
   onUnlink: (s: StudentStatus) => void;
   onHistory: (s: StudentStatus) => void;
+  onQuickAnamnesis: (s: StudentStatus) => void;
 }) {
   const lastActivity =
     student.daysInactive === 0 ? "Hoje" :
@@ -151,6 +294,9 @@ function StudentRow({
       )}
 
       <div className="flex items-center gap-1 shrink-0">
+        <button onClick={() => onQuickAnamnesis(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Ver anamnese / feedback">
+          <FileText className="w-4 h-4" />
+        </button>
         <button onClick={() => onAnamnesis(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Ver Anamnese">
           <ClipboardList className="w-4 h-4" />
         </button>
@@ -741,6 +887,8 @@ export default function CoachDashboard() {
   const [showProfile, setShowProfile] = useState(false);
   const [unlinkTarget, setUnlinkTarget] = useState<StudentStatus | null>(null);
   const [historyStudent, setHistoryStudent] = useState<StudentStatus | null>(null);
+  const [quickAnamStudent, setQuickAnamStudent] = useState<StudentStatus | null>(null);
+  const [evoStudent, setEvoStudent] = useState<StudentStatus | null>(null);
   const qc = useQueryClient();
 
   // FIX: lê feedbackIntervalDays do perfil do coach para passar ao hook
@@ -891,6 +1039,7 @@ export default function CoachDashboard() {
                     onProtocol={(st) => { setSelectedStudent(st); setView("protocol"); }}
                     onUnlink={setUnlinkTarget}
                     onHistory={setHistoryStudent}
+                    onQuickAnamnesis={setQuickAnamStudent}
                   />
                 ))}
               </div>
@@ -921,6 +1070,19 @@ export default function CoachDashboard() {
           student={historyStudent}
           open={!!historyStudent}
           onClose={() => setHistoryStudent(null)}
+        />
+
+        <QuickAnamnesisSheet
+          student={quickAnamStudent}
+          open={!!quickAnamStudent}
+          onClose={() => setQuickAnamStudent(null)}
+          onOpenEvolution={(s) => { setQuickAnamStudent(null); setEvoStudent(s); }}
+        />
+
+        <EvolutionDialog
+          student={evoStudent}
+          open={!!evoStudent}
+          onClose={() => setEvoStudent(null)}
         />
       </main>
     </div>
