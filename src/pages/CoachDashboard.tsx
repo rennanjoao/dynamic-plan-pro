@@ -66,12 +66,20 @@ function LatestFeedbackDialog({
       setLoading(true);
       const { data } = await sb
         .from("check_ins")
-        .select("id, submitted_at, current_metrics, payload, coach_feedback, photo_url")
+        .select("id, submitted_at, current_metrics, payload, coach_feedback, photo_url, feedback_read_at")
         .eq("student_id", student.id)
         .order("submitted_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      setCi((data as CheckinRow) || null);
+      const row = (data as CheckinRow) || null;
+      setCi(row);
+      // [FIX] marca feedback como visto quando coach abre o dialog
+      if (row?.id && !row.feedback_read_at) {
+        sb.from("check_ins")
+          .update({ feedback_read_at: new Date().toISOString() })
+          .eq("id", row.id)
+          .then(() => {});
+      }
       setLoading(false);
     })();
   }, [open, student]);
@@ -328,6 +336,8 @@ interface CheckinRow {
   payload: Record<string, unknown> | null;
   coach_feedback: string | null;
   photo_url: string | null;
+  // [FIX] indicador "visto" pelo aluno
+  feedback_read_at: string | null;
 }
 
 function CheckinHistoryDialog({
@@ -340,6 +350,8 @@ function CheckinHistoryDialog({
   const [items, setItems] = useState<CheckinRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  // [FIX] busca no histórico de check-ins
+  const [searchDate, setSearchDate] = useState("");
 
   useEffect(() => {
     if (!open || !student) return;
@@ -347,12 +359,13 @@ function CheckinHistoryDialog({
       setLoading(true);
       const { data } = await sb
         .from("check_ins")
-        .select("id, submitted_at, current_metrics, payload, coach_feedback, photo_url")
+        .select("id, submitted_at, current_metrics, payload, coach_feedback, photo_url, feedback_read_at")
         .eq("student_id", student.id)
         .order("submitted_at", { ascending: false });
       setItems((data || []) as CheckinRow[]);
       setLoading(false);
       setExpanded({});
+      setSearchDate("");
     })();
   }, [open, student]);
 
@@ -455,6 +468,13 @@ function CheckinHistoryDialog({
                       )}
                       {c.coach_feedback && (
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-500/10 text-emerald-600 border-emerald-500/30">Com feedback</span>
+                      )}
+                      {/* [FIX] indicador "visto" pelo aluno */}
+                      {c.coach_feedback && c.feedback_read_at && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-primary/10 text-primary border-primary/30">✓ Visto pelo aluno</span>
+                      )}
+                      {c.coach_feedback && !c.feedback_read_at && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-600 border-amber-500/30">Aguardando leitura</span>
                       )}
                     </div>
                   </div>
