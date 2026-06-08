@@ -56,25 +56,33 @@ export function calcItemMacros(item: any): Macros {
 
 /**
  * Calcula macros de UMA refeição.
- * Por convenção, somamos UMA opção por kind (carb/protein/fat) — a primeira
- * — para refletir o que o aluno consumiria de fato em um dia.
+ *
+ * Soma os macros de TODOS os itens da primeira opção de cada kind.
+ * O kind de cada item é determinado pelo group TACO do alimento (não pelo
+ * kind declarado na opção), evitando que "Frango peito" colocado
+ * erroneamente na seção Carbo distorça os totais.
+ *
+ * Para o placar do dia, o que importa é o valor nutricional real do item,
+ * independentemente de em qual card o coach o posicionou.
  */
 export function calcMealMacros(meal: any): Macros {
   if (!meal) return { ...ZERO };
   const out: Macros = { ...ZERO };
   const opts: any[] = Array.isArray(meal.options) ? meal.options : [];
+
+  // Pega a primeira opção de cada kind para não somar alternativas (Op1 + Op2)
   const seenKind: Record<string, boolean> = {};
   opts.forEach((opt) => {
     const kind = opt?.kind || "other";
-    if (seenKind[kind]) return; // só a primeira opção de cada kind
+    if (seenKind[kind]) return;
     seenKind[kind] = true;
     const items: any[] = Array.isArray(opt?.items) ? opt.items : [];
     items.forEach((it) => {
       const m = calcItemMacros(it);
-      out.kcal += m.kcal;
+      out.kcal    += m.kcal;
       out.protein += m.protein;
-      out.carbs += m.carbs;
-      out.fat += m.fat;
+      out.carbs   += m.carbs;
+      out.fat     += m.fat;
     });
   });
   return {
