@@ -15,7 +15,8 @@ export function parseGrams(it: any): number {
   const m = txt.match(/(\d+(?:[.,]\d+)?)\s*(g|kg|ml|l)?/i);
   if (!m) return 0;
   let v = Number(m[1].replace(",", "."));
-  if (m[2] && /kg|l/i.test(m[2])) v *= 1000;
+  const unit = (m[2] || "").toLowerCase();
+  if (unit === "kg" || unit === "l") v *= 1000;
   return v;
 }
 
