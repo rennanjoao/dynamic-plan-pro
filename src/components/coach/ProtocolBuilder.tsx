@@ -34,12 +34,16 @@ import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
+} from "@/components/ui/sheet";
+import { lazy, Suspense } from "react";
+import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command";
 import {
   Loader2, Save, Plus, Trash2, FileText, Dumbbell, UtensilsCrossed,
   Calendar, Sparkles, BarChart3, Activity, Pill, TrendingUp, TrendingDown, Minus,
-  Check, ChevronsUpDown, ChevronDown, Copy, BookmarkPlus, Library, ArrowLeftRight, Pencil
+  Check, ChevronsUpDown, ChevronDown, Copy, BookmarkPlus, Library, ArrowLeftRight, Pencil, ClipboardList
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -61,6 +65,8 @@ interface Props {
   studentId: string;
   studentName: string;
 }
+
+const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
 
 interface ProtocolRow {
   id: string;
