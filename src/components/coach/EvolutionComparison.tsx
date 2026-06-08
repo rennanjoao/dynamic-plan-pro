@@ -1,0 +1,337 @@
+/**
+ * EvolutionComparison.tsx
+ * Comparação completa de evolução do aluno para o coach:
+ * - Selectores LEFT/RIGHT para escolher quaisquer 2 pontos (Anamnese + Check-ins).
+ * - Regra padrão: RIGHT = check-in mais recente; LEFT = check-in anterior (ou Anamnese se só houver 1).
+ * - Compara fotos (4 poses), métricas com delta, e feedback do coach.
+ * - Modo Galeria: 2 / 4 / 6 períodos lado a lado (todas as fotos).
+ * - Botão para abrir Anamnese exclusiva (com export PDF).
+ */
+import { useEffect, useMemo, useState, lazy, Suspense } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { Loader2, TrendingDown, TrendingUp, Minus, FileText, Images, ArrowLeft } from "lucide-react";
+import { CHECKIN_METRICS } from "@/lib/checkInSchema";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const sb: any = supabase;
+
+const POSE_KEYS = ["frente", "lateral_dir", "lateral_esq", "costas"] as const;
+const POSE_LABEL: Record<string, string> = {
+  frente: "Frente", lateral_dir: "Lado Dir.", lateral_esq: "Lado Esq.", costas: "Costas",
+};
+
+const EXTRA_METRICS = [
+  { key: "body_fat", label: "% Gordura", unit: "%" },
+  { key: "arm_relaxed", label: "Braço relaxado", unit: "cm" },
+  { key: "arm_flexed", label: "Braço contraído", unit: "cm" },
+] as const;
+const ALL_METRICS = [...CHECKIN_METRICS, ...EXTRA_METRICS];
+
+interface Timepoint {
+  id: string;
+  kind: "anamnese" | "checkin";
+  date: string;
+  label: string;
+  metrics: Record<string, number | undefined>;
+  fotos: Record<string, string>;
+  feedback: string | null;
+}
+
+function fmt(iso: string) {
+  return new Date(iso).toLocaleDateString("pt-BR");
+}
+
+const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
+
+export default function EvolutionComparison({
+  studentId, studentName,
+}: { studentId: string; studentName: string }) {
+  const [loading, setLoading] = useState(true);
+  const [points, setPoints] = useState<Timepoint[]>([]);
+  const [leftId, setLeftId] = useState<string>("");
+  const [rightId, setRightId] = useState<string>("");
+  const [gallerySize, setGallerySize] = useState<0 | 2 | 4 | 6>(0);
+  const [anamneseOnly, setAnamneseOnly] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      const [{ data: anam }, { data: cis }] = await Promise.all([
+        sb.from("anamnesis").select("id, submitted_at, baseline_metrics, payload, body_fat, arm_relaxed, arm_flexed")
+          .eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle(),
+        sb.from("check_ins").select("id, submitted_at, current_metrics, payload, coach_feedback, body_fat, arm_relaxed, arm_flexed")
+          .eq("student_id", studentId).order("submitted_at", { ascending: false }),
+      ]);
+
+      const list: Timepoint[] = [];
+
+      if (anam) {
+        const payload = (anam.payload || {}) as Record<string, unknown>;
+        const fotos = (payload.fotos as Record<string, string>) || {};
+        const metrics = { ...(anam.baseline_metrics || {}) } as Record<string, number | undefined>;
+        if (anam.body_fat != null) metrics.body_fat = anam.body_fat;
+        if (anam.arm_relaxed != null) metrics.arm_relaxed = anam.arm_relaxed;
+        if (anam.arm_flexed != null) metrics.arm_flexed = anam.arm_flexed;
+        list.push({
+          id: `anam-${anam.id}`,
+          kind: "anamnese",
+          date: anam.submitted_at,
+          label: `Anamnese · ${fmt(anam.submitted_at)}`,
+          metrics, fotos, feedback: null,
+        });
+      }
+
+      (cis || []).forEach((c: any, idx: number) => {
+        const payload = (c.payload || {}) as Record<string, unknown>;
+        const fotos = (payload.fotos as Record<string, string>) || {};
+        const metrics = { ...(c.current_metrics || {}) } as Record<string, number | undefined>;
+        if (c.body_fat != null) metrics.body_fat = c.body_fat;
+        if (c.arm_relaxed != null) metrics.arm_relaxed = c.arm_relaxed;
+        if (c.arm_flexed != null) metrics.arm_flexed = c.arm_flexed;
+        list.push({
+          id: `ci-${c.id}`,
+          kind: "checkin",
+          date: c.submitted_at,
+          label: `Feedback ${idx === 0 ? "atual" : `#${(cis.length - idx)}`} · ${fmt(c.submitted_at)}`,
+          metrics, fotos, feedback: c.coach_feedback,
+        });
+      });
+
+      // Order: most recent first, anamnese last (it's baseline)
+      list.sort((a, b) => {
+        if (a.kind !== b.kind) return a.kind === "checkin" ? -1 : 1;
+        return new Date(b.date).getTime() - new Date(a.date).getTime();
+      });
+
+      setPoints(list);
+
+      // Defaults: RIGHT = latest checkin; LEFT = previous checkin or anamnese
+      const checkins = list.filter((p) => p.kind === "checkin");
+      const anamnese = list.find((p) => p.kind === "anamnese");
+      const right = checkins[0] || anamnese;
+      const left = checkins[1] || anamnese || checkins[0];
+      setRightId(right?.id ?? "");
+      setLeftId(left?.id && left.id !== right?.id ? left.id : (anamnese?.id ?? checkins[1]?.id ?? ""));
+
+      setLoading(false);
+    })();
+  }, [studentId]);
+
+  const left = useMemo(() => points.find((p) => p.id === leftId), [points, leftId]);
+  const right = useMemo(() => points.find((p) => p.id === rightId), [points, rightId]);
+
+  if (loading) {
+    return <div className="flex justify-center py-16"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>;
+  }
+
+  if (anamneseOnly) {
+    return (
+      <div className="space-y-3">
+        <Button variant="ghost" size="sm" onClick={() => setAnamneseOnly(false)} className="h-8 text-xs">
+          <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Voltar para comparação
+        </Button>
+        <Suspense fallback={<div className="py-12 text-center"><Loader2 className="w-5 h-5 animate-spin text-primary mx-auto" /></div>}>
+          <AnamnesisViewerLazy studentId={studentId} studentName={studentName} />
+        </Suspense>
+      </div>
+    );
+  }
+
+  if (points.length === 0) {
+    return (
+      <Card className="p-6 text-center text-sm text-muted-foreground">
+        Sem anamnese ou check-ins registrados.
+      </Card>
+    );
+  }
+
+  if (!left || !right) {
+    return (
+      <Card className="p-6 text-center text-sm text-muted-foreground">
+        Selecione dois períodos para comparar.
+      </Card>
+    );
+  }
+
+  const galleryItems = gallerySize > 0 ? points.slice(0, gallerySize) : [];
+
+  return (
+    <div className="space-y-4">
+      {/* Controles topo */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setAnamneseOnly(true)}>
+          <FileText className="w-3.5 h-3.5 mr-1.5" /> Ver Anamnese (exportar)
+        </Button>
+        <div className="ml-auto flex items-center gap-1.5">
+          <Images className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Galeria:</span>
+          {([0, 2, 4, 6] as const).map((n) => (
+            <Button
+              key={n}
+              variant={gallerySize === n ? "default" : "outline"}
+              size="sm"
+              className="h-7 px-2 text-[11px]"
+              onClick={() => setGallerySize(n)}
+            >
+              {n === 0 ? "Off" : `${n}`}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {/* Galeria multi-períodos */}
+      {gallerySize > 0 && (
+        <Card className="p-3">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
+            Galeria — {gallerySize} períodos mais recentes
+          </p>
+          <div className="overflow-x-auto">
+            <div className="grid gap-2" style={{ gridTemplateColumns: `120px repeat(${galleryItems.length}, minmax(140px, 1fr))` }}>
+              <div />
+              {galleryItems.map((p) => (
+                <div key={p.id} className="text-center text-[10px] font-semibold text-foreground/80 truncate">
+                  {p.label}
+                </div>
+              ))}
+              {POSE_KEYS.map((pose) => (
+                <PoseRow key={pose} pose={pose} items={galleryItems} />
+              ))}
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Seletores de comparação */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Comparar com</p>
+          <Select value={leftId} onValueChange={setLeftId}>
+            <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {points.map((p) => (
+                <SelectItem key={p.id} value={p.id} className="text-xs">{p.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Atual / Referência</p>
+          <Select value={rightId} onValueChange={setRightId}>
+            <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {points.map((p) => (
+                <SelectItem key={p.id} value={p.id} className="text-xs">{p.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Fotos lado a lado (4 poses) */}
+      <Card className="p-3">
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Fotos</p>
+        <div className="grid grid-cols-2 gap-3">
+          <PhotoColumn point={left} />
+          <PhotoColumn point={right} />
+        </div>
+      </Card>
+
+      {/* Métricas */}
+      <Card className="p-4">
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Medidas</p>
+        <div className="space-y-1">
+          {ALL_METRICS.map((m) => {
+            const a = toNum(left.metrics[m.key]);
+            const b = toNum(right.metrics[m.key]);
+            const hasBoth = a != null && b != null;
+            const d = hasBoth ? (b as number) - (a as number) : null;
+            const Icon = d == null ? Minus : Math.abs(d) < 0.05 ? Minus : d < 0 ? TrendingDown : TrendingUp;
+            const color = d == null ? "text-muted-foreground" :
+              Math.abs(d) < 0.05 ? "text-muted-foreground" :
+              d < 0 ? "text-emerald-500" : "text-amber-500";
+            return (
+              <div key={m.key} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 py-1.5 border-b border-border/40 last:border-0">
+                <span className="text-xs text-muted-foreground">{m.label}</span>
+                <span className="text-xs tabular-nums text-foreground/70 w-20 text-right">{a != null ? `${a} ${m.unit}` : "—"}</span>
+                <span className="text-sm font-semibold tabular-nums w-20 text-right">{b != null ? `${b} ${m.unit}` : "—"}</span>
+                <span className={`flex items-center gap-1 text-xs font-semibold w-16 justify-end ${color}`}>
+                  <Icon className="w-3 h-3" />
+                  {d == null ? "—" : `${d > 0 ? "+" : ""}${d.toFixed(1)}`}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* Feedback texts */}
+      {(left.feedback || right.feedback) && (
+        <div className="grid grid-cols-2 gap-3">
+          <Card className="p-3 text-xs">
+            <p className="text-[10px] uppercase font-bold text-primary mb-1">{left.kind === "anamnese" ? "Anamnese" : "Feedback anterior"}</p>
+            <p className="whitespace-pre-wrap text-foreground/85">{left.feedback || (left.kind === "anamnese" ? "—" : "—")}</p>
+          </Card>
+          <Card className="p-3 text-xs">
+            <p className="text-[10px] uppercase font-bold text-primary mb-1">{right.kind === "anamnese" ? "Anamnese" : "Feedback atual"}</p>
+            <p className="whitespace-pre-wrap text-foreground/85">{right.feedback || "—"}</p>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function toNum(v: unknown): number | null {
+  if (typeof v === "number" && isFinite(v)) return v;
+  if (typeof v === "string") {
+    const n = parseFloat(v.replace(",", "."));
+    return isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function PhotoColumn({ point }: { point: Timepoint }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-center text-[10px] font-semibold text-foreground/80">{point.label}</p>
+      <div className="grid grid-cols-2 gap-1.5">
+        {POSE_KEYS.map((k) => (
+          <div key={k} className="space-y-1">
+            <div className="aspect-[3/4] rounded-md border border-border/50 overflow-hidden bg-muted/20 flex items-center justify-center">
+              {point.fotos[k] ? (
+                <img src={point.fotos[k]} alt={POSE_LABEL[k]} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-[9px] text-muted-foreground">—</span>
+              )}
+            </div>
+            <p className="text-[9px] text-center text-muted-foreground uppercase tracking-wider">{POSE_LABEL[k]}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PoseRow({ pose, items }: { pose: typeof POSE_KEYS[number]; items: Timepoint[] }) {
+  return (
+    <>
+      <div className="flex items-center text-[10px] uppercase tracking-wider text-muted-foreground">
+        {POSE_LABEL[pose]}
+      </div>
+      {items.map((p) => (
+        <div key={p.id} className="aspect-[3/4] rounded-md border border-border/50 overflow-hidden bg-muted/20 flex items-center justify-center">
+          {p.fotos[pose] ? (
+            <img src={p.fotos[pose]} alt={POSE_LABEL[pose]} className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-[9px] text-muted-foreground">—</span>
+          )}
+        </div>
+      ))}
+    </>
+  );
+}

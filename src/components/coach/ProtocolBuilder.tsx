@@ -66,8 +66,7 @@ interface Props {
   studentName: string;
 }
 
-const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
-const CompareCheckinsLazy = lazy(() => import("./CompareCheckins"));
+const EvolutionComparisonLazy = lazy(() => import("./EvolutionComparison"));
 
 interface ProtocolRow {
   id: string;
@@ -193,7 +192,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             </span>
             <ProtocolImportExport payload={payload} studentName={studentName} onImport={(p) => { setPayload(p); setProtocolId(protocolId); }} />
             <Button variant="outline" size="sm" onClick={() => setConsultOpen(true)}>
-              <ClipboardList className="w-3.5 h-3.5 mr-1.5" /> Consultar Anamnese
+              <ClipboardList className="w-3.5 h-3.5 mr-1.5" /> Evolução Visual
             </Button>
             <Button variant="outline" size="sm" onClick={() => setSetupOpen(true)}><Sparkles className="w-3.5 h-3.5 mr-1.5" /> Recriar Base</Button>
           </div>
@@ -282,24 +281,15 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       <Sheet open={consultOpen} onOpenChange={setConsultOpen}>
         <SheetContent side="right" className="w-full sm:max-w-[640px] overflow-y-auto">
           <SheetHeader>
-            <SheetTitle>Anamnese & Feedback — {studentName}</SheetTitle>
-            <SheetDescription className="text-xs">Compare anamnese × último feedback ou feedback atual × anterior.</SheetDescription>
+            <SheetTitle>Evolução Visual — {studentName}</SheetTitle>
+            <SheetDescription className="text-xs">
+              Compare fotos, medidas e feedbacks entre quaisquer dois períodos (Anamnese ou check-ins).
+            </SheetDescription>
           </SheetHeader>
           <div className="mt-4">
             {consultOpen && (
               <Suspense fallback={<div className="py-12 text-center"><Loader2 className="w-5 h-5 animate-spin text-primary mx-auto" /></div>}>
-                <Tabs defaultValue="anamnese" className="w-full">
-                  <TabsList className="grid grid-cols-2 w-full">
-                    <TabsTrigger value="anamnese" className="text-xs">Anamnese × Último feedback</TabsTrigger>
-                    <TabsTrigger value="feedbacks" className="text-xs">Feedback atual × anterior</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="anamnese" className="mt-4">
-                    <AnamnesisViewerLazy studentId={studentId} studentName={studentName} />
-                  </TabsContent>
-                  <TabsContent value="feedbacks" className="mt-4">
-                    <CompareCheckinsLazy studentId={studentId} />
-                  </TabsContent>
-                </Tabs>
+                <EvolutionComparisonLazy studentId={studentId} studentName={studentName} />
               </Suspense>
             )}
           </div>
