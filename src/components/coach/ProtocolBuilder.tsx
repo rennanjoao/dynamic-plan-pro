@@ -66,7 +66,6 @@ interface Props {
   studentName: string;
 }
 
-const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
 const EvolutionComparisonLazy = lazy(() => import("./EvolutionComparison"));
 
 interface ProtocolRow {
