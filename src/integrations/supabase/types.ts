@@ -16,6 +16,8 @@ export type Database = {
     Tables: {
       anamnesis: {
         Row: {
+          arm_flexed: number | null
+          arm_relaxed: number | null
           baseline_metrics: Json
           body_fat: number | null
           coach_id: string | null
@@ -27,6 +29,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          arm_flexed?: number | null
+          arm_relaxed?: number | null
           baseline_metrics?: Json
           body_fat?: number | null
           coach_id?: string | null
@@ -38,6 +42,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          arm_flexed?: number | null
+          arm_relaxed?: number | null
           baseline_metrics?: Json
           body_fat?: number | null
           coach_id?: string | null
@@ -169,6 +175,8 @@ export type Database = {
       }
       check_ins: {
         Row: {
+          arm_flexed: number | null
+          arm_relaxed: number | null
           body_fat: number | null
           coach_feedback: string | null
           coach_id: string | null
@@ -182,6 +190,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          arm_flexed?: number | null
+          arm_relaxed?: number | null
           body_fat?: number | null
           coach_feedback?: string | null
           coach_id?: string | null
@@ -195,6 +205,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          arm_flexed?: number | null
+          arm_relaxed?: number | null
           body_fat?: number | null
           coach_feedback?: string | null
           coach_id?: string | null
