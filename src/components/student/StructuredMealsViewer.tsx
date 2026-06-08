@@ -187,12 +187,16 @@ function MacroSection({
 // ─── MealCard ─────────────────────────────────────────────────────────────────
 const MEAL_ICONS = ["☀️", "🥗", "💪", "🍽️", "🌙", "⚡", "🥤", "🌿"];
 
-function MealCard({ meal, index, mode, highPct, lowPct }: {
-  meal: any; index: number; mode: CarbMode; highPct: number; lowPct: number;
+function MealCard({ meal, index, mode, highPct, lowPct, supplements }: {
+  meal: any; index: number; mode: CarbMode; highPct: number; lowPct: number; supplements?: any[];
 }) {
   const [open, setOpen] = useState(index === 0);
   const [isCooked, setIsCooked] = useState(false);
   const allOptions: any[] = Array.isArray(meal.options) ? meal.options : [];
+  const hiddenKinds: string[] = Array.isArray(meal.hiddenKinds) ? meal.hiddenKinds : [];
+  const isHidden = (k: string) => hiddenKinds.includes(k);
+  const mealName = meal.name || `Refeição ${index + 1}`;
+  const linkedSupps = (supplements || []).filter((s: any) => s?.mealRef && s.mealRef === mealName);
 
   // Strict per-kind grouping — never mix
   const carbOpts    = allOptions.filter((o: any) => o?.kind === "carb");
@@ -243,15 +247,33 @@ function MealCard({ meal, index, mode, highPct, lowPct }: {
             </div>
           )}
 
-          <MacroSection kind="carb"    opts={carbOpts}    mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} />
-          <MacroSection kind="protein" opts={proteinOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} />
-          <MacroSection kind="fat"     opts={fatOpts}     mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} />
+          {!isHidden("carb")    && <MacroSection kind="carb"    opts={carbOpts}    mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} />}
+          {!isHidden("protein") && <MacroSection kind="protein" opts={proteinOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} />}
+          {!isHidden("fat")     && <MacroSection kind="fat"     opts={fatOpts}     mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} />}
           <MacroSection kind="veg"     opts={vegOpts}     mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} />
 
+          {linkedSupps.length > 0 && (
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5 space-y-1">
+              <p className="text-[10px] uppercase tracking-wider font-bold text-primary">Suplementos desta refeição</p>
+              {linkedSupps.map((s: any, i: number) => (
+                <p key={i} className="text-xs text-foreground/90">
+                  <span className="font-semibold">{s.name}</span>
+                  {s.dose ? ` · ${s.dose}` : ""}
+                  {s.notes ? <span className="text-muted-foreground"> — {s.notes}</span> : ""}
+                </p>
+              ))}
+            </div>
+          )}
 
 
 
-          {meal.notes && <p className="text-xs text-muted-foreground italic px-1 break-words">{stripHtml(meal.notes)}</p>}
+
+          {meal.notes && (
+            <div className="rounded-lg border border-white/10 bg-white/[0.02] p-2.5">
+              <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1">Observação</p>
+              <p className="text-xs text-foreground/90 break-words whitespace-pre-wrap">{stripHtml(meal.notes)}</p>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -273,7 +295,7 @@ export default function StructuredMealsViewer({ payload }: { payload: any }) {
       <NutritionStrategyHeader payload={safeData} mode={mode} setMode={setMode} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {meals.map((meal: any, i: number) => (
-          <MealCard key={i} meal={meal} index={i} mode={mode} highPct={highPct} lowPct={lowPct} />
+          <MealCard key={i} meal={meal} index={i} mode={mode} highPct={highPct} lowPct={lowPct} supplements={safeData.supplements} />
         ))}
       </div>
     </div>
