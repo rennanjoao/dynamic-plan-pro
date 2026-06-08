@@ -1,39 +1,149 @@
-## Plano de execução
 
-### 1. Criar usuário admin
-- Criar `rennanjoao@rjelitelab.com.br` (senha `010909`) via migration usando `auth.users` com `crypt()` + `email_confirmed_at = now()`.
-- Inserir registros correspondentes em `public.profiles` e `public.user_roles` com `role = 'admin'`.
+# Refactoring DynamicPlan Pro — Painel do Coach
 
-### 2. Corrigir e-mail em `supabase/functions/info-chat/index.ts`
-- Linha ~11 do SYSTEM_PROMPT: `rjelitehub.com.br` → `rjelitelab.com.br`. Nada mais é alterado. Redeploy da função.
+Plano dividido em 8 blocos, executados na ordem abaixo para reduzir risco (schema → lógica → UI → Supabase → telas do aluno).
 
-### 3. Corrigir e-mail em `supabase/functions/fitness-chat/index.ts`
-- Duas ocorrências de `rennanjoao@elitelab.com.br` → `rennanjoao@rjelitelab.com.br`. Redeploy da função.
+---
 
-### 4. Remover dados públicos expostos
-- Deletar `public/data/alunos.json` e `public/data/matheus.json`.
-- Remover a pasta `public/data/` se ficar vazia.
-- (Confirmado: nenhum import/fetch no `src/` referencia esses arquivos.)
+## Bloco 1 — Schema + cálculo de macros
 
-### 5. Remover componentes órfãos de gamificação
-- Deletar `src/components/gamification/ScoreCard.tsx` e `RankingTeaser.tsx`.
-- Remover a pasta `src/components/gamification/`.
-- (Confirmado via `rg`: nenhum import externo aponta para esses arquivos.)
+**Arquivos:** `src/lib/protocolSchema.ts`, novo `src/lib/macroCalc.ts`
 
-### 6. `.gitignore`
-- Já contém `.env`, `.env.*`, `!.env.example` (linhas 26-28). Nenhuma alteração.
+- Adicionar `manualMacros` (opcional) em `MealFoodItemSchema`; manter o `z.preprocess` intacto para backward-compat.
+- Exportar `MEAL_NAME_PRESETS`.
+- Criar `src/lib/macroCalc.ts` com `calcMealMacros(meal)` e `calcDayMacros(meals[])` usando `TACO_FOODS` (importado de `src/data/tacoFoods.ts`). Regras:
+  - `isTaco && rawWeight > 0` → `(rawWeight/100) × tacoNutrients` (energy = kcal).
+  - `manualMacros` existe → soma direta.
+  - Caso contrário → 0.
 
-### 7. Verificação do fluxo de e-mail aluno → coach (sem alterações de código)
-Confirmação de que o sistema já funciona para **qualquer** professor cadastrado, não apenas o admin:
+---
 
-- **`notify-coach`** (linha 128) envia com `from: no-reply@rjelitelab.com.br` (domínio verificado no Resend) e `to: [body.coachEmail]` — o destinatário é dinâmico, recebido no payload. Não há allowlist nem hardcode de e-mail de coach.
-- **`src/lib/notifyCoach.ts`** resolve `coachEmail` a partir de `profiles.notification_email` (ou `email` como fallback) do coach vinculado ao aluno via `coach_students`. Cada coach novo que se cadastrar e preencher seu `notification_email` no perfil receberá normalmente.
-- **Vínculo aluno↔coach** ocorre via `get_coach_by_invite_code` + inserção em `coach_students` (status `active`), de modo que `anamnesis`, `check_ins` e perguntas disparam o notify para o coach correto.
-- **RLS `coach_notifications`**: política `Students insert notifications to their coach` exige `auth.uid() = student_id` e relação ativa em `coach_students` — funciona para qualquer par coach/aluno legítimo.
+## Bloco 2 — DietTab refatorado (accordion + placar)
 
-Nada será editado nesses arquivos; apenas confirmação de funcionamento.
+**Arquivo:** `src/components/coach/ProtocolBuilder.tsx`
 
-### Detalhes técnicos
-- Não alterar `notify-coach`, `send-plan-email`, rotas, hooks ou componentes de auth.
-- Após edição das edge functions, fazer deploy de `info-chat` e `fitness-chat`.
-- Build será validado automaticamente para garantir que a remoção dos arquivos de gamificação não quebrou imports.
+- Placar `sticky top-0 z-10` com 4 barras (kcal/P/C/G) consumindo `calcDayMacros`. Meta = `payload.macros`. Barra fica vermelha quando atual > meta.
+- Refeições viram accordion controlado (`openMealIndex` no state) — apenas uma aberta. Cabeçalho fechado mostra pílulas `Xp · Yc · Zg`; aberto mostra tag "editando".
+- Nome da refeição com `<input list="meal-names">` + `<datalist>` de `MEAL_NAME_PRESETS`.
+- Itens manuais (não-TACO) ganham linha inline com 4 inputs compactos `P / C / G / Kcal` → grava em `item.manualMacros`.
+- Ícone ↔ (substituições) e lixeira por item; remover o `<details>` "Macros da refeição".
+- Rodapé de cada refeição aberta: botões "Duplicar" e "Salvar como modelo" (bloco 6).
+
+---
+
+## Bloco 3 — Substituições inline
+
+**Arquivo:** `src/components/coach/ProtocolBuilder.tsx` (helper novo em `macroCalc.ts`)
+
+- Painel inline (não Modal/Sheet) abaixo do item ao clicar em ↔. State local por item.
+- TACO: função `suggestTacoSubstitutes(item)` que filtra `TACO_FOODS` pelo mesmo `kind`, macro dominante ±15%, recalcula grama para equivalência, máx. 4 sugestões.
+- Não-TACO: lista `meal.substitutions[kind]` cadastradas.
+- Clique em sugestão substitui o item.
+
+---
+
+## Bloco 4 — Import/Export avançado + fuzzy match
+
+**Arquivos:** `src/components/coach/ProtocolImportExport.tsx`, `src/lib/protocolXlsx.ts`
+
+- Esconder os 4 botões dentro de `<Collapsible>` com trigger discreto "⚙ Modo avançado · JSON / Excel".
+- Após import (JSON e XLSX), rodar `fuzzyMatchItems(meals)`:
+  - Normaliza nome (lowercase, sem acento, sem "grelhado/cozido/assado").
+  - Match via Levenshtein simplificado / includes contra `TACO_FOODS`.
+  - Score ≥ 70% → marca `isTaco=true`, preenche `baseName`, parseia `weight` em `rawWeight` se necessário.
+- Itens não casados abrem `<Dialog>` com lista + select TACO (Popover/Command) por item; botões "Confirmar e importar" e "Importar assim mesmo".
+- Export JSON inclui novos campos (`manualMacros` etc.) com defaults.
+
+---
+
+## Bloco 5 — Treino: cadência + InfoPopovers
+
+**Arquivo:** `src/pages/WorkoutPlan.tsx`
+
+- Criar `InfoPopover` local com `TERM_INFO` (reps/cadence/rest).
+- Grid do card de exercício passa a ser dinâmico: `grid-cols-3` quando `ex.cadence` vazio, `grid-cols-4` quando preenchido.
+- Labels de Reps/Cadência/Descanso ganham ícone `Info` que abre `<Popover side="top">` (largura 220px). Sem migration.
+
+---
+
+## Bloco 6 — Drawer de anamnese no painel do coach
+
+**Arquivos:** `src/lib/anamnesisSchema.ts`, `src/pages/CoachDashboard.tsx`
+
+- Adicionar `braco_relaxado` e `braco_contraido` na seção `composicao` (JSONB, sem migration).
+- Botão "Ver anamnese / feedback" abre `<Sheet side="right" w-[440px]>` com `<ScrollArea>` reutilizando `AnamnesisViewer`.
+- Query: `from("anamnesis").select("payload, submitted_at").eq("student_id", id).order(...).limit(1).maybeSingle()`.
+
+---
+
+## Bloco 7 — Biblioteca de refeições (`meal_templates`)
+
+**Migration + UI:**
+
+```sql
+CREATE TABLE public.meal_templates (
+  id UUID PK DEFAULT gen_random_uuid(),
+  coach_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'mixed',
+  meal_data JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+GRANT SELECT, INSERT, DELETE ON public.meal_templates TO authenticated;
+GRANT ALL ON public.meal_templates TO service_role;
+ALTER TABLE ... ENABLE RLS;
+-- policies: coach_id = auth.uid() para SELECT/INSERT/DELETE
+```
+
+- "Salvar como modelo": `<Dialog>` com nome (pré-preenchido) + select categoria, grava snapshot do `MealSchema`.
+- "Carregar modelo" no header do DietTab: `<Dialog>` listando templates do coach com pílulas de macros; clique anexa nova refeição ao final.
+
+---
+
+## Bloco 8 — Lista de compras + histórico visual com BF%
+
+### 8.1 ShoppingList (`src/pages/ShoppingList.tsx`)
+- Bug fix: chave de agrupamento passa de `${kind}:${normalizeName(name)}` para `normalizeName(name)`.
+- `parseGrams`: prioridade 1 = `rawWeight` numérico; prioridade 2 = parse do `weight` textual (g/kg/ml/l).
+- `<Alert>` âmbar acima da lista: "Quantidades referem-se aos alimentos CRUS".
+
+### 8.2 BF% (migration + schemas + UI)
+```sql
+ALTER TABLE anamnesis ADD COLUMN IF NOT EXISTS body_fat NUMERIC(4,1);
+ALTER TABLE check_ins ADD COLUMN IF NOT EXISTS body_fat NUMERIC(4,1);
+CREATE INDEX IF NOT EXISTS idx_check_ins_student_submitted
+  ON check_ins (student_id, submitted_at DESC);
+```
+- Adicionar `body_fat` em `anamnesisSchema.ts` (composicao) e `checkInSchema.ts`.
+- Novo `src/components/shared/BFDisplay.tsx`: valor com 1 decimal + `<Info>` → `<Popover>` com tabela ACE.
+
+### 8.3 Aba "Evolução visual" no CoachDashboard
+- Nova `<TabsTrigger>` ao lado das existentes.
+- Topo: grid 2 colunas (foto inicial da anamnese × foto do check-in mais recente).
+- Abaixo: grid 3 colunas com todos os check-ins (foto + data + peso + `BFDisplay`).
+- Estados vazios quando faltam dados.
+
+---
+
+## Detalhes técnicos / regras transversais
+
+- **Backward-compat:** `MealPreprocess` permanece intacto; todos os novos campos Zod usam `.optional()` ou `.default()`.
+- **Sem libs novas:** uso de Popover, Sheet, Dialog, Collapsible, Alert, ScrollArea já existentes em `src/components/ui/`.
+- **Macros 100% client-side** com `TACO_FOODS` em memória.
+- **Tipos Supabase (`types.ts`)** são autogerados após as migrations — não editar manualmente.
+- **Migrations:** apenas `meal_templates` (nova tabela com GRANTs + RLS) e `ALTER`s de `body_fat` / índice em check_ins. Demais campos (`cadence`, `braco_*`) vivem no JSONB.
+
+---
+
+## Ordem de execução
+
+1. Schema + `macroCalc.ts`.
+2. Migrations Supabase (meal_templates, body_fat, índice).
+3. DietTab (placar + accordion + manualMacros + substituições inline).
+4. ProtocolImportExport (Collapsible + fuzzy match + Dialog).
+5. WorkoutPlan (InfoPopovers + cadência).
+6. CoachDashboard (Sheet anamnese + aba Evolução visual + biblioteca de modelos).
+7. ShoppingList (fix bug + alerta + parseGrams).
+8. BFDisplay + integração nos viewers.
+
+Cada bloco é commitável de forma independente; nenhum quebra dados existentes.
