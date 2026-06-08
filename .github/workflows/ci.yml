@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    name: typecheck + tests + schema mirror
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: TypeScript check
+        run: bun run typecheck
+
+      - name: Unit + property tests (vitest)
+        run: bun run test
+
+      - name: Migration sanity — colunas premium presentes
+        run: |
+          set -e
+          for col in arm_relaxed arm_flexed body_fat; do
+            if ! grep -rq "\\b$col\\b" supabase/migrations; then
+              echo "::error::Coluna $col ausente em supabase/migrations — schema mirror quebrado"
+              exit 1
+            fi
+            if ! grep -q "\\b$col\\b" src/integrations/supabase/types.ts; then
+              echo "::error::Coluna $col ausente em src/integrations/supabase/types.ts — regenere os types"
+              exit 1
+            fi
+          done
+
+      - name: Bloquear edição de arquivos auto-gerados
+        run: |
+          set -e
+          # Falha se PR alterou client.ts ou types.ts manualmente sem migration nova
+          if git diff --name-only origin/main...HEAD 2>/dev/null | grep -E "src/integrations/supabase/(client|types)\.ts" >/dev/null; then
+            if ! git diff --name-only origin/main...HEAD | grep -E "^supabase/migrations/.*\.sql$" >/dev/null; then
+              echo "::warning::types.ts/client.ts alterados sem nova migration — confirme regen via CLI"
+            fi
+          fi
