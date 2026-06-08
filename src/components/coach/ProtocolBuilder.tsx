@@ -444,6 +444,63 @@ function WorkoutsTab({ payload, setPayload }: { payload: ProtocolPayload; setPay
 // Botão cru/cozido é do viewer — aqui só salvamos rawWeight + cookFactor limpos.
 
 function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void }) {
+  const [coachId, setCoachId] = useState<string | null>(null);
+  useEffect(() => { supabase.auth.getSession().then(({ data }) => setCoachId(data.session?.user?.id ?? null)); }, []);
+
+  const [saveTplFor, setSaveTplFor] = useState<{ idx: number; name: string; kind: string } | null>(null);
+  const [loadTplOpen, setLoadTplOpen] = useState(false);
+  const [templates, setTemplates] = useState<any[]>([]);
+
+  async function reloadTemplates() {
+    if (!coachId) return;
+    const { data } = await sb.from("meal_templates").select("*").eq("coach_id", coachId).order("created_at", { ascending: false });
+    setTemplates(data || []);
+  }
+
+  useEffect(() => { if (loadTplOpen) reloadTemplates(); /* eslint-disable-next-line */ }, [loadTplOpen, coachId]);
+
+  async function persistTemplate() {
+    if (!saveTplFor || !coachId) return;
+    const meal = payload.meals[saveTplFor.idx];
+    const { error } = await sb.from("meal_templates").insert({
+      coach_id: coachId,
+      name: saveTplFor.name.trim() || meal.name || "Modelo",
+      kind: saveTplFor.kind || "mixed",
+      meal_data: meal,
+    });
+    if (error) { toast.error("Falha ao salvar modelo: " + error.message); return; }
+    toast.success("Modelo salvo na sua biblioteca");
+    setSaveTplFor(null);
+  }
+
+  function attachTemplate(tpl: any) {
+    try {
+      const meal = tpl.meal_data;
+      setPayload({ ...payload, meals: [...payload.meals, { ...meal, name: meal.name || tpl.name }] });
+      toast.success("Modelo adicionado");
+      setLoadTplOpen(false);
+    } catch { toast.error("Modelo inválido"); }
+  }
+
+  function duplicateMeal(mealIdx: number) {
+    const orig = payload.meals[mealIdx];
+    const copy = JSON.parse(JSON.stringify(orig));
+    copy.name = `${orig.name || "Refeição"} (cópia)`;
+    const next = [...payload.meals];
+    next.splice(mealIdx + 1, 0, copy);
+    setPayload({ ...payload, meals: next });
+  }
+
+  // Placar de macros (sticky) — soma das primeiras opções de cada kind por refeição
+  const dayMacros = useMemo(() => calcDayMacros(payload.meals), [payload.meals]);
+  const goals = payload.macros;
+  const bars = [
+    { label: "Kcal", cur: dayMacros.kcal, goal: goals.calories || 1, color: "bg-primary" },
+    { label: "Prot", cur: dayMacros.protein, goal: goals.protein || 1, color: "bg-blue-500" },
+    { label: "Carb", cur: dayMacros.carbs, goal: goals.carbs || 1, color: "bg-amber-500" },
+    { label: "Gord", cur: dayMacros.fat, goal: goals.fat || 1, color: "bg-rose-500" },
+  ];
+
   const updMacro = (i: number, k: "carbs" | "protein" | "fat", v: number) => {
     const next = [...payload.meals];
     next[i] = { ...next[i], macros: { ...next[i].macros, [k]: v } };
@@ -522,11 +579,46 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
 
   return (
     <div className="space-y-3">
+      {/* Placar sticky de macros */}
+      <div className="sticky top-0 z-10 -mx-2 px-2 pb-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+        <Card className="bg-card/80 border-border p-3">
+          <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+            <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Macros do dia (auto) vs meta</p>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setLoadTplOpen(true)}>
+              <Library className="w-3 h-3 mr-1" /> Carregar modelo
+            </Button>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {bars.map((b) => {
+              const pct = Math.min(150, Math.round((b.cur / b.goal) * 100));
+              const over = b.cur > b.goal;
+              return (
+                <div key={b.label}>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-[10px] uppercase font-semibold text-muted-foreground">{b.label}</span>
+                    <span className={`text-[10px] font-bold ${over ? "text-rose-500" : "text-foreground"}`}>{Math.round(b.cur)}/{Math.round(b.goal)}</span>
+                  </div>
+                  <div className="h-1.5 mt-1 rounded-full bg-muted overflow-hidden">
+                    <div className={`${over ? "bg-rose-500" : b.color} h-full transition-all`} style={{ width: `${Math.min(100, pct)}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      </div>
+
       {payload.meals.map((m, mealIdx) => (
         <Card key={mealIdx} className="bg-card/60 border-border overflow-hidden">
           {/* Cabeçalho */}
           <div className="flex items-center gap-2 px-4 py-3 border-b border-border/40 bg-muted/10">
-            <Input value={m.name} onChange={(e) => updMealField(mealIdx, { name: e.target.value })} placeholder="Nome (Café, Almoço...)" className="h-8 text-sm font-bold text-primary flex-1" />
+            <Input
+              list="meal-name-presets"
+              value={m.name}
+              onChange={(e) => updMealField(mealIdx, { name: e.target.value })}
+              placeholder="Nome (Café, Almoço...)"
+              className="h-8 text-sm font-bold text-primary flex-1"
+            />
             <Input value={m.time} onChange={(e) => updMealField(mealIdx, { time: e.target.value })} placeholder="07:00" className="h-8 text-sm w-20 shrink-0" />
             {payload.setup.carbCycle && (
               <button type="button"
@@ -535,6 +627,8 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                 <TrendingUp className="w-3.5 h-3.5" /> Ciclo
               </button>
             )}
+            <button onClick={() => duplicateMeal(mealIdx)} className="text-muted-foreground hover:text-primary p-1.5 shrink-0" title="Duplicar refeição"><Copy className="w-3.5 h-3.5" /></button>
+            <button onClick={() => setSaveTplFor({ idx: mealIdx, name: m.name || "Modelo", kind: "mixed" })} className="text-muted-foreground hover:text-primary p-1.5 shrink-0" title="Salvar como modelo"><BookmarkPlus className="w-3.5 h-3.5" /></button>
             <button onClick={() => setPayload({ ...payload, meals: payload.meals.filter((_, idx) => idx !== mealIdx) })} className="text-muted-foreground hover:text-destructive p-1.5 shrink-0"><Trash2 className="w-4 h-4" /></button>
           </div>
 
@@ -654,6 +748,72 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
       <Button variant="outline" size="sm" onClick={() => setPayload({ ...payload, meals: [...payload.meals, makeEmptyMeal(`Refeição ${payload.meals.length + 1}`)] })} className="w-full">
         <Plus className="w-4 h-4 mr-1.5" /> Adicionar Nova Refeição
       </Button>
+
+      <datalist id="meal-name-presets">
+        {MEAL_NAME_PRESETS.map((n) => <option key={n} value={n} />)}
+      </datalist>
+
+      {/* Dialog: Salvar como modelo */}
+      <Dialog open={!!saveTplFor} onOpenChange={(o) => !o && setSaveTplFor(null)}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Salvar refeição como modelo</DialogTitle>
+            <DialogDescription className="text-xs">Disponível na biblioteca do coach para qualquer aluno.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label className="text-xs">Nome do modelo</Label>
+              <Input value={saveTplFor?.name || ""} onChange={(e) => setSaveTplFor((p) => p ? { ...p, name: e.target.value } : null)} className="mt-1 h-9 text-sm" />
+            </div>
+            <div>
+              <Label className="text-xs">Categoria</Label>
+              <Select value={saveTplFor?.kind || "mixed"} onValueChange={(v) => setSaveTplFor((p) => p ? { ...p, kind: v } : null)}>
+                <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["mixed","cafe","pre","pos","almoco","lanche","jantar","ceia"].map((k) => (
+                    <SelectItem key={k} value={k} className="text-sm capitalize">{k}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={persistTemplate} className="w-full">Salvar modelo</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Carregar modelo */}
+      <Dialog open={loadTplOpen} onOpenChange={setLoadTplOpen}>
+        <DialogContent className="sm:max-w-[520px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Biblioteca de refeições</DialogTitle>
+            <DialogDescription className="text-xs">Clique em um modelo para anexar como nova refeição.</DialogDescription>
+          </DialogHeader>
+          {templates.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic text-center py-8">Nenhum modelo salvo ainda.</p>
+          ) : (
+            <div className="space-y-2 py-2">
+              {templates.map((t) => {
+                const mm = calcMealMacros(t.meal_data);
+                return (
+                  <button key={t.id} onClick={() => attachTemplate(t)}
+                    className="w-full text-left bg-card border border-border rounded-lg p-3 hover:border-primary/50 transition-colors">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-sm font-semibold text-foreground">{t.name}</p>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{t.kind}</span>
+                    </div>
+                    <div className="flex gap-2 text-[10px] text-muted-foreground">
+                      <span>{Math.round(mm.kcal)} kcal</span>
+                      <span>· {Math.round(mm.protein)}p</span>
+                      <span>· {Math.round(mm.carbs)}c</span>
+                      <span>· {Math.round(mm.fat)}g</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
