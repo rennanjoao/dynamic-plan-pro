@@ -15,13 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ArrowLeft, FileDown, Share2, ShoppingCart, Loader2, AlertCircle } from "lucide-react";
 import jsPDF from "jspdf";
-import {
-  stripHtml,
-  parseGrams,
-  normalizeName,
-  formatQty,
-  aggregateShoppingList,
-} from "@/lib/shoppingListAgg";
+import { formatQty, aggregateShoppingList } from "@/lib/shoppingListAgg";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const KIND_LABEL: Record<string, string> = {
