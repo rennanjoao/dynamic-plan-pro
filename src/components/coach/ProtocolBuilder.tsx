@@ -67,6 +67,7 @@ interface Props {
 }
 
 const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
+const CompareCheckinsLazy = lazy(() => import("./CompareCheckins"));
 
 interface ProtocolRow {
   id: string;
@@ -282,12 +283,23 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         <SheetContent side="right" className="w-full sm:max-w-[640px] overflow-y-auto">
           <SheetHeader>
             <SheetTitle>Anamnese & Feedback — {studentName}</SheetTitle>
-            <SheetDescription className="text-xs">Consulte sem perder o estado da dieta. O builder permanece montado.</SheetDescription>
+            <SheetDescription className="text-xs">Compare anamnese × último feedback ou feedback atual × anterior.</SheetDescription>
           </SheetHeader>
           <div className="mt-4">
             {consultOpen && (
               <Suspense fallback={<div className="py-12 text-center"><Loader2 className="w-5 h-5 animate-spin text-primary mx-auto" /></div>}>
-                <AnamnesisViewerLazy studentId={studentId} studentName={studentName} />
+                <Tabs defaultValue="anamnese" className="w-full">
+                  <TabsList className="grid grid-cols-2 w-full">
+                    <TabsTrigger value="anamnese" className="text-xs">Anamnese × Último feedback</TabsTrigger>
+                    <TabsTrigger value="feedbacks" className="text-xs">Feedback atual × anterior</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="anamnese" className="mt-4">
+                    <AnamnesisViewerLazy studentId={studentId} studentName={studentName} />
+                  </TabsContent>
+                  <TabsContent value="feedbacks" className="mt-4">
+                    <CompareCheckinsLazy studentId={studentId} />
+                  </TabsContent>
+                </Tabs>
               </Suspense>
             )}
           </div>
@@ -727,77 +739,30 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                           <div className="space-y-1.5">
                             {items.map((it: any, ii: number) => (
                               <div key={ii} className="bg-background rounded border border-border/40 px-2 py-2 space-y-1.5">
-                                {/* Linha 1: nome do alimento */}
-                                <div className="flex items-center gap-1.5">
-                                  {/* Campo de texto livre — principal para alimentos não-TACO */}
-                                  <Input
-                                    value={it.baseName || it.name || ""}
-                                    onChange={(e) => updItem(mealIdx, kind, optIdx, ii, { name: e.target.value, baseName: e.target.value, isTaco: false, rawWeight: 0 })}
-                                    placeholder="Nome do alimento (ex: Ovos inteiros, Frango grelhado...)"
-                                    className="h-8 text-xs flex-1"
-                                  />
-                                  {/* Busca TACO opcional */}
-                                  <Popover>
-                                    <PopoverTrigger asChild>
-                                      <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" title="Buscar na tabela TACO">
-                                        <ChevronsUpDown className="h-3 w-3" />
-                                      </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-[300px] p-0" align="end">
-                                      <Command>
-                                        <CommandInput placeholder="Buscar na TACO..." className="h-9 text-xs" />
-                                        <CommandList>
-                                          <CommandEmpty className="py-2 px-4 text-xs text-muted-foreground">Não encontrado — use o campo de nome à esquerda.</CommandEmpty>
-                                          <CommandGroup heading="Tabela TACO (UNICAMP)">
-                                            {TACO_DATA.map((taco) => {
-                                              const tKind = tacoGroupToKind(taco.group);
-                                              const badgeCls = tKind === "protein"
-                                                ? "bg-blue-500/10 text-blue-600"
-                                                : tKind === "fat"
-                                                ? "bg-rose-500/10 text-rose-500"
-                                                : "bg-amber-500/10 text-amber-600";
-                                              const badgeLabel = tKind === "protein" ? "prot" : tKind === "fat" ? "gord" : "carb";
-                                              return (
-                                              <CommandItem key={taco.id} value={taco.name}
-                                                onSelect={() => {
-                                                  if (tKind !== kind) {
-                                                    const kindLabel = kind === "protein" ? "Proteína" : kind === "fat" ? "Gordura" : "Carbo";
-                                                    const tacoLabel = tKind === "protein" ? "Proteína" : tKind === "fat" ? "Gordura" : "Carbo";
-                                                    toast.error(`"${taco.name}" é ${tacoLabel} — adicione-o no card correto.`, { description: `Este card é de ${kindLabel}.`, duration: 4000 });
-                                                    return;
-                                                  }
-                                                  updItem(mealIdx, kind, optIdx, ii, { baseName: taco.name, name: taco.name, isTaco: true, cookFactor: taco.cookFactor, rawWeight: it.rawWeight || 100 });
-                                                }}
-                                                className="text-xs">
-                                                <Check className={`mr-2 h-3 w-3 ${it.baseName === taco.name ? "opacity-100" : "opacity-0"}`} />
-                                                <span className="flex-1">{taco.name}</span>
-                                                <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ml-2 ${badgeCls}`}>{badgeLabel}</span>
-                                                {taco.cookFactor !== 1 && <span className="ml-1 text-[9px] text-muted-foreground">fator {taco.cookFactor}</span>}
-                                              </CommandItem>
-                                              );
-                                            })}
-                                          </CommandGroup>
-                                        </CommandList>
-                                      </Command>
-                                    </PopoverContent>
-                                  </Popover>
-                                  <button onClick={() => rmItem(mealIdx, kind, optIdx, ii)} className="text-muted-foreground hover:text-destructive p-1 shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
-                                </div>
-                                {/* Linha 2: quantidade / peso */}
-                                <div className="flex items-center gap-2">
-                                  {it.isTaco ? (
-                                    <>
-                                      <label className="text-[10px] text-muted-foreground shrink-0">Peso (g cru)</label>
-                                      <Input type="number" value={it.rawWeight || ""} onChange={(e) => updItem(mealIdx, kind, optIdx, ii, { rawWeight: Number(e.target.value) })} placeholder="ex: 100" className="h-7 text-xs w-24" />
-                                      <span className="text-[10px] text-muted-foreground">g — cozido calculado automaticamente</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <label className="text-[10px] text-muted-foreground shrink-0">Quantidade</label>
-                                      <Input value={it.weight ?? ""} onChange={(e) => updItem(mealIdx, kind, optIdx, ii, { weight: e.target.value })} placeholder="ex: 8 unidades, 200g, 2 fatias..." className="h-7 text-xs flex-1" />
-                                    </>
-                                  )}
-                                </div>
+                                <FoodRow
+                                  it={it}
+                                  kind={kind}
+                                  onPickTaco={(taco) => {
+                                    const tKind = tacoGroupToKind(taco.group);
+                                    if (tKind !== kind) {
+                                      const kindLabel = kind === "protein" ? "Proteína" : kind === "fat" ? "Gordura" : "Carbo";
+                                      const tacoLabel = tKind === "protein" ? "Proteína" : tKind === "fat" ? "Gordura" : "Carbo";
+                                      toast.error(`"${taco.name}" é ${tacoLabel} — adicione-o no card correto.`, { description: `Este card é de ${kindLabel}.`, duration: 4000 });
+                                      return;
+                                    }
+                                    updItem(mealIdx, kind, optIdx, ii, { baseName: taco.name, name: taco.name, isTaco: true, cookFactor: taco.cookFactor });
+                                  }}
+                                  onChangeName={(name) => updItem(mealIdx, kind, optIdx, ii, { name, baseName: name, isTaco: false, cookFactor: 1, rawWeight: 0 })}
+                                  onChangeWeight={(w) => {
+                                    const patch: any = { weight: w };
+                                    if (it.isTaco) {
+                                      const num = parseFloat(String(w).replace(",", "."));
+                                      patch.rawWeight = isFinite(num) ? num : 0;
+                                    }
+                                    updItem(mealIdx, kind, optIdx, ii, patch);
+                                  }}
+                                  onRemove={() => rmItem(mealIdx, kind, optIdx, ii)}
+                                />
                               </div>
                             ))}
                           </div>
@@ -984,5 +949,87 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
       {hint && <p className="text-[10px] text-muted-foreground mb-1">{hint}</p>}
       <div className="mt-1">{children}</div>
     </div>
+  );
+}
+
+// ─── FoodRow: nome com autocomplete inline TACO + quantidade unificada ───────
+function FoodRow({
+  it, kind, onPickTaco, onChangeName, onChangeWeight, onRemove,
+}: {
+  it: any;
+  kind: "carb" | "protein" | "fat";
+  onPickTaco: (t: typeof TACO_DATA[number]) => void;
+  onChangeName: (s: string) => void;
+  onChangeWeight: (s: string) => void;
+  onRemove: () => void;
+}) {
+  const [focused, setFocused] = useState(false);
+  const q = (it.baseName || it.name || "").toString().trim().toLowerCase();
+  const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const matches = useMemo(() => {
+    if (q.length < 2) return [];
+    const nq = norm(q);
+    return TACO_DATA
+      .filter((t) => norm(t.name).includes(nq))
+      .slice(0, 8);
+  }, [q]);
+  const showSuggestions = focused && matches.length > 0 && !it.isTaco;
+
+  return (
+    <>
+      <div className="flex items-center gap-1.5 relative">
+        <div className="relative flex-1">
+          <Input
+            value={it.baseName || it.name || ""}
+            onChange={(e) => onChangeName(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setTimeout(() => setFocused(false), 150)}
+            placeholder="Nome do alimento (digite para ver sugestões TACO)…"
+            className="h-8 text-xs w-full"
+          />
+          {showSuggestions && (
+            <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-popover border border-border rounded-md shadow-lg max-h-64 overflow-y-auto">
+              <div className="px-2 py-1 text-[9px] uppercase tracking-wider text-muted-foreground border-b border-border/50">
+                Sugestões TACO — clique para usar ou continue digitando
+              </div>
+              {matches.map((taco) => {
+                const tKind = tacoGroupToKind(taco.group);
+                const badgeCls = tKind === "protein"
+                  ? "bg-blue-500/10 text-blue-600"
+                  : tKind === "fat"
+                  ? "bg-rose-500/10 text-rose-500"
+                  : "bg-amber-500/10 text-amber-600";
+                const badgeLabel = tKind === "protein" ? "prot" : tKind === "fat" ? "gord" : "carb";
+                return (
+                  <button
+                    key={taco.id}
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); onPickTaco(taco); setFocused(false); }}
+                    className="w-full flex items-center gap-2 text-left px-2 py-1.5 text-xs hover:bg-accent"
+                  >
+                    <span className="flex-1 truncate">{taco.name}</span>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${badgeCls}`}>{badgeLabel}</span>
+                    {taco.cookFactor !== 1 && <span className="text-[9px] text-muted-foreground">×{taco.cookFactor}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        {it.isTaco && (
+          <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/30 shrink-0" title="Vinculado à tabela TACO">TACO</span>
+        )}
+        <button onClick={onRemove} className="text-muted-foreground hover:text-destructive p-1 shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
+      </div>
+      <div className="flex items-center gap-2">
+        <label className="text-[10px] text-muted-foreground shrink-0">Quantidade</label>
+        <Input
+          value={it.weight ?? ""}
+          onChange={(e) => onChangeWeight(e.target.value)}
+          placeholder={it.isTaco ? "ex: 100g (cru) ou 8 unidades…" : "ex: 8 unidades, 200g, 2 fatias…"}
+          className="h-7 text-xs flex-1"
+        />
+      </div>
+    </>
   );
 }
