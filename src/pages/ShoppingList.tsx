@@ -15,6 +15,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ArrowLeft, FileDown, Share2, ShoppingCart, Loader2, AlertCircle } from "lucide-react";
 import jsPDF from "jspdf";
+import {
+  stripHtml,
+  parseGrams,
+  normalizeName,
+  formatQty,
+  aggregateShoppingList,
+} from "@/lib/shoppingListAgg";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const KIND_LABEL: Record<string, string> = {
@@ -24,31 +31,6 @@ const KIND_LABEL: Record<string, string> = {
   veg: "Legumes & Saladas",
   other: "Outros",
 };
-
-function stripHtml(s: string): string {
-  return (s || "").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim();
-}
-
-function parseGrams(it: any): number {
-  // Prioridade 1: rawWeight numérico (itens TACO já em gramas cruas)
-  if (typeof it?.rawWeight === "number" && it.rawWeight > 0) return it.rawWeight;
-  // Prioridade 2: campo weight textual ("150g", "1.5kg", "200ml", "1L")
-  const txt = stripHtml(it?.weight || "");
-  const m = txt.match(/(\d+(?:[.,]\d+)?)\s*(g|kg|ml|l)?/i);
-  if (!m) return 0;
-  let v = Number(m[1].replace(",", "."));
-  if (m[2] && /kg|l/i.test(m[2])) v *= 1000;
-  return v;
-}
-
-function normalizeName(name: string): string {
-  return stripHtml(name).toLowerCase().trim();
-}
-
-function formatQty(grams: number): string {
-  if (grams >= 1000) return `${(grams / 1000).toFixed(grams % 1000 === 0 ? 0 : 2)} kg`;
-  return `${Math.round(grams)} g`;
-}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 type Item = { name: string; kind: string; gramsPerDay: number };
@@ -106,35 +88,10 @@ export default function ShoppingList() {
   }, [meals]);
 
   // Computa itens agregados
-  const aggregated: Item[] = useMemo(() => {
-    const map = new Map<string, Item>();
-    meals.forEach((meal, mi) => {
-      const opts: any[] = Array.isArray(meal.options) ? meal.options : [];
-      const byKind: Record<string, any[]> = {};
-      opts.forEach((o) => {
-        const k = o?.kind || "other";
-        (byKind[k] ||= []).push(o);
-      });
-      Object.entries(byKind).forEach(([kind, list]) => {
-        const idx = selectedOptions[`${mi}:${kind}`] ?? 0;
-        const chosen = list[idx] || list[0];
-        const items: any[] = Array.isArray(chosen?.items) ? chosen.items : [];
-        items.forEach((it) => {
-          const name = stripHtml(it?.baseName || it?.name || "");
-          if (!name) return;
-          const grams = parseGrams(it);
-          if (!grams) return;
-          // Mesmo ingrediente em kinds diferentes (ex: "ovo" como proteína e como gordura)
-          // deve agrupar em uma única linha — chave SEM kind.
-          const key = normalizeName(name);
-          const existing = map.get(key);
-          if (existing) existing.gramsPerDay += grams;
-          else map.set(key, { name, kind, gramsPerDay: grams });
-        });
-      });
-    });
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [meals, selectedOptions]);
+  const aggregated: Item[] = useMemo(
+    () => aggregateShoppingList(meals, selectedOptions),
+    [meals, selectedOptions]
+  );
 
   const grouped: Record<string, Item[]> = useMemo(() => {
     const g: Record<string, Item[]> = {};
