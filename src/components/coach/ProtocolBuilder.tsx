@@ -395,7 +395,23 @@ function GuidelinesTab({ payload, setPayload }: { payload: ProtocolPayload; setP
                 <SelectContent>{["Ao acordar (jejum)","Pré-treino","Intra-treino","Pós-treino","Com refeição","Antes de dormir","Outro"].map((t) => <SelectItem key={t} value={t} className="text-xs">{t}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <Input value={s.notes} onChange={(e) => { const n = [...(payload.supplements ?? [])]; n[si] = { ...n[si], notes: e.target.value }; setPayload({ ...payload, supplements: n }); }} placeholder="Obs." className="h-8 text-xs mt-2" />
+            <div className="grid grid-cols-[1fr_1fr] gap-2 mt-2">
+              <Select
+                value={(s as any).mealRef || "__none__"}
+                onValueChange={(v) => { const n = [...(payload.supplements ?? [])]; (n[si] as any) = { ...n[si], mealRef: v === "__none__" ? "" : v }; setPayload({ ...payload, supplements: n }); }}
+              >
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Vincular à refeição (opcional)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__" className="text-xs">— sem refeição —</SelectItem>
+                  {(payload.meals ?? []).map((mm, mi) => (
+                    <SelectItem key={mi} value={mm.name || `Refeição ${mi + 1}`} className="text-xs">
+                      {mm.name || `Refeição ${mi + 1}`}{mm.time ? ` (${mm.time})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input value={s.notes} onChange={(e) => { const n = [...(payload.supplements ?? [])]; n[si] = { ...n[si], notes: e.target.value }; setPayload({ ...payload, supplements: n }); }} placeholder="Ex.: 30 min após a refeição" className="h-8 text-xs" />
+            </div>
           </Card>
         ))}
       </div>
