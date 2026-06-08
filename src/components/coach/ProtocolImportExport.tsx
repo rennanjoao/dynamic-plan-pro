@@ -2,8 +2,13 @@
  * ProtocolImportExport.tsx
  *
  * FIX: sanitizePayload() aplicado antes de exportar JSON/XLSX.
- * Remove HTML injetado em item.name, corrige kind inválido para "carb",
+ * Remove HTML injetado em item.name, corrige kind inválido inferindo pelo
+ * group TACO do alimento (protein→protein, fat→fat, demais→carb),
  * garante campos rawWeight/baseName/isTaco em todos os itens.
+ *
+ * FIX2: applyFuzzyTacoMatch() agora também corrige o kind da opção
+ * usando o group do alimento TACO encontrado — evita que "Frango peito"
+ * apareça no card de Carboidrato após import.
  */
 
 import { useRef, useState } from "react";
@@ -21,19 +26,39 @@ interface Props {
   onImport: (next: ProtocolPayload) => void;
 }
 
+// Mapeia group da TACO para kind do protocolo
+// Ex: group "protein" → kind "protein", group "fat" → kind "fat", demais → "carb"
+function tacoGroupToKind(group: string): "carb" | "protein" | "fat" {
+  if (group === "protein") return "protein";
+  if (group === "fat") return "fat";
+  return "carb"; // carb, veg, fruit, dairy, other → seção carbo por padrão
+}
+
 // Aplica fuzzy match nos itens de todas as refeições (mutação imutável)
+// TAMBÉM corrige o kind da opção usando o group TACO do primeiro item correspondido,
+// para evitar que "Frango peito" (group:protein) apareça no card de Carboidrato.
 function applyFuzzyTacoMatch(p: ProtocolPayload): { next: ProtocolPayload; matched: number; unmatched: string[] } {
   let matched = 0;
   const unmatched: string[] = [];
   const meals = (p.meals || []).map((meal: any) => {
     const options = (meal.options || []).map((opt: any) => {
+      let inferredKind: "carb" | "protein" | "fat" | null = null;
       const items = (opt.items || []).map((it: any) => {
-        if (it?.isTaco) return it;
+        if (it?.isTaco) {
+          // Já era TACO — ainda assim inferir kind se ainda não temos
+          if (!inferredKind) {
+            const existing = fuzzyFindTaco(it.baseName || it.name || "");
+            if (existing) inferredKind = tacoGroupToKind(existing.taco.group);
+          }
+          return it;
+        }
         const raw = it?.baseName || it?.name || "";
         if (!raw) return it;
         const found = fuzzyFindTaco(raw);
         if (found) {
           matched++;
+          // Usa o group do primeiro item TACO encontrado para definir o kind da opção
+          if (!inferredKind) inferredKind = tacoGroupToKind(found.taco.group);
           const rawWeight = typeof it.rawWeight === "number" && it.rawWeight > 0
             ? it.rawWeight
             : parseRawWeight(it.weight || "");
@@ -49,7 +74,9 @@ function applyFuzzyTacoMatch(p: ProtocolPayload): { next: ProtocolPayload; match
         unmatched.push(raw);
         return it;
       });
-      return { ...opt, items };
+      // Corrige kind da opção se inferimos um a partir dos alimentos TACO encontrados
+      const correctedKind = inferredKind ?? (VALID_KINDS.has(opt.kind) ? opt.kind : null);
+      return { ...opt, ...(correctedKind ? { kind: correctedKind } : {}), items };
     });
     return { ...meal, options };
   });
@@ -88,8 +115,23 @@ const VALID_KINDS = new Set(["carb", "protein", "fat", "veg"]);
 function sanitizePayload(p: ProtocolPayload): ProtocolPayload {
   const meals = (p.meals || []).map((meal: any) => {
     const options = (meal.options || []).map((opt: any) => {
-      // Fix kind
-      const kind = VALID_KINDS.has(opt.kind) ? opt.kind : "carb";
+      // Determina o kind: usa o declarado se válido.
+      // Se inválido/ausente, tenta inferir pelo group TACO do primeiro item com match.
+      let kind: "carb" | "protein" | "fat" | "veg" = VALID_KINDS.has(opt.kind)
+        ? opt.kind
+        : "carb"; // fallback provisório — será corrigido abaixo se possível
+
+      if (!VALID_KINDS.has(opt.kind)) {
+        for (const it of opt.items || []) {
+          const name = it.baseName || it.name || "";
+          if (!name) continue;
+          const found = fuzzyFindTaco(name);
+          if (found) {
+            kind = tacoGroupToKind(found.taco.group);
+            break;
+          }
+        }
+      }
 
       const items = (opt.items || []).map((it: any) => {
         const rawName: string = it.name || it.baseName || "";
