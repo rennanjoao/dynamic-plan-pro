@@ -1056,7 +1056,7 @@ export default function CoachDashboard() {
                     onUnlink={setUnlinkTarget}
                     onHistory={setHistoryStudent}
                     onQuickAnamnesis={setQuickAnamStudent}
-                    onLatestFeedback={setLatestFbStudent}
+                    onLatestFeedback={setQuickAnamStudent}
                   />
                 ))}
               </div>
