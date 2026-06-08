@@ -173,7 +173,7 @@ function EvolutionDialog({ student, open, onClose }: { student: StudentStatus | 
                         )}
                         <p className="text-[10px] text-muted-foreground mt-1.5">{new Date(c.submitted_at).toLocaleDateString("pt-BR")}</p>
                         <p className="text-xs font-semibold">{String(getWeight(c))} kg</p>
-                        {c.body_fat != null && <div className="mt-1"><BFDisplay value={c.body_fat} compact /></div>}
+                        {c.body_fat != null && <div className="mt-1 text-[10px]"><BFDisplay value={c.body_fat} /></div>}
                       </div>
                     );
                   })}
