@@ -168,15 +168,6 @@ function QuickAnamnesisSheet({
 
 // ─── Evolution (Visual) Dialog ────────────────────────────────────────────────
 
-interface EvoCheckin {
-  id: string;
-  submitted_at: string;
-  current_metrics: Record<string, unknown> | null;
-  payload: Record<string, unknown> | null;
-  photo_url: string | null;
-  body_fat: number | null;
-}
-
 function EvolutionDialog({ student, open, onClose }: { student: StudentStatus | null; open: boolean; onClose: () => void }) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
