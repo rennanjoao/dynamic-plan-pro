@@ -276,6 +276,23 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Sheet lateral: Consultar Anamnese / Feedback sem desmontar o builder */}
+      <Sheet open={consultOpen} onOpenChange={setConsultOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-[640px] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Anamnese & Feedback — {studentName}</SheetTitle>
+            <SheetDescription className="text-xs">Consulte sem perder o estado da dieta. O builder permanece montado.</SheetDescription>
+          </SheetHeader>
+          <div className="mt-4">
+            {consultOpen && (
+              <Suspense fallback={<div className="py-12 text-center"><Loader2 className="w-5 h-5 animate-spin text-primary mx-auto" /></div>}>
+                <AnamnesisViewerLazy studentId={studentId} studentName={studentName} />
+              </Suspense>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
