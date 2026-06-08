@@ -91,6 +91,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [setupSplit, setSetupSplit] = useState<SplitValue>("ABC");
   const [setupMeals, setSetupMeals] = useState(5);
   const [setupCarbCycle, setSetupCarbCycle] = useState(false);
+  const [consultOpen, setConsultOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setCoachId(data.session?.user?.id ?? null));
@@ -190,6 +191,9 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
               {isEditMode ? "Modo Edição" : "Novo Protocolo"}
             </span>
             <ProtocolImportExport payload={payload} studentName={studentName} onImport={(p) => { setPayload(p); setProtocolId(protocolId); }} />
+            <Button variant="outline" size="sm" onClick={() => setConsultOpen(true)}>
+              <ClipboardList className="w-3.5 h-3.5 mr-1.5" /> Consultar Anamnese
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setSetupOpen(true)}><Sparkles className="w-3.5 h-3.5 mr-1.5" /> Recriar Base</Button>
           </div>
         </div>
