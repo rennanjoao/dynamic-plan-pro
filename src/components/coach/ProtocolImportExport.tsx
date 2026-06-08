@@ -6,17 +6,54 @@
  * garante campos rawWeight/baseName/isTaco em todos os itens.
  */
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Download, Upload, FileSpreadsheet, FileJson } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Download, Upload, FileSpreadsheet, FileJson, Settings2, ChevronDown } from "lucide-react";
 import { ProtocolPayloadSchema, type ProtocolPayload } from "@/lib/protocolSchema";
 import { exportProtocolXlsx, importProtocolXlsx, ProtocolXlsxError } from "@/lib/protocolXlsx";
+import { fuzzyFindTaco, parseRawWeight } from "@/lib/macroCalc";
 import { toast } from "sonner";
 
 interface Props {
   payload: ProtocolPayload | null;
   studentName: string;
   onImport: (next: ProtocolPayload) => void;
+}
+
+// Aplica fuzzy match nos itens de todas as refeições (mutação imutável)
+function applyFuzzyTacoMatch(p: ProtocolPayload): { next: ProtocolPayload; matched: number; unmatched: string[] } {
+  let matched = 0;
+  const unmatched: string[] = [];
+  const meals = (p.meals || []).map((meal: any) => {
+    const options = (meal.options || []).map((opt: any) => {
+      const items = (opt.items || []).map((it: any) => {
+        if (it?.isTaco) return it;
+        const raw = it?.baseName || it?.name || "";
+        if (!raw) return it;
+        const found = fuzzyFindTaco(raw);
+        if (found) {
+          matched++;
+          const rawWeight = typeof it.rawWeight === "number" && it.rawWeight > 0
+            ? it.rawWeight
+            : parseRawWeight(it.weight || "");
+          return {
+            ...it,
+            name: found.taco.name,
+            baseName: found.taco.name,
+            isTaco: true,
+            cookFactor: found.taco.cookFactor ?? 1,
+            rawWeight: rawWeight || 100,
+          };
+        }
+        unmatched.push(raw);
+        return it;
+      });
+      return { ...opt, items };
+    });
+    return { ...meal, options };
+  });
+  return { next: { ...p, meals } as ProtocolPayload, matched, unmatched };
 }
 
 // ─── HTML stripper ────────────────────────────────────────────────────────────
@@ -108,6 +145,7 @@ function buildTemplateNotes(p: ProtocolPayload) {
 export default function ProtocolImportExport({ payload, studentName, onImport }: Props) {
   const jsonRef = useRef<HTMLInputElement>(null);
   const xlsxRef = useRef<HTMLInputElement>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const ensurePayload = (): ProtocolPayload =>
     payload ??
@@ -165,8 +203,19 @@ export default function ProtocolImportExport({ payload, studentName, onImport }:
           duration: 6000,
         });
       }
-      onImport(parsed);
-      toast.success("Esboço JSON importado. Revise e salve.");
+      const fuzzy = applyFuzzyTacoMatch(parsed);
+      onImport(fuzzy.next);
+      if (fuzzy.matched > 0) {
+        toast.success(`JSON importado — ${fuzzy.matched} alimento(s) vinculados à TACO.`);
+      } else {
+        toast.success("Esboço JSON importado. Revise e salve.");
+      }
+      if (fuzzy.unmatched.length > 0) {
+        toast.warning(`${fuzzy.unmatched.length} item(ns) sem correspondência TACO`, {
+          description: fuzzy.unmatched.slice(0, 3).join(" • ") + (fuzzy.unmatched.length > 3 ? "…" : ""),
+          duration: 7000,
+        });
+      }
     } catch (err) {
       console.error("import json error", err);
       toast.error("JSON inválido: " + (err instanceof Error ? err.message : "formato"));
@@ -180,8 +229,15 @@ export default function ProtocolImportExport({ payload, studentName, onImport }:
     if (!file) return;
     try {
       const parsed = await importProtocolXlsx(file);
-      onImport(parsed);
-      toast.success(`Planilha importada — ${parsed.meals.length} refeição(ões). Revise e salve.`);
+      const fuzzy = applyFuzzyTacoMatch(parsed);
+      onImport(fuzzy.next);
+      toast.success(`Planilha importada — ${parsed.meals.length} refeição(ões). ${fuzzy.matched} item(ns) TACO.`);
+      if (fuzzy.unmatched.length > 0) {
+        toast.warning(`${fuzzy.unmatched.length} item(ns) sem correspondência TACO`, {
+          description: fuzzy.unmatched.slice(0, 3).join(" • ") + (fuzzy.unmatched.length > 3 ? "…" : ""),
+          duration: 7000,
+        });
+      }
     } catch (err) {
       console.error("import xlsx error", err);
       if (err instanceof ProtocolXlsxError) {
@@ -198,21 +254,35 @@ export default function ProtocolImportExport({ payload, studentName, onImport }:
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <Button variant="outline" size="sm" onClick={downloadXlsx} type="button" title="Baixar esboço .xlsx">
-        <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Excel
-      </Button>
-      <Button variant="outline" size="sm" onClick={() => xlsxRef.current?.click()} type="button" title="Importar .xlsx">
-        <Upload className="w-3.5 h-3.5 mr-1.5" /> Importar Excel
-      </Button>
-      <Button variant="ghost" size="sm" onClick={downloadJson} type="button" title="Baixar JSON">
-        <FileJson className="w-3.5 h-3.5 mr-1.5" /> JSON
-      </Button>
-      <Button variant="ghost" size="sm" onClick={() => jsonRef.current?.click()} type="button" title="Importar JSON">
-        <Download className="w-3.5 h-3.5 rotate-180 mr-1.5" /> Importar JSON
-      </Button>
-      <input ref={xlsxRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={onXlsxFile} />
-      <input ref={jsonRef} type="file" accept="application/json,.json" className="hidden" onChange={onJsonFile} />
-    </div>
+    <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="inline-block">
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded"
+        >
+          <Settings2 className="w-3 h-3" />
+          Modo avançado · JSON / Excel
+          <ChevronDown className={`w-3 h-3 transition-transform ${advancedOpen ? "rotate-180" : ""}`} />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="flex flex-wrap items-center gap-1.5 mt-2 p-2 rounded-lg bg-muted/20 border border-border/40">
+          <Button variant="outline" size="sm" onClick={downloadXlsx} type="button" title="Baixar esboço .xlsx">
+            <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Excel
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => xlsxRef.current?.click()} type="button" title="Importar .xlsx">
+            <Upload className="w-3.5 h-3.5 mr-1.5" /> Importar Excel
+          </Button>
+          <Button variant="ghost" size="sm" onClick={downloadJson} type="button" title="Baixar JSON">
+            <FileJson className="w-3.5 h-3.5 mr-1.5" /> JSON
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => jsonRef.current?.click()} type="button" title="Importar JSON">
+            <Download className="w-3.5 h-3.5 rotate-180 mr-1.5" /> Importar JSON
+          </Button>
+          <input ref={xlsxRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={onXlsxFile} />
+          <input ref={jsonRef} type="file" accept="application/json,.json" className="hidden" onChange={onJsonFile} />
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
