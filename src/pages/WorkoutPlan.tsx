@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, Dumbbell, AlertTriangle, Activity } from "lucide-react";
+import { ArrowLeft, Loader2, Dumbbell, AlertTriangle, Activity, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ProtocolPayloadSchema } from "@/lib/protocolSchema";
 import ProtocolQuestionButton from "@/components/student/ProtocolQuestionButton";
 
@@ -14,6 +15,29 @@ const WEEKDAYS_LABEL: Record<string, string> = {
   seg: "Segunda", ter: "Terça", qua: "Quarta",
   qui: "Quinta", sex: "Sexta", sab: "Sábado", dom: "Domingo",
 };
+
+const TERM_INFO: Record<string, { label: string; desc: string }> = {
+  reps: { label: "Repetições", desc: "Quantidade de vezes que executa o movimento em cada série." },
+  cadence: { label: "Cadência", desc: "Velocidade de execução. Ex: 3-1-2 = 3s descendo, 1s pausa, 2s subindo." },
+  rest: { label: "Descanso", desc: "Tempo de recuperação entre séries. Respeite para manter qualidade." },
+};
+
+function InfoPopover({ termKey }: { termKey: keyof typeof TERM_INFO }) {
+  const info = TERM_INFO[termKey];
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button type="button" className="text-muted-foreground hover:text-primary inline-flex" aria-label={info.label}>
+          <Info className="w-3 h-3" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="top" className="w-[220px] p-3">
+        <p className="text-xs font-bold text-foreground mb-1">{info.label}</p>
+        <p className="text-[11px] text-muted-foreground leading-relaxed">{info.desc}</p>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export default function WorkoutPlan() {
   const navigate = useNavigate();
@@ -93,17 +117,29 @@ export default function WorkoutPlan() {
                         <h4 className="font-bold text-sm text-primary mb-2 flex items-start gap-2">
                           <span className="mt-0.5">•</span> {ex.name}
                         </h4>
-                        <div className="grid grid-cols-3 gap-2 mb-2">
+                        <div className={`grid gap-2 mb-2 ${ex.cadence ? "grid-cols-4" : "grid-cols-3"}`}>
                           <div className="bg-muted/50 p-2 rounded text-center">
                             <p className="text-[10px] text-muted-foreground uppercase">Séries</p>
                             <p className="font-semibold text-sm">{ex.sets || "-"}</p>
                           </div>
                           <div className="bg-muted/50 p-2 rounded text-center">
-                            <p className="text-[10px] text-muted-foreground uppercase">Reps</p>
+                            <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
+                              Reps <InfoPopover termKey="reps" />
+                            </p>
                             <p className="font-semibold text-sm">{ex.reps || "-"}</p>
                           </div>
+                          {ex.cadence && (
+                            <div className="bg-muted/50 p-2 rounded text-center">
+                              <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
+                                Cadência <InfoPopover termKey="cadence" />
+                              </p>
+                              <p className="font-semibold text-sm">{ex.cadence}</p>
+                            </div>
+                          )}
                           <div className="bg-muted/50 p-2 rounded text-center">
-                            <p className="text-[10px] text-muted-foreground uppercase">Pausa</p>
+                            <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
+                              Descanso <InfoPopover termKey="rest" />
+                            </p>
                             <p className="font-semibold text-sm">{ex.rest || "-"}</p>
                           </div>
                         </div>

@@ -62,6 +62,7 @@ export const CHECKIN_SECTIONS: SectionDef[] = [
       { key: "temp_d3", label: "Temp. D3", type: "number", step: "0.01", unit: "°C", half: true },
       { key: "temp_d4", label: "Temp. D4", type: "number", step: "0.01", unit: "°C", half: true },
       { key: "temp_d5", label: "Temp. D5", type: "number", step: "0.01", unit: "°C", half: true },
+      { key: "body_fat", label: "Estimativa BF%", type: "number", step: "0.1", unit: "%", half: true },
       { key: "observacoes", label: "Observações livres pro coach", type: "textarea" },
     ],
   },

@@ -39,14 +39,16 @@ import {
 import {
   Loader2, Save, Plus, Trash2, FileText, Dumbbell, UtensilsCrossed,
   Calendar, Sparkles, BarChart3, Activity, Pill, TrendingUp, TrendingDown, Minus,
-  Check, ChevronsUpDown
+  Check, ChevronsUpDown, ChevronDown, Copy, BookmarkPlus, Library, ArrowLeftRight, Pencil
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   ProtocolPayloadSchema, ProtocolPayload, SPLIT_OPTIONS, WEEKDAYS,
-  buildBasePayload, makeEmptyExercise, makeEmptyMeal, type SplitValue,
+  buildBasePayload, makeEmptyExercise, makeEmptyMeal, type SplitValue, MEAL_NAME_PRESETS,
 } from "@/lib/protocolSchema";
 import ProtocolImportExport from "./ProtocolImportExport";
+import { calcMealMacros, calcDayMacros, suggestTacoSubstitutes } from "@/lib/macroCalc";
+import { Progress } from "@/components/ui/progress";
 
 // FIX: importa o array correto (TACO_FOODS) e adiciona campo `id` virtual
 import { TACO_FOODS } from "@/data/tacoFoods";

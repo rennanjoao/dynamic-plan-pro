@@ -12,7 +12,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, FileDown, Share2, ShoppingCart, Loader2 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ArrowLeft, FileDown, Share2, ShoppingCart, Loader2, AlertCircle } from "lucide-react";
 import jsPDF from "jspdf";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -29,12 +30,14 @@ function stripHtml(s: string): string {
 }
 
 function parseGrams(it: any): number {
-  if (typeof it?.rawWeight === "number") return it.rawWeight;
+  // Prioridade 1: rawWeight numérico (itens TACO já em gramas cruas)
+  if (typeof it?.rawWeight === "number" && it.rawWeight > 0) return it.rawWeight;
+  // Prioridade 2: campo weight textual ("150g", "1.5kg", "200ml", "1L")
   const txt = stripHtml(it?.weight || "");
-  const m = txt.match(/(\d+(?:[.,]\d+)?)\s*(g|kg|ml)/i);
+  const m = txt.match(/(\d+(?:[.,]\d+)?)\s*(g|kg|ml|l)?/i);
   if (!m) return 0;
   let v = Number(m[1].replace(",", "."));
-  if (/kg/i.test(m[2])) v *= 1000;
+  if (m[2] && /kg|l/i.test(m[2])) v *= 1000;
   return v;
 }
 
@@ -121,7 +124,9 @@ export default function ShoppingList() {
           if (!name) return;
           const grams = parseGrams(it);
           if (!grams) return;
-          const key = `${kind}:${normalizeName(name)}`;
+          // Mesmo ingrediente em kinds diferentes (ex: "ovo" como proteína e como gordura)
+          // deve agrupar em uma única linha — chave SEM kind.
+          const key = normalizeName(name);
           const existing = map.get(key);
           if (existing) existing.gramsPerDay += grams;
           else map.set(key, { name, kind, gramsPerDay: grams });
@@ -314,6 +319,15 @@ export default function ShoppingList() {
         {/* Lista agregada */}
         <Card className="mb-4">
           <CardContent className="p-4 space-y-5">
+            <Alert className="border-amber-500/30 bg-amber-500/5">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <AlertTitle className="text-sm font-semibold text-amber-700">
+                Quantidades referem-se aos alimentos CRUS
+              </AlertTitle>
+              <AlertDescription className="text-xs text-amber-600/80">
+                Pese antes do preparo. Para itens TACO, o peso cru já foi calculado automaticamente.
+              </AlertDescription>
+            </Alert>
             {Object.keys(grouped).length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-6">
                 Nenhum alimento com quantidade definida foi encontrado nas opções selecionadas.
