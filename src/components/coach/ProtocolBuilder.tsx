@@ -34,12 +34,16 @@ import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
+} from "@/components/ui/sheet";
+import { lazy, Suspense } from "react";
+import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command";
 import {
   Loader2, Save, Plus, Trash2, FileText, Dumbbell, UtensilsCrossed,
   Calendar, Sparkles, BarChart3, Activity, Pill, TrendingUp, TrendingDown, Minus,
-  Check, ChevronsUpDown, ChevronDown, Copy, BookmarkPlus, Library, ArrowLeftRight, Pencil
+  Check, ChevronsUpDown, ChevronDown, Copy, BookmarkPlus, Library, ArrowLeftRight, Pencil, ClipboardList
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -61,6 +65,8 @@ interface Props {
   studentId: string;
   studentName: string;
 }
+
+const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
 
 interface ProtocolRow {
   id: string;
@@ -85,6 +91,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [setupSplit, setSetupSplit] = useState<SplitValue>("ABC");
   const [setupMeals, setSetupMeals] = useState(5);
   const [setupCarbCycle, setSetupCarbCycle] = useState(false);
+  const [consultOpen, setConsultOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setCoachId(data.session?.user?.id ?? null));
@@ -184,6 +191,9 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
               {isEditMode ? "Modo Edição" : "Novo Protocolo"}
             </span>
             <ProtocolImportExport payload={payload} studentName={studentName} onImport={(p) => { setPayload(p); setProtocolId(protocolId); }} />
+            <Button variant="outline" size="sm" onClick={() => setConsultOpen(true)}>
+              <ClipboardList className="w-3.5 h-3.5 mr-1.5" /> Consultar Anamnese
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setSetupOpen(true)}><Sparkles className="w-3.5 h-3.5 mr-1.5" /> Recriar Base</Button>
           </div>
         </div>
@@ -266,6 +276,23 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Sheet lateral: Consultar Anamnese / Feedback sem desmontar o builder */}
+      <Sheet open={consultOpen} onOpenChange={setConsultOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-[640px] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Anamnese & Feedback — {studentName}</SheetTitle>
+            <SheetDescription className="text-xs">Consulte sem perder o estado da dieta. O builder permanece montado.</SheetDescription>
+          </SheetHeader>
+          <div className="mt-4">
+            {consultOpen && (
+              <Suspense fallback={<div className="py-12 text-center"><Loader2 className="w-5 h-5 animate-spin text-primary mx-auto" /></div>}>
+                <AnamnesisViewerLazy studentId={studentId} studentName={studentName} />
+              </Suspense>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
@@ -572,9 +599,9 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
   }
 
   const KIND: Record<"carb" | "protein" | "fat", { label: string; color: string; bg: string; border: string }> = {
-    carb:    { label: "Carbo",    color: "text-amber-600",  bg: "bg-amber-500/5",  border: "border-amber-500/20" },
-    protein: { label: "Proteína", color: "text-blue-600",   bg: "bg-blue-500/5",   border: "border-blue-500/20" },
-    fat:     { label: "Gordura",  color: "text-rose-500",   bg: "bg-rose-500/5",   border: "border-rose-500/20" },
+    carb:    { label: "ESCOLHA UM CARBOIDRATO", color: "text-blue-600",   bg: "bg-blue-500/5",   border: "border-blue-500/20" },
+    protein: { label: "ESCOLHA UMA PROTEÍNA",   color: "text-rose-600",   bg: "bg-rose-500/5",   border: "border-rose-500/20" },
+    fat:     { label: "ESCOLHA UMA GORDURA",    color: "text-amber-600",  bg: "bg-amber-500/5",  border: "border-amber-500/20" },
   };
 
   return (
