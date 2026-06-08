@@ -12,6 +12,12 @@ export const SPLIT_OPTIONS = [
 
 export type SplitValue = (typeof SPLIT_OPTIONS)[number]["value"];
 
+// Presets de nome de refeição (datalist na UI do coach).
+export const MEAL_NAME_PRESETS = [
+  "Café da manhã", "Lanche matinal", "Pré-treino",
+  "Almoço", "Lanche da tarde", "Jantar", "Ceia",
+] as const;
+
 export const WEEKDAYS = [
   { key: "seg", label: "Segunda" },
   { key: "ter", label: "Terça" },
@@ -71,6 +77,16 @@ export const MealFoodItemSchema = z.preprocess(
   z.object({
     name: z.string().default(""),
     weight: z.string().default(""),
+    baseName: z.string().optional(),
+    rawWeight: z.number().optional(),
+    cookFactor: z.number().optional(),
+    isTaco: z.boolean().optional(),
+    manualMacros: z.object({
+      protein: z.number().default(0),
+      carbs: z.number().default(0),
+      fat: z.number().default(0),
+      kcal: z.number().default(0),
+    }).optional(),
   })
 );
 
