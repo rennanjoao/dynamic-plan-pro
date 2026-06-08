@@ -47,7 +47,7 @@ import {
   buildBasePayload, makeEmptyExercise, makeEmptyMeal, type SplitValue, MEAL_NAME_PRESETS,
 } from "@/lib/protocolSchema";
 import ProtocolImportExport from "./ProtocolImportExport";
-import { calcMealMacros, calcDayMacros, suggestTacoSubstitutes } from "@/lib/macroCalc";
+import { calcMealMacros, calcDayMacros, suggestTacoSubstitutes, tacoGroupToKind } from "@/lib/macroCalc";
 import { Progress } from "@/components/ui/progress";
 
 // FIX: importa o array correto (TACO_FOODS) e adiciona campo `id` virtual
@@ -690,15 +690,33 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                                         <CommandList>
                                           <CommandEmpty className="py-2 px-4 text-xs text-muted-foreground">Não encontrado — use o campo de nome à esquerda.</CommandEmpty>
                                           <CommandGroup heading="Tabela TACO (UNICAMP)">
-                                            {TACO_DATA.map((taco) => (
+                                            {TACO_DATA.map((taco) => {
+                                              const tKind = tacoGroupToKind(taco.group);
+                                              const badgeCls = tKind === "protein"
+                                                ? "bg-blue-500/10 text-blue-600"
+                                                : tKind === "fat"
+                                                ? "bg-rose-500/10 text-rose-500"
+                                                : "bg-amber-500/10 text-amber-600";
+                                              const badgeLabel = tKind === "protein" ? "prot" : tKind === "fat" ? "gord" : "carb";
+                                              return (
                                               <CommandItem key={taco.id} value={taco.name}
-                                                onSelect={() => updItem(mealIdx, kind, optIdx, ii, { baseName: taco.name, name: taco.name, isTaco: true, cookFactor: taco.cookFactor, rawWeight: it.rawWeight || 100 })}
+                                                onSelect={() => {
+                                                  if (tKind !== kind) {
+                                                    const kindLabel = kind === "protein" ? "Proteína" : kind === "fat" ? "Gordura" : "Carbo";
+                                                    const tacoLabel = tKind === "protein" ? "Proteína" : tKind === "fat" ? "Gordura" : "Carbo";
+                                                    toast.error(`"${taco.name}" é ${tacoLabel} — adicione-o no card correto.`, { description: `Este card é de ${kindLabel}.`, duration: 4000 });
+                                                    return;
+                                                  }
+                                                  updItem(mealIdx, kind, optIdx, ii, { baseName: taco.name, name: taco.name, isTaco: true, cookFactor: taco.cookFactor, rawWeight: it.rawWeight || 100 });
+                                                }}
                                                 className="text-xs">
                                                 <Check className={`mr-2 h-3 w-3 ${it.baseName === taco.name ? "opacity-100" : "opacity-0"}`} />
-                                                {taco.name}
-                                                {taco.cookFactor !== 1 && <span className="ml-auto text-[9px] text-muted-foreground">fator {taco.cookFactor}</span>}
+                                                <span className="flex-1">{taco.name}</span>
+                                                <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ml-2 ${badgeCls}`}>{badgeLabel}</span>
+                                                {taco.cookFactor !== 1 && <span className="ml-1 text-[9px] text-muted-foreground">fator {taco.cookFactor}</span>}
                                               </CommandItem>
-                                            ))}
+                                              );
+                                            })}
                                           </CommandGroup>
                                         </CommandList>
                                       </Command>

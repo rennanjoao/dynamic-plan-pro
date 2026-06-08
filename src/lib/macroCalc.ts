@@ -10,6 +10,13 @@
 
 import { TACO_FOODS, type TacoFood } from "@/data/tacoFoods";
 
+/** Mapeia o `group` da TACO para o `kind` de card (carb | protein | fat). */
+export function tacoGroupToKind(group: TacoFood["group"]): "carb" | "protein" | "fat" {
+  if (group === "protein") return "protein";
+  if (group === "fat") return "fat";
+  return "carb";
+}
+
 export interface Macros {
   kcal: number;
   protein: number;
