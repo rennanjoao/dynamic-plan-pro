@@ -9,6 +9,7 @@ import { CHECKIN_METRICS } from "@/lib/checkInSchema";
 import { cn } from "@/lib/utils";
 import { TrendingDown, TrendingUp, Minus } from "lucide-react";
 import type { Anamnesis, CheckIn } from "@/hooks/useStudentData";
+import BFDisplay from "@/components/shared/BFDisplay";
 
 interface Props {
   anamnesis: Anamnesis | null;
@@ -35,7 +36,46 @@ export default function ComparisonBoard({ anamnesis, latestCheckIn }: Props) {
     );
   }
 
+  const anamFotos = (anamnesis?.payload as any)?.fotos as Record<string, string> | undefined;
+  const checkFotos = (latestCheckIn?.payload as any)?.fotos as Record<string, string> | undefined;
+  const anamFront = anamFotos?.frente || anamFotos?.front || "";
+  const checkFront = checkFotos?.frente || checkFotos?.front || latestCheckIn?.photo_url || "";
+  const anamBF = (anamnesis?.payload as any)?.body_fat;
+  const checkBF = (latestCheckIn?.payload as any)?.body_fat;
+
   return (
+    <>
+    {(anamFront || checkFront) && (
+      <Card className="bg-card/60 border-border p-4 mb-3">
+        <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground mb-3 text-center">
+          Comparativo Visual — Frente
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            {anamFront ? (
+              <img src={anamFront} alt="Anamnese — frente" className="w-full aspect-[3/4] object-cover rounded-xl border border-border/40" />
+            ) : (
+              <div className="w-full aspect-[3/4] rounded-xl border border-dashed border-border/40 flex items-center justify-center text-[10px] text-muted-foreground">Sem foto</div>
+            )}
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-muted-foreground">Partida</span>
+              {anamBF != null && <BFDisplay value={anamBF} />}
+            </div>
+          </div>
+          <div className="space-y-2">
+            {checkFront ? (
+              <img src={checkFront} alt="Check-in — frente" className="w-full aspect-[3/4] object-cover rounded-xl border border-border/40" />
+            ) : (
+              <div className="w-full aspect-[3/4] rounded-xl border border-dashed border-border/40 flex items-center justify-center text-[10px] text-muted-foreground">Sem check-in</div>
+            )}
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-muted-foreground">Hoje</span>
+              {checkBF != null && <BFDisplay value={checkBF} />}
+            </div>
+          </div>
+        </div>
+      </Card>
+    )}
     <Card className="bg-card/60 border-border p-5">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-bold text-primary uppercase tracking-wider">
@@ -78,5 +118,6 @@ export default function ComparisonBoard({ anamnesis, latestCheckIn }: Props) {
         </p>
       )}
     </Card>
+    </>
   );
 }
