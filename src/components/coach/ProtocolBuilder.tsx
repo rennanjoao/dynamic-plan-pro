@@ -67,6 +67,7 @@ interface Props {
 }
 
 const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
+const CompareCheckinsLazy = lazy(() => import("./CompareCheckins"));
 
 interface ProtocolRow {
   id: string;
