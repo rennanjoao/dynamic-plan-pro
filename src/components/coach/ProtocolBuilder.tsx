@@ -599,9 +599,9 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
   }
 
   const KIND: Record<"carb" | "protein" | "fat", { label: string; color: string; bg: string; border: string }> = {
-    carb:    { label: "Carbo",    color: "text-amber-600",  bg: "bg-amber-500/5",  border: "border-amber-500/20" },
-    protein: { label: "Proteína", color: "text-blue-600",   bg: "bg-blue-500/5",   border: "border-blue-500/20" },
-    fat:     { label: "Gordura",  color: "text-rose-500",   bg: "bg-rose-500/5",   border: "border-rose-500/20" },
+    carb:    { label: "ESCOLHA UM CARBOIDRATO", color: "text-blue-600",   bg: "bg-blue-500/5",   border: "border-blue-500/20" },
+    protein: { label: "ESCOLHA UMA PROTEÍNA",   color: "text-rose-600",   bg: "bg-rose-500/5",   border: "border-rose-500/20" },
+    fat:     { label: "ESCOLHA UMA GORDURA",    color: "text-amber-600",  bg: "bg-amber-500/5",  border: "border-amber-500/20" },
   };
 
   return (
