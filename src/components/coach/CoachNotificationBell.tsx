@@ -108,8 +108,14 @@ export default function CoachNotificationBell() {
             .eq("user_id", studentId)
             .maybeSingle();
           const nome = prof?.full_name ?? "Aluno";
+          // [FIX] contexto do módulo no toast de check-in
+          const payloadData = (payload.new as Record<string, unknown>)?.payload as Record<string, unknown> | null;
+          const modulo = payloadData?.modulo as string | undefined;
+          const contextoLabel = modulo
+            ? modulo.charAt(0).toUpperCase() + modulo.slice(1)
+            : "Check-in";
           toast(`✅ ${nome} enviou um check-in!`, {
-            description: `Recebido em ${new Date().toLocaleString("pt-BR")}`,
+            description: `${contextoLabel} · Recebido em ${new Date().toLocaleString("pt-BR")}`,
             duration: 8000,
             action: { label: "Ver", onClick: () => setOpen(true) },
           });
