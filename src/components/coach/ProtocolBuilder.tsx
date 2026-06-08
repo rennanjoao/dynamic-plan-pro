@@ -395,7 +395,23 @@ function GuidelinesTab({ payload, setPayload }: { payload: ProtocolPayload; setP
                 <SelectContent>{["Ao acordar (jejum)","Pré-treino","Intra-treino","Pós-treino","Com refeição","Antes de dormir","Outro"].map((t) => <SelectItem key={t} value={t} className="text-xs">{t}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <Input value={s.notes} onChange={(e) => { const n = [...(payload.supplements ?? [])]; n[si] = { ...n[si], notes: e.target.value }; setPayload({ ...payload, supplements: n }); }} placeholder="Obs." className="h-8 text-xs mt-2" />
+            <div className="grid grid-cols-[1fr_1fr] gap-2 mt-2">
+              <Select
+                value={(s as any).mealRef || "__none__"}
+                onValueChange={(v) => { const n = [...(payload.supplements ?? [])]; (n[si] as any) = { ...n[si], mealRef: v === "__none__" ? "" : v }; setPayload({ ...payload, supplements: n }); }}
+              >
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Vincular à refeição (opcional)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__" className="text-xs">— sem refeição —</SelectItem>
+                  {(payload.meals ?? []).map((mm, mi) => (
+                    <SelectItem key={mi} value={mm.name || `Refeição ${mi + 1}`} className="text-xs">
+                      {mm.name || `Refeição ${mi + 1}`}{mm.time ? ` (${mm.time})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input value={s.notes} onChange={(e) => { const n = [...(payload.supplements ?? [])]; n[si] = { ...n[si], notes: e.target.value }; setPayload({ ...payload, supplements: n }); }} placeholder="Ex.: 30 min após a refeição" className="h-8 text-xs" />
+            </div>
           </Card>
         ))}
       </div>
@@ -663,16 +679,32 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
           <div className="p-4 space-y-3">
             {(["carb", "protein", "fat"] as const).map((kind) => {
               const cfg = KIND[kind];
+              const hidden = Array.isArray((m as any).hiddenKinds) && (m as any).hiddenKinds.includes(kind);
+              if (hidden) return null;
               const opts = getOptsForKind(m, kind);
               return (
                 <div key={kind} className={`rounded-xl border ${cfg.border} ${cfg.bg} p-3`}>
                   <div className="flex items-center justify-between mb-2.5">
                     <span className={`text-[11px] uppercase tracking-widest font-bold ${cfg.color}`}>{cfg.label}</span>
-                    {opts.length < 3 && (
-                      <button type="button" onClick={() => addOption(mealIdx, kind)} className={`text-[10px] flex items-center gap-1 ${cfg.color} opacity-60 hover:opacity-100 transition-opacity`}>
-                        <Plus className="w-3 h-3" /> + opção
+                    <div className="flex items-center gap-2">
+                      {opts.length < 3 && (
+                        <button type="button" onClick={() => addOption(mealIdx, kind)} className={`text-[10px] flex items-center gap-1 ${cfg.color} opacity-60 hover:opacity-100 transition-opacity`}>
+                          <Plus className="w-3 h-3" /> + opção
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        title="Remover este macro desta refeição"
+                        onClick={() => {
+                          const cur = Array.isArray((m as any).hiddenKinds) ? [...(m as any).hiddenKinds] : [];
+                          if (!cur.includes(kind)) cur.push(kind);
+                          updMealField(mealIdx, { hiddenKinds: cur } as any);
+                        }}
+                        className="text-[10px] flex items-center gap-1 text-muted-foreground hover:text-destructive opacity-70 hover:opacity-100"
+                      >
+                        <Trash2 className="w-3 h-3" /> remover
                       </button>
-                    )}
+                    </div>
                   </div>
 
                   <div className="space-y-2.5">
@@ -777,6 +809,37 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                 </div>
               );
             })}
+
+            {/* Restaurar macros removidos */}
+            {Array.isArray((m as any).hiddenKinds) && (m as any).hiddenKinds.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Macros ocultos:</span>
+                {((m as any).hiddenKinds as Array<"carb"|"protein"|"fat">).map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => {
+                      const cur = ((m as any).hiddenKinds as string[]).filter((x) => x !== k);
+                      updMealField(mealIdx, { hiddenKinds: cur } as any);
+                    }}
+                    className="text-[10px] px-2 py-1 rounded border border-dashed border-border/60 text-muted-foreground hover:text-primary hover:border-primary inline-flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" /> {k === "carb" ? "Carbo" : k === "protein" ? "Proteína" : "Gordura"}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Observação geral da refeição */}
+            <div className="pt-1">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Observação da refeição</Label>
+              <Textarea
+                value={(m as any).notes || ""}
+                onChange={(e) => updMealField(mealIdx, { notes: e.target.value } as any)}
+                placeholder="Ex.: tomar 30 min após o treino · evitar líquidos · café sem açúcar..."
+                className="mt-1 min-h-[60px] text-xs"
+              />
+            </div>
 
             {/* Macros totais */}
             <details className="rounded-lg border border-border/40 p-2">

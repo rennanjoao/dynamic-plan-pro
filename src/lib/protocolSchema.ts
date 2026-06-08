@@ -59,6 +59,7 @@ export const SupplementSchema = z.object({
   dose: z.string().default(""),
   timing: z.string().default(""),
   notes: z.string().default(""),
+  mealRef: z.string().optional().default(""),
 });
 
 export const MealMacrosSchema = z.object({
@@ -208,6 +209,7 @@ export const MealSchema = z.preprocess(
     }),
     carbCycle: z.boolean().default(false),
     notes: z.string().optional().default(""),
+    hiddenKinds: z.array(z.enum(["carb", "protein", "fat"])).optional().default([]),
   })
 );
 
