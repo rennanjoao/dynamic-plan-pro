@@ -951,3 +951,85 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
     </div>
   );
 }
+
+// ─── FoodRow: nome com autocomplete inline TACO + quantidade unificada ───────
+function FoodRow({
+  it, kind, onPickTaco, onChangeName, onChangeWeight, onRemove,
+}: {
+  it: any;
+  kind: "carb" | "protein" | "fat";
+  onPickTaco: (t: typeof TACO_DATA[number]) => void;
+  onChangeName: (s: string) => void;
+  onChangeWeight: (s: string) => void;
+  onRemove: () => void;
+}) {
+  const [focused, setFocused] = useState(false);
+  const q = (it.baseName || it.name || "").toString().trim().toLowerCase();
+  const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const matches = useMemo(() => {
+    if (q.length < 2) return [];
+    const nq = norm(q);
+    return TACO_DATA
+      .filter((t) => norm(t.name).includes(nq))
+      .slice(0, 8);
+  }, [q]);
+  const showSuggestions = focused && matches.length > 0 && !it.isTaco;
+
+  return (
+    <>
+      <div className="flex items-center gap-1.5 relative">
+        <div className="relative flex-1">
+          <Input
+            value={it.baseName || it.name || ""}
+            onChange={(e) => onChangeName(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setTimeout(() => setFocused(false), 150)}
+            placeholder="Nome do alimento (digite para ver sugestões TACO)…"
+            className="h-8 text-xs w-full"
+          />
+          {showSuggestions && (
+            <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-popover border border-border rounded-md shadow-lg max-h-64 overflow-y-auto">
+              <div className="px-2 py-1 text-[9px] uppercase tracking-wider text-muted-foreground border-b border-border/50">
+                Sugestões TACO — clique para usar ou continue digitando
+              </div>
+              {matches.map((taco) => {
+                const tKind = tacoGroupToKind(taco.group);
+                const badgeCls = tKind === "protein"
+                  ? "bg-blue-500/10 text-blue-600"
+                  : tKind === "fat"
+                  ? "bg-rose-500/10 text-rose-500"
+                  : "bg-amber-500/10 text-amber-600";
+                const badgeLabel = tKind === "protein" ? "prot" : tKind === "fat" ? "gord" : "carb";
+                return (
+                  <button
+                    key={taco.id}
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); onPickTaco(taco); setFocused(false); }}
+                    className="w-full flex items-center gap-2 text-left px-2 py-1.5 text-xs hover:bg-accent"
+                  >
+                    <span className="flex-1 truncate">{taco.name}</span>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${badgeCls}`}>{badgeLabel}</span>
+                    {taco.cookFactor !== 1 && <span className="text-[9px] text-muted-foreground">×{taco.cookFactor}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        {it.isTaco && (
+          <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/30 shrink-0" title="Vinculado à tabela TACO">TACO</span>
+        )}
+        <button onClick={onRemove} className="text-muted-foreground hover:text-destructive p-1 shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
+      </div>
+      <div className="flex items-center gap-2">
+        <label className="text-[10px] text-muted-foreground shrink-0">Quantidade</label>
+        <Input
+          value={it.weight ?? ""}
+          onChange={(e) => onChangeWeight(e.target.value)}
+          placeholder={it.isTaco ? "ex: 100g (cru) ou 8 unidades…" : "ex: 8 unidades, 200g, 2 fatias…"}
+          className="h-7 text-xs flex-1"
+        />
+      </div>
+    </>
+  );
+}
