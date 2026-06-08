@@ -47,6 +47,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 
 const AnamnesisViewer = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
 const ProtocolBuilder = lazy(() => import("@/components/coach/ProtocolBuilder"));
+const EvolutionComparisonLazy = lazy(() => import("@/components/coach/EvolutionComparison"));
 
 // ─── Latest Feedback Dialog (clique no label "Feedback hoje/há X dias") ──────
 
