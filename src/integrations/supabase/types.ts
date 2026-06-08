@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      access_logs: {
+        Row: {
+          accessed_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          ip_address: string | null
+          role: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          accessed_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          ip_address?: string | null
+          role?: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          accessed_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          ip_address?: string | null
+          role?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       anamnesis: {
         Row: {
           arm_flexed: number | null
@@ -182,6 +215,7 @@ export type Database = {
           coach_id: string | null
           created_at: string
           current_metrics: Json
+          feedback_read_at: string | null
           id: string
           payload: Json
           photo_url: string | null
@@ -197,6 +231,7 @@ export type Database = {
           coach_id?: string | null
           created_at?: string
           current_metrics?: Json
+          feedback_read_at?: string | null
           id?: string
           payload?: Json
           photo_url?: string | null
@@ -212,6 +247,7 @@ export type Database = {
           coach_id?: string | null
           created_at?: string
           current_metrics?: Json
+          feedback_read_at?: string | null
           id?: string
           payload?: Json
           photo_url?: string | null
@@ -257,6 +293,39 @@ export type Database = {
           status?: string
           student_id?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      coach_invites: {
+        Row: {
+          created_at: string
+          created_by: string
+          expires_at: string
+          id: string
+          note: string | null
+          token: string
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          expires_at: string
+          id?: string
+          note?: string | null
+          token: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          expires_at?: string
+          id?: string
+          note?: string | null
+          token?: string
+          used_at?: string | null
+          used_by?: string | null
         }
         Relationships: []
       }
@@ -617,6 +686,7 @@ export type Database = {
       profiles: {
         Row: {
           billing_alert_days: number | null
+          blocked_until: string | null
           created_at: string
           cref: string | null
           email: string | null
@@ -633,6 +703,7 @@ export type Database = {
         }
         Insert: {
           billing_alert_days?: number | null
+          blocked_until?: string | null
           created_at?: string
           cref?: string | null
           email?: string | null
@@ -649,6 +720,7 @@ export type Database = {
         }
         Update: {
           billing_alert_days?: number | null
+          blocked_until?: string | null
           created_at?: string
           cref?: string | null
           email?: string | null
