@@ -48,6 +48,89 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 const AnamnesisViewer = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
 const ProtocolBuilder = lazy(() => import("@/components/coach/ProtocolBuilder"));
 
+// ─── Latest Feedback Dialog (clique no label "Feedback hoje/há X dias") ──────
+
+function LatestFeedbackDialog({
+  student, open, onClose,
+}: {
+  student: StudentStatus | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [ci, setCi] = useState<CheckinRow | null>(null);
+
+  useEffect(() => {
+    if (!open || !student) return;
+    (async () => {
+      setLoading(true);
+      const { data } = await sb
+        .from("check_ins")
+        .select("id, submitted_at, current_metrics, payload, coach_feedback, photo_url")
+        .eq("student_id", student.id)
+        .order("submitted_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setCi((data as CheckinRow) || null);
+      setLoading(false);
+    })();
+  }, [open, student]);
+
+  const fmtDate = (iso: string) =>
+    new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+  const fotos = ((ci?.payload as Record<string, unknown> | null)?.fotos as Record<string, string> | undefined) || {};
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Feedback atual — {student?.name ?? "Aluno"}</DialogTitle>
+        </DialogHeader>
+        {loading ? (
+          <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+        ) : !ci ? (
+          <p className="text-sm text-muted-foreground italic text-center py-10">Sem check-in registrado ainda.</p>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">{fmtDate(ci.submitted_at)}</p>
+
+            {Object.keys(fotos).length > 0 && (
+              <div className="grid grid-cols-4 gap-2">
+                {(["frente","lateral_dir","lateral_esq","costas"] as const).map((k) =>
+                  fotos[k] ? (
+                    <div key={k} className="aspect-[3/4] rounded-md overflow-hidden border border-border/50">
+                      <img src={fotos[k]} alt={k} className="w-full h-full object-cover" />
+                    </div>
+                  ) : null
+                )}
+              </div>
+            )}
+
+            <div className="space-y-1 border-t border-border pt-3">
+              {Object.entries(ci.current_metrics || {}).map(([k, v]) => (
+                <div key={k} className="flex justify-between text-xs py-0.5">
+                  <span className="text-muted-foreground capitalize">{k}</span>
+                  <span className="font-medium text-right max-w-[60%]">
+                    {typeof v === "object" && v !== null ? JSON.stringify(v) : String(v ?? "—")}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {ci.coach_feedback && (
+              <div className="border-t border-border pt-3">
+                <p className="text-xs font-semibold text-primary mb-1">Feedback do Coach</p>
+                <p className="text-xs whitespace-pre-wrap text-foreground/85">{ci.coach_feedback}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Quick Anamnesis Sheet ────────────────────────────────────────────────────
 
 function QuickAnamnesisSheet({
