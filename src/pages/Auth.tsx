@@ -8,6 +8,34 @@ import { toast } from "sonner";
 import { ArrowLeft, Lock, Mail, Zap, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 
+// Registra o acesso na tabela access_logs (não bloqueia o login se falhar)
+async function registerAccessLog(userId: string) {
+  try {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    const { data: roleRow } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    const { data: authUser } = await supabase.auth.getUser();
+
+    await supabase.from("access_logs").insert({
+      user_id: userId,
+      role: roleRow?.role || "user",
+      full_name: profile?.full_name || null,
+      email: authUser?.user?.email || null,
+    });
+  } catch {
+    // silently fail — não bloqueia login
+  }
+}
+
 const Auth = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
@@ -38,7 +66,11 @@ const Auth = () => {
       });
       if (error) throw error;
       toast.success("Login realizado com sucesso!");
-      if (data.user) await routeByRole(data.user.id);
+      if (data.user) {
+        // Registra o acesso em background (não bloqueia navegação)
+        registerAccessLog(data.user.id);
+        await routeByRole(data.user.id);
+      }
     } catch (error: any) {
       if (error.message.includes("Invalid login credentials")) {
         toast.error("Email ou senha incorretos");
