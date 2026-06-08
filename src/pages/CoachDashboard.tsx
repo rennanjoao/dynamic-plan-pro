@@ -310,7 +310,7 @@ function AlertBadge({ level }: { level: AlertLevel }) {
 }
 
 function StudentRow({
-  student, onAnamnesis, onProtocol, onUnlink, onHistory, onQuickAnamnesis,
+  student, onAnamnesis, onProtocol, onUnlink, onHistory, onQuickAnamnesis, onLatestFeedback,
 }: {
   student: StudentStatus;
   onAnamnesis: (s: StudentStatus) => void;
@@ -318,6 +318,7 @@ function StudentRow({
   onUnlink: (s: StudentStatus) => void;
   onHistory: (s: StudentStatus) => void;
   onQuickAnamnesis: (s: StudentStatus) => void;
+  onLatestFeedback: (s: StudentStatus) => void;
 }) {
   const lastActivity =
     student.daysInactive === 0 ? "Hoje" :
@@ -357,16 +358,22 @@ function StudentRow({
           <AlertBadge level={student.alertLevel || "ok"} />
         </div>
         <p className="text-xs text-muted-foreground truncate">{student.goal || "Objetivo não definido"} · {lastActivity}</p>
-        {/* FIX: contagem de dias do feedback exibida no card */}
-        <p className={`text-xs flex items-center gap-1 mt-0.5 ${
-          student.daysSinceLastFeedback >= 999 ? "text-muted-foreground" :
-          student.daysSinceLastFeedback >= 5 ? "text-red-500 font-medium" :
-          student.daysSinceLastFeedback >= 3 ? "text-amber-500" :
-          "text-emerald-500"
-        }`}>
+        {/* FIX: label clicável → abre exclusivamente o último feedback */}
+        <button
+          type="button"
+          onClick={() => student.daysSinceLastFeedback < 999 && onLatestFeedback(student)}
+          disabled={student.daysSinceLastFeedback >= 999}
+          className={`text-xs flex items-center gap-1 mt-0.5 rounded px-1 -mx-1 transition-colors ${
+            student.daysSinceLastFeedback >= 999 ? "text-muted-foreground cursor-default" :
+            student.daysSinceLastFeedback >= 5 ? "text-red-500 font-medium hover:bg-red-500/10" :
+            student.daysSinceLastFeedback >= 3 ? "text-amber-500 hover:bg-amber-500/10" :
+            "text-emerald-500 hover:bg-emerald-500/10"
+          }`}
+          title={student.daysSinceLastFeedback < 999 ? "Ver feedback atual" : undefined}
+        >
           <MessageSquare className="w-3 h-3" />
           {feedbackLabel}
-        </p>
+        </button>
       </div>
 
       {displayWeight !== undefined && displayWeight !== null && (
