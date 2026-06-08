@@ -17,6 +17,7 @@ export type Database = {
       anamnesis: {
         Row: {
           baseline_metrics: Json
+          body_fat: number | null
           coach_id: string | null
           created_at: string
           id: string
@@ -27,6 +28,7 @@ export type Database = {
         }
         Insert: {
           baseline_metrics?: Json
+          body_fat?: number | null
           coach_id?: string | null
           created_at?: string
           id?: string
@@ -37,6 +39,7 @@ export type Database = {
         }
         Update: {
           baseline_metrics?: Json
+          body_fat?: number | null
           coach_id?: string | null
           created_at?: string
           id?: string
@@ -166,6 +169,7 @@ export type Database = {
       }
       check_ins: {
         Row: {
+          body_fat: number | null
           coach_feedback: string | null
           coach_id: string | null
           created_at: string
@@ -178,6 +182,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          body_fat?: number | null
           coach_feedback?: string | null
           coach_id?: string | null
           created_at?: string
@@ -190,6 +195,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          body_fat?: number | null
           coach_feedback?: string | null
           coach_id?: string | null
           created_at?: string
@@ -509,6 +515,33 @@ export type Database = {
           meal_id?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      meal_templates: {
+        Row: {
+          coach_id: string
+          created_at: string
+          id: string
+          kind: string
+          meal_data: Json
+          name: string
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          id?: string
+          kind?: string
+          meal_data: Json
+          name: string
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          meal_data?: Json
+          name?: string
         }
         Relationships: []
       }
