@@ -16,10 +16,10 @@ const ROUTES_WITH_OWN_HEADER = new Set<string>([
   "/evolution",
   "/routine",
   "/workout-plan",
-  "/daily",
   "/supplements",
   "/coach",
   "/admin",
+  "/shopping-list",
 ]);
 
 export const NavigationControls = () => {
