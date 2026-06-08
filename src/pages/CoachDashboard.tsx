@@ -88,13 +88,14 @@ function AlertBadge({ level }: { level: AlertLevel }) {
 }
 
 function StudentRow({
-  student, onAnamnesis, onProtocol, onUnlink, onHistory,
+  student, onAnamnesis, onProtocol, onUnlink, onHistory, onQuickAnamnesis,
 }: {
   student: StudentStatus;
   onAnamnesis: (s: StudentStatus) => void;
   onProtocol: (s: StudentStatus) => void;
   onUnlink: (s: StudentStatus) => void;
   onHistory: (s: StudentStatus) => void;
+  onQuickAnamnesis: (s: StudentStatus) => void;
 }) {
   const lastActivity =
     student.daysInactive === 0 ? "Hoje" :
@@ -154,6 +155,9 @@ function StudentRow({
       )}
 
       <div className="flex items-center gap-1 shrink-0">
+        <button onClick={() => onQuickAnamnesis(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Ver anamnese / feedback">
+          <FileText className="w-4 h-4" />
+        </button>
         <button onClick={() => onAnamnesis(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Ver Anamnese">
           <ClipboardList className="w-4 h-4" />
         </button>
