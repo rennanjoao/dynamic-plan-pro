@@ -979,6 +979,7 @@ export default function CoachDashboard() {
   const [historyStudent, setHistoryStudent] = useState<StudentStatus | null>(null);
   const [quickAnamStudent, setQuickAnamStudent] = useState<StudentStatus | null>(null);
   const [evoStudent, setEvoStudent] = useState<StudentStatus | null>(null);
+  const [latestFbStudent, setLatestFbStudent] = useState<StudentStatus | null>(null);
   const qc = useQueryClient();
 
   // FIX: lê feedbackIntervalDays do perfil do coach para passar ao hook
@@ -1130,6 +1131,7 @@ export default function CoachDashboard() {
                     onUnlink={setUnlinkTarget}
                     onHistory={setHistoryStudent}
                     onQuickAnamnesis={setQuickAnamStudent}
+                    onLatestFeedback={setLatestFbStudent}
                   />
                 ))}
               </div>
@@ -1173,6 +1175,12 @@ export default function CoachDashboard() {
           student={evoStudent}
           open={!!evoStudent}
           onClose={() => setEvoStudent(null)}
+        />
+
+        <LatestFeedbackDialog
+          student={latestFbStudent}
+          open={!!latestFbStudent}
+          onClose={() => setLatestFbStudent(null)}
         />
       </main>
     </div>
