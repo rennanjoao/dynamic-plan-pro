@@ -748,6 +748,8 @@ export default function CoachDashboard() {
   const [showProfile, setShowProfile] = useState(false);
   const [unlinkTarget, setUnlinkTarget] = useState<StudentStatus | null>(null);
   const [historyStudent, setHistoryStudent] = useState<StudentStatus | null>(null);
+  const [quickAnamStudent, setQuickAnamStudent] = useState<StudentStatus | null>(null);
+  const [evoStudent, setEvoStudent] = useState<StudentStatus | null>(null);
   const qc = useQueryClient();
 
   // FIX: lê feedbackIntervalDays do perfil do coach para passar ao hook
@@ -898,6 +900,7 @@ export default function CoachDashboard() {
                     onProtocol={(st) => { setSelectedStudent(st); setView("protocol"); }}
                     onUnlink={setUnlinkTarget}
                     onHistory={setHistoryStudent}
+                    onQuickAnamnesis={setQuickAnamStudent}
                   />
                 ))}
               </div>
@@ -928,6 +931,19 @@ export default function CoachDashboard() {
           student={historyStudent}
           open={!!historyStudent}
           onClose={() => setHistoryStudent(null)}
+        />
+
+        <QuickAnamnesisSheet
+          student={quickAnamStudent}
+          open={!!quickAnamStudent}
+          onClose={() => setQuickAnamStudent(null)}
+          onOpenEvolution={(s) => { setQuickAnamStudent(null); setEvoStudent(s); }}
+        />
+
+        <EvolutionDialog
+          student={evoStudent}
+          open={!!evoStudent}
+          onClose={() => setEvoStudent(null)}
         />
       </main>
     </div>
