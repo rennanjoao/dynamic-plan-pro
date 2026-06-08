@@ -209,6 +209,7 @@ export const MealSchema = z.preprocess(
     }),
     carbCycle: z.boolean().default(false),
     notes: z.string().optional().default(""),
+    hiddenKinds: z.array(z.enum(["carb", "protein", "fat"])).optional().default([]),
   })
 );
 
