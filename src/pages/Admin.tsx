@@ -8,6 +8,7 @@ import { TrainerManagement } from "@/components/admin/TrainerManagement";
 import { StudentLinksManagement } from "@/components/admin/StudentLinksManagement";
 import { AlertManager } from "@/components/admin/AlertManager";
 import { PlansSettings } from "@/components/admin/PlansSettings";
+import { AccessLogPanel } from "@/components/admin/AccessLogPanel";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -53,6 +54,12 @@ const Admin = () => {
         <StudentLinksManagement />
         <AlertManager />
         <PlansSettings />
+
+        {/* Monitoramento de acesso */}
+        <div className="rounded-xl border border-border bg-card p-6">
+          <h2 className="text-lg font-semibold mb-4">Monitoramento de Acesso</h2>
+          <AccessLogPanel />
+        </div>
       </div>
     </div>
   );
