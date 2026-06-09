@@ -3,15 +3,16 @@
  *
  * CORREÇÕES APLICADAS:
  * [BUG CRÍTICO] TACO_DATA era undefined → crash na aba Dieta
- *   Fix: importa TACO_FOODS (nome real exportado) e cria alias TACO_DATA com campo id
+ * Fix: importa TACO_FOODS (nome real exportado) e cria alias TACO_DATA com campo id
  * [BUG] updItem injetava HTML nos dados salvos (spans de peso cru/pronto)
- *   Fix: armazena dados limpos; o viewer calcula o display dinamicamente
+ * Fix: armazena dados limpos; o viewer calcula o display dinamicamente
  * [LAYOUT] Aba Dieta refatorada: Carbo / Proteína / Gordura cada um com seção
- *   colorida, opções empilhadas, peso inline na mesma linha do alimento
+ * colorida, opções empilhadas, peso inline na mesma linha do alimento
  * [BUG] Botões Dia Alto/Baixo na aba Semana não respondiam ao clique
- *   Fix: botões agora usam data-active + classes CSS corretas, sem Select
+ * Fix: botões agora usam data-active + classes CSS corretas, sem Select
  * [FEATURE] addOption: permite adicionar 3ª opção por macro
  * [FEATURE] Observação por opção (campo notes inline)
+ * [UI/UX] Adição de cabeçalhos e dicas (placeholders) na tabela de Workouts.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -435,14 +436,29 @@ function WorkoutsTab({ payload, setPayload }: { payload: ProtocolPayload; setPay
             <Input value={day.focus} onChange={(e) => updDay(di, { focus: e.target.value })} placeholder="Foco do treino" className="h-9 text-sm flex-1" />
           </div>
           <div className="space-y-2">
+            {/* CABEÇALHOS DA TABELA DE EXERCÍCIOS */}
+            {day.exercises.length > 0 && (
+              <div className="hidden md:grid grid-cols-[1.8fr_0.6fr_0.6fr_0.6fr_0.6fr_1fr_auto] gap-2 px-1 pb-1">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Exercício</span>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Séries</span>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Reps</span>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground cursor-help flex items-center gap-1" title="3010 = Excêntrico / Pausa / Concêntrico / Pausa">
+                  Cadência ⓘ
+                </span>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Descanso</span>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Obs</span>
+                <span className="w-6"></span>
+              </div>
+            )}
+            
             {day.exercises.map((ex, ei) => (
-              <div key={ei} className="grid grid-cols-2 md:grid-cols-[1.8fr_0.6fr_0.6fr_0.6fr_0.6fr_1fr_auto] gap-2">
-                <Input value={ex.name} onChange={(e) => updEx(di, ei, { name: e.target.value })} placeholder="Supino reto" className="h-8 text-xs" />
-                <Input value={ex.sets} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder="4" className="h-8 text-xs" />
-                <Input value={ex.reps} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder="8-10" className="h-8 text-xs" />
-                <Input value={ex.cadence} onChange={(e) => updEx(di, ei, { cadence: e.target.value })} placeholder="3010" className="h-8 text-xs" />
-                <Input value={ex.rest} onChange={(e) => updEx(di, ei, { rest: e.target.value })} placeholder="60s" className="h-8 text-xs" />
-                <Input value={ex.notes} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="—" className="h-8 text-xs" />
+              <div key={ei} className="grid grid-cols-2 md:grid-cols-[1.8fr_0.6fr_0.6fr_0.6fr_0.6fr_1fr_auto] gap-2 items-center">
+                <Input value={ex.name} onChange={(e) => updEx(di, ei, { name: e.target.value })} placeholder="Ex: Supino reto" className="h-8 text-xs" />
+                <Input value={ex.sets} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder="Séries (Ex: 4)" className="h-8 text-xs" />
+                <Input value={ex.reps} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder="Reps (Ex: 8-12)" className="h-8 text-xs" />
+                <Input value={ex.cadence} onChange={(e) => updEx(di, ei, { cadence: e.target.value })} placeholder="Ex: 3010" className="h-8 text-xs" title="3010 = Excêntrico / Pausa / Concêntrico / Pausa" />
+                <Input value={ex.rest} onChange={(e) => updEx(di, ei, { rest: e.target.value })} placeholder="Descanso (Ex: 60s)" className="h-8 text-xs" />
+                <Input value={ex.notes} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-xs" />
                 <button onClick={() => updDay(di, { exercises: day.exercises.filter((_, i) => i !== ei) })} className="text-muted-foreground hover:text-destructive p-1.5"><Trash2 className="w-3.5 h-3.5" /></button>
               </div>
             ))}
@@ -595,7 +611,6 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
     const opts = getOptsForKind(payload.meals[mealIdx], kind);
     const items = [...(opts[optIdx].items as any[])];
     items[itemIdx] = { ...items[itemIdx], ...patch };
-    // FIX: dados LIMPOS — não injeta HTML. O viewer exibe rawWeight dinamicamente
     if (items[itemIdx].isTaco) {
       items[itemIdx].name = items[itemIdx].baseName || items[itemIdx].name || "";
       items[itemIdx].weight = "";
