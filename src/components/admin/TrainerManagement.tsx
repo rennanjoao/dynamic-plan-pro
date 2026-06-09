@@ -36,6 +36,7 @@ interface ProfileInviteInfo {
 interface CoachInvite {
   id: string;
   token: string;
+  email?: string;
   expires_at: string;
   used_at: string | null;
   note: string | null;
@@ -70,7 +71,7 @@ export const TrainerManagement = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [invites, setInvites] = useState<CoachInvite[]>([]);
   const [inviteLoading, setInviteLoading] = useState(false);
-  const [newInvite, setNewInvite] = useState({ expiresInDays: 7, note: "" });
+  const [newInvite, setNewInvite] = useState({ email: "", expiresInDays: 30, note: "" });
   const [newTrainer, setNewTrainer] = useState({
     email: "",
     password: "",
@@ -121,14 +122,23 @@ export const TrainerManagement = () => {
   };
 
   const handleGenerateInvite = async () => {
+    if (!newInvite.email) {
+      toast.error("O email do coach é obrigatório para enviar o convite.");
+      return;
+    }
     setInviteLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke<ManageTrainersResponse>("manage-trainers", {
-        body: { action: "generate-coach-invite", expiresInDays: newInvite.expiresInDays, note: newInvite.note },
+        body: { 
+          action: "generate-coach-invite", 
+          email: newInvite.email, 
+          expiresInDays: newInvite.expiresInDays, 
+          note: newInvite.note 
+        },
       });
       if (error || data?.error) throw new Error(data?.error || "Erro ao gerar convite");
-      toast.success("Convite gerado!");
-      setNewInvite({ expiresInDays: 7, note: "" });
+      toast.success("Convite gerado e enviado por e-mail!");
+      setNewInvite({ email: "", expiresInDays: 30, note: "" });
       loadInvites();
     } catch (e: unknown) {
       toast.error(getErrorMessage(e, "Erro ao gerar convite"));
@@ -363,13 +373,27 @@ export const TrainerManagement = () => {
           <div className="space-y-4 py-2">
             <div className="rounded-xl border border-border bg-card/40 p-4 space-y-3">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Gerar novo convite</p>
+              
+              <div className="grid grid-cols-1 gap-3">
+                <div>
+                  <Label className="text-xs">Email do Coach *</Label>
+                  <Input
+                    type="email"
+                    value={newInvite.email}
+                    onChange={(e) => setNewInvite({ ...newInvite, email: e.target.value })}
+                    placeholder="coach@exemplo.com"
+                    className="mt-1 h-9 text-sm"
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-xs">Expira em (dias)</Label>
+                  <Label className="text-xs">Trial Expira em (dias)</Label>
                   <Input
                     type="number" min={1} max={90}
                     value={newInvite.expiresInDays}
-                    onChange={(e) => setNewInvite({ ...newInvite, expiresInDays: Number(e.target.value) || 7 })}
+                    onChange={(e) => setNewInvite({ ...newInvite, expiresInDays: Number(e.target.value) || 30 })}
                     className="mt-1 h-9 text-sm"
                   />
                 </div>
@@ -378,14 +402,14 @@ export const TrainerManagement = () => {
                   <Input
                     value={newInvite.note}
                     onChange={(e) => setNewInvite({ ...newInvite, note: e.target.value })}
-                    placeholder="Ex: para João"
+                    placeholder="Ex: Novo Profissional"
                     className="mt-1 h-9 text-sm"
                   />
                 </div>
               </div>
               <Button onClick={handleGenerateInvite} disabled={inviteLoading} className="w-full gap-2">
                 {inviteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
-                Gerar Link de Convite
+                Gerar Link e Enviar Email
               </Button>
             </div>
 
@@ -432,6 +456,7 @@ export const TrainerManagement = () => {
                         </div>
                       </div>
                       <p className="text-muted-foreground">
+                        {inv.email && <span className="block mb-1 text-foreground font-medium">{inv.email}</span>}
                         Expira: {fmtDate(inv.expires_at)}
                         {inv.note ? ` · ${inv.note}` : ""}
                       </p>
