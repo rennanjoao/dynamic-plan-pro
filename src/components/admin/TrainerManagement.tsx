@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import {
   UserPlus, Users, Trash2, Shield, Mail, Key, Dices, LockKeyhole,
   Ban, BanIcon, Clock, Copy, Link2, RefreshCw, CheckCircle2, Loader2,
+  Award, DollarSign
 } from "lucide-react";
 
 interface Trainer {
@@ -226,6 +227,20 @@ export const TrainerManagement = () => {
     }
   };
 
+  const handleUpdateTrial = async (trainerId: string, trialEndsAt: string | null) => {
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ trial_ends_at: trialEndsAt })
+        .eq("user_id", trainerId);
+      if (error) throw error;
+      toast.success("Plano atualizado com sucesso!");
+      loadTrainers();
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Erro ao atualizar plano"));
+    }
+  };
+
   const handleUpdatePassword = async (trainerId: string, password: string) => {
     try {
       if (password.length < 6) throw new Error("A senha deve ter no mínimo 6 caracteres");
@@ -302,6 +317,7 @@ export const TrainerManagement = () => {
               onDelete={handleDeleteTrainer}
               onUpdateEmail={handleUpdateNotificationEmail}
               onUpdateCode={handleUpdateInviteCode}
+              onUpdateTrial={handleUpdateTrial}
               onUpdatePassword={handleUpdatePassword}
               onBlock={handleBlockUser}
             />
@@ -472,12 +488,13 @@ export const TrainerManagement = () => {
   );
 };
 
-/* ── Linha do treinador com edição inline + bloquear ─────────── */
-function TrainerRow({ trainer, onDelete, onUpdateEmail, onUpdateCode, onUpdatePassword, onBlock }: {
+/* ── Linha do treinador com edição inline + bloquear + plano ─────────── */
+function TrainerRow({ trainer, onDelete, onUpdateEmail, onUpdateCode, onUpdateTrial, onUpdatePassword, onBlock }: {
   trainer: Trainer;
   onDelete: (id: string) => void;
   onUpdateEmail: (id: string, email: string) => void;
   onUpdateCode: (id: string, code: string) => void;
+  onUpdateTrial: (id: string, trialEndsAt: string | null) => void;
   onUpdatePassword: (id: string, password: string) => void;
   onBlock: (id: string, blockedUntil: string | null) => void;
 }) {
@@ -485,10 +502,15 @@ function TrainerRow({ trainer, onDelete, onUpdateEmail, onUpdateCode, onUpdatePa
   const [editingCode, setEditingCode] = useState(false);
   const [editingPassword, setEditingPassword] = useState(false);
   const [editingBlock, setEditingBlock] = useState(false);
+  const [editingPlan, setEditingPlan] = useState(false);
+
   const [emailVal, setEmailVal] = useState(trainer.notification_email || trainer.email || "");
   const [codeVal, setCodeVal] = useState(trainer.invite_code || "");
   const [passwordVal, setPasswordVal] = useState("");
   const [blockDate, setBlockDate] = useState("");
+
+  const [planType, setPlanType] = useState<"trial" | "billable" | "lifetime">("billable");
+  const [trialDate, setTrialDate] = useState("");
 
   const blocked = isBlocked(trainer.blocked_until);
 
@@ -501,6 +523,23 @@ function TrainerRow({ trainer, onDelete, onUpdateEmail, onUpdateCode, onUpdatePa
     setEditingCode(false);
     setEditingPassword(false);
     setEditingBlock(false);
+    setEditingPlan(false);
+  };
+
+  const openPlanEdit = () => {
+    closeAll();
+    setEditingPlan(true);
+    if (!trainer.trial_ends_at) {
+      setPlanType("billable");
+    } else {
+      const year = new Date(trainer.trial_ends_at).getFullYear();
+      if (year > 2090) {
+        setPlanType("lifetime");
+      } else {
+        setPlanType("trial");
+        setTrialDate(new Date(trainer.trial_ends_at).toISOString().split('T')[0]);
+      }
+    }
   };
 
   return (
@@ -530,8 +569,13 @@ function TrainerRow({ trainer, onDelete, onUpdateEmail, onUpdateCode, onUpdatePa
           </div>
         </div>
         <div className="flex items-center gap-1">
+          {trainer.role === "coach" && (
+            <Button variant="ghost" size="sm" onClick={openPlanEdit} title="Gerenciar Plano (Trial / Vitalício)">
+              <Award className="w-4 h-4 text-amber-500 hover:text-amber-600" />
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={() => { closeAll(); setEditingBlock(!editingBlock); }}
-            title={blocked ? "Desbloquear acesso" : "Bloquear acesso"} className={blocked ? "text-emerald-600" : "text-amber-500"}>
+            title={blocked ? "Desbloquear acesso" : "Bloquear acesso (Login)"} className={blocked ? "text-emerald-600" : "text-destructive"}>
             {blocked ? <BanIcon className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
           </Button>
           <Button variant="ghost" size="sm" onClick={() => { closeAll(); setEditingCode(!editingCode); }} title="Editar código de convite">
@@ -549,7 +593,46 @@ function TrainerRow({ trainer, onDelete, onUpdateEmail, onUpdateCode, onUpdatePa
         </div>
       </div>
 
-      {/* Bloquear/Desbloquear */}
+      {/* Editar Plano / Trial */}
+      {editingPlan && (
+        <div className="pt-1 border-t border-border/20 mt-2 space-y-2">
+          <p className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wider">Acesso / Plano do Coach</p>
+          <div className="flex gap-2 items-center flex-wrap">
+            <Select value={planType} onValueChange={(v) => setPlanType(v as any)}>
+              <SelectTrigger className="h-8 text-xs w-[140px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="trial">Em Trial</SelectItem>
+                <SelectItem value="billable">Cobrável (Mensalidade)</SelectItem>
+                <SelectItem value="lifetime">Vitalício (Isento)</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {planType === "trial" && (
+              <Input
+                type="date"
+                value={trialDate}
+                onChange={(e) => setTrialDate(e.target.value)}
+                className="h-8 text-xs max-w-[150px]"
+              />
+            )}
+
+            <Button size="sm" className="h-8 text-xs" onClick={() => {
+              let val = null;
+              if (planType === "lifetime") val = "2099-12-31T23:59:59Z";
+              else if (planType === "trial") {
+                if (!trialDate) { toast.error("Selecione a data limite do Trial"); return; }
+                val = new Date(trialDate).toISOString();
+              }
+              onUpdateTrial(trainer.id, val);
+              setEditingPlan(false);
+            }}>
+              Salvar Plano
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Bloquear/Desbloquear Acesso */}
       {editingBlock && (
         <div className="pt-1 border-t border-border/20 mt-2 space-y-2">
           {blocked ? (
@@ -559,13 +642,13 @@ function TrainerRow({ trainer, onDelete, onUpdateEmail, onUpdateCode, onUpdatePa
               </p>
               <Button size="sm" variant="outline" className="h-8 text-xs gap-1 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10"
                 onClick={() => { onBlock(trainer.id, null); closeAll(); }}>
-                <CheckCircle2 className="w-3.5 h-3.5" /> Desbloquear agora
+                <CheckCircle2 className="w-3.5 h-3.5" /> Desbloquear login
               </Button>
             </div>
           ) : (
             <div className="flex gap-2 items-end">
               <div className="flex-1">
-                <p className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wider">Bloquear acesso até</p>
+                <p className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wider">Bloquear acesso (Login) até</p>
                 <Input
                   type="datetime-local"
                   value={blockDate}
@@ -573,13 +656,13 @@ function TrainerRow({ trainer, onDelete, onUpdateEmail, onUpdateCode, onUpdatePa
                   className="h-8 text-xs"
                 />
               </div>
-              <Button size="sm" className="h-8 text-xs bg-amber-500 hover:bg-amber-600 text-white gap-1"
+              <Button size="sm" className="h-8 text-xs bg-red-600 hover:bg-red-700 text-white gap-1"
                 disabled={!blockDate}
                 onClick={() => {
                   onBlock(trainer.id, new Date(blockDate).toISOString());
                   closeAll();
                 }}>
-                <Ban className="w-3.5 h-3.5" /> Bloquear
+                <Ban className="w-3.5 h-3.5" /> Bloquear Login
               </Button>
             </div>
           )}
@@ -640,11 +723,17 @@ function TrainerRow({ trainer, onDelete, onUpdateEmail, onUpdateCode, onUpdatePa
           <Key className="w-3 h-3" />
           Código: <span className="font-mono font-bold text-foreground">{trainer.invite_code || "Não gerado"}</span>
         </p>
-        {trainer.trial_ends_at && (
-          <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            Trial até: {fmtDate(trainer.trial_ends_at)}
-          </p>
+        
+        {/* Status do Plano */}
+        {trainer.role === "coach" && (
+          <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+            {(() => {
+              if (!trainer.trial_ends_at) return <><DollarSign className="w-3 h-3 text-emerald-500" /> <span className="font-medium text-emerald-600 dark:text-emerald-400">Cobrável</span></>;
+              const year = new Date(trainer.trial_ends_at).getFullYear();
+              if (year > 2090) return <><Award className="w-3 h-3 text-amber-500" /> <span className="font-medium text-amber-600 dark:text-amber-500">Plano Vitalício</span></>;
+              return <><Clock className="w-3 h-3" /> Trial até: {fmtDate(trainer.trial_ends_at)}</>;
+            })()}
+          </div>
         )}
       </div>
     </div>
