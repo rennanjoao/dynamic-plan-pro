@@ -216,29 +216,50 @@ serve(async (req) => {
 
       // Integração com Resend para envio do link
       const resendKey = Deno.env.get("RESEND_API_KEY");
-      if (resendKey) {
-        const origin = req.headers.get("origin") || "https://seusistema.com"; 
-        const inviteLink = `${origin}/register?invite=${token}`;
-        
-        await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            from: "Dynamic Plan Pro <onboarding@resend.dev>", // Altere para o seu domínio verificado no Resend posteriormente
-            to: email,
-            subject: "Convite Exclusivo - Dynamic Plan Pro",
-            html: `
-              <h2>Você foi convidado para ser Coach!</h2>
-              <p>Clique no link abaixo para criar sua conta no Dynamic Plan Pro e iniciar seu período de testes:</p>
-              <a href="${inviteLink}" style="display:inline-block;padding:10px 20px;background:#000;color:#fff;text-decoration:none;border-radius:5px;">Aceitar Convite</a>
-              <br><br>
-              <p>Ou copie e cole no navegador: ${inviteLink}</p>
-            `
-          })
-        });
+      let emailSent = false;
+      let emailError: string | null = null;
+      const origin = req.headers.get("origin") || "https://rjelitelab.com.br";
+      const inviteLink = `${origin}/register?invite=${token}`;
+
+      if (!resendKey) {
+        emailError = "RESEND_API_KEY não configurada";
+      } else {
+        try {
+          const r = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              from: "Elite Lab Hub <no-reply@rjelitelab.com.br>",
+              to: [email],
+              subject: "Convite Exclusivo — Elite Lab Hub",
+              html: `
+                <div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;background:#0a0a0a;color:#fff;border-radius:12px;">
+                  <h2 style="color:#fff;margin:0 0 12px;">Você foi convidado para ser Coach no Elite Lab <span style="color:#E11D48;">Hub</span></h2>
+                  <p style="color:#cbd5e1;line-height:1.55;">Clique no botão abaixo para criar sua conta e iniciar seu período de teste de <strong>30 dias</strong>:</p>
+                  <p style="margin:24px 0;">
+                    <a href="${inviteLink}" style="display:inline-block;padding:12px 22px;background:#E11D48;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Aceitar Convite</a>
+                  </p>
+                  <p style="color:#94a3b8;font-size:12px;">Ou copie e cole este link no navegador:<br/>${inviteLink}</p>
+                  <p style="color:#64748b;font-size:11px;margin-top:24px;">Este convite expira em ${expiresInDays} dia(s) e só pode ser usado uma vez.</p>
+                </div>
+              `,
+            }),
+          });
+          if (!r.ok) {
+            const txt = await r.text();
+            emailError = `Resend ${r.status}: ${txt}`;
+          } else {
+            emailSent = true;
+          }
+        } catch (e) {
+          emailError = e instanceof Error ? e.message : "Falha ao enviar e-mail";
+        }
       }
 
-      return new Response(JSON.stringify({ success: true, invite: data }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(
+        JSON.stringify({ success: true, invite: data, inviteLink, emailSent, emailError }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // ── LIST INVITES ──
