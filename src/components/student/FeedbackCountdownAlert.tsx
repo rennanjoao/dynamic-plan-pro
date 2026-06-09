@@ -1,0 +1,157 @@
+/**
+ * FeedbackCountdownAlert — Avisa o aluno sobre o próximo feedback.
+ * Aparece nos mesmos slots dos demais alertas (StudentArea).
+ *
+ * Regras (a contagem usa o último check-in ou, se inexistente, a anamnese):
+ *  - 13 dias  → pré-aviso (azul)
+ *  - 14 dias  → dia do feedback (verde)
+ *  - 15-16    → atrasado leve (laranja)
+ *  - ≥17      → atrasado crítico (vermelho)
+ */
+
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { Clock, CalendarCheck, AlertTriangle, TrendingUp, ArrowRight, X } from "lucide-react";
+
+interface Props {
+  userId: string;
+  dismissed: string[];
+  onDismiss: (id: string) => void;
+}
+
+function daysSince(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (isNaN(t)) return null;
+  return Math.floor((Date.now() - t) / 86_400_000);
+}
+
+export default function FeedbackCountdownAlert({ userId, dismissed, onDismiss }: Props) {
+  const navigate = useNavigate();
+
+  const { data } = useQuery({
+    queryKey: ["student-feedback-countdown", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const [{ data: ci }, { data: an }] = await Promise.all([
+        supabase
+          .from("check_ins")
+          .select("submitted_at")
+          .eq("student_id", userId)
+          .order("submitted_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("anamnesis")
+          .select("submitted_at, updated_at")
+          .eq("student_id", userId)
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      const lastCheckin = ci?.submitted_at ?? null;
+      const lastAna = an?.submitted_at ?? an?.updated_at ?? null;
+      return { lastCheckin, lastAna };
+    },
+  });
+
+  if (!data) return null;
+
+  // Sem anamnese ainda → aluno está no onboarding, não atrapalhamos.
+  const daysAna = daysSince(data.lastAna);
+  if (daysAna == null) return null;
+
+  // Conta a partir do último feedback OU da anamnese se ainda não houver feedback.
+  const days = daysSince(data.lastCheckin) ?? daysAna;
+  if (days < 13) return null;
+
+  // Bucket
+  type Bucket = "pre" | "today" | "late" | "critical";
+  const bucket: Bucket =
+    days === 13 ? "pre" : days === 14 ? "today" : days <= 16 ? "late" : "critical";
+
+  // ID por bucket + dia para o dismiss ser "do dia"
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const id = `fb-countdown-${bucket}-${todayKey}`;
+  if (dismissed.includes(id)) return null;
+
+  const cfg = (() => {
+    switch (bucket) {
+      case "pre":
+        return {
+          Icon: Clock,
+          title: "Seu próximo feedback está chegando",
+          body:
+            "Amanhã será o momento de atualizar sua evolução. Reserve alguns minutos para preencher o feedback e manter seu plano alinhado aos seus objetivos.",
+          cta: "Adiantar feedback",
+          cls: "bg-sky-500/10 border-sky-500/25 text-sky-700 dark:text-sky-300",
+          iconCls: "text-sky-500",
+          ctaCls: "text-sky-600 hover:text-sky-700 dark:text-sky-300",
+        };
+      case "today":
+        return {
+          Icon: TrendingUp,
+          title: "Hora de evoluir",
+          body:
+            "Hoje é dia de feedback! Atualize sua evolução para que possamos acompanhar seus resultados e fazer os ajustes necessários no seu plano.",
+          cta: "Enviar feedback agora",
+          cls: "bg-emerald-500/10 border-emerald-500/25 text-emerald-700 dark:text-emerald-300",
+          iconCls: "text-emerald-500",
+          ctaCls: "text-emerald-600 hover:text-emerald-700 dark:text-emerald-300",
+        };
+      case "late":
+        return {
+          Icon: CalendarCheck,
+          title: "Feedback pendente",
+          body:
+            `Seu feedback está ${days - 14} dia(s) atrasado. Sem essa atualização fica mais difícil acompanhar sua evolução — envie assim que possível para mantermos o plano calibrado.`,
+          cta: "Enviar feedback",
+          cls: "bg-orange-500/10 border-orange-500/25 text-orange-700 dark:text-orange-300",
+          iconCls: "text-orange-500",
+          ctaCls: "text-orange-600 hover:text-orange-700 dark:text-orange-300",
+        };
+      case "critical":
+      default:
+        return {
+          Icon: AlertTriangle,
+          title: "Feedback em atraso crítico",
+          body:
+            `Já se passaram ${days} dias desde sua última atualização. Sem feedback recente, não conseguimos ajustar seu protocolo com precisão. Envie agora para retomar o ritmo.`,
+          cta: "Enviar feedback agora",
+          cls: "bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-300",
+          iconCls: "text-red-500",
+          ctaCls: "text-red-600 hover:text-red-700 dark:text-red-300",
+        };
+    }
+  })();
+
+  const { Icon } = cfg;
+
+  return (
+    <div className={`rounded-xl border p-4 relative shadow-sm ${cfg.cls}`}>
+      <button
+        onClick={() => onDismiss(id)}
+        className="absolute top-3 right-3 opacity-70 hover:opacity-100"
+        aria-label="Fechar"
+      >
+        <X className="w-4 h-4" />
+      </button>
+      <div className="flex items-start gap-3">
+        <Icon className={`w-5 h-5 shrink-0 mt-0.5 ${cfg.iconCls}`} />
+        <div className="flex-1 min-w-0 pr-4">
+          <h3 className="text-sm font-bold">{cfg.title}</h3>
+          <p className="text-xs mt-1 opacity-90 leading-relaxed">{cfg.body}</p>
+          <button
+            type="button"
+            onClick={() => navigate("/check-in")}
+            className={`mt-2 inline-flex items-center gap-1 text-xs font-semibold ${cfg.ctaCls}`}
+          >
+            {cfg.cta} <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
