@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { toast } from "sonner";
+import FeedbackCountdownAlert from "@/components/student/FeedbackCountdownAlert";
 
 // Chave do localStorage por user — evita colisão entre alunos no mesmo browser
 const DISMISSED_KEY = (uid: string) => `dismissed_alerts_${uid}`;
@@ -262,6 +263,15 @@ export default function StudentArea() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-4">
+
+        {/* ALERTA DE FEEDBACK PERIÓDICO (13 / 14 / 15+ dias) */}
+        {userId && (
+          <FeedbackCountdownAlert
+            userId={userId}
+            dismissed={dismissedAlerts}
+            onDismiss={dismissAlert}
+          />
+        )}
 
         {/* ALERTA DE PROTOCOLO ATUALIZADO */}
         {protocolAlert && !dismissedAlerts.includes(protocolAlert.id) && (
