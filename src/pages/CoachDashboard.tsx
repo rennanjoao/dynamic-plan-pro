@@ -249,8 +249,8 @@ function StudentRow({
           disabled={student.daysSinceLastFeedback >= 999}
           className={`text-xs flex items-center gap-1 mt-0.5 rounded px-1 -mx-1 transition-colors ${
             student.daysSinceLastFeedback >= 999 ? "text-muted-foreground cursor-default" :
-            student.daysSinceLastFeedback >= 5 ? "text-red-500 font-medium hover:bg-red-500/10" :
-            student.daysSinceLastFeedback >= 3 ? "text-amber-500 hover:bg-amber-500/10" :
+            student.daysSinceLastFeedback >= 17 ? "text-red-500 font-medium hover:bg-red-500/10" :
+            student.daysSinceLastFeedback >= 14 ? "text-orange-500 hover:bg-orange-500/10" :
             "text-emerald-500 hover:bg-emerald-500/10"
           }`}
           title={student.daysSinceLastFeedback < 999 ? "Ver feedback atual" : undefined}
