@@ -7,6 +7,8 @@
  * [FIX] useCoachStudents: recebe feedbackIntervalDays dinâmico do perfil
  * [FIX] billingAlertDays: agora editável e salvo corretamente no perfil
  * [FIX] Alerta de pagamento: billingAlertDays lido do perfil do coach corretamente
+ * [REFACTOR] Remoção de botões e vistas redundantes (QuickAnamnesis removido).
+ * [REFACTOR] Botão de Anamnese agora abre o EvolutionDialog diretamente.
  */
 
 import { useState, useMemo, lazy, Suspense, useEffect } from "react";
@@ -18,7 +20,7 @@ import {
   AlertTriangle, CheckCircle2, Search, Filter, Users,
   Dumbbell, ClipboardList, ArrowLeft,
   Loader2, Plus, Trash2, DollarSign, UserPlus, Calendar, X, User, LogOut,
-  MessageSquare, History, FileDown, FileText, Camera
+  MessageSquare, History, FileDown
 } from "lucide-react";
 import CoachNotificationBell from "@/components/coach/CoachNotificationBell";
 import { Input } from "@/components/ui/input";
@@ -31,8 +33,6 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -44,7 +44,6 @@ import {
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-const AnamnesisViewer = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
 const ProtocolBuilder = lazy(() => import("@/components/coach/ProtocolBuilder"));
 const EvolutionComparisonLazy = lazy(() => import("@/components/coach/EvolutionComparison"));
 
@@ -73,7 +72,7 @@ function LatestFeedbackDialog({
         .maybeSingle();
       const row = (data as CheckinRow) || null;
       setCi(row);
-      // [FIX] marca feedback como visto quando coach abre o dialog
+      // Marca feedback como visto quando coach abre o dialog
       if (row?.id && !row.feedback_read_at) {
         sb.from("check_ins")
           .update({ feedback_read_at: new Date().toISOString() })
@@ -139,41 +138,6 @@ function LatestFeedbackDialog({
   );
 }
 
-// ─── Quick Anamnesis Sheet ────────────────────────────────────────────────────
-
-function QuickAnamnesisSheet({
-  student, open, onClose, onOpenEvolution,
-}: {
-  student: StudentStatus | null;
-  open: boolean;
-  onClose: () => void;
-  onOpenEvolution: (s: StudentStatus) => void;
-}) {
-  return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="sm:max-w-[440px] w-full p-0">
-        <SheetHeader className="px-4 py-3 border-b border-border">
-          <SheetTitle className="text-sm">Anamnese — {student?.name || "Aluno"}</SheetTitle>
-        </SheetHeader>
-        <ScrollArea className="h-[calc(100vh-110px)]">
-          <div className="p-4 space-y-3">
-            {student ? (
-              <Suspense fallback={<div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>}>
-                <AnamnesisViewer studentId={student.id} studentName={student.name} />
-              </Suspense>
-            ) : null}
-          </div>
-        </ScrollArea>
-        <div className="border-t border-border p-3">
-          <Button variant="outline" className="w-full" onClick={() => student && onOpenEvolution(student)}>
-            <Camera className="w-4 h-4 mr-2" /> Ver Evolução Visual
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
-}
-
 // ─── Evolution (Visual) Dialog ────────────────────────────────────────────────
 
 function EvolutionDialog({ student, open, onClose }: { student: StudentStatus | null; open: boolean; onClose: () => void }) {
@@ -181,7 +145,7 @@ function EvolutionDialog({ student, open, onClose }: { student: StudentStatus | 
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Evolução Visual — {student?.name || "Aluno"}</DialogTitle>
+          <DialogTitle>Evolução e Anamnese — {student?.name || "Aluno"}</DialogTitle>
         </DialogHeader>
         {student && (
           <Suspense fallback={<div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>}>
@@ -193,7 +157,7 @@ function EvolutionDialog({ student, open, onClose }: { student: StudentStatus | 
   );
 }
 
-type CoachView = "list" | "anamnesis" | "protocol";
+type CoachView = "list" | "protocol";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -233,14 +197,13 @@ function AlertBadge({ level }: { level: AlertLevel }) {
 }
 
 function StudentRow({
-  student, onAnamnesis, onProtocol, onUnlink, onHistory, onQuickAnamnesis, onLatestFeedback,
+  student, onAnamnesis, onProtocol, onUnlink, onHistory, onLatestFeedback,
 }: {
   student: StudentStatus;
   onAnamnesis: (s: StudentStatus) => void;
   onProtocol: (s: StudentStatus) => void;
   onUnlink: (s: StudentStatus) => void;
   onHistory: (s: StudentStatus) => void;
-  onQuickAnamnesis: (s: StudentStatus) => void;
   onLatestFeedback: (s: StudentStatus) => void;
 }) {
   const lastActivity =
@@ -249,7 +212,6 @@ function StudentRow({
     student.daysInactive >= 999 ? "Sem registro" :
     `${student.daysInactive}d sem registro`;
 
-  // FIX: exibe contagem de dias desde o último feedback no card
   const feedbackLabel =
     student.daysSinceLastFeedback >= 999 ? "Sem feedback" :
     student.daysSinceLastFeedback === 0 ? "Feedback hoje" :
@@ -281,7 +243,6 @@ function StudentRow({
           <AlertBadge level={student.alertLevel || "ok"} />
         </div>
         <p className="text-xs text-muted-foreground truncate">{student.goal || "Objetivo não definido"} · {lastActivity}</p>
-        {/* FIX: label clicável → abre exclusivamente o último feedback */}
         <button
           type="button"
           onClick={() => student.daysSinceLastFeedback < 999 && onLatestFeedback(student)}
@@ -307,10 +268,7 @@ function StudentRow({
       )}
 
       <div className="flex items-center gap-1 shrink-0">
-        <button onClick={() => onQuickAnamnesis(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Ver anamnese / feedback">
-          <FileText className="w-4 h-4" />
-        </button>
-        <button onClick={() => onAnamnesis(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Ver Anamnese">
+        <button onClick={() => onAnamnesis(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Evolução e Anamnese">
           <ClipboardList className="w-4 h-4" />
         </button>
         <button onClick={() => onProtocol(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Protocolo">
@@ -336,7 +294,6 @@ interface CheckinRow {
   payload: Record<string, unknown> | null;
   coach_feedback: string | null;
   photo_url: string | null;
-  // [FIX] indicador "visto" pelo aluno
   feedback_read_at: string | null;
 }
 
@@ -350,8 +307,6 @@ function CheckinHistoryDialog({
   const [items, setItems] = useState<CheckinRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  // [FIX] busca no histórico de check-ins
-  const [searchDate, setSearchDate] = useState("");
 
   useEffect(() => {
     if (!open || !student) return;
@@ -365,7 +320,6 @@ function CheckinHistoryDialog({
       setItems((data || []) as CheckinRow[]);
       setLoading(false);
       setExpanded({});
-      setSearchDate("");
     })();
   }, [open, student]);
 
@@ -469,7 +423,6 @@ function CheckinHistoryDialog({
                       {c.coach_feedback && (
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-500/10 text-emerald-600 border-emerald-500/30">Com feedback</span>
                       )}
-                      {/* [FIX] indicador "visto" pelo aluno */}
                       {c.coach_feedback && c.feedback_read_at && (
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-primary/10 text-primary border-primary/30">✓ Visto pelo aluno</span>
                       )}
@@ -524,7 +477,6 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ student_id: "", description: "", amount: "", due_date: "" });
   const [editingFinance, setEditingFinance] = useState<{ id: string; due_date: string } | null>(null);
-  // Modal de cobrança rápida vinculada ao aluno
   const [quickBilling, setQuickBilling] = useState<{ student_id: string; student_name: string } | null>(null);
   const [quickForm, setQuickForm] = useState({ description: "Mensalidade", amount: "", due_date: "" });
 
@@ -565,7 +517,6 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
     qc.invalidateQueries({ queryKey: ["coach-finances"] });
   };
 
-  // FIX: updateDueDate funcionando corretamente com Dialog editável
   const updateDueDate = async () => {
     if (!editingFinance) return;
     const { error } = await supabase.from("coach_finances")
@@ -593,6 +544,7 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
     setQuickForm({ description: "Mensalidade", amount: "", due_date: "" });
     toast.success(`Cobrança criada para ${quickBilling.student_name}. O aluno receberá o alerta.`);
   };
+
   const totalReceita  = finances.filter((f) => f.status === "paid").reduce((s, f) => s + Number(f.amount), 0);
   const totalPendente = finances.filter((f) => f.status === "pending").reduce((s, f) => s + Number(f.amount), 0);
   const totalAtrasado = finances.filter((f) => f.status === "pending" && f.due_date && new Date(f.due_date) < new Date()).reduce((s, f) => s + Number(f.amount), 0);
@@ -690,7 +642,6 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
         </div>
       )}
 
-      {/* Modal cobrança rápida por aluno */}
       <Dialog open={!!quickBilling} onOpenChange={(open) => !open && setQuickBilling(null)}>
         <DialogContent className="sm:max-w-[380px]">
           <DialogHeader>
@@ -720,7 +671,6 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
         </DialogContent>
       </Dialog>
 
-      {/* FIX: Modal para editar vencimento — campo date funcional */}
       <Dialog open={!!editingFinance} onOpenChange={(open) => !open && setEditingFinance(null)}>
         <DialogContent className="sm:max-w-[300px]">
           <DialogHeader><DialogTitle>Alterar Vencimento</DialogTitle></DialogHeader>
@@ -739,7 +689,6 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
         </DialogContent>
       </Dialog>
 
-      {/* Modal de Nova Cobrança */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader><DialogTitle>Lançar Cobrança Manual</DialogTitle></DialogHeader>
@@ -773,7 +722,6 @@ function ProfileDialog({ coachId, open, onClose }: { coachId: string; open: bool
   const [inviteCode, setInviteCode] = useState("");
   const [pixKey, setPixKey] = useState("");
   const [billingAlertDays, setBillingAlertDays] = useState<number>(7);
-  // FIX: campo feedback_interval_days — coach configura quantos dias quer aguardar entre feedbacks
   const [feedbackIntervalDays, setFeedbackIntervalDays] = useState<number>(7);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -859,7 +807,6 @@ function ProfileDialog({ coachId, open, onClose }: { coachId: string; open: bool
               <Input value={pixKey} onChange={(e) => setPixKey(e.target.value)} placeholder="Email, CPF..." className="mt-1 h-9 text-sm border-amber-500/30" />
             </div>
             <div>
-              {/* FIX: campo editável de aviso de cobrança */}
               <Label className="text-xs text-primary font-bold">Aviso de cobrança</Label>
               <div className="flex items-center gap-2 mt-1">
                 <Input type="number" min={1} max={30} value={billingAlertDays}
@@ -870,7 +817,6 @@ function ProfileDialog({ coachId, open, onClose }: { coachId: string; open: bool
             </div>
           </div>
 
-          {/* FIX: campo para definir intervalo de feedback */}
           <div>
             <Label className="text-xs text-emerald-600 font-bold">Intervalo de feedback</Label>
             <p className="text-[11px] text-muted-foreground mb-1">A cada quantos dias você quer receber feedback dos alunos?</p>
@@ -912,12 +858,10 @@ export default function CoachDashboard() {
   const [showProfile, setShowProfile] = useState(false);
   const [unlinkTarget, setUnlinkTarget] = useState<StudentStatus | null>(null);
   const [historyStudent, setHistoryStudent] = useState<StudentStatus | null>(null);
-  const [quickAnamStudent, setQuickAnamStudent] = useState<StudentStatus | null>(null);
   const [evoStudent, setEvoStudent] = useState<StudentStatus | null>(null);
   const [latestFbStudent, setLatestFbStudent] = useState<StudentStatus | null>(null);
   const qc = useQueryClient();
 
-  // FIX: lê feedbackIntervalDays do perfil do coach para passar ao hook
   const { data: coachProfile } = useQuery({
     queryKey: ["coach-profile", coachId],
     enabled: !!coachId,
@@ -968,16 +912,13 @@ export default function CoachDashboard() {
           <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={goBack}><ArrowLeft className="w-4 h-4" /></Button>
             <h1 className="text-sm font-bold text-foreground">
-              {view === "anamnesis" ? "Anamnese" : "Protocolo"} — {selectedStudent.name || "Aluno"}
+              {view === "protocol" ? "Protocolo" : ""} — {selectedStudent.name || "Aluno"}
             </h1>
           </div>
         </header>
         <main className="max-w-4xl mx-auto px-4 py-6">
           <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
-            {view === "anamnesis"
-              ? <AnamnesisViewer studentId={selectedStudent.id} studentName={selectedStudent.name} />
-              : <ProtocolBuilder studentId={selectedStudent.id} studentName={selectedStudent.name} />
-            }
+            {view === "protocol" && <ProtocolBuilder studentId={selectedStudent.id} studentName={selectedStudent.name} />}
           </Suspense>
         </main>
       </div>
@@ -1061,12 +1002,11 @@ export default function CoachDashboard() {
               <div className="space-y-2">
                 {filtered.map((s) => (
                   <StudentRow key={s.id} student={s}
-                    onAnamnesis={(st) => { setSelectedStudent(st); setView("anamnesis"); }}
+                    onAnamnesis={(st) => setEvoStudent(st)}
                     onProtocol={(st) => { setSelectedStudent(st); setView("protocol"); }}
                     onUnlink={setUnlinkTarget}
                     onHistory={setHistoryStudent}
-                    onQuickAnamnesis={setQuickAnamStudent}
-                    onLatestFeedback={setQuickAnamStudent}
+                    onLatestFeedback={(st) => setLatestFbStudent(st)}
                   />
                 ))}
               </div>
@@ -1097,13 +1037,6 @@ export default function CoachDashboard() {
           student={historyStudent}
           open={!!historyStudent}
           onClose={() => setHistoryStudent(null)}
-        />
-
-        <QuickAnamnesisSheet
-          student={quickAnamStudent}
-          open={!!quickAnamStudent}
-          onClose={() => setQuickAnamStudent(null)}
-          onOpenEvolution={(s) => { setQuickAnamStudent(null); setEvoStudent(s); }}
         />
 
         <EvolutionDialog
