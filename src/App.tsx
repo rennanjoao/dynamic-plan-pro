@@ -20,6 +20,7 @@ const StudentArea  = lazyWithRetry(() => import("./pages/StudentArea"));
 const NotFound     = lazyWithRetry(() => import("./pages/NotFound"));
 
 const CoachDashboard   = lazyWithRetry(() => import("./pages/CoachDashboard"));
+const CoachRegister    = lazyWithRetry(() => import("./pages/CoachRegister"));
 const Anamnesis        = lazyWithRetry(() => import("./pages/Anamnesis"));
 const CheckIn          = lazyWithRetry(() => import("./pages/CheckIn"));
 const Evolution        = lazyWithRetry(() => import("./pages/Evolution"));
@@ -64,6 +65,7 @@ const App = () => {
               <Route path="/student"     element={<Student />} />
               <Route path="/auth"        element={<Auth />} />
               <Route path="/admin-login" element={<AdminLogin />} />
+              <Route path="/register"    element={<CoachRegister />} />
 
               {/* PORTA DE ENTRADA (NOVO CADASTRO) */}
               <Route path="/anamnesis"    element={<Anamnesis />} />
