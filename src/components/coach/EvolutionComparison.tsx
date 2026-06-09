@@ -4,7 +4,7 @@
  * - Selectores LEFT/RIGHT para escolher quaisquer 2 pontos (Anamnese + Check-ins).
  * - Regra padrão: RIGHT = check-in mais recente; LEFT = check-in anterior (ou Anamnese se só houver 1).
  * - Compara fotos (4 poses), métricas com delta, e feedback do coach.
- * - Modo Galeria: 2 / 4 / 6 períodos lado a lado (todas as fotos).
+ * - [ATUALIZADO] Remoção da galeria e adição de Lightbox (Zoom dinâmico).
  * - Botão para abrir Anamnese exclusiva (com export PDF).
  */
 import { useEffect, useMemo, useState, lazy, Suspense } from "react";
@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Loader2, TrendingDown, TrendingUp, Minus, FileText, Images, ArrowLeft } from "lucide-react";
+import { Loader2, TrendingDown, TrendingUp, Minus, FileText, ArrowLeft, ZoomIn } from "lucide-react";
 import { CHECKIN_METRICS } from "@/lib/checkInSchema";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -55,8 +55,8 @@ export default function EvolutionComparison({
   const [points, setPoints] = useState<Timepoint[]>([]);
   const [leftId, setLeftId] = useState<string>("");
   const [rightId, setRightId] = useState<string>("");
-  const [gallerySize, setGallerySize] = useState<0 | 2 | 4 | 6>(0);
   const [anamneseOnly, setAnamneseOnly] = useState(false);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -158,53 +158,14 @@ export default function EvolutionComparison({
     );
   }
 
-  const galleryItems = gallerySize > 0 ? points.slice(0, gallerySize) : [];
-
   return (
     <div className="space-y-4">
       {/* Controles topo */}
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setAnamneseOnly(true)}>
-          <FileText className="w-3.5 h-3.5 mr-1.5" /> Ver Anamnese (exportar)
+          <FileText className="w-3.5 h-3.5 mr-1.5" /> Ver Anamnese Completa
         </Button>
-        <div className="ml-auto flex items-center gap-1.5">
-          <Images className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Galeria:</span>
-          {([0, 2, 4, 6] as const).map((n) => (
-            <Button
-              key={n}
-              variant={gallerySize === n ? "default" : "outline"}
-              size="sm"
-              className="h-7 px-2 text-[11px]"
-              onClick={() => setGallerySize(n)}
-            >
-              {n === 0 ? "Off" : `${n}`}
-            </Button>
-          ))}
-        </div>
       </div>
-
-      {/* Galeria multi-períodos */}
-      {gallerySize > 0 && (
-        <Card className="p-3">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-            Galeria — {gallerySize} períodos mais recentes
-          </p>
-          <div className="overflow-x-auto">
-            <div className="grid gap-2" style={{ gridTemplateColumns: `120px repeat(${galleryItems.length}, minmax(140px, 1fr))` }}>
-              <div />
-              {galleryItems.map((p) => (
-                <div key={p.id} className="text-center text-[10px] font-semibold text-foreground/80 truncate">
-                  {p.label}
-                </div>
-              ))}
-              {POSE_KEYS.map((pose) => (
-                <PoseRow key={pose} pose={pose} items={galleryItems} />
-              ))}
-            </div>
-          </div>
-        </Card>
-      )}
 
       {/* Seletores de comparação */}
       <div className="grid grid-cols-2 gap-3">
@@ -234,10 +195,12 @@ export default function EvolutionComparison({
 
       {/* Fotos lado a lado (4 poses) */}
       <Card className="p-3">
-        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Fotos</p>
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1">
+          <ZoomIn className="w-3 h-3" /> Clique nas fotos para ampliar
+        </p>
         <div className="grid grid-cols-2 gap-3">
-          <PhotoColumn point={left} />
-          <PhotoColumn point={right} />
+          <PhotoColumn point={left} onZoom={setZoomedImage} />
+          <PhotoColumn point={right} onZoom={setZoomedImage} />
         </div>
       </Card>
 
@@ -282,6 +245,16 @@ export default function EvolutionComparison({
           </Card>
         </div>
       )}
+
+      {/* Lightbox Modal (Zoom Fullscreen) */}
+      {zoomedImage && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 cursor-zoom-out backdrop-blur-sm transition-opacity"
+          onClick={() => setZoomedImage(null)}
+        >
+          <img src={zoomedImage} alt="Zoom Visualização" className="max-w-full max-h-full object-contain rounded-md shadow-2xl" />
+        </div>
+      )}
     </div>
   );
 }
@@ -295,16 +268,26 @@ function toNum(v: unknown): number | null {
   return null;
 }
 
-function PhotoColumn({ point }: { point: Timepoint }) {
+function PhotoColumn({ point, onZoom }: { point: Timepoint, onZoom: (url: string) => void }) {
   return (
     <div className="space-y-2">
       <p className="text-center text-[10px] font-semibold text-foreground/80">{point.label}</p>
       <div className="grid grid-cols-2 gap-1.5">
         {POSE_KEYS.map((k) => (
           <div key={k} className="space-y-1">
-            <div className="aspect-[3/4] rounded-md border border-border/50 overflow-hidden bg-muted/20 flex items-center justify-center">
+            <div 
+              className="aspect-[3/4] rounded-md border border-border/50 overflow-hidden bg-muted/20 flex items-center justify-center relative group"
+            >
               {point.fotos[k] ? (
-                <img src={point.fotos[k]} alt={POSE_LABEL[k]} className="w-full h-full object-cover" />
+                <>
+                  <img 
+                    src={point.fotos[k]} 
+                    alt={POSE_LABEL[k]} 
+                    className="w-full h-full object-cover cursor-zoom-in group-hover:scale-105 transition-transform duration-300" 
+                    onClick={() => onZoom(point.fotos[k])}
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
+                </>
               ) : (
                 <span className="text-[9px] text-muted-foreground">—</span>
               )}
@@ -314,24 +297,5 @@ function PhotoColumn({ point }: { point: Timepoint }) {
         ))}
       </div>
     </div>
-  );
-}
-
-function PoseRow({ pose, items }: { pose: typeof POSE_KEYS[number]; items: Timepoint[] }) {
-  return (
-    <>
-      <div className="flex items-center text-[10px] uppercase tracking-wider text-muted-foreground">
-        {POSE_LABEL[pose]}
-      </div>
-      {items.map((p) => (
-        <div key={p.id} className="aspect-[3/4] rounded-md border border-border/50 overflow-hidden bg-muted/20 flex items-center justify-center">
-          {p.fotos[pose] ? (
-            <img src={p.fotos[pose]} alt={POSE_LABEL[pose]} className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-[9px] text-muted-foreground">—</span>
-          )}
-        </div>
-      ))}
-    </>
   );
 }
