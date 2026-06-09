@@ -1,14 +1,16 @@
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, LogOut } from "lucide-react";
+import { ArrowLeft, LogOut, Users, Link2, Bell, DollarSign, Activity } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { TrainerManagement } from "@/components/admin/TrainerManagement";
 import { StudentLinksManagement } from "@/components/admin/StudentLinksManagement";
 import { AlertManager } from "@/components/admin/AlertManager";
 import { PlansSettings } from "@/components/admin/PlansSettings";
 import { AccessLogPanel } from "@/components/admin/AccessLogPanel";
+import CoachBillingPanel from "@/components/admin/CoachBillingPanel";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -45,21 +47,46 @@ const Admin = () => {
           Painel Admin
         </h1>
         <p className="text-sm md:text-base opacity-90">
-          Treinadores, vínculos e alertas
+          Treinadores, vínculos, financeiro e alertas
         </p>
       </header>
 
-      <div className="max-w-5xl mx-auto px-6 mt-10 space-y-6">
-        <TrainerManagement />
-        <StudentLinksManagement />
-        <AlertManager />
-        <PlansSettings />
+      <div className="max-w-6xl mx-auto px-6 mt-10">
+        <Tabs defaultValue="trainers" className="w-full">
+          <TabsList className="flex flex-wrap h-auto gap-2 justify-start mb-6">
+            <TabsTrigger value="trainers" className="gap-1.5"><Users className="w-4 h-4" /> Profissionais</TabsTrigger>
+            <TabsTrigger value="links" className="gap-1.5"><Link2 className="w-4 h-4" /> Vínculos</TabsTrigger>
+            <TabsTrigger value="alerts" className="gap-1.5"><Bell className="w-4 h-4" /> Alertas</TabsTrigger>
+            <TabsTrigger value="billing" className="gap-1.5"><DollarSign className="w-4 h-4" /> Cobrança em Massa</TabsTrigger>
+            <TabsTrigger value="access" className="gap-1.5"><Activity className="w-4 h-4" /> Acessos</TabsTrigger>
+          </TabsList>
 
-        {/* Monitoramento de acesso */}
-        <div className="rounded-xl border border-border bg-card p-6">
-          <h2 className="text-lg font-semibold mb-4">Monitoramento de Acesso</h2>
-          <AccessLogPanel />
-        </div>
+          <TabsContent value="trainers">
+            <TrainerManagement />
+          </TabsContent>
+
+          <TabsContent value="links">
+            <StudentLinksManagement />
+          </TabsContent>
+
+          <TabsContent value="alerts">
+            <AlertManager />
+          </TabsContent>
+
+          <TabsContent value="billing" className="space-y-6">
+            {/* O novo painel de disparo para o WhatsApp entra aqui */}
+            <CoachBillingPanel />
+            {/* O painel antigo de configurações de preço */}
+            <PlansSettings />
+          </TabsContent>
+
+          <TabsContent value="access">
+            <div className="rounded-xl border border-border bg-card p-6">
+              <h2 className="text-lg font-semibold mb-4">Monitoramento de Acesso</h2>
+              <AccessLogPanel />
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
