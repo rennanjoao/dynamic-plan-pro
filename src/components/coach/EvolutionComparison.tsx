@@ -56,6 +56,7 @@ export default function EvolutionComparison({
   const [leftId, setLeftId] = useState<string>("");
   const [rightId, setRightId] = useState<string>("");
   const [anamneseOnly, setAnamneseOnly] = useState(false);
+  const [feedbackOnlyId, setFeedbackOnlyId] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -142,6 +143,78 @@ export default function EvolutionComparison({
     );
   }
 
+  // Modo "ver feedback completo"
+  if (feedbackOnlyId) {
+    const fb = points.find((p) => p.id === feedbackOnlyId && p.kind === "checkin");
+    const checkins = points.filter((p) => p.kind === "checkin");
+    if (!fb) {
+      setFeedbackOnlyId(null);
+      return null;
+    }
+    return (
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => setFeedbackOnlyId(null)} className="h-8 text-xs">
+            <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Voltar para comparação
+          </Button>
+          <div className="ml-auto min-w-[220px]">
+            <Select value={feedbackOnlyId} onValueChange={setFeedbackOnlyId}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {checkins.map((c) => (
+                  <SelectItem key={c.id} value={c.id} className="text-xs">{c.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <Card className="p-4 space-y-3">
+          <p className="text-xs text-muted-foreground">{fb.label}</p>
+
+          {Object.keys(fb.fotos).length > 0 && (
+            <div className="grid grid-cols-4 gap-2">
+              {POSE_KEYS.map((k) => fb.fotos[k] ? (
+                <div key={k} className="aspect-[3/4] rounded-md overflow-hidden border border-border/50 cursor-zoom-in"
+                     onClick={() => setZoomedImage(fb.fotos[k])}>
+                  <img src={fb.fotos[k]} alt={POSE_LABEL[k]} className="w-full h-full object-cover" />
+                </div>
+              ) : null)}
+            </div>
+          )}
+
+          <div className="border-t border-border pt-3 space-y-1">
+            {ALL_METRICS.map((m) => {
+              const v = toNum(fb.metrics[m.key]);
+              return (
+                <div key={m.key} className="flex justify-between text-xs py-0.5">
+                  <span className="text-muted-foreground">{m.label}</span>
+                  <span className="font-medium">{v != null ? `${v} ${m.unit}` : "—"}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {fb.feedback && (
+            <div className="border-t border-border pt-3">
+              <p className="text-[10px] font-bold uppercase text-primary mb-1">Feedback do Coach</p>
+              <p className="text-xs whitespace-pre-wrap text-foreground/85">{fb.feedback}</p>
+            </div>
+          )}
+        </Card>
+
+        {zoomedImage && (
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 cursor-zoom-out backdrop-blur-sm"
+            onClick={() => setZoomedImage(null)}
+          >
+            <img src={zoomedImage} alt="Zoom" className="max-w-full max-h-full object-contain rounded-md shadow-2xl" />
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (points.length === 0) {
     return (
       <Card className="p-6 text-center text-sm text-muted-foreground">
@@ -165,6 +238,19 @@ export default function EvolutionComparison({
         <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setAnamneseOnly(true)}>
           <FileText className="w-3.5 h-3.5 mr-1.5" /> Ver Anamnese Completa
         </Button>
+        {points.some((p) => p.kind === "checkin") && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => {
+              const latest = points.find((p) => p.kind === "checkin");
+              if (latest) setFeedbackOnlyId(latest.id);
+            }}
+          >
+            <FileText className="w-3.5 h-3.5 mr-1.5" /> Ver Feedback Completo
+          </Button>
+        )}
       </div>
 
       {/* Seletores de comparação */}
