@@ -18,6 +18,13 @@ import { Download, Upload, FileSpreadsheet, FileJson, Settings2, ChevronDown } f
 import { ProtocolPayloadSchema, type ProtocolPayload } from "@/lib/protocolSchema";
 import { exportProtocolXlsx, importProtocolXlsx, ProtocolXlsxError } from "@/lib/protocolXlsx";
 import { fuzzyFindTaco, parseRawWeight } from "@/lib/macroCalc";
+import {
+  validateAndMapImport,
+  applyResolutions,
+  type ImportAnomaly,
+  type Resolution,
+} from "@/lib/protocolImportValidator";
+import ProtocolImportResolverModal from "./ProtocolImportResolverModal";
 import { toast } from "sonner";
 
 interface Props {
@@ -188,6 +195,29 @@ export default function ProtocolImportExport({ payload, studentName, onImport }:
   const jsonRef = useRef<HTMLInputElement>(null);
   const xlsxRef = useRef<HTMLInputElement>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [pendingPayload, setPendingPayload] = useState<ProtocolPayload | null>(null);
+  const [pendingAnomalies, setPendingAnomalies] = useState<ImportAnomaly[]>([]);
+
+  const finalizeImport = (next: ProtocolPayload, cycleActivated: boolean, matchedCount?: number, unmatched?: string[]) => {
+    const fuzzy = applyFuzzyTacoMatch(next);
+    onImport(fuzzy.next);
+    const matched = (matchedCount ?? 0) + fuzzy.matched;
+    if (matched > 0) {
+      toast.success(`JSON importado — ${matched} alimento(s) vinculados à TACO.`);
+    } else {
+      toast.success("Esboço JSON importado. Revise e salve.");
+    }
+    if (cycleActivated) {
+      toast.info("Ciclagem de carboidratos ativada automaticamente.");
+    }
+    const allUnmatched = [...(unmatched || []), ...fuzzy.unmatched];
+    if (allUnmatched.length > 0) {
+      toast.warning(`${allUnmatched.length} item(ns) sem correspondência TACO`, {
+        description: allUnmatched.slice(0, 3).join(" • ") + (allUnmatched.length > 3 ? "…" : ""),
+        duration: 7000,
+      });
+    }
+  };
 
   const ensurePayload = (): ProtocolPayload =>
     payload ??
@@ -222,8 +252,15 @@ export default function ProtocolImportExport({ payload, studentName, onImport }:
       const text = await file.text();
       const raw = JSON.parse(text);
       const candidate = raw?.payload && typeof raw.payload === "object" ? raw.payload : raw;
-      // Sanitize before parsing to avoid schema rejection on dirty legacy data
-      const sanitized = sanitizePayload(candidate as ProtocolPayload);
+
+      // ─── Validation Layer ─────────────────────────────────────────────
+      // 1) Smart mapping estrito por `kind` (carb→carb, protein→protein, fat→fat)
+      // 2) Detecção e ativação do carbCycle
+      // 3) Coleta de anomalias (orphan data) para resolução manual
+      const validation = validateAndMapImport(candidate);
+
+      // Sanitize after validation (preserva mapeamentos por kind)
+      const sanitized = sanitizePayload(validation.payload);
       let parsed: ProtocolPayload;
       const safe = ProtocolPayloadSchema.safeParse(sanitized);
       if (safe.success) {
@@ -245,18 +282,13 @@ export default function ProtocolImportExport({ payload, studentName, onImport }:
           duration: 6000,
         });
       }
-      const fuzzy = applyFuzzyTacoMatch(parsed);
-      onImport(fuzzy.next);
-      if (fuzzy.matched > 0) {
-        toast.success(`JSON importado — ${fuzzy.matched} alimento(s) vinculados à TACO.`);
+
+      // Se há anomalias → renderiza modal de resolução antes do commit
+      if (validation.anomalies.length > 0) {
+        setPendingPayload(parsed);
+        setPendingAnomalies(validation.anomalies);
       } else {
-        toast.success("Esboço JSON importado. Revise e salve.");
-      }
-      if (fuzzy.unmatched.length > 0) {
-        toast.warning(`${fuzzy.unmatched.length} item(ns) sem correspondência TACO`, {
-          description: fuzzy.unmatched.slice(0, 3).join(" • ") + (fuzzy.unmatched.length > 3 ? "…" : ""),
-          duration: 7000,
-        });
+        finalizeImport(parsed, validation.cycleActivated);
       }
     } catch (err) {
       console.error("import json error", err);
@@ -297,6 +329,23 @@ export default function ProtocolImportExport({ payload, studentName, onImport }:
 
   return (
     <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="inline-block">
+      <ProtocolImportResolverModal
+        open={pendingPayload !== null && pendingAnomalies.length > 0}
+        anomalies={pendingAnomalies}
+        onCancel={() => {
+          setPendingPayload(null);
+          setPendingAnomalies([]);
+          toast.info("Importação cancelada.");
+        }}
+        onConfirm={(resolutions: Record<string, Resolution>) => {
+          if (!pendingPayload) return;
+          const resolved = applyResolutions(pendingPayload, pendingAnomalies, resolutions);
+          const cycleOn = !!resolved?.setup?.carbCycle;
+          setPendingPayload(null);
+          setPendingAnomalies([]);
+          finalizeImport(resolved, cycleOn);
+        }}
+      />
       <CollapsibleTrigger asChild>
         <button
           type="button"
