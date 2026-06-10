@@ -282,6 +282,7 @@ export const ProtocolPayloadSchema = z.object({
   carbCycleLowPct: z.number().min(1).max(100).default(15),
   cardio: z.array(CardioSchema).default([]),
   supplements: z.array(SupplementSchema).default([]),
+  periodization: PeriodizationSchema.default({} as any),
 });
 
 export type ProtocolPayload = z.infer<typeof ProtocolPayloadSchema>;
