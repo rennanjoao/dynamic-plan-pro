@@ -53,6 +53,36 @@ export const CardioSchema = z.object({
   notes: z.string().default(""),
 });
 
+// Periodização (4 semanas) — meta editável por semana + overrides por exercício por semana.
+export const WeekMetaSchema = z.object({
+  label: z.string().default(""),
+  sets: z.string().default(""),
+  reps: z.string().default(""),
+  rest: z.string().default(""),
+  cadence: z.string().default(""),
+});
+
+export const ExerciseOverrideSchema = z.object({
+  name: z.string().optional(),
+  sets: z.string().optional(),
+  reps: z.string().optional(),
+  cadence: z.string().optional(),
+  rest: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+export const PeriodizationSchema = z.object({
+  enabled: z.boolean().default(false),
+  weeks: z.array(WeekMetaSchema).length(4).default([
+    { label: "Semana 1 — Carga Máxima",            sets: "4 a 5 séries", reps: "5 a 8 reps",   rest: "2 min",      cadence: "1s conc / 2s exc" },
+    { label: "Semana 2 — Qualidade Neuromuscular", sets: "3 a 4 séries", reps: "10 a 12 reps", rest: "60s a 90s",  cadence: "1s conc / 1-2s exc" },
+    { label: "Semana 3 — Qualidade Neuromuscular", sets: "3 a 4 séries", reps: "10 a 12 reps", rest: "60s a 90s",  cadence: "1s conc / 1-2s exc" },
+    { label: "Semana 4 — Estresse Metabólico",     sets: "2 a 4 séries", reps: "15 a 20 reps", rest: "30s a 45s",  cadence: "1s conc / 1s exc" },
+  ]),
+  // Chave externa: índice da semana (0..3); interna: exId no formato "<dayKey>_<exerciseIndex>".
+  overrides: z.record(z.record(ExerciseOverrideSchema)).default({}),
+});
+
 // Suplemento individual estruturado
 export const SupplementSchema = z.object({
   name: z.string().default(""),
