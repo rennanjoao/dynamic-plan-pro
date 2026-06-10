@@ -199,6 +199,19 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
     setTemplates((prev) => prev.filter((t) => t.id !== id));
   }
 
+  async function applyTemplateAsNewVersion(tpl: any) {
+    // aplica o template e cria nova versão refletindo o estado atual após aplicar
+    applyTemplate(tpl);
+  }
+
+  function restoreFromVersion(treinos: any) {
+    const next = { ...payload };
+    if (treinos?.workouts) next.workouts = treinos.workouts;
+    if (treinos?.periodization) next.periodization = treinos.periodization;
+    setPayload(next);
+    toast.success("Versão restaurada");
+  }
+
   return (
     <Card className="bg-card/60 border-border p-4">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
@@ -207,6 +220,11 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
           <Label className="text-sm font-semibold">Periodização (4 semanas)</Label>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {p.enabled && (
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={resetAllToDefault}>
+              <RefreshCcw className="w-3 h-3 mr-1" /> Resetar tudo
+            </Button>
+          )}
           <Button size="sm" variant="outline" className="h-7 text-xs" onClick={openLoad}>
             <Library className="w-3 h-3 mr-1" /> Carregar template
           </Button>
@@ -233,33 +251,72 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
             substituídos por semana abaixo.
           </p>
 
+          {!validation.ok && (
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 mb-3 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+              <div className="text-[11px] text-destructive">
+                {validation.weekErrors.length + validation.overrideErrors.length} erro(s) na periodização.
+                Corrija antes de salvar.
+              </div>
+            </div>
+          )}
+
           {/* Editor de metadados das 4 semanas */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
             {p.weeks.map((w, i) => (
               <div key={i} className="rounded-lg border border-border bg-background/40 p-3 space-y-2">
-                <Input
-                  value={w.label}
-                  onChange={(e) => updateWeek(i, "label", e.target.value)}
-                  className="h-8 text-xs font-bold"
-                  placeholder={`Semana ${i + 1}`}
-                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={w.label}
+                    onChange={(e) => updateWeek(i, "label", e.target.value)}
+                    className={cn("h-8 text-xs font-bold", errorByWeek[i]?.label && "border-destructive")}
+                    placeholder={`Semana ${i + 1}`}
+                  />
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Prévia" onClick={() => setPreviewWeek(i)}>
+                    <Eye className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Resetar padrão" onClick={() => resetWeekToDefault(i)}>
+                    <RefreshCcw className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+                {errorByWeek[i]?.label && (
+                  <p className="text-[10px] text-destructive">{errorByWeek[i].label}</p>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <Copy className="w-3 h-3 text-muted-foreground" />
+                  <Select onValueChange={(v) => duplicateWeek(Number(v), i)}>
+                    <SelectTrigger className="h-7 text-[11px]">
+                      <SelectValue placeholder="Copiar de outra semana…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {p.weeks.map((_, k) =>
+                        k === i ? null : (
+                          <SelectItem key={k} value={String(k)} className="text-xs">
+                            Copiar Semana {k + 1}
+                          </SelectItem>
+                        )
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-[10px] uppercase text-muted-foreground">Séries</Label>
-                    <Input value={w.sets} onChange={(e) => updateWeek(i, "sets", e.target.value)} className="h-8 text-xs mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-[10px] uppercase text-muted-foreground">Reps</Label>
-                    <Input value={w.reps} onChange={(e) => updateWeek(i, "reps", e.target.value)} className="h-8 text-xs mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-[10px] uppercase text-muted-foreground">Descanso</Label>
-                    <Input value={w.rest} onChange={(e) => updateWeek(i, "rest", e.target.value)} className="h-8 text-xs mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-[10px] uppercase text-muted-foreground">Cadência</Label>
-                    <Input value={w.cadence} onChange={(e) => updateWeek(i, "cadence", e.target.value)} className="h-8 text-xs mt-1" />
-                  </div>
+                  {(["sets", "reps", "rest", "cadence"] as const).map((f) => (
+                    <div key={f}>
+                      <Label className="text-[10px] uppercase text-muted-foreground">
+                        {f === "sets" ? "Séries" : f === "reps" ? "Reps" : f === "rest" ? "Descanso" : "Cadência"}
+                      </Label>
+                      <Input
+                        value={w[f]}
+                        onChange={(e) => updateWeek(i, f, e.target.value)}
+                        className={cn("h-8 text-xs mt-1", errorByWeek[i]?.[f] && "border-destructive")}
+                      />
+                      {errorByWeek[i]?.[f] && (
+                        <p className="text-[10px] text-destructive mt-0.5">{errorByWeek[i][f]}</p>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
@@ -283,6 +340,7 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
                         {(day.exercises || []).map((ex, ei) => {
                           const id = exId(day.key, ei);
                           const ov = (p.overrides?.[String(weekIdx)]?.[id]) || {};
+                          const ovErr = (f: string) => overrideErrSet.has(`${weekIdx}|${id}|${f}`);
                           return (
                             <div key={ei} className="grid grid-cols-1 md:grid-cols-[1.4fr_repeat(4,0.7fr)] gap-2 items-center">
                               <Input
@@ -291,10 +349,10 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
                                 placeholder={`= ${ex.name || "(base)"}`}
                                 className="h-7 text-xs"
                               />
-                              <Input value={ov.sets ?? ""}    onChange={(e) => setOverride(weekIdx, id, { sets: e.target.value })}    placeholder="séries" className="h-7 text-xs" />
-                              <Input value={ov.reps ?? ""}    onChange={(e) => setOverride(weekIdx, id, { reps: e.target.value })}    placeholder="reps"   className="h-7 text-xs" />
-                              <Input value={ov.cadence ?? ""} onChange={(e) => setOverride(weekIdx, id, { cadence: e.target.value })} placeholder="cadência" className="h-7 text-xs" />
-                              <Input value={ov.rest ?? ""}    onChange={(e) => setOverride(weekIdx, id, { rest: e.target.value })}    placeholder="descanso" className="h-7 text-xs" />
+                              <Input value={ov.sets ?? ""}    onChange={(e) => setOverride(weekIdx, id, { sets: e.target.value })}    placeholder="séries"   className={cn("h-7 text-xs", ovErr("sets") && "border-destructive")} />
+                              <Input value={ov.reps ?? ""}    onChange={(e) => setOverride(weekIdx, id, { reps: e.target.value })}    placeholder="reps"     className={cn("h-7 text-xs", ovErr("reps") && "border-destructive")} />
+                              <Input value={ov.cadence ?? ""} onChange={(e) => setOverride(weekIdx, id, { cadence: e.target.value })} placeholder="cadência" className={cn("h-7 text-xs", ovErr("cadence") && "border-destructive")} />
+                              <Input value={ov.rest ?? ""}    onChange={(e) => setOverride(weekIdx, id, { rest: e.target.value })}    placeholder="descanso" className={cn("h-7 text-xs", ovErr("rest") && "border-destructive")} />
                             </div>
                           );
                         })}
@@ -360,12 +418,30 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
                   <p className="text-[11px] text-muted-foreground">{t.description || t.level}</p>
                 </div>
                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => applyTemplate(t)}>Aplicar</Button>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" title="Histórico" onClick={() => setHistoryTpl({ id: t.id, name: t.name })}>
+                  <History className="w-3.5 h-3.5" />
+                </Button>
                 <button onClick={() => deleteTemplate(t.id)} className="text-muted-foreground hover:text-destructive p-1.5"><Trash2 className="w-3.5 h-3.5" /></button>
               </div>
             ))}
           </div>
         </DialogContent>
       </Dialog>
+
+      <WeekPreviewDialog
+        open={previewWeek !== null}
+        onOpenChange={(v) => !v && setPreviewWeek(null)}
+        payload={payload}
+        weekIndex={previewWeek}
+      />
+
+      <TemplateHistoryDialog
+        open={!!historyTpl}
+        onOpenChange={(v) => !v && setHistoryTpl(null)}
+        templateId={historyTpl?.id ?? null}
+        templateName={historyTpl?.name ?? ""}
+        onRestore={restoreFromVersion}
+      />
     </Card>
   );
 }
