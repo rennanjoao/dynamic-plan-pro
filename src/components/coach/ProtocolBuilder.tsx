@@ -53,6 +53,7 @@ import {
 } from "@/lib/protocolSchema";
 import ProtocolImportExport from "./ProtocolImportExport";
 import ProtocolImportHistory from "./ProtocolImportHistory";
+import WorkoutPeriodizationEditor from "./WorkoutPeriodizationEditor";
 import { calcMealMacros, calcDayMacros, suggestTacoSubstitutes, tacoGroupToKind } from "@/lib/macroCalc";
 import { Progress } from "@/components/ui/progress";
 
