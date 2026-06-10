@@ -10,6 +10,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ProtocolPayloadSchema } from "@/lib/protocolSchema";
 import ProtocolQuestionButton from "@/components/student/ProtocolQuestionButton";
+import WorkoutPeriodizationView from "@/components/student/WorkoutPeriodizationView";
 
 const WEEKDAYS_LABEL: Record<string, string> = {
   seg: "Segunda", ter: "Terça", qua: "Quarta",
@@ -93,10 +94,13 @@ export default function WorkoutPlan() {
           </div>
         )}
 
-        {workouts.length === 0 ? (
-          <p className="text-center text-muted-foreground italic py-10">Treinos ainda não publicados.</p>
-        ) : (
-          <Accordion type="single" collapsible className="w-full space-y-4">
+        <WorkoutPeriodizationView
+          workouts={workouts as any}
+          renderLegacy={() => (
+            workouts.length === 0 ? (
+              <p className="text-center text-muted-foreground italic py-10">Treinos ainda não publicados.</p>
+            ) : (
+              <Accordion type="single" collapsible className="w-full space-y-4">
             {workouts.map((day: any, i: number) => (
               <AccordionItem key={i} value={`workout-${i}`} className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
                 <AccordionTrigger className="px-4 py-4 hover:no-underline hover:bg-muted/30">
@@ -153,8 +157,10 @@ export default function WorkoutPlan() {
                 </AccordionContent>
               </AccordionItem>
             ))}
-          </Accordion>
-        )}
+              </Accordion>
+            )
+          )}
+        />
 
         {/* Aeróbicos prescritos */}
         {Array.isArray(safePayload?.cardio) && safePayload.cardio.length > 0 && (
