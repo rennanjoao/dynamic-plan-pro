@@ -52,6 +52,7 @@ import {
   buildBasePayload, makeEmptyExercise, makeEmptyMeal, type SplitValue, MEAL_NAME_PRESETS,
 } from "@/lib/protocolSchema";
 import ProtocolImportExport from "./ProtocolImportExport";
+import ProtocolImportHistory from "./ProtocolImportHistory";
 import { calcMealMacros, calcDayMacros, suggestTacoSubstitutes, tacoGroupToKind } from "@/lib/macroCalc";
 import { Progress } from "@/components/ui/progress";
 
@@ -201,11 +202,14 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       </Card>
 
       {!payload ? (
-        <Card className="bg-card/60 border-border p-12 text-center">
-          <FileText className="w-12 h-12 text-muted-foreground/40 mx-auto mb-4" />
-          <p className="text-sm text-muted-foreground mb-4">Configure a base do protocolo.</p>
-          <Button onClick={() => setSetupOpen(true)}><Plus className="w-4 h-4 mr-1.5" /> Gerar Base</Button>
-        </Card>
+        <>
+          <Card className="bg-card/60 border-border p-12 text-center">
+            <FileText className="w-12 h-12 text-muted-foreground/40 mx-auto mb-4" />
+            <p className="text-sm text-muted-foreground mb-4">Configure a base do protocolo.</p>
+            <Button onClick={() => setSetupOpen(true)}><Plus className="w-4 h-4 mr-1.5" /> Gerar Base</Button>
+          </Card>
+          <ProtocolImportHistory />
+        </>
       ) : (
         <>
           <Card className="bg-card/60 border-border p-4">

@@ -25,13 +25,27 @@ import {
   type Resolution,
 } from "@/lib/protocolImportValidator";
 import ProtocolImportResolverModal from "./ProtocolImportResolverModal";
+import ProtocolImportPreview from "./ProtocolImportPreview";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 interface Props {
   payload: ProtocolPayload | null;
   studentName: string;
   onImport: (next: ProtocolPayload) => void;
+  studentId?: string | null;
 }
+
+/** Estados explícitos da máquina de estados do fluxo de importação. */
+type ImportState =
+  | { stage: "IDLE" }
+  | { stage: "VALIDATING"; fileName: string }
+  | { stage: "RESOLVING_ANOMALIES"; fileName: string; payload: ProtocolPayload; anomalies: ImportAnomaly[]; cycleActivated: boolean }
+  | { stage: "PREVIEW"; fileName: string; payload: ProtocolPayload; cycleActivated: boolean; hadAnomalies: boolean; resolvedItems: Resolution[] }
+  | { stage: "COMMITTING"; fileName: string; payload: ProtocolPayload; cycleActivated: boolean; hadAnomalies: boolean; resolvedItems: Resolution[] }
+  | { stage: "SUCCESS" };
+
+const deepClone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 
 // Mapeia group da TACO para kind do protocolo
 // Ex: group "protein" → kind "protein", group "fat" → kind "fat", demais → "carb"
@@ -195,28 +209,48 @@ export default function ProtocolImportExport({ payload, studentName, onImport }:
   const jsonRef = useRef<HTMLInputElement>(null);
   const xlsxRef = useRef<HTMLInputElement>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [pendingPayload, setPendingPayload] = useState<ProtocolPayload | null>(null);
-  const [pendingAnomalies, setPendingAnomalies] = useState<ImportAnomaly[]>([]);
+  const [importState, setImportState] = useState<ImportState>({ stage: "IDLE" });
 
-  const finalizeImport = (next: ProtocolPayload, cycleActivated: boolean, matchedCount?: number, unmatched?: string[]) => {
-    const fuzzy = applyFuzzyTacoMatch(next);
+  /**
+   * Persistência final — só roda dentro do estágio COMMITTING.
+   * 1) Aplica fuzzy TACO match (cópia imutável).
+   * 2) Injeta o payload no protocolo (callback do pai).
+   * 3) Grava log em `protocol_import_logs` (best-effort).
+   */
+  const commit = async (s: Extract<ImportState, { stage: "COMMITTING" }>) => {
+    const fuzzy = applyFuzzyTacoMatch(s.payload);
     onImport(fuzzy.next);
-    const matched = (matchedCount ?? 0) + fuzzy.matched;
-    if (matched > 0) {
-      toast.success(`JSON importado — ${matched} alimento(s) vinculados à TACO.`);
-    } else {
-      toast.success("Esboço JSON importado. Revise e salve.");
-    }
-    if (cycleActivated) {
-      toast.info("Ciclagem de carboidratos ativada automaticamente.");
-    }
-    const allUnmatched = [...(unmatched || []), ...fuzzy.unmatched];
-    if (allUnmatched.length > 0) {
-      toast.warning(`${allUnmatched.length} item(ns) sem correspondência TACO`, {
-        description: allUnmatched.slice(0, 3).join(" • ") + (allUnmatched.length > 3 ? "…" : ""),
+
+    if (fuzzy.matched > 0) toast.success(`Importação confirmada — ${fuzzy.matched} alimento(s) vinculados à TACO.`);
+    else toast.success("Importação confirmada.");
+    if (s.cycleActivated) toast.info("Ciclagem de carboidratos ativada automaticamente.");
+    if (fuzzy.unmatched.length > 0) {
+      toast.warning(`${fuzzy.unmatched.length} item(ns) sem correspondência TACO`, {
+        description: fuzzy.unmatched.slice(0, 3).join(" • ") + (fuzzy.unmatched.length > 3 ? "…" : ""),
         duration: 7000,
       });
     }
+
+    try {
+      const { data: auth } = await supabase.auth.getUser();
+      const coachId = auth?.user?.id;
+      if (coachId) {
+        await supabase.from("protocol_import_logs" as any).insert({
+          coach_id: coachId,
+          student_id: null,
+          file_name: s.fileName,
+          status: s.hadAnomalies ? "resolved_with_warnings" : "success",
+          anomalies_count: s.resolvedItems.length,
+          resolved_items: s.resolvedItems,
+        });
+      }
+    } catch (err) {
+      console.warn("import log insert failed", err);
+    }
+
+    setImportState({ stage: "SUCCESS" });
+    // Auto-reset para IDLE no próximo tick
+    setTimeout(() => setImportState({ stage: "IDLE" }), 0);
   };
 
   const ensurePayload = (): ProtocolPayload =>
@@ -248,6 +282,7 @@ export default function ProtocolImportExport({ payload, studentName, onImport }:
   const onJsonFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setImportState({ stage: "VALIDATING", fileName: file.name });
     try {
       const text = await file.text();
       const raw = JSON.parse(text);
@@ -283,16 +318,44 @@ export default function ProtocolImportExport({ payload, studentName, onImport }:
         });
       }
 
-      // Se há anomalias → renderiza modal de resolução antes do commit
+      // Clone profundo antes de qualquer estágio interativo
+      const cloned = deepClone(parsed);
+
       if (validation.anomalies.length > 0) {
-        setPendingPayload(parsed);
-        setPendingAnomalies(validation.anomalies);
+        setImportState({
+          stage: "RESOLVING_ANOMALIES",
+          fileName: file.name,
+          payload: cloned,
+          anomalies: validation.anomalies,
+          cycleActivated: validation.cycleActivated,
+        });
       } else {
-        finalizeImport(parsed, validation.cycleActivated);
+        setImportState({
+          stage: "PREVIEW",
+          fileName: file.name,
+          payload: cloned,
+          cycleActivated: validation.cycleActivated,
+          hadAnomalies: false,
+          resolvedItems: [],
+        });
       }
     } catch (err) {
       console.error("import json error", err);
       toast.error("JSON inválido: " + (err instanceof Error ? err.message : "formato"));
+      // Log de erro
+      try {
+        const { data: auth } = await supabase.auth.getUser();
+        if (auth?.user?.id) {
+          await supabase.from("protocol_import_logs" as any).insert({
+            coach_id: auth.user.id,
+            file_name: file.name,
+            status: "error",
+            anomalies_count: 0,
+            resolved_items: [],
+          });
+        }
+      } catch { /* noop */ }
+      setImportState({ stage: "IDLE" });
     } finally {
       if (jsonRef.current) jsonRef.current.value = "";
     }
@@ -330,20 +393,41 @@ export default function ProtocolImportExport({ payload, studentName, onImport }:
   return (
     <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="inline-block">
       <ProtocolImportResolverModal
-        open={pendingPayload !== null && pendingAnomalies.length > 0}
-        anomalies={pendingAnomalies}
+        open={importState.stage === "RESOLVING_ANOMALIES"}
+        anomalies={importState.stage === "RESOLVING_ANOMALIES" ? importState.anomalies : []}
         onCancel={() => {
-          setPendingPayload(null);
-          setPendingAnomalies([]);
+          setImportState({ stage: "IDLE" });
           toast.info("Importação cancelada.");
         }}
         onConfirm={(resolutions: Record<string, Resolution>) => {
-          if (!pendingPayload) return;
-          const resolved = applyResolutions(pendingPayload, pendingAnomalies, resolutions);
-          const cycleOn = !!resolved?.setup?.carbCycle;
-          setPendingPayload(null);
-          setPendingAnomalies([]);
-          finalizeImport(resolved, cycleOn);
+          if (importState.stage !== "RESOLVING_ANOMALIES") return;
+          // Aplica resoluções em cópia imutável (applyResolutions já faz deep clone interno)
+          const resolved = applyResolutions(importState.payload, importState.anomalies, resolutions);
+          const cycleOn = !!(resolved as any)?.setup?.carbCycle;
+          setImportState({
+            stage: "PREVIEW",
+            fileName: importState.fileName,
+            payload: deepClone(resolved),
+            cycleActivated: cycleOn || importState.cycleActivated,
+            hadAnomalies: true,
+            resolvedItems: Object.values(resolutions),
+          });
+        }}
+      />
+      <ProtocolImportPreview
+        open={importState.stage === "PREVIEW" || importState.stage === "COMMITTING"}
+        payload={importState.stage === "PREVIEW" || importState.stage === "COMMITTING" ? importState.payload : null}
+        fileName={importState.stage === "PREVIEW" || importState.stage === "COMMITTING" ? importState.fileName : ""}
+        hadAnomalies={importState.stage === "PREVIEW" || importState.stage === "COMMITTING" ? importState.hadAnomalies : false}
+        onCancel={() => {
+          setImportState({ stage: "IDLE" });
+          toast.info("Importação cancelada.");
+        }}
+        onConfirm={() => {
+          if (importState.stage !== "PREVIEW") return;
+          const next: Extract<ImportState, { stage: "COMMITTING" }> = { ...importState, stage: "COMMITTING" };
+          setImportState(next);
+          void commit(next);
         }}
       />
       <CollapsibleTrigger asChild>

@@ -740,6 +740,39 @@ export type Database = {
         }
         Relationships: []
       }
+      protocol_import_logs: {
+        Row: {
+          anomalies_count: number
+          coach_id: string
+          created_at: string
+          file_name: string
+          id: string
+          resolved_items: Json
+          status: string
+          student_id: string | null
+        }
+        Insert: {
+          anomalies_count?: number
+          coach_id: string
+          created_at?: string
+          file_name: string
+          id?: string
+          resolved_items?: Json
+          status: string
+          student_id?: string | null
+        }
+        Update: {
+          anomalies_count?: number
+          coach_id?: string
+          created_at?: string
+          file_name?: string
+          id?: string
+          resolved_items?: Json
+          status?: string
+          student_id?: string | null
+        }
+        Relationships: []
+      }
       protocols: {
         Row: {
           active: boolean | null
