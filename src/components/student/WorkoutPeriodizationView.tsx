@@ -57,7 +57,7 @@ function exId(day: WorkoutDay, idx: number) {
 }
 
 export default function WorkoutPeriodizationView({ workouts, renderLegacy, allowEdit = false }: Props) {
-  const [periodizationOn, setPeriodizationOn] = useState(false);
+  const [periodizationOn, setPeriodizationOn] = useState(!allowEdit);
   const [activeWeek, setActiveWeek] = useState(0);
   const [editMode, setEditMode] = useState(false);
   const [weeks, setWeeks] = useState<WeekMeta[]>(DEFAULT_WEEKS);
@@ -89,27 +89,29 @@ export default function WorkoutPeriodizationView({ workouts, renderLegacy, allow
 
   return (
     <div className="space-y-4">
-      {/* Controles superiores */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-border bg-card">
-        <div className="flex items-center gap-3">
-          <Switch checked={periodizationOn} onCheckedChange={setPeriodizationOn} id="periodization-toggle" />
-          <Label htmlFor="periodization-toggle" className="text-sm font-semibold cursor-pointer">
-            Ativar Periodização
-          </Label>
+      {/* Controles superiores — apenas coach vê o toggle e modo edição */}
+      {allowEdit && (
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-border bg-card">
+          <div className="flex items-center gap-3">
+            <Switch checked={periodizationOn} onCheckedChange={setPeriodizationOn} id="periodization-toggle" />
+            <Label htmlFor="periodization-toggle" className="text-sm font-semibold cursor-pointer">
+              Ativar Periodização
+            </Label>
+          </div>
+          {periodizationOn && (
+            <Button
+              size="sm"
+              variant={editMode ? "default" : "outline"}
+              onClick={() => setEditMode((v) => !v)}
+            >
+              {editMode ? <><Check className="w-4 h-4 mr-1" />Concluir</> : <><Pencil className="w-4 h-4 mr-1" />Modo Edição</>}
+            </Button>
+          )}
         </div>
-        {periodizationOn && allowEdit && (
-          <Button
-            size="sm"
-            variant={editMode ? "default" : "outline"}
-            onClick={() => setEditMode((v) => !v)}
-          >
-            {editMode ? <><Check className="w-4 h-4 mr-1" />Concluir</> : <><Pencil className="w-4 h-4 mr-1" />Modo Edição</>}
-          </Button>
-        )}
-      </div>
+      )}
 
-      {/* Renderização legada (intacta) */}
-      {!periodizationOn && renderLegacy()}
+      {/* Renderização legada (intacta) — apenas quando o toggle está OFF e o coach tem controle */}
+      {allowEdit && !periodizationOn && renderLegacy()}
 
       {/* Visão Periodizada */}
       {periodizationOn && (
