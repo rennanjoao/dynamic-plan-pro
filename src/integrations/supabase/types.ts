@@ -1000,6 +1000,53 @@ export type Database = {
         }
         Relationships: []
       }
+      workout_template_versions: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          scope: string
+          template_id: string
+          treinos: Json
+          updated_by: string | null
+          updated_by_name: string | null
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          scope?: string
+          template_id: string
+          treinos?: Json
+          updated_by?: string | null
+          updated_by_name?: string | null
+          version: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          scope?: string
+          template_id?: string
+          treinos?: Json
+          updated_by?: string | null
+          updated_by_name?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workout_template_versions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "workout_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workout_templates: {
         Row: {
           created_at: string
@@ -1010,6 +1057,7 @@ export type Database = {
           name: string
           treinos: Json
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           created_at?: string
@@ -1020,6 +1068,7 @@ export type Database = {
           name: string
           treinos?: Json
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           created_at?: string
@@ -1030,6 +1079,7 @@ export type Database = {
           name?: string
           treinos?: Json
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
