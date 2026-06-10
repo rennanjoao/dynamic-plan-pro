@@ -429,11 +429,12 @@ function GuidelinesTab({ payload, setPayload }: { payload: ProtocolPayload; setP
 
 // ─── WorkoutsTab ─────────────────────────────────────────────────────────────
 
-function WorkoutsTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void }) {
+function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void; coachId: string | null }) {
   const updDay = (idx: number, patch: Partial<ProtocolPayload["workouts"][number]>) => { const n = [...payload.workouts]; n[idx] = { ...n[idx], ...patch }; setPayload({ ...payload, workouts: n }); };
   const updEx = (di: number, ei: number, patch: any) => { const n = [...payload.workouts]; const exs = [...n[di].exercises]; exs[ei] = { ...exs[ei], ...patch }; n[di] = { ...n[di], exercises: exs }; setPayload({ ...payload, workouts: n }); };
   return (
     <div className="space-y-3">
+      <WorkoutPeriodizationEditor payload={payload} setPayload={setPayload} coachId={coachId} />
       {payload.workouts.map((day, di) => (
         <Card key={day.key} className="bg-card/60 border-border p-4">
           <div className="flex items-center gap-3 mb-3">
