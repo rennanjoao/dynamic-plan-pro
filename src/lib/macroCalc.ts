@@ -32,12 +32,58 @@ function tacoByName(name: string): TacoFood | undefined {
   return TACO_FOODS.find((t) => t.name.toLowerCase() === n);
 }
 
+/**
+ * Parser numérico seguro para a string de quantidade do alimento.
+ * Extrai o valor numérico e detecta se é unidade (un, unidade, fatia, ovo)
+ * ou peso em gramas/ml.
+ *
+ * Retorna { grams, isUnit, value } — `grams` já convertido quando isUnit=true
+ * usando `unitWeight` opcional do alimento (fallback 50g).
+ *
+ * Exemplos:
+ *   "150g"        → { value:150, grams:150,  isUnit:false }
+ *   "1,5 kg"      → { value:1.5, grams:1500, isUnit:false }
+ *   "8 unidades"  → { value:8,   grams:400,  isUnit:true  } (com unitWeight=50)
+ *   "2 fatias"    → { value:2,   grams:100,  isUnit:true  }
+ *   ""            → { value:0,   grams:0,    isUnit:false }
+ */
+export function parseWeightString(
+  raw: unknown,
+  unitWeight: number = 50,
+): { value: number; grams: number; isUnit: boolean } {
+  const text = String(raw ?? "").trim();
+  if (!text) return { value: 0, grams: 0, isUnit: false };
+
+  const parsedValue =
+    parseFloat(text.replace(/[^\d.,-]/g, "").replace(",", ".")) || 0;
+
+  const isUnit = /un|unid|fatia|fatias|ovo|ovos|colher|colheres|copo|copos|porc/i.test(text);
+  const isKg = /\bkg\b/i.test(text) || /\bquilo/i.test(text);
+  const isLitro = /\bl\b/i.test(text) && !/\bml\b/i.test(text);
+
+  let grams = parsedValue;
+  if (isUnit) grams = parsedValue * (unitWeight > 0 ? unitWeight : 50);
+  else if (isKg || isLitro) grams = parsedValue * 1000;
+
+  return { value: parsedValue, grams, isUnit };
+}
+
 export function calcItemMacros(item: any): Macros {
   if (!item) return { ...ZERO };
-  if (item.isTaco === true && typeof item.rawWeight === "number" && item.rawWeight > 0) {
+  if (item.isTaco === true) {
     const taco = tacoByName(item.baseName || item.name);
     if (!taco) return { ...ZERO };
-    const f = item.rawWeight / 100;
+
+    // Prioriza rawWeight numérico já gravado; senão, parseia weight string.
+    let grams = 0;
+    if (typeof item.rawWeight === "number" && item.rawWeight > 0) {
+      grams = item.rawWeight;
+    } else if (item.weight != null) {
+      const unitW = typeof (taco as any).unitWeight === "number" ? (taco as any).unitWeight : 50;
+      grams = parseWeightString(item.weight, unitW).grams;
+    }
+    if (!grams || !isFinite(grams) || grams <= 0) return { ...ZERO };
+    const f = grams / 100;
     return {
       kcal: +(taco.kcal * f).toFixed(1),
       protein: +(taco.p * f).toFixed(1),
