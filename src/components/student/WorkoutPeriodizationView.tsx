@@ -48,6 +48,12 @@ interface Props {
   renderLegacy: () => React.ReactNode;
   /** Permite alternar para Modo Edição (coach). */
   allowEdit?: boolean;
+  /** Periodização vinda do payload do protocolo (definida pelo coach). */
+  periodization?: {
+    enabled?: boolean;
+    weeks?: WeekMeta[];
+    overrides?: Record<string, Record<string, Partial<Exercise>>>;
+  };
 }
 
 type Overrides = Record<number, Record<string, Partial<Exercise>>>; // weekIdx → exId → fields
@@ -56,12 +62,25 @@ function exId(day: WorkoutDay, idx: number) {
   return `${day.key}_${idx}`;
 }
 
-export default function WorkoutPeriodizationView({ workouts, renderLegacy, allowEdit = false }: Props) {
-  const [periodizationOn, setPeriodizationOn] = useState(!allowEdit);
+export default function WorkoutPeriodizationView({ workouts, renderLegacy, allowEdit = false, periodization }: Props) {
+  // Resolve dados da periodização vindos do payload (com fallback para defaults).
+  const incomingWeeks = (periodization?.weeks && periodization.weeks.length === 4)
+    ? periodization.weeks
+    : DEFAULT_WEEKS;
+  const incomingOverrides: Overrides = {};
+  if (periodization?.overrides) {
+    for (const [k, v] of Object.entries(periodization.overrides)) {
+      const idx = Number(k);
+      if (!Number.isNaN(idx)) incomingOverrides[idx] = v as Record<string, Partial<Exercise>>;
+    }
+  }
+  // Aluno: sempre que o coach ativou a periodização, exibe periodizada.
+  const initialOn = allowEdit ? !!periodization?.enabled : (periodization?.enabled ?? true);
+  const [periodizationOn, setPeriodizationOn] = useState(initialOn);
   const [activeWeek, setActiveWeek] = useState(0);
   const [editMode, setEditMode] = useState(false);
-  const [weeks, setWeeks] = useState<WeekMeta[]>(DEFAULT_WEEKS);
-  const [overrides, setOverrides] = useState<Overrides>({});
+  const [weeks, setWeeks] = useState<WeekMeta[]>(incomingWeeks);
+  const [overrides, setOverrides] = useState<Overrides>(incomingOverrides);
 
   const currentWeek = weeks[activeWeek];
 
