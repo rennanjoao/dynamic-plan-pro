@@ -457,17 +457,25 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
               </div>
             )}
             
-            {day.exercises.map((ex, ei) => (
+            {day.exercises.map((ex, ei) => {
+              const periodOn = payload.periodization?.enabled;
+              const w1 = payload.periodization?.weeks?.[0];
+              const phSets    = periodOn && w1?.sets    ? `Auto: ${w1.sets}`    : "Séries (Ex: 4)";
+              const phReps    = periodOn && w1?.reps    ? `Auto: ${w1.reps}`    : "Reps (Ex: 8-12)";
+              const phCadence = periodOn && w1?.cadence ? `Auto: ${w1.cadence}` : "Ex: 3010";
+              const phRest    = periodOn && w1?.rest    ? `Auto: ${w1.rest}`    : "Descanso (Ex: 60s)";
+              return (
               <div key={ei} className="grid grid-cols-2 md:grid-cols-[1.8fr_0.6fr_0.6fr_0.6fr_0.6fr_1fr_auto] gap-2 items-center">
                 <Input value={ex.name} onChange={(e) => updEx(di, ei, { name: e.target.value })} placeholder="Ex: Supino reto" className="h-8 text-xs" />
-                <Input value={ex.sets} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder="Séries (Ex: 4)" className="h-8 text-xs" />
-                <Input value={ex.reps} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder="Reps (Ex: 8-12)" className="h-8 text-xs" />
-                <Input value={ex.cadence} onChange={(e) => updEx(di, ei, { cadence: e.target.value })} placeholder="Ex: 3010" className="h-8 text-xs" title="3010 = Excêntrico / Pausa / Concêntrico / Pausa" />
-                <Input value={ex.rest} onChange={(e) => updEx(di, ei, { rest: e.target.value })} placeholder="Descanso (Ex: 60s)" className="h-8 text-xs" />
+                <Input value={ex.sets} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder={phSets} className="h-8 text-xs" />
+                <Input value={ex.reps} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder={phReps} className="h-8 text-xs" />
+                <Input value={ex.cadence} onChange={(e) => updEx(di, ei, { cadence: e.target.value })} placeholder={phCadence} className="h-8 text-xs" title="3010 = Excêntrico / Pausa / Concêntrico / Pausa" />
+                <Input value={ex.rest} onChange={(e) => updEx(di, ei, { rest: e.target.value })} placeholder={phRest} className="h-8 text-xs" />
                 <Input value={ex.notes} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-xs" />
                 <button onClick={() => updDay(di, { exercises: day.exercises.filter((_, i) => i !== ei) })} className="text-muted-foreground hover:text-destructive p-1.5"><Trash2 className="w-3.5 h-3.5" /></button>
               </div>
-            ))}
+              );
+            })}
             <Button size="sm" variant="outline" onClick={() => updDay(di, { exercises: [...day.exercises, makeEmptyExercise()] })} className="h-7 text-xs mt-1"><Plus className="w-3 h-3 mr-1" /> Exercício</Button>
           </div>
         </Card>
