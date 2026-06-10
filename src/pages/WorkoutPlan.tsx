@@ -96,6 +96,7 @@ export default function WorkoutPlan() {
 
         <WorkoutPeriodizationView
           workouts={workouts as any}
+          periodization={safePayload?.periodization}
           renderLegacy={() => (
             workouts.length === 0 ? (
               <p className="text-center text-muted-foreground italic py-10">Treinos ainda não publicados.</p>
