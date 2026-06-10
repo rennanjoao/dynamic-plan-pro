@@ -54,7 +54,7 @@ import {
 import ProtocolImportExport from "./ProtocolImportExport";
 import ProtocolImportHistory from "./ProtocolImportHistory";
 import WorkoutPeriodizationEditor from "./WorkoutPeriodizationEditor";
-import { calcMealMacros, calcDayMacros, suggestTacoSubstitutes, tacoGroupToKind } from "@/lib/macroCalc";
+import { calcMealMacros, calcDayMacros, suggestTacoSubstitutes, tacoGroupToKind, parseWeightString } from "@/lib/macroCalc";
 import { Progress } from "@/components/ui/progress";
 
 // FIX: importa o array correto (TACO_FOODS) e adiciona campo `id` virtual
@@ -778,11 +778,14 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                                   onChangeWeight={(w) => {
                                     const patch: any = { weight: w };
                                     if (it.isTaco) {
-                                      // Parser seguro: extrai gramas reais (entende "150g", "1,5kg",
-                                      // "8 unidades", "2 fatias"). Mantém weight como string livre.
-                                      const { parseWeightString } = require("@/lib/macroCalc") as typeof import("@/lib/macroCalc");
-                                      const taco = (it.baseName || it.name) ? (require("@/data/tacoFoods") as typeof import("@/data/tacoFoods")).TACO_FOODS.find((t: any) => t.name.toLowerCase() === String(it.baseName || it.name).toLowerCase()) : undefined;
-                                      const unitW = taco && typeof (taco as any).unitWeight === "number" ? (taco as any).unitWeight : 50;
+                                      // Parser seguro: entende "150g", "1,5kg", "8 unidades", "2 fatias".
+                                      // Mantém weight como string livre (não força number no estado).
+                                      const tacoRef = TACO_FOODS.find(
+                                        (t) => t.name.toLowerCase() === String(it.baseName || it.name).toLowerCase()
+                                      );
+                                      const unitW = tacoRef && typeof (tacoRef as any).unitWeight === "number"
+                                        ? (tacoRef as any).unitWeight
+                                        : 50;
                                       const { grams } = parseWeightString(w, unitW);
                                       patch.rawWeight = isFinite(grams) && grams > 0 ? grams : 0;
                                     }
