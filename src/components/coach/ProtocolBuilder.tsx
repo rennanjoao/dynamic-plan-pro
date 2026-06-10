@@ -54,7 +54,7 @@ import {
 import ProtocolImportExport from "./ProtocolImportExport";
 import ProtocolImportHistory from "./ProtocolImportHistory";
 import WorkoutPeriodizationEditor from "./WorkoutPeriodizationEditor";
-import { calcMealMacros, calcDayMacros, suggestTacoSubstitutes, tacoGroupToKind } from "@/lib/macroCalc";
+import { calcMealMacros, calcDayMacros, suggestTacoSubstitutes, tacoGroupToKind, parseWeightString } from "@/lib/macroCalc";
 import { Progress } from "@/components/ui/progress";
 
 // FIX: importa o array correto (TACO_FOODS) e adiciona campo `id` virtual
@@ -778,8 +778,16 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                                   onChangeWeight={(w) => {
                                     const patch: any = { weight: w };
                                     if (it.isTaco) {
-                                      const num = parseFloat(String(w).replace(",", "."));
-                                      patch.rawWeight = isFinite(num) ? num : 0;
+                                      // Parser seguro: entende "150g", "1,5kg", "8 unidades", "2 fatias".
+                                      // Mantém weight como string livre (não força number no estado).
+                                      const tacoRef = TACO_FOODS.find(
+                                        (t) => t.name.toLowerCase() === String(it.baseName || it.name).toLowerCase()
+                                      );
+                                      const unitW = tacoRef && typeof (tacoRef as any).unitWeight === "number"
+                                        ? (tacoRef as any).unitWeight
+                                        : 50;
+                                      const { grams } = parseWeightString(w, unitW);
+                                      patch.rawWeight = isFinite(grams) && grams > 0 ? grams : 0;
                                     }
                                     updItem(mealIdx, kind, optIdx, ii, patch);
                                   }}
