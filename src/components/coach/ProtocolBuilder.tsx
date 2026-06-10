@@ -617,7 +617,10 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
     const opts = getOptsForKind(payload.meals[mealIdx], kind);
     const items = [...(opts[optIdx].items as any[])];
     items[itemIdx] = { ...items[itemIdx], ...patch };
-    if (items[itemIdx].isTaco) {
+    // Só resetar o weight quando o usuário ACABOU de selecionar um TACO
+    // (patch contém isTaco === true). Para edições normais de weight/name
+    // num item já-TACO, NÃO podemos zerar o valor que ele está digitando.
+    if (patch.isTaco === true) {
       items[itemIdx].name = items[itemIdx].baseName || items[itemIdx].name || "";
       items[itemIdx].weight = "";
     }
