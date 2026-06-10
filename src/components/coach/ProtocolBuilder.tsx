@@ -778,8 +778,13 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                                   onChangeWeight={(w) => {
                                     const patch: any = { weight: w };
                                     if (it.isTaco) {
-                                      const num = parseFloat(String(w).replace(",", "."));
-                                      patch.rawWeight = isFinite(num) ? num : 0;
+                                      // Parser seguro: extrai gramas reais (entende "150g", "1,5kg",
+                                      // "8 unidades", "2 fatias"). Mantém weight como string livre.
+                                      const { parseWeightString } = require("@/lib/macroCalc") as typeof import("@/lib/macroCalc");
+                                      const taco = (it.baseName || it.name) ? (require("@/data/tacoFoods") as typeof import("@/data/tacoFoods")).TACO_FOODS.find((t: any) => t.name.toLowerCase() === String(it.baseName || it.name).toLowerCase()) : undefined;
+                                      const unitW = taco && typeof (taco as any).unitWeight === "number" ? (taco as any).unitWeight : 50;
+                                      const { grams } = parseWeightString(w, unitW);
+                                      patch.rawWeight = isFinite(grams) && grams > 0 ? grams : 0;
                                     }
                                     updItem(mealIdx, kind, optIdx, ii, patch);
                                   }}
