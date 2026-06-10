@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -6,10 +6,22 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Calendar, BookmarkPlus, Library, Loader2, Trash2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Calendar, BookmarkPlus, Library, Loader2, Trash2,
+  Eye, Copy, RefreshCcw, AlertCircle, History,
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import type { ProtocolPayload } from "@/lib/protocolSchema";
+import {
+  ProtocolPayloadSchema,
+  PeriodizationSchema,
+  type ProtocolPayload,
+} from "@/lib/protocolSchema";
+import { validatePeriodization } from "@/lib/periodizationValidation";
+import WeekPreviewDialog from "./WeekPreviewDialog";
+import TemplateHistoryDialog from "./TemplateHistoryDialog";
+import { cn } from "@/lib/utils";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -34,6 +46,22 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
   const [loadOpen, setLoadOpen] = useState(false);
   const [templates, setTemplates] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
+  const [previewWeek, setPreviewWeek] = useState<number | null>(null);
+  const [historyTpl, setHistoryTpl] = useState<{ id: string; name: string } | null>(null);
+
+  const validation = useMemo(() => validatePeriodization(payload), [payload]);
+  const errorByWeek = useMemo(() => {
+    const map: Record<number, Record<string, string>> = {};
+    validation.weekErrors.forEach((e) => {
+      map[e.weekIndex] = { ...(map[e.weekIndex] || {}), [e.field]: e.message };
+    });
+    return map;
+  }, [validation]);
+  const overrideErrSet = useMemo(() => {
+    const s = new Set<string>();
+    validation.overrideErrors.forEach((e) => s.add(`${e.weekIndex}|${e.exerciseId}|${e.field}`));
+    return s;
+  }, [validation]);
 
   const updateWeek = (i: number, field: keyof typeof p.weeks[number], value: string) => {
     const weeks = p.weeks.map((w, idx) => (idx === i ? { ...w, [field]: value } : w));
@@ -51,6 +79,31 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
     if (Object.keys(next[key][id]).length === 0) delete next[key][id];
     setPayload({ ...payload, periodization: { ...p, overrides: next } });
   };
+
+  function duplicateWeek(from: number, to: number) {
+    if (from === to) return;
+    const weeks = p.weeks.map((w, idx) => (idx === to ? { ...p.weeks[from], label: w.label } : w));
+    const overrides = { ...(p.overrides || {}) };
+    overrides[String(to)] = JSON.parse(JSON.stringify(overrides[String(from)] || {}));
+    setPayload({ ...payload, periodization: { ...p, weeks, overrides } });
+    toast.success(`Semana ${from + 1} copiada para Semana ${to + 1}`);
+  }
+
+  function resetWeekToDefault(i: number) {
+    const defaults = PeriodizationSchema.parse({}).weeks;
+    const weeks = p.weeks.map((w, idx) => (idx === i ? defaults[i] : w));
+    const overrides = { ...(p.overrides || {}) };
+    delete overrides[String(i)];
+    setPayload({ ...payload, periodization: { ...p, weeks, overrides } });
+    toast.success(`Semana ${i + 1} restaurada ao padrão`);
+  }
+
+  function resetAllToDefault() {
+    if (!confirm("Resetar todas as 4 semanas e overrides para o padrão?")) return;
+    const fresh = PeriodizationSchema.parse({ enabled: p.enabled });
+    setPayload({ ...payload, periodization: fresh });
+    toast.success("Periodização restaurada ao padrão");
+  }
 
   async function reloadTemplates() {
     if (!coachId) return;
@@ -71,6 +124,16 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
   async function persistTemplate() {
     if (!coachId) return;
     if (!tplName.trim()) { toast.error("Dê um nome ao template"); return; }
+    if (p.enabled && !validation.ok) {
+      toast.error("Corrija os erros da periodização antes de salvar.");
+      return;
+    }
+    // valida payload completo via Zod
+    const parsed = ProtocolPayloadSchema.safeParse(payload);
+    if (!parsed.success) {
+      toast.error("JSON inválido: " + parsed.error.issues[0]?.message);
+      return;
+    }
     setBusy(true);
     try {
       const { count } = await sb
@@ -82,17 +145,36 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
         return;
       }
       const treinos = tplScope === "full"
-        ? { workouts: payload.workouts, periodization: payload.periodization, scope: "full" }
-        : { periodization: payload.periodization, scope: "periodization" };
-      const { error } = await sb.from("workout_templates").insert({
+        ? { workouts: parsed.data.workouts, periodization: parsed.data.periodization, scope: "full" }
+        : { periodization: parsed.data.periodization, scope: "periodization" };
+
+      // resolve nome do autor para o histórico
+      const { data: prof } = await sb.from("profiles").select("full_name").eq("user_id", coachId).maybeSingle();
+      const authorName = prof?.full_name || "Coach";
+
+      const { data: inserted, error } = await sb.from("workout_templates").insert({
         created_by: coachId,
+        updated_by: coachId,
         name: tplName.trim(),
         level: tplScope,
         description: tplScope === "full" ? "Treino + Periodização" : "Periodização",
         treinos,
-      });
+      }).select("id").single();
       if (error) throw error;
-      toast.success("Template salvo");
+
+      // cria versão 1
+      await sb.from("workout_template_versions").insert({
+        template_id: inserted.id,
+        version: 1,
+        scope: tplScope,
+        name: tplName.trim(),
+        description: tplScope === "full" ? "Treino + Periodização" : "Periodização",
+        treinos,
+        updated_by: coachId,
+        updated_by_name: authorName,
+      });
+
+      toast.success("Template salvo (v1)");
       setSaveOpen(false);
       setTplName("");
     } catch (e: any) {
