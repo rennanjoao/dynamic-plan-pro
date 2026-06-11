@@ -128,7 +128,6 @@ const Anamnesis = () => {
     })();
   }, [navigate]);
 
-
   // ETAPA 1: VALIDAR CÓDIGO DO COACH
   const handleValidateCode = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -412,18 +411,25 @@ const Anamnesis = () => {
               </Field>
             </div>
             <Field label="Atividades atuais"><FiTextarea name="atividades" placeholder="Ex: Musculação 4x/semana" value={g("atividades")} onChange={set("atividades")} /></Field>
-            <Field label="Horários dos treinos"><FiInput name="horarios_treino" placeholder="Ex: Seg/Qua/Sex 7h" value={g("horarios_treino")} onChange={set("horarios_treino")} /></Field>
           </Card>
+          
           <Card label="Disponibilidade">
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Dias/semana"><FiInput name="dias_treino" type="number" placeholder="Ex: 4" value={g("dias_treino")} onChange={set("dias_treino")} /></Field>
-              <Field label="Duração máxima"><FiInput name="duracao_sessao" placeholder="Ex: 60 min" value={g("duracao_sessao")} onChange={set("duracao_sessao")} /></Field>
+              <Field label="Dias livres/semana"><FiInput name="dias_treino" type="number" placeholder="Ex: 4" value={g("dias_treino")} onChange={set("dias_treino")} /></Field>
+              <Field label="Duração máx. disponível"><FiInput name="duracao_sessao" placeholder="Ex: 60 min" value={g("duracao_sessao")} onChange={set("duracao_sessao")} /></Field>
+              <div className="col-span-2">
+                <Field label="Horário que vai treinar"><FiInput name="horarios_treino" placeholder="Ex: Manhãs (07h) ou Noites (19h)" value={g("horarios_treino")} onChange={set("horarios_treino")} /></Field>
+              </div>
+              <div className="col-span-2">
+                <Field label="Aeróbico em horário separado?"><FiInput name="aerobico_separado" placeholder="Ex: 30 min de manhã sem prejudicar o sono (Ou não tenho)" value={g("aerobico_separado")} onChange={set("aerobico_separado")} /></Field>
+              </div>
             </div>
             <Field label="Academia?">
               <Choices cols={3} group="tem_academia" state={groups} setState={setGroups} options={[{ value: "Sim", theme: "green" }, { value: "Home gym" }, { value: "Não" }]} />
             </Field>
             <Field label="Equipamentos (se home gym)"><FiInput name="equipamentos" placeholder="Ex: Barras, halteres" value={g("equipamentos")} onChange={set("equipamentos")} /></Field>
           </Card>
+
           <Card label="Diagnóstico">
             <Field label="Sem descanso há quanto tempo?"><FiInput name="descanso_treino" placeholder="Ex: 8 meses" value={g("descanso_treino")} onChange={set("descanso_treino")} /></Field>
             <Field label="Pump no treino">
