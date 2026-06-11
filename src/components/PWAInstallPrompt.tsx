@@ -54,7 +54,7 @@ export function PWAInstallPrompt() {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-foreground">Instalar o app</p>
           <p className="text-xs text-muted-foreground leading-snug">
-            Acesse o Elite Lab diretamente da sua tela inicial.
+            Acesse o Elite Prime diretamente da sua tela inicial.
           </p>
         </div>
         <div className="flex items-center gap-1 shrink-0">

@@ -147,7 +147,7 @@ export const CoachGuard = ({ children }: Props) => {
           </div>
           <h1 className="text-2xl font-bold mb-2">Seu trial terminou</h1>
           <p className="text-muted-foreground mb-6">
-            Você teve 30 dias gratuitos para conhecer o Elite Lab <span className="text-primary font-semibold">Hub</span>.
+            Você teve 30 dias gratuitos para conhecer o Elite Prime <span className="text-primary font-semibold">Hub</span>.
             Para continuar acompanhando seus alunos, escolha um plano.
           </p>
           <Button asChild className="w-full" size="lg">

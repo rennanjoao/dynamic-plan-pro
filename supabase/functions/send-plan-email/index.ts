@@ -45,7 +45,7 @@ serve(async (req) => {
     console.log(`Enviando plano de treino para: ${toEmail}`);
 
     const emailResponse = await resend.emails.send({
-      from: "Elite Lab Hub <no-reply@rjelitelab.com.br>",
+      from: "Elite Prime Hub <no-reply@rjelitelab.com.br>",
       to: [toEmail],
       subject: emailSubject,
       html: fullHtmlContent,

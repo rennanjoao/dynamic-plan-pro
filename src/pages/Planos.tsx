@@ -67,7 +67,7 @@ export default function Planos() {
 
         <header className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold mb-3">
-            Elite Lab <span className="text-primary">Hub</span>
+            Elite Prime <span className="text-primary">Hub</span>
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Escolha o plano que melhor encaixa na sua rotina de acompanhamento.

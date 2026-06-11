@@ -87,7 +87,7 @@ const Index = () => {
             </div>
 
             <h1 className="text-5xl md:text-7xl font-black text-foreground dark:text-white mb-10 tracking-tighter">
-              Elite Lab <span className="text-primary">Hub</span>
+              Elite Prime <span className="text-primary">Hub</span>
             </h1>
 
             <p className="text-lg md:text-xl text-muted-foreground dark:text-white/60 max-w-2xl mx-auto mb-10 leading-relaxed">
@@ -155,7 +155,7 @@ const Index = () => {
       </section>
 
       <footer className="border-t border-border/50 py-8 text-center">
-        <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} Elite Lab Hub — Rennan João</p>
+        <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} Elite Prime Hub — Rennan João</p>
       </footer>
 
       <InfoChatBot />

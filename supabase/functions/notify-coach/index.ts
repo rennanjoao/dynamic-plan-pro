@@ -83,7 +83,7 @@ function renderHtml(body: NotifyBody): string {
   <div style="max-width:680px;margin:0 auto;padding:24px">
     <div style="background:#fff;border-radius:14px;padding:28px;border:1px solid #eaeaea">
       <h1 style="margin:0 0 16px 0;font-size:20px;color:#0F172A">
-        Elite Lab <span style="color:#E11D48">Hub</span> — ${title}
+        Elite Prime <span style="color:#E11D48">Hub</span> — ${title}
       </h1>
       ${studentLine}${emailLine}${summaryBlock}${dataBlock}${photosBlock}
       <p style="margin-top:28px;color:#888;font-size:12px;border-top:1px solid #f0f0f0;padding-top:16px">
@@ -125,7 +125,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Elite Lab Hub <no-reply@rjelitelab.com.br>",
+        from: "Elite Prime Hub <no-reply@rjelitelab.com.br>",
         to: [body.coachEmail],
         reply_to: body.studentEmail || undefined,
         subject,

@@ -229,12 +229,12 @@ serve(async (req) => {
             method: "POST",
             headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-              from: "Elite Lab Hub <no-reply@rjelitelab.com.br>",
+              from: "Elite Prime Hub <no-reply@rjelitelab.com.br>",
               to: [email],
-              subject: "Convite Exclusivo — Elite Lab Hub",
+              subject: "Convite Exclusivo — Elite Prime Hub",
               html: `
                 <div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;background:#0a0a0a;color:#fff;border-radius:12px;">
-                  <h2 style="color:#fff;margin:0 0 12px;">Você foi convidado para ser Coach no Elite Lab <span style="color:#E11D48;">Hub</span></h2>
+                  <h2 style="color:#fff;margin:0 0 12px;">Você foi convidado para ser Coach no Elite Prime <span style="color:#E11D48;">Hub</span></h2>
                   <p style="color:#cbd5e1;line-height:1.55;">Clique no botão abaixo para criar sua conta e iniciar seu período de teste de <strong>30 dias</strong>:</p>
                   <p style="margin:24px 0;">
                     <a href="${inviteLink}" style="display:inline-block;padding:12px 22px;background:#E11D48;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Aceitar Convite</a>

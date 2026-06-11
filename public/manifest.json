@@ -1,6 +1,6 @@
 {
-  "name": "Elite Lab Hub",
-  "short_name": "Elite Lab",
+  "name": "Elite Prime Hub",
+  "short_name": "Elite Prime",
   "description": "Plataforma de acompanhamento de treino, nutrição e evolução.",
   "start_url": "/",
   "display": "standalone",
