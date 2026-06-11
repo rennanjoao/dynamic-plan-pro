@@ -1,57 +1,262 @@
-<!doctype html>
-<html lang="pt-BR" translate="no">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Elite Lab Hub – Rennan João</title>
-    <meta name="description" content="Elite Lab Hub — plataforma de acompanhamento de treino, estratégias nutricionais e evolução do aluno.">
-    <meta name="author" content="Rennan João" />
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
-    <!-- PWA -->
-    <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#B11226" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Elite Lab" />
-    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+@tailwind base;
 
-    <!-- Open Graph -->
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content="Elite Lab Hub – Rennan João">
-    <meta property="og:description" content="Elite Lab Hub — plataforma de acompanhamento de treino, estratégias nutricionais e evolução do aluno.">
-    <meta property="og:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f6005c25-146b-4367-806d-a6ea99926c31/id-preview-5d1606d6--45ac7e21-184a-4011-88fa-77ccb59704c8.lovable.app-1780866577154.png">
+/* Adicionar no topo do index.css existente, APÓS a linha @tailwind base; */
 
-    <!-- Twitter -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Elite Lab Hub – Rennan João">
-    <meta name="twitter:description" content="Elite Lab Hub — plataforma de acompanhamento de treino, estratégias nutricionais e evolução do aluno.">
-    <meta name="twitter:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f6005c25-146b-4367-806d-a6ea99926c31/id-preview-5d1606d6--45ac7e21-184a-4011-88fa-77ccb59704c8.lovable.app-1780866577154.png">
-  </head>
+/* ── Fluidez global ── */
+html {
+  scroll-behavior: smooth;
+}
 
-  <body>
-    <script>
-      // Aplica o tema antes do React montar para evitar flash de tela clara
-      (function () {
-        try {
-          var t = localStorage.getItem("theme");
-          if (t !== "light" && t !== "dark") t = "dark";
-          if (t === "dark") document.documentElement.classList.add("dark");
-        } catch (e) {
-          document.documentElement.classList.add("dark");
-        }
-      })();
+/* Safe area para notch/home indicator em iPhones (PWA) */
+body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
 
-      // Registra o Service Worker para PWA
-      if ("serviceWorker" in navigator) {
-        window.addEventListener("load", function () {
-          navigator.serviceWorker.register("/sw.js").catch(function (err) {
-            console.warn("SW registration failed:", err);
-          });
-        });
-      }
-    </script>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+/* Evita flash de layout em transições de rota */
+#root {
+  /* Remove o max-width/padding do App.css padrão do Vite */
+  max-width: unset;
+  padding: 0;
+  text-align: unset;
+}
+
+/* Tap highlight transparente no mobile */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── App.css pode ser esvaziado — o conteúdo padrão do Vite não é usado ── */
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 96%;
+    --foreground: 0 0% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 10%;
+
+    --primary: 357 62% 47%;
+    --primary-dark: 357 60% 34%;
+    --primary-light: 357 65% 58%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 93%;
+    --secondary-foreground: 0 0% 10%;
+
+    --muted: 0 0% 93%;
+    --muted-foreground: 0 0% 45%;
+
+    --accent: 0 0% 93%;
+    --accent-foreground: 0 0% 10%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 357 62% 47%;
+    --accent-gold: 43 80% 38%;
+
+    --radius: 0.75rem;
+
+    --shadow: 0 0% 0%;
+    --shadow-opacity: 0.08;
+
+    --glass-bg: 0 0% 100% / 0.7;
+    --glass-border: 0 0% 100% / 0.2;
+  }
+
+  .dark {
+    --background: 0 0% 1.5%;
+    --foreground: 0 0% 95%;
+
+    --card: 0 0% 6.5%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 0 0% 6.5%;
+    --popover-foreground: 0 0% 95%;
+
+    --primary: 357 62% 47%;
+    --primary-dark: 357 60% 34%;
+    --primary-light: 357 65% 58%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 10%;
+    --secondary-foreground: 0 0% 95%;
+
+    --muted: 0 0% 10%;
+    --muted-foreground: 0 0% 55%;
+
+    --accent: 0 0% 10%;
+    --accent-foreground: 0 0% 95%;
+
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 12%;
+    --input: 0 0% 12%;
+    --ring: 357 62% 47%;
+    --accent-gold: 43 80% 38%;
+
+    --shadow: 0 0% 0%;
+    --shadow-opacity: 0.5;
+
+    --glass-bg: 0 0% 6% / 0.6;
+    --glass-border: 0 0% 100% / 0.06;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold tracking-tight;
+  }
+}
+
+@layer utilities {
+  .glass {
+    background: hsla(var(--glass-bg));
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid hsla(var(--glass-border));
+  }
+
+  .glass-strong {
+    background: hsla(var(--glass-bg));
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid hsla(var(--glass-border));
+    box-shadow: 0 8px 32px hsla(0, 0%, 0%, var(--shadow-opacity));
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 hover:shadow-xl hover:-translate-y-1;
+  }
+
+  .gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-dark)));
+  }
+
+  .gradient-primary-soft {
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.15), hsl(var(--primary-dark) / 0.05));
+  }
+
+  .gradient-hero {
+    background: linear-gradient(160deg, hsl(0 0% 2%), hsl(0 0% 6%) 40%, hsl(350 30% 8%) 80%, hsl(0 0% 4%));
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(var(--primary-light)), hsl(var(--primary)));
+  }
+
+  .glow-primary {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.3), 0 0 60px hsl(var(--primary) / 0.1);
+  }
+
+  .glow-primary-strong {
+    box-shadow: 0 0 15px hsl(var(--primary) / 0.4), 0 0 45px hsl(var(--primary) / 0.2), 0 0 80px hsl(var(--primary) / 0.1);
+    transition: box-shadow 0.3s ease;
+  }
+
+  .glow-primary-strong:hover {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.5), 0 0 60px hsl(var(--primary) / 0.3), 0 0 100px hsl(var(--primary) / 0.15);
+  }
+
+  .glass-border {
+    border: 1px solid transparent;
+    background-clip: padding-box;
+    position: relative;
+  }
+
+  .glass-border::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.1), hsl(0 0% 100% / 0.05), hsl(var(--primary) / 0.1));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .animate-fade-in-down {
+    animation: fadeInDown 0.6s ease;
+  }
+
+  .animate-fade-in-up {
+    animation: fadeInUp 0.6s ease;
+  }
+
+  .animate-slide-in {
+    animation: slideIn 0.4s ease;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.3s ease;
+  }
+
+  .animate-glow-pulse {
+    animation: glowPulse 3s ease-in-out infinite;
+  }
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 20px hsl(var(--primary) / 0.2); }
+  50% { box-shadow: 0 0 40px hsl(var(--primary) / 0.4), 0 0 80px hsl(var(--primary) / 0.1); }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
