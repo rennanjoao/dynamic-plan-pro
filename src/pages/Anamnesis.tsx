@@ -1,9 +1,10 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { uploadToCloudinary, NEURO_SLIDERS } from "@/lib/anamnesisSchema";
 import { notifyCoach } from "@/lib/notifyCoach";
+import { FotoSlot } from "@/components/shared/FotoSlot";
 import { cn } from "@/lib/utils";
 import { ShieldCheck, ArrowRight } from "lucide-react";
 
@@ -24,18 +25,6 @@ function Choices({ options, group, state, setState, cols = 3 }: { options: { val
             className={cn("px-3 py-2 rounded-lg text-xs font-medium border transition-all text-left", sel ? (t || "border-primary bg-primary/15 text-primary") : "border-border/50 bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground")}>{o.value}</button>
         );
       })}
-    </div>
-  );
-}
-
-function FotoSlot({ label, preview, onFile, onRemove }: { label: string; preview: string | null; onFile: (f: File) => void; onRemove: () => void; }) {
-  const inp = useRef<HTMLInputElement>(null);
-  return (
-    <div onClick={() => !preview && inp.current?.click()} className={cn("relative aspect-[3/4] rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all overflow-hidden", preview ? "border-primary/40 border-solid" : "border-border/40 hover:border-primary/40")}>
-      <input ref={inp} type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files?.[0]) onFile(e.target.files[0]); }} />
-      {preview ? (
-        <><img src={preview} alt={label} className="absolute inset-0 w-full h-full object-cover" /><button type="button" onClick={e => { e.stopPropagation(); onRemove(); }} className="absolute top-1.5 right-1.5 z-10 w-6 h-6 rounded-full bg-black/70 border border-border text-white text-xs flex items-center justify-center">✕</button></>
-      ) : (<><span className="text-2xl mb-1">📷</span><span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground text-center px-1">{label}</span></>)}
     </div>
   );
 }
@@ -216,8 +205,7 @@ const Anamnesis = () => {
         await (supabase.from("anamnesis") as any).insert(anamnesisRow);
       }
 
-      // Vincula aluno→coach via edge function com service_role
-      // (a RLS de coach_students não permite o aluno fazer INSERT direto).
+      // Vincula aluno→coach
       if (coachIdOrNull) {
         const { error: linkErr } = await supabase.functions.invoke("link-coach-student", {
           body: { coachId: coachIdOrNull },
@@ -226,7 +214,6 @@ const Anamnesis = () => {
       }
 
       if (coach.email) {
-        // Resend via edge function (único canal de envio)
         await notifyCoach({
           coachEmail: coach.email,
           studentName: String(payload.nome ?? ""),
