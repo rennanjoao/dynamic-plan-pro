@@ -9,10 +9,10 @@ import { AnamnesisGuard } from "./components/student/AnamnesisGuard";
 import { CoachGuard } from "./components/coach/CoachGuard";
 import { NavigationControls } from "@/components/NavigationControls";
 import { GlobalAIAssistant } from "@/components/GlobalAIAssistant";
+import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
 const Index        = lazyWithRetry(() => import("./pages/Index"));
-const Student      = lazyWithRetry(() => import("./pages/Student"));
 const Admin        = lazyWithRetry(() => import("./pages/Admin"));
 const AdminLogin   = lazyWithRetry(() => import("./pages/AdminLogin"));
 const Auth         = lazyWithRetry(() => import("./pages/Auth"));
@@ -62,28 +62,29 @@ const App = () => {
             <Routes>
               {/* Públicas */}
               <Route path="/"            element={<Index />} />
-              <Route path="/student"     element={<Student />} />
               <Route path="/auth"        element={<Auth />} />
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/register"    element={<CoachRegister />} />
 
-              {/* PORTA DE ENTRADA (NOVO CADASTRO) */}
-              <Route path="/anamnesis"    element={<Anamnesis />} />
+              {/* Redirects de rotas antigas — mantém links antigos funcionando */}
+              <Route path="/student"  element={<Navigate to="/student-area" replace />} />
+              <Route path="/fitness"  element={<Navigate to="/student-area" replace />} />
+              <Route path="/daily"    element={<Navigate to="/student-area" replace />} />
+
+              {/* Porta de entrada (novo cadastro) */}
+              <Route path="/anamnesis" element={<Anamnesis />} />
 
               {/* Aluno autenticado */}
-              <Route path="/student-area" element={<AnamnesisGuard><StudentArea /></AnamnesisGuard>} />
-              <Route path="/fitness"      element={<Navigate to="/student-area" replace />} />
-              {/* /daily removido — redireciona para não quebrar links antigos */}
-              <Route path="/daily"        element={<Navigate to="/student-area" replace />} />
-              <Route path="/check-in"     element={<AnamnesisGuard><CheckIn /></AnamnesisGuard>} />
-              <Route path="/evolution"    element={<AnamnesisGuard><Evolution /></AnamnesisGuard>} />
-              <Route path="/routine"      element={<AnamnesisGuard><DynamicRoutine /></AnamnesisGuard>} />
-              <Route path="/workout-plan" element={<AnamnesisGuard><WorkoutPlanPage /></AnamnesisGuard>} />
-              <Route path="/supplements"  element={<AnamnesisGuard><Supplements /></AnamnesisGuard>} />
+              <Route path="/student-area"  element={<AnamnesisGuard><StudentArea /></AnamnesisGuard>} />
+              <Route path="/check-in"      element={<AnamnesisGuard><CheckIn /></AnamnesisGuard>} />
+              <Route path="/evolution"     element={<AnamnesisGuard><Evolution /></AnamnesisGuard>} />
+              <Route path="/routine"       element={<AnamnesisGuard><DynamicRoutine /></AnamnesisGuard>} />
+              <Route path="/workout-plan"  element={<AnamnesisGuard><WorkoutPlanPage /></AnamnesisGuard>} />
+              <Route path="/supplements"   element={<AnamnesisGuard><Supplements /></AnamnesisGuard>} />
               <Route path="/shopping-list" element={<AnamnesisGuard><ShoppingList /></AnamnesisGuard>} />
 
               {/* Coach */}
-              <Route path="/coach" element={<AdminGuard requiredRole="coach"><CoachGuard><CoachDashboard /></CoachGuard></AdminGuard>} />
+              <Route path="/coach"  element={<AdminGuard requiredRole="coach"><CoachGuard><CoachDashboard /></CoachGuard></AdminGuard>} />
               <Route path="/planos" element={<Planos />} />
 
               {/* Admin */}
@@ -92,7 +93,12 @@ const App = () => {
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
+
+          {/* Assistente de IA global (todas as rotas autenticadas) */}
           <GlobalAIAssistant />
+
+          {/* Banner de instalação PWA */}
+          <PWAInstallPrompt />
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
