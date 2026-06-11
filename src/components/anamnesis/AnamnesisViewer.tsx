@@ -14,7 +14,8 @@ import {
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { ProgressChart } from "@/components/student/ProgressChart";
 import { toast } from "sonner";
-import { FileDown, Loader2, ImageIcon } from "lucide-react";
+import { FileDown, Loader2, ImageIcon, Pencil } from "lucide-react";
+import MeasurementsEditor from "@/components/coach/MeasurementsEditor";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -48,6 +49,8 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
   const [showPhotoCompare, setShowPhotoCompare] = useState(false);
   const [lastCheckin, setLastCheckin] = useState<{ submitted_at: string; fotos: Record<string, string> } | null>(null);
   const [loadingCheckin, setLoadingCheckin] = useState(false);
+  const [editTarget, setEditTarget] = useState<"anamnesis" | "checkin" | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -64,7 +67,7 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
       }
       setLoading(false);
     })();
-  }, [studentId]);
+  }, [studentId, reloadTick]);
 
   async function openPhotoCompare() {
     setShowPhotoCompare(true);
@@ -152,6 +155,12 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
           )}
         </div>
         <div className="flex gap-2">
+          <Button onClick={() => setEditTarget("anamnesis")} variant="outline" size="sm">
+            <Pencil className="w-4 h-4 mr-1.5" /> Editar medidas
+          </Button>
+          <Button onClick={() => setEditTarget("checkin")} variant="outline" size="sm">
+            <Pencil className="w-4 h-4 mr-1.5" /> Editar check-in
+          </Button>
           {fotosWithUrl.length > 0 && (
             <Button onClick={openPhotoCompare} variant="outline" size="sm">
               <ImageIcon className="w-4 h-4 mr-1.5" /> Ver fotos
@@ -289,6 +298,16 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {editTarget && (
+        <MeasurementsEditor
+          open={!!editTarget}
+          onOpenChange={(o) => !o && setEditTarget(null)}
+          studentId={studentId}
+          target={editTarget}
+          onSaved={() => setReloadTick((t) => t + 1)}
+        />
+      )}
     </div>
   );
 }
