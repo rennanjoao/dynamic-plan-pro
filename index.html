@@ -1,24 +1,33 @@
 <!doctype html>
-<html lang="pt-BR" translate="no">  <head>
+<html lang="pt-BR" translate="no">
+  <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Elite Lab Hub – Rennan João</title>
     <meta name="description" content="Elite Lab Hub — plataforma de acompanhamento de treino, estratégias nutricionais e evolução do aluno.">
-    <meta name="author" content="Fitness Coach" />
+    <meta name="author" content="Rennan João" />
 
-    
-    
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#B11226" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Elite Lab" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+
+    <!-- Open Graph -->
     <meta property="og:type" content="website" />
+    <meta property="og:title" content="Elite Lab Hub – Rennan João">
+    <meta property="og:description" content="Elite Lab Hub — plataforma de acompanhamento de treino, estratégias nutricionais e evolução do aluno.">
     <meta property="og:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f6005c25-146b-4367-806d-a6ea99926c31/id-preview-5d1606d6--45ac7e21-184a-4011-88fa-77ccb59704c8.lovable.app-1780866577154.png">
 
+    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@Lovable" />
+    <meta name="twitter:title" content="Elite Lab Hub – Rennan João">
+    <meta name="twitter:description" content="Elite Lab Hub — plataforma de acompanhamento de treino, estratégias nutricionais e evolução do aluno.">
     <meta name="twitter:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f6005c25-146b-4367-806d-a6ea99926c31/id-preview-5d1606d6--45ac7e21-184a-4011-88fa-77ccb59704c8.lovable.app-1780866577154.png">
-    <meta property="og:title" content="Elite Lab Hub – Rennan João">
-  <meta name="twitter:title" content="Elite Lab Hub – Rennan João">
-  <meta property="og:description" content="Elite Lab Hub — plataforma de acompanhamento de treino, estratégias nutricionais e evolução do aluno.">
-  <meta name="twitter:description" content="Elite Lab Hub — plataforma de acompanhamento de treino, estratégias nutricionais e evolução do aluno.">
-</head>
+  </head>
 
   <body>
     <script>
@@ -32,6 +41,15 @@
           document.documentElement.classList.add("dark");
         }
       })();
+
+      // Registra o Service Worker para PWA
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", function () {
+          navigator.serviceWorker.register("/sw.js").catch(function (err) {
+            console.warn("SW registration failed:", err);
+          });
+        });
+      }
     </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
