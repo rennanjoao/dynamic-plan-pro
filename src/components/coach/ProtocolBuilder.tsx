@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -431,6 +432,8 @@ function GuidelinesTab({ payload, setPayload }: { payload: ProtocolPayload; setP
 function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void; coachId: string | null }) {
   const updDay = (idx: number, patch: Partial<ProtocolPayload["workouts"][number]>) => { const n = [...payload.workouts]; n[idx] = { ...n[idx], ...patch }; setPayload({ ...payload, workouts: n }); };
   const updEx = (di: number, ei: number, patch: any) => { const n = [...payload.workouts]; const exs = [...n[di].exercises]; exs[ei] = { ...exs[ei], ...patch }; n[di] = { ...n[di], exercises: exs }; setPayload({ ...payload, workouts: n }); };
+  const periodOn = !!payload.periodization?.enabled;
+  const [overrideOpen, setOverrideOpen] = useState<Record<number, boolean>>({});
   return (
     <div className="space-y-3">
       <WorkoutPeriodizationEditor payload={payload} setPayload={setPayload} coachId={coachId} />
@@ -440,35 +443,68 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
             <div className="w-9 h-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold">{day.key}</div>
             <Input value={day.focus} onChange={(e) => updDay(di, { focus: e.target.value })} placeholder="Foco do treino" className="h-9 text-sm flex-1" />
           </div>
+          {periodOn && (
+            <div className="mb-2 flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+              <p className="text-[11px] text-foreground/80">
+                Periodização ativa: séries, reps, cadência e descanso são geridos por semana.
+              </p>
+              <Button
+                size="sm"
+                variant={overrideOpen[di] ? "default" : "outline"}
+                className="h-7 text-[11px]"
+                onClick={() => setOverrideOpen((s) => ({ ...s, [di]: !s[di] }))}
+              >
+                {overrideOpen[di] ? "Ocultar campos base" : "Editar valores base"}
+              </Button>
+            </div>
+          )}
           <div className="space-y-2">
             {day.exercises.length > 0 && (
-              <div className="hidden md:grid grid-cols-[1.8fr_0.6fr_0.6fr_0.6fr_0.6fr_1fr_auto] gap-2 px-1 pb-1">
+              <div className={cn(
+                "hidden md:grid gap-2 px-1 pb-1",
+                periodOn && !overrideOpen[di]
+                  ? "grid-cols-[1.8fr_1fr_auto]"
+                  : "grid-cols-[1.8fr_0.6fr_0.6fr_0.6fr_0.6fr_1fr_auto]"
+              )}>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Exercício</span>
-                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Séries</span>
-                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Reps</span>
-                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground cursor-help flex items-center gap-1" title="3010 = Excêntrico / Pausa / Concêntrico / Pausa">
-                  Cadência ⓘ
-                </span>
-                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Descanso</span>
+                {(!periodOn || overrideOpen[di]) && (
+                  <>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Séries</span>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Reps</span>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground cursor-help flex items-center gap-1" title="3010 = Excêntrico / Pausa / Concêntrico / Pausa">
+                      Cadência ⓘ
+                    </span>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Descanso</span>
+                  </>
+                )}
                 <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Obs</span>
                 <span className="w-6"></span>
               </div>
             )}
             
             {day.exercises.map((ex, ei) => {
-              const periodOn = payload.periodization?.enabled;
               const w1 = payload.periodization?.weeks?.[0];
               const phSets    = periodOn && w1?.sets    ? `Auto: ${w1.sets}`    : "Séries (Ex: 4)";
               const phReps    = periodOn && w1?.reps    ? `Auto: ${w1.reps}`    : "Reps (Ex: 8-12)";
               const phCadence = periodOn && w1?.cadence ? `Auto: ${w1.cadence}` : "Ex: 3010";
               const phRest    = periodOn && w1?.rest    ? `Auto: ${w1.rest}`    : "Descanso (Ex: 60s)";
+              const collapsed = periodOn && !overrideOpen[di];
               return (
-              <div key={ei} className="grid grid-cols-2 md:grid-cols-[1.8fr_0.6fr_0.6fr_0.6fr_0.6fr_1fr_auto] gap-2 items-center">
+              <div key={ei} className={cn(
+                "grid grid-cols-2 gap-2 items-center",
+                collapsed
+                  ? "md:grid-cols-[1.8fr_1fr_auto]"
+                  : "md:grid-cols-[1.8fr_0.6fr_0.6fr_0.6fr_0.6fr_1fr_auto]"
+              )}>
                 <Input value={ex.name} onChange={(e) => updEx(di, ei, { name: e.target.value })} placeholder="Ex: Supino reto" className="h-8 text-xs" />
-                <Input value={ex.sets} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder={phSets} className="h-8 text-xs" />
-                <Input value={ex.reps} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder={phReps} className="h-8 text-xs" />
-                <Input value={ex.cadence} onChange={(e) => updEx(di, ei, { cadence: e.target.value })} placeholder={phCadence} className="h-8 text-xs" title="3010 = Excêntrico / Pausa / Concêntrico / Pausa" />
-                <Input value={ex.rest} onChange={(e) => updEx(di, ei, { rest: e.target.value })} placeholder={phRest} className="h-8 text-xs" />
+                {!collapsed && (
+                  <>
+                    <Input value={ex.sets} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder={phSets} className="h-8 text-xs" />
+                    <Input value={ex.reps} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder={phReps} className="h-8 text-xs" />
+                    <Input value={ex.cadence} onChange={(e) => updEx(di, ei, { cadence: e.target.value })} placeholder={phCadence} className="h-8 text-xs" title="3010 = Excêntrico / Pausa / Concêntrico / Pausa" />
+                    <Input value={ex.rest} onChange={(e) => updEx(di, ei, { rest: e.target.value })} placeholder={phRest} className="h-8 text-xs" />
+                  </>
+                )}
                 <Input value={ex.notes} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-xs" />
                 <button onClick={() => updDay(di, { exercises: day.exercises.filter((_, i) => i !== ei) })} className="text-muted-foreground hover:text-destructive p-1.5"><Trash2 className="w-3.5 h-3.5" /></button>
               </div>
