@@ -229,7 +229,7 @@ serve(async (req) => {
             method: "POST",
             headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-              from: "Elite Prime Hub <no-reply@rjelitelab.com.br>",
+              from: "Elite Prime Hub <noreply@eliteprimehub.com.br>",
               to: [email],
               subject: "Convite Exclusivo — Elite Prime Hub",
               html: `
