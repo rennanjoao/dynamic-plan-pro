@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Bell, Trash2, Check, Loader2, Inbox } from "lucide-react";
+import { Bell, Trash2, Check, Loader2, Inbox, Reply, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
 } from "@/components/ui/sheet";
@@ -42,6 +43,9 @@ export default function CoachNotificationBell() {
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [checkinCount, setCheckinCount] = useState(0);
+  const [replyOpen, setReplyOpen] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -148,6 +152,42 @@ export default function CoachNotificationBell() {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   };
 
+  const sendReply = async (n: Notification) => {
+    if (!replyText.trim()) { toast.error("Escreva uma resposta"); return; }
+    if (!n.student_id) { toast.error("Aluno não identificado"); return; }
+    setSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("reply-to-student", {
+        body: {
+          studentId: n.student_id,
+          message: replyText.trim(),
+          notificationId: n.id,
+          context: n.context,
+          originalMessage: n.message,
+        },
+      });
+      if (error) throw error;
+      const res = data as { ok?: boolean; emailOk?: boolean; hasEmail?: boolean };
+      if (res?.ok) {
+        toast.success(
+          res.hasEmail && res.emailOk
+            ? "Resposta enviada por e-mail e como alerta!"
+            : "Resposta enviada como alerta ao aluno"
+        );
+        setNotifications((prev) => prev.filter((x) => x.id !== n.id));
+        setReplyOpen(null);
+        setReplyText("");
+      } else {
+        toast.error("Falha ao enviar resposta");
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao enviar resposta");
+    } finally {
+      setSending(false);
+    }
+  };
+
   const unreadCount = notifications.length;
   const totalBadge = unreadCount + checkinCount;
 
@@ -207,7 +247,32 @@ export default function CoachNotificationBell() {
                 </div>
                 <p className="text-[11px] text-muted-foreground">{fmtWhen(n.created_at)}</p>
                 <p className="text-sm text-foreground/90 whitespace-pre-wrap break-words">{n.message}</p>
+                {replyOpen === n.id && (
+                  <div className="space-y-2 pt-1">
+                    <Textarea
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      placeholder="Escreva sua resposta ao aluno..."
+                      rows={3}
+                      className="text-sm"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setReplyOpen(null); setReplyText(""); }} disabled={sending}>
+                        Cancelar
+                      </Button>
+                      <Button size="sm" className="h-7 text-xs" onClick={() => sendReply(n)} disabled={sending || !replyText.trim()}>
+                        {sending ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1" />}
+                        Enviar resposta
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 <div className="flex justify-end gap-2 pt-1">
+                  {replyOpen !== n.id && (
+                    <Button size="sm" variant="outline" onClick={() => { setReplyOpen(n.id); setReplyText(""); }} className="h-7 text-xs border-primary/40 text-primary hover:bg-primary/10">
+                      <Reply className="w-3.5 h-3.5 mr-1" /> Responder
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" onClick={() => remove(n.id)} className="h-7 text-xs text-destructive hover:bg-destructive/10">
                     <Trash2 className="w-3.5 h-3.5 mr-1" /> Excluir
                   </Button>
