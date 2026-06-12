@@ -125,7 +125,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Elite Prime Hub <no-reply@rjelitelab.com.br>",
+        from: "Elite Prime Hub <noreply@eliteprimehub.com.br>",
         to: [body.coachEmail],
         reply_to: body.studentEmail || undefined,
         subject,
