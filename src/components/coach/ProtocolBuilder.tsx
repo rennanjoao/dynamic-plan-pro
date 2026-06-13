@@ -149,7 +149,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
 
   function generateBase() {
     const base = buildBasePayload({ split: setupSplit, mealsCount: setupMeals, carbCycle: setupCarbCycle });
-    setPayload(base);
+    updatePayload(base);
     setName(`Protocolo — ${studentName}`);
     setActive(true);
     setProtocolId(null);
@@ -187,6 +187,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       qc.invalidateQueries({ queryKey: ["workout-plan", studentId] });
       qc.invalidateQueries({ queryKey: ["coach-plan-presence", studentId] });
       qc.invalidateQueries({ queryKey: ["plan-macros", studentId] });
+      setIsDirty(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao salvar");
     } finally { setSaving(false); }
