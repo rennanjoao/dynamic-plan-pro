@@ -210,7 +210,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded-full ${isEditMode ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"}`}>
               {isEditMode ? "Modo Edição" : "Novo Protocolo"}
             </span>
-            <ProtocolImportExport payload={payload} studentName={studentName} onImport={(p) => { setPayload(p); setProtocolId(protocolId); }} />
+            <ProtocolImportExport payload={payload} studentName={studentName} onImport={(p) => { updatePayload(p); setProtocolId(protocolId); }} />
             <Button variant="outline" size="sm" onClick={() => setConsultOpen(true)}>
               <ClipboardList className="w-3.5 h-3.5 mr-1.5" /> Anamnese / Feedback
             </Button>
@@ -251,11 +251,11 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
               <TabsTrigger value="diet" className="shrink-0"><UtensilsCrossed className="w-3.5 h-3.5 mr-1" />Dieta</TabsTrigger>
               <TabsTrigger value="cycle" className="shrink-0"><Calendar className="w-3.5 h-3.5 mr-1" />Semana</TabsTrigger>
             </TabsList>
-            <TabsContent value="macros" className="mt-4"><MacrosTab payload={payload} setPayload={setPayload} /></TabsContent>
-            <TabsContent value="guidelines" className="mt-4"><GuidelinesTab payload={payload} setPayload={setPayload} /></TabsContent>
-            <TabsContent value="workouts" className="mt-4"><WorkoutsTab payload={payload} setPayload={setPayload} coachId={coachId} /></TabsContent>
-            <TabsContent value="diet" className="mt-4"><DietTab payload={payload} setPayload={setPayload} /></TabsContent>
-            <TabsContent value="cycle" className="mt-4"><WeekCycleTab payload={payload} setPayload={setPayload} /></TabsContent>
+            <TabsContent value="macros" className="mt-4"><MacrosTab payload={payload} setPayload={updatePayload} /></TabsContent>
+            <TabsContent value="guidelines" className="mt-4"><GuidelinesTab payload={payload} setPayload={updatePayload} /></TabsContent>
+            <TabsContent value="workouts" className="mt-4"><WorkoutsTab payload={payload} setPayload={updatePayload} coachId={coachId} /></TabsContent>
+            <TabsContent value="diet" className="mt-4"><DietTab payload={payload} setPayload={updatePayload} /></TabsContent>
+            <TabsContent value="cycle" className="mt-4"><WeekCycleTab payload={payload} setPayload={updatePayload} /></TabsContent>
           </Tabs>
 
           <div className="flex justify-end sticky bottom-4">
