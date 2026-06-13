@@ -101,7 +101,6 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [setupMeals, setSetupMeals] = useState(5);
   const [setupCarbCycle, setSetupCarbCycle] = useState(false);
   const [consultOpen, setConsultOpen] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
 
   useEffect(() => {
     if (!isDirty) return;
