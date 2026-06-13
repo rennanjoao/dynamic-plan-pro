@@ -175,6 +175,18 @@ export default function EvolutionTimeline({ checkIns }: Props) {
                 );
               })()}
 
+              {selected.coach_feedback && (
+                <div className="mt-4 border-t border-border pt-4">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-primary mb-2 flex items-center gap-1.5">
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    Retorno do Coach
+                  </h3>
+                  <p className="text-sm whitespace-pre-wrap text-foreground/85 bg-primary/5 rounded-lg p-3 border border-primary/20">
+                    {selected.coach_feedback}
+                  </p>
+                </div>
+              )}
+
               <DialogFooter className="mt-4">
                 <Button variant="outline" onClick={() => setSelected(null)}>Fechar</Button>
               </DialogFooter>
