@@ -89,6 +89,11 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [protocolId, setProtocolId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [payload, setPayload] = useState<ProtocolPayload | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const updatePayload = (p: ProtocolPayload) => {
+    setPayload(p);
+    setIsDirty(true);
+  };
   const [active, setActive] = useState(true);
   const [saving, setSaving] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
@@ -96,6 +101,16 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [setupMeals, setSetupMeals] = useState(5);
   const [setupCarbCycle, setSetupCarbCycle] = useState(false);
   const [consultOpen, setConsultOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setCoachId(data.session?.user?.id ?? null));
@@ -134,7 +149,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
 
   function generateBase() {
     const base = buildBasePayload({ split: setupSplit, mealsCount: setupMeals, carbCycle: setupCarbCycle });
-    setPayload(base);
+    updatePayload(base);
     setName(`Protocolo — ${studentName}`);
     setActive(true);
     setProtocolId(null);
@@ -172,6 +187,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       qc.invalidateQueries({ queryKey: ["workout-plan", studentId] });
       qc.invalidateQueries({ queryKey: ["coach-plan-presence", studentId] });
       qc.invalidateQueries({ queryKey: ["plan-macros", studentId] });
+      setIsDirty(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao salvar");
     } finally { setSaving(false); }
@@ -194,7 +210,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded-full ${isEditMode ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"}`}>
               {isEditMode ? "Modo Edição" : "Novo Protocolo"}
             </span>
-            <ProtocolImportExport payload={payload} studentName={studentName} onImport={(p) => { setPayload(p); setProtocolId(protocolId); }} />
+            <ProtocolImportExport payload={payload} studentName={studentName} onImport={(p) => { updatePayload(p); setProtocolId(protocolId); }} />
             <Button variant="outline" size="sm" onClick={() => setConsultOpen(true)}>
               <ClipboardList className="w-3.5 h-3.5 mr-1.5" /> Anamnese / Feedback
             </Button>
@@ -235,11 +251,11 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
               <TabsTrigger value="diet" className="shrink-0"><UtensilsCrossed className="w-3.5 h-3.5 mr-1" />Dieta</TabsTrigger>
               <TabsTrigger value="cycle" className="shrink-0"><Calendar className="w-3.5 h-3.5 mr-1" />Semana</TabsTrigger>
             </TabsList>
-            <TabsContent value="macros" className="mt-4"><MacrosTab payload={payload} setPayload={setPayload} /></TabsContent>
-            <TabsContent value="guidelines" className="mt-4"><GuidelinesTab payload={payload} setPayload={setPayload} /></TabsContent>
-            <TabsContent value="workouts" className="mt-4"><WorkoutsTab payload={payload} setPayload={setPayload} coachId={coachId} /></TabsContent>
-            <TabsContent value="diet" className="mt-4"><DietTab payload={payload} setPayload={setPayload} /></TabsContent>
-            <TabsContent value="cycle" className="mt-4"><WeekCycleTab payload={payload} setPayload={setPayload} /></TabsContent>
+            <TabsContent value="macros" className="mt-4"><MacrosTab payload={payload} setPayload={updatePayload} /></TabsContent>
+            <TabsContent value="guidelines" className="mt-4"><GuidelinesTab payload={payload} setPayload={updatePayload} /></TabsContent>
+            <TabsContent value="workouts" className="mt-4"><WorkoutsTab payload={payload} setPayload={updatePayload} coachId={coachId} /></TabsContent>
+            <TabsContent value="diet" className="mt-4"><DietTab payload={payload} setPayload={updatePayload} /></TabsContent>
+            <TabsContent value="cycle" className="mt-4"><WeekCycleTab payload={payload} setPayload={updatePayload} /></TabsContent>
           </Tabs>
 
           <div className="flex justify-end sticky bottom-4">
