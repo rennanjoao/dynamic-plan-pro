@@ -89,6 +89,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [protocolId, setProtocolId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [payload, setPayload] = useState<ProtocolPayload | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
   const updatePayload = (p: ProtocolPayload) => {
     setPayload(p);
     setIsDirty(true);
