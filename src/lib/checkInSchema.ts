@@ -1,17 +1,20 @@
 /**
  * checkInSchema.ts
  * Estrutura declarativa do check-in quinzenal (espelha o portal).
+ *
+ * CORREÇÃO: campos de braço padronizados para
+ *   braco_d_relaxado / braco_e_relaxado / braco_d_contraido / braco_e_contraido
  */
 
 import type { SectionDef } from "./anamnesisSchema";
 
 // Métricas que geram delta vs anamnese
 export const CHECKIN_METRICS = [
-  { key: "peso", label: "Peso", unit: "kg" },
+  { key: "peso",    label: "Peso",    unit: "kg" },
   { key: "cintura", label: "Cintura", unit: "cm" },
   { key: "quadril", label: "Quadril", unit: "cm" },
-  { key: "coxa_d", label: "Coxa", unit: "cm" },
-  { key: "braco_d", label: "Braço", unit: "cm" },
+  { key: "coxa_d",  label: "Coxa",   unit: "cm" },
+  { key: "braco_d", label: "Braço",  unit: "cm" },
 ] as const;
 
 export const CHECKIN_SECTIONS: SectionDef[] = [
@@ -26,46 +29,48 @@ export const CHECKIN_SECTIONS: SectionDef[] = [
     id: "dieta",
     title: "02 · Dieta e adesão",
     fields: [
-      { key: "dieta_adesao", label: "Seguiu o protocolo?", type: "choices", options: ["100%", "Maioria", "Desvios"] },
-      { key: "refeicoes_fora", label: "Refeições fora de casa", type: "choices", options: ["Nenhuma", "1 ou 2", "3+"] },
-      { key: "agua", label: "Água diária (média)", type: "choices", options: ["≤2L", "3L", "4L+"] },
-      { key: "carbo_sensacao", label: "Sensação após carbo alto", type: "choices", options: ["Melhor", "Igual", "Pior", "Não fiz"] },
-      { key: "compulsao_estado", label: "Episódios de compulsão", type: "choices", options: ["Nenhum", "Melhorou", "Igual", "Piorou"] },
-      { key: "compulsao_detalhes", label: "Intensidade / gatilho (se houver)", type: "text", placeholder: "Ex: Ansiedade à noite…" },
-      { key: "int_freq", label: "Intestino — frequência", type: "choices", options: ["< 1x dia", "1-2x dia", "3x+"] },
-      { key: "int_cons", label: "Intestino — consistência", type: "choices", options: ["Preso", "Normal", "Irregular", "Solto"] },
+      { key: "dieta_adesao",      label: "Seguiu o protocolo?",           type: "choices", options: ["100%", "Maioria", "Desvios"] },
+      { key: "refeicoes_fora",    label: "Refeições fora de casa",        type: "choices", options: ["Nenhuma", "1 ou 2", "3+"] },
+      { key: "agua",              label: "Água diária (média)",           type: "choices", options: ["≤2L", "3L", "4L+"] },
+      { key: "carbo_sensacao",    label: "Sensação após carbo alto",      type: "choices", options: ["Melhor", "Igual", "Pior", "Não fiz"] },
+      { key: "compulsao_estado",  label: "Episódios de compulsão",       type: "choices", options: ["Nenhum", "Melhorou", "Igual", "Piorou"] },
+      { key: "compulsao_detalhes",label: "Intensidade / gatilho (se houver)", type: "text", placeholder: "Ex: Ansiedade à noite…" },
+      { key: "int_freq",          label: "Intestino — frequência",        type: "choices", options: ["< 1x dia", "1-2x dia", "3x+"] },
+      { key: "int_cons",          label: "Intestino — consistência",      type: "choices", options: ["Preso", "Normal", "Irregular", "Solto"] },
     ],
   },
   {
     id: "treino_sono",
     title: "03 · Treino e sono",
     fields: [
-      { key: "treino_falta", label: "Faltou algum treino?", type: "choices", options: ["Nenhum", "1 dia", "2+ dias"] },
-      { key: "treino_perf", label: "Pump e desempenho", type: "choices", options: ["Excelente", "Médio", "Ruim"] },
-      { key: "aerobico_jejum", label: "Aeróbico em jejum (40-50min)", type: "choices", options: ["Sim", "Alguns dias", "Não"] },
-      { key: "aerobico_obs", label: "Observações sobre aeróbico", type: "text" },
+      { key: "treino_falta",   label: "Faltou algum treino?",             type: "choices", options: ["Nenhum", "1 dia", "2+ dias"] },
+      { key: "treino_perf",    label: "Pump e desempenho",                type: "choices", options: ["Excelente", "Médio", "Ruim"] },
+      { key: "aerobico_jejum", label: "Aeróbico em jejum (40-50min)",     type: "choices", options: ["Sim", "Alguns dias", "Não"] },
+      { key: "aerobico_obs",   label: "Observações sobre aeróbico",       type: "text" },
       { key: "treino_horario", label: "Horário de treino p/ próxima quinzena", type: "text", placeholder: "Ex: 19:30" },
-      { key: "sono_disp", label: "Qualidade do sono", type: "choices", options: ["Descansado", "Regular", "Cansado"] },
-      { key: "sono_acorda", label: "Acorda à noite?", type: "choices", options: ["Não", "1x", "2x+"] },
-      { key: "stress", label: "Stress geral", type: "choices", options: ["Baixo", "Médio", "Alto"] },
-      { key: "libido", label: "Libido", type: "choices", options: ["Alta", "Normal", "Baixa"] },
+      { key: "sono_disp",      label: "Qualidade do sono",                type: "choices", options: ["Descansado", "Regular", "Cansado"] },
+      { key: "sono_acorda",    label: "Acorda à noite?",                  type: "choices", options: ["Não", "1x", "2x+"] },
+      { key: "stress",         label: "Stress geral",                     type: "choices", options: ["Baixo", "Médio", "Alto"] },
+      { key: "libido",         label: "Libido",                          type: "choices", options: ["Alta", "Normal", "Baixa"] },
     ],
   },
   {
     id: "final",
     title: "04 · Finalização",
     fields: [
-      { key: "aparencia", label: "Notou melhora no corpo?", type: "choices", options: ["Melhorou", "Igual", "Piorou"] },
-      { key: "aparencia_desc", label: "Descreva brevemente", type: "text", placeholder: "Definição, retenção…" },
-      { key: "temp_d1", label: "Temp. D1 (manhã)", type: "number", step: "0.01", unit: "°C", half: true },
-      { key: "temp_d2", label: "Temp. D2", type: "number", step: "0.01", unit: "°C", half: true },
-      { key: "temp_d3", label: "Temp. D3", type: "number", step: "0.01", unit: "°C", half: true },
-      { key: "temp_d4", label: "Temp. D4", type: "number", step: "0.01", unit: "°C", half: true },
-      { key: "temp_d5", label: "Temp. D5", type: "number", step: "0.01", unit: "°C", half: true },
-      { key: "body_fat", label: "Estimativa BF%", type: "number", step: "0.1", unit: "%", half: true },
-      { key: "arm_relaxed", label: "Braço relaxado (cm)", type: "number", step: "0.1", unit: "cm", half: true },
-      { key: "arm_flexed", label: "Braço contraído (cm)", type: "number", step: "0.1", unit: "cm", half: true },
-      { key: "observacoes", label: "Observações livres pro coach", type: "textarea" },
+      { key: "aparencia",          label: "Notou melhora no corpo?",           type: "choices", options: ["Melhorou", "Igual", "Piorou"] },
+      { key: "aparencia_desc",     label: "Descreva brevemente",               type: "text", placeholder: "Definição, retenção…" },
+      { key: "temp_d1",            label: "Temp. D1 (manhã)",                  type: "number", step: "0.01", unit: "°C", half: true },
+      { key: "temp_d2",            label: "Temp. D2",                          type: "number", step: "0.01", unit: "°C", half: true },
+      { key: "temp_d3",            label: "Temp. D3",                          type: "number", step: "0.01", unit: "°C", half: true },
+      { key: "temp_d4",            label: "Temp. D4",                          type: "number", step: "0.01", unit: "°C", half: true },
+      { key: "temp_d5",            label: "Temp. D5",                          type: "number", step: "0.01", unit: "°C", half: true },
+      // ── medidas de braço padronizadas ──
+      { key: "braco_d_relaxado",   label: "Braço D Relaxado (cm)",             type: "number", step: "0.1", unit: "cm", half: true },
+      { key: "braco_e_relaxado",   label: "Braço E Relaxado (cm)",             type: "number", step: "0.1", unit: "cm", half: true },
+      { key: "braco_d_contraido",  label: "Braço D Contraído (cm)",            type: "number", step: "0.1", unit: "cm", half: true },
+      { key: "braco_e_contraido",  label: "Braço E Contraído (cm)",            type: "number", step: "0.1", unit: "cm", half: true },
+      { key: "observacoes",        label: "Observações livres pro coach",       type: "textarea" },
     ],
   },
 ];

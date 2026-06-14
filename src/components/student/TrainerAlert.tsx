@@ -1,3 +1,11 @@
+/**
+ * TrainerAlert.tsx
+ *
+ * CORREÇÃO: A resposta do coach (daily_alert com frequency="once") agora é exibida
+ * por até 7 dias após a data de criação, não apenas no dia exato.
+ * Isso resolve o problema de o aluno não ver a resposta se abrir a plataforma
+ * no dia seguinte ao que o coach respondeu.
+ */
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useStudentData } from "@/hooks/useStudentData";
@@ -26,7 +34,7 @@ export const TrainerAlert = () => {
     const fetchAlert = async () => {
       const { data } = await supabase
         .from("daily_alerts")
-        .select("message, frequency, target_date")
+        .select("message, frequency, target_date, created_at")
         .eq("student_id", studentId)
         .eq("is_active", true)
         .order("created_at", { ascending: false })
@@ -35,20 +43,42 @@ export const TrainerAlert = () => {
       if (data && data.length > 0) {
         const today = new Date();
         const todayString = today.toISOString().split("T")[0];
-        const currentDay = today.getDay(); // 0 = Domingo, 1 = Segunda-feira...
-        
+        const currentDay = today.getDay();
+
         const alert = data[0];
 
-        // Regra de validação estrita para o tipo de frequência
-        if (
-          alert.frequency === "daily" || 
-          (alert.frequency === "weekly" && currentDay === 1) || 
-          (alert.frequency === "once" && alert.target_date === todayString)
-        ) {
-          setMessage(alert.message);
-        } else {
-          setMessage(null);
+        let shouldShow = false;
+
+        if (alert.frequency === "daily") {
+          shouldShow = true;
+        } else if (alert.frequency === "weekly" && currentDay === 1) {
+          shouldShow = true;
+        } else if (alert.frequency === "once") {
+          // CORREÇÃO: exibe alertas "once" por até 7 dias após a criação,
+          // não apenas no dia exato (target_date).
+          // Isso garante que o aluno veja a resposta do coach mesmo que
+          // abra a plataforma dias depois.
+          const createdAt = alert.created_at
+            ? new Date(alert.created_at)
+            : alert.target_date
+            ? new Date(alert.target_date)
+            : null;
+
+          if (createdAt) {
+            const daysSinceCreation = Math.floor(
+              (today.getTime() - createdAt.getTime()) / 86_400_000
+            );
+            // Mostra se for o mesmo dia ou dentro de 7 dias
+            if (daysSinceCreation >= 0 && daysSinceCreation <= 7) {
+              shouldShow = true;
+            }
+          } else {
+            // Fallback para lógica antiga
+            shouldShow = alert.target_date === todayString;
+          }
         }
+
+        setMessage(shouldShow ? alert.message : null);
       } else {
         setMessage(null);
       }
@@ -58,7 +88,12 @@ export const TrainerAlert = () => {
 
     const channel = supabase
       .channel("student-alerts-daily")
-      .on("postgres_changes", { event: "*", schema: "public", table: "daily_alerts", filter: `student_id=eq.${studentId}` }, () => fetchAlert())
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "daily_alerts",
+        filter: `student_id=eq.${studentId}`,
+      }, () => fetchAlert())
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -81,8 +116,8 @@ export const TrainerAlert = () => {
       </style>
 
       {protocolUpdateAlert && (
-        <Alert 
-          className="mb-6 border backdrop-blur-md animate-soft-pulse cursor-pointer shadow-lg transition-all" 
+        <Alert
+          className="mb-6 border backdrop-blur-md animate-soft-pulse cursor-pointer shadow-lg transition-all"
           style={{
             backgroundColor: "hsla(145, 63%, 12%, 0.95)",
             borderColor: "hsl(145, 63%, 50%)",

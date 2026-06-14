@@ -19,7 +19,7 @@ export const NEURO_SLIDERS = [
 
 export const BASELINE_KEYS = [
   "altura","peso","cintura","quadril",
-  "braco_d","braco_e","coxa_d","coxa_e","pant_d","pant_e",
+  "braco_d_relaxado","braco_e_relaxado","braco_d_contraido","braco_e_contraido","coxa_d","coxa_e","pant_d","pant_e",
 ] as const;
 
 export interface AnamnesisField { key: string; label: string; type?: string; placeholder?: string; options?: string[]; step?: string | number; half?: boolean; [k: string]: unknown }
@@ -40,10 +40,10 @@ export const ANAMNESIS_SECTIONS: AnamnesisSection[] = [
     { key: "peso", label: "Peso (kg)" },
     { key: "cintura", label: "Cintura (cm)" },
     { key: "quadril", label: "Quadril (cm)" },
-    { key: "braco_d", label: "Braço D (cm)" },
-    { key: "braco_e", label: "Braço E (cm)" },
-    { key: "arm_relaxed", label: "Braço relaxado (cm)", type: "number", step: "0.1", half: true },
-    { key: "arm_flexed", label: "Braço contraído (cm)", type: "number", step: "0.1", half: true },
+    { key: "braco_d_relaxado",  label: "Braço D Relaxado (cm)",  type: "number", step: "0.1", half: true },
+    { key: "braco_e_relaxado",  label: "Braço E Relaxado (cm)",  type: "number", step: "0.1", half: true },
+    { key: "braco_d_contraido", label: "Braço D Contraído (cm)", type: "number", step: "0.1", half: true },
+    { key: "braco_e_contraido", label: "Braço E Contraído (cm)", type: "number", step: "0.1", half: true },
     { key: "coxa_d", label: "Coxa D (cm)" },
     { key: "coxa_e", label: "Coxa E (cm)" },
     { key: "pant_d", label: "Pant. D (cm)" },

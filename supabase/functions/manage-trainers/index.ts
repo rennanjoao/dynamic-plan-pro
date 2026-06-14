@@ -88,7 +88,7 @@ serve(async (req) => {
 
     // ── REGISTER VIA INVITE (public) ──
     if (action === "register-via-invite") {
-      const { token, fullName, teamName, password } = body;
+      const { token, fullName, teamName, password, notificationEmail: bodyNotifEmail } = body;
       if (!token || !fullName || !password) throw new Error("Dados incompletos");
 
       const { data: invite } = await adminClient.from("coach_invites").select("*").eq("token", token).maybeSingle();
@@ -116,7 +116,7 @@ serve(async (req) => {
         full_name: fullName,
         team_name: teamName || null,
         email: invite.email,
-        notification_email: invite.email,
+        notification_email: bodyNotifEmail || invite.email,
         trial_ends_at: trialEndsAt
       });
 

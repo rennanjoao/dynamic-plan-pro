@@ -1,3 +1,10 @@
+/**
+ * CoachRegister.tsx
+ *
+ * CORREÇÃO: Adicionado campo opcional "Email de notificações" com toggle.
+ * Se desativado, usa o email principal. Se ativado, permite informar um
+ * email separado para receber alertas de check-in, anamnese e dúvidas.
+ */
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, CheckCircle } from "lucide-react";
+import { Loader2, CheckCircle, Mail, Bell, BellOff } from "lucide-react";
 
 export default function CoachRegister() {
   const [searchParams] = useSearchParams();
@@ -18,14 +25,17 @@ export default function CoachRegister() {
   const [inviteData, setInviteData] = useState<{ id: string; email: string } | null>(null);
   const [form, setForm] = useState({ fullName: "", password: "", teamName: "" });
 
+  // Toggle de email de notificação separado
+  const [useCustomNotifEmail, setUseCustomNotifEmail] = useState(false);
+  const [notifEmail, setNotifEmail] = useState("");
+
   useEffect(() => {
     if (!token) {
       toast.error("Token ausente.");
       setValidating(false);
       return;
     }
-    
-    // Valida o token na edge function
+
     supabase.functions.invoke("manage-trainers", {
       body: { action: "validate-coach-invite", token }
     }).then(({ data, error }) => {
@@ -44,30 +54,43 @@ export default function CoachRegister() {
       toast.error("Preencha o nome e uma senha com mínimo de 6 caracteres.");
       return;
     }
+    if (useCustomNotifEmail && notifEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(notifEmail)) {
+      toast.error("Email de notificação inválido.");
+      return;
+    }
     setLoading(true);
     try {
+      const resolvedNotifEmail = useCustomNotifEmail && notifEmail.trim()
+        ? notifEmail.trim()
+        : inviteData!.email;
+
       const { data, error } = await supabase.functions.invoke("manage-trainers", {
         body: {
           action: "register-via-invite",
           token,
           fullName: form.fullName,
           teamName: form.teamName,
-          password: form.password
+          password: form.password,
+          notificationEmail: resolvedNotifEmail,
         }
       });
 
       if (error || data?.error) throw new Error(data?.error || "Erro ao registrar");
-      
+
       toast.success("Conta criada! Faça o login.");
       navigate("/auth");
-    } catch (e: any) {
-      toast.error(e.message);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Erro ao registrar");
     } finally {
       setLoading(false);
     }
   };
 
-  if (validating) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+  if (validating) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+    </div>
+  );
 
   if (!inviteData) return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -107,6 +130,46 @@ export default function CoachRegister() {
             <Label>Senha de Acesso *</Label>
             <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Mínimo 6 caracteres" className="mt-1" />
           </div>
+
+          {/* ── Email de notificações ── */}
+          <div className="rounded-xl border border-border/60 bg-muted/20 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Email de notificações</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setUseCustomNotifEmail(v => !v); setNotifEmail(""); }}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${useCustomNotifEmail ? "bg-primary" : "bg-muted"}`}
+                aria-label="Ativar email separado para notificações"
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${useCustomNotifEmail ? "translate-x-6" : "translate-x-1"}`} />
+              </button>
+            </div>
+
+            {!useCustomNotifEmail ? (
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <BellOff className="w-3.5 h-3.5 shrink-0" />
+                Alertas de check-in e dúvidas serão enviados para <strong>{inviteData.email}</strong>
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Bell className="w-3.5 h-3.5 shrink-0 text-primary" />
+                  Informe um email diferente para receber as notificações do sistema.
+                </p>
+                <Input
+                  type="email"
+                  value={notifEmail}
+                  onChange={(e) => setNotifEmail(e.target.value)}
+                  placeholder="Ex: alertas@meucoach.com.br"
+                  className="text-sm"
+                />
+              </div>
+            )}
+          </div>
+
           <Button onClick={handleRegister} disabled={loading} className="w-full">
             {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
             Criar Conta e Acessar

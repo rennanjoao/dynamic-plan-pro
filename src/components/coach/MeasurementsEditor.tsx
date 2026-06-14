@@ -1,6 +1,9 @@
 /**
  * MeasurementsEditor.tsx — Permite ao coach ajustar medidas corporais
  * (e fotos) tanto da Anamnese quanto do Check-in mais recente do aluno.
+ *
+ * CORREÇÃO: campos de braço padronizados para:
+ *   Braço D Relaxado / Braço E Relaxado / Braço D Contraído / Braço E Contraído
  */
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,26 +19,28 @@ import { BASELINE_KEYS, uploadToCloudinary } from "@/lib/anamnesisSchema";
 const sb: any = supabase;
 
 const FIELDS: Array<{ key: string; label: string; unit?: string }> = [
-  { key: "altura",      label: "Altura", unit: "cm" },
-  { key: "peso",        label: "Peso", unit: "kg" },
-  { key: "cintura",     label: "Cintura", unit: "cm" },
-  { key: "quadril",     label: "Quadril", unit: "cm" },
-  { key: "braco_d",     label: "Braço D (relaxado)", unit: "cm" },
-  { key: "braco_e",     label: "Braço E (relaxado)", unit: "cm" },
-  { key: "arm_relaxed", label: "Braço relaxado (média)", unit: "cm" },
-  { key: "arm_flexed",  label: "Braço contraído", unit: "cm" },
-  { key: "coxa_d",      label: "Coxa D", unit: "cm" },
-  { key: "coxa_e",      label: "Coxa E", unit: "cm" },
-  { key: "pant_d",      label: "Panturrilha D", unit: "cm" },
-  { key: "pant_e",      label: "Panturrilha E", unit: "cm" },
-  { key: "body_fat",    label: "BF% estimado", unit: "%" },
+  { key: "altura",           label: "Altura",             unit: "cm" },
+  { key: "peso",             label: "Peso",               unit: "kg" },
+  { key: "cintura",          label: "Cintura",            unit: "cm" },
+  { key: "quadril",          label: "Quadril",            unit: "cm" },
+  // ── braços padronizados ──────────────────────────────────────────
+  { key: "braco_d_relaxado",  label: "Braço D Relaxado",  unit: "cm" },
+  { key: "braco_e_relaxado",  label: "Braço E Relaxado",  unit: "cm" },
+  { key: "braco_d_contraido", label: "Braço D Contraído", unit: "cm" },
+  { key: "braco_e_contraido", label: "Braço E Contraído", unit: "cm" },
+  // ────────────────────────────────────────────────────────────────
+  { key: "coxa_d",           label: "Coxa D",             unit: "cm" },
+  { key: "coxa_e",           label: "Coxa E",             unit: "cm" },
+  { key: "pant_d",           label: "Panturrilha D",      unit: "cm" },
+  { key: "pant_e",           label: "Panturrilha E",      unit: "cm" },
+  { key: "body_fat",         label: "BF% estimado",       unit: "%"  },
 ];
 
 const PHOTO_SLOTS: Array<{ key: string; label: string }> = [
-  { key: "frente", label: "Frente" },
-  { key: "costas", label: "Costas" },
-  { key: "lateral_dir", label: "Lateral Dir." },
-  { key: "lateral_esq", label: "Lateral Esq." },
+  { key: "frente",       label: "Frente" },
+  { key: "costas",       label: "Costas" },
+  { key: "lateral_dir",  label: "Lateral Dir." },
+  { key: "lateral_esq",  label: "Lateral Esq." },
 ];
 
 interface Props {
@@ -77,7 +82,14 @@ export default function MeasurementsEditor({ open, onOpenChange, studentId, targ
       setOrigPayload(p);
       const v: Record<string, string> = {};
       for (const f of FIELDS) {
-        const raw = p[f.key];
+        // Migração retrocompatível: mapeia campos antigos para novos
+        let raw = p[f.key];
+        if (raw === undefined || raw === null) {
+          if (f.key === "braco_d_relaxado")  raw = p["braco_d"] ?? p["arm_relaxed"];
+          if (f.key === "braco_e_relaxado")  raw = p["braco_e"] ?? p["arm_relaxed"];
+          if (f.key === "braco_d_contraido") raw = p["arm_flexed"];
+          if (f.key === "braco_e_contraido") raw = p["arm_flexed"];
+        }
         v[f.key] = raw === null || raw === undefined ? "" : String(raw);
       }
       setValues(v);

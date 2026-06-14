@@ -182,7 +182,7 @@ const Anamnesis = () => {
       };
 
       const baseline: Record<string, number> = {};
-      ["altura", "peso", "cintura", "quadril", "braco_d", "braco_e", "coxa_d", "coxa_e", "pant_d", "pant_e"].forEach(k => {
+      ["altura", "peso", "cintura", "quadril", "braco_d_relaxado", "braco_e_relaxado", "braco_d_contraido", "braco_e_contraido", "coxa_d", "coxa_e", "pant_d", "pant_e"].forEach(k => {
         const n = parseFloat(String(payload[k] ?? ""));
         if (!isNaN(n)) baseline[k] = n;
       });
@@ -348,8 +348,10 @@ const Anamnesis = () => {
               <Field label="Peso (kg)"><FiInput name="peso" type="number" step="0.1" placeholder="70.0" value={g("peso")} onChange={set("peso")} /></Field>
               <Field label="Cintura no umbigo (cm)"><FiInput name="cintura" type="number" step="0.1" placeholder="80" value={g("cintura")} onChange={set("cintura")} /></Field>
               <Field label="Quadril (cm)"><FiInput name="quadril" type="number" step="0.1" placeholder="98" value={g("quadril")} onChange={set("quadril")} /></Field>
-              <Field label="Braço D (cm)"><FiInput name="braco_d" type="number" step="0.1" placeholder="Dir." value={g("braco_d")} onChange={set("braco_d")} /></Field>
-              <Field label="Braço E (cm)"><FiInput name="braco_e" type="number" step="0.1" placeholder="Esq." value={g("braco_e")} onChange={set("braco_e")} /></Field>
+              <Field label="Braço D Relaxado (cm)"><FiInput name="braco_d_relaxado" type="number" step="0.1" placeholder="Dir." value={g("braco_d_relaxado")} onChange={set("braco_d_relaxado")} /></Field>
+              <Field label="Braço E Relaxado (cm)"><FiInput name="braco_e_relaxado" type="number" step="0.1" placeholder="Esq." value={g("braco_e_relaxado")} onChange={set("braco_e_relaxado")} /></Field>
+              <Field label="Braço D Contraído (cm)"><FiInput name="braco_d_contraido" type="number" step="0.1" placeholder="Dir." value={g("braco_d_contraido")} onChange={set("braco_d_contraido")} /></Field>
+              <Field label="Braço E Contraído (cm)"><FiInput name="braco_e_contraido" type="number" step="0.1" placeholder="Esq." value={g("braco_e_contraido")} onChange={set("braco_e_contraido")} /></Field>
               <Field label="Coxa D (cm)"><FiInput name="coxa_d" type="number" step="0.1" placeholder="Dir." value={g("coxa_d")} onChange={set("coxa_d")} /></Field>
               <Field label="Coxa E (cm)"><FiInput name="coxa_e" type="number" step="0.1" placeholder="Esq." value={g("coxa_e")} onChange={set("coxa_e")} /></Field>
               <Field label="Pant. D (cm)"><FiInput name="pant_d" type="number" step="0.1" placeholder="Dir." value={g("pant_d")} onChange={set("pant_d")} /></Field>
