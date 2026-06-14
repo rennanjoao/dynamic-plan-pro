@@ -73,8 +73,9 @@
     </script>
     <div id="root"></div>
     <script type="module">
-      await window.__eliteBoot;
-      await import("/src/main.tsx");
+      Promise.resolve(window.__eliteBoot).then(function () {
+        return import("/src/main.tsx");
+      });
     </script>
   </body>
 </html>
