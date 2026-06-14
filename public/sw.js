@@ -1,7 +1,9 @@
 // sw.js — Service Worker do Elite Lab Hub
-// Estratégia: Network-first para API/Supabase, Cache-first para assets estáticos
+// Estratégia: network-first para navegação e assets compilados.
+// Importante: nunca cachear módulos de desenvolvimento do Vite, pois isso pode
+// misturar chunks antigos/novos e causar "Invalid hook call" no React.
 
-const CACHE_NAME = "elite-lab-v1";
+const CACHE_NAME = "elite-lab-v2";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -41,6 +43,19 @@ self.addEventListener("fetch", (event) => {
     url.hostname.includes("cloudinary.com")
   ) return;
 
+  // Ambiente de preview/dev do Vite: sempre rede, sem cache de módulos.
+  if (
+    url.pathname.startsWith("/node_modules/") ||
+    url.pathname.startsWith("/src/") ||
+    url.pathname.startsWith("/@") ||
+    url.pathname === "/@vite/client" ||
+    url.searchParams.has("v") ||
+    url.searchParams.has("t")
+  ) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
   // Para navegação (HTML): Network-first, fallback para index.html (SPA)
   if (request.mode === "navigate") {
     event.respondWith(
@@ -51,17 +66,16 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Para assets JS/CSS/imagens: Cache-first
+  // Para assets JS/CSS/imagens: network-first para evitar bundles obsoletos.
   event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request).then((response) => {
+    fetch(request)
+      .then((response) => {
         if (response.ok) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
         }
         return response;
-      });
-    })
+      })
+      .catch(() => caches.match(request))
   );
 });
