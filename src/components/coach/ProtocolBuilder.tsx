@@ -1107,6 +1107,19 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
 
             <details className="rounded-lg border border-border/40 p-2">
               <summary className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground cursor-pointer select-none">Macros da refeição</summary>
+              <div className="mt-2 mb-2 flex items-center gap-3 text-[10px] tabular-nums text-muted-foreground" title="Cálculo automático com base nos alimentos da Op 1 de cada macro — visível apenas para o coach">
+                {(() => {
+                  const mm = calcMealMacros(m);
+                  return (
+                    <>
+                      <span className="font-bold text-foreground">Auto: {Math.round(mm.kcal)} kcal</span>
+                      <span className="text-blue-500">{mm.protein.toFixed(1)}p</span>
+                      <span className="text-amber-500">{mm.carbs.toFixed(1)}c</span>
+                      <span className="text-rose-500">{mm.fat.toFixed(1)}g</span>
+                    </>
+                  );
+                })()}
+              </div>
               <div className="grid grid-cols-3 gap-2 mt-2">
                 <div><Label className="text-[10px] uppercase text-amber-500">Carbo (g)</Label><Input type="number" value={m.macros.carbs} onChange={(e) => updMacro(mealIdx, "carbs", Number(e.target.value) || 0)} className="h-8 text-xs mt-1" /></div>
                 <div><Label className="text-[10px] uppercase text-blue-500">Proteína (g)</Label><Input type="number" value={m.macros.protein} onChange={(e) => updMacro(mealIdx, "protein", Number(e.target.value) || 0)} className="h-8 text-xs mt-1" /></div>
