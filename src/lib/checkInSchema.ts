@@ -3,7 +3,7 @@
  * Estrutura declarativa do check-in quinzenal (espelha o portal).
  *
  * CORREÇÃO: campos de braço padronizados para
- *   braco_d_relaxado / braco_e_relaxado / braco_d_contraido / braco_e_contraido
+ * braco_d_relaxado / braco_e_relaxado / braco_d_contraido / braco_e_contraido
  */
 
 import type { SectionDef } from "./anamnesisSchema";
@@ -11,10 +11,11 @@ import type { SectionDef } from "./anamnesisSchema";
 // Métricas que geram delta vs anamnese
 export const CHECKIN_METRICS = [
   { key: "peso",    label: "Peso",    unit: "kg" },
+  { key: "pescoco", label: "Pescoço", unit: "cm" },
   { key: "cintura", label: "Cintura", unit: "cm" },
   { key: "quadril", label: "Quadril", unit: "cm" },
-  { key: "coxa_d",  label: "Coxa",   unit: "cm" },
-  { key: "braco_d", label: "Braço",  unit: "cm" },
+  { key: "coxa_d",  label: "Coxa",    unit: "cm" },
+  { key: "braco_d", label: "Braço",   unit: "cm" },
 ] as const;
 
 export const CHECKIN_SECTIONS: SectionDef[] = [
