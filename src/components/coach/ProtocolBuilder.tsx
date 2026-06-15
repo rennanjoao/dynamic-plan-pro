@@ -416,7 +416,7 @@ function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; setPaylo
 function GuidelinesTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void }) {
   const upd = (k: keyof ProtocolPayload["guidelines"], v: string) => setPayload({ ...payload, guidelines: { ...payload.guidelines, [k]: v } });
   const [openMap, setOpenMap] = useState<Record<string, boolean>>({
-    training: true, diet: true, weekOrganization: true, supplementation: true,
+    training: false, diet: false, weekOrganization: false, supplementation: false,
   });
   const toggle = (k: string) => setOpenMap((m) => ({ ...m, [k]: !m[k] }));
   const blocks: Array<{ k: keyof ProtocolPayload["guidelines"]; label: string; hint?: string; minH: string }> = [
