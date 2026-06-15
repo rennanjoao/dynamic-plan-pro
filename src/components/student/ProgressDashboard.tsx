@@ -1,11 +1,10 @@
 /**
  * ProgressDashboard.tsx
  *
- * CORREÇÃO — Estimativa de BF:
- *   Usa fórmula multi-variável baseada em TODOS os dados disponíveis:
- *   peso, altura, cintura, sexo e anos de treino (nível de atividade).
- *   Se o aluno digitou body_fat no check-in/anamnese, usa o valor real.
- *   Caso contrário, calcula pela fórmula RFM (US Navy adaptada).
+ * Estimativa de %BF baseada em medidas reais:
+ *   pescoço, cintura, quadril (F) e altura.
+ *   Se o aluno digitou body_fat na anamnese/check-in, usa o valor real.
+ *   Sem dados suficientes → retorna null (UI mostra "—").
  */
 
 import { useMemo, useState } from "react";
@@ -26,7 +25,7 @@ interface Point {
   label: string;
   dateFull: string;
   peso: number;
-  gordura: number;
+  gordura: number | null;
   cintura: number;
 }
 
