@@ -19,6 +19,7 @@ import { ProgressChart } from "@/components/student/ProgressChart";
 import { toast } from "sonner";
 import { FileDown, Loader2, ImageIcon, Pencil, Save, X, UploadCloud } from "lucide-react";
 import MeasurementsEditor from "@/components/coach/MeasurementsEditor";
+import CheckinFullEditor from "@/components/coach/CheckinFullEditor";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -66,6 +67,7 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
   const [lastCheckin, setLastCheckin] = useState<{ submitted_at: string; fotos: Record<string, string> } | null>(null);
   const [loadingCheckin, setLoadingCheckin] = useState(false);
   const [editTarget, setEditTarget] = useState<"checkin" | null>(null);
+  const [editCheckinFull, setEditCheckinFull] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
 
   // Estados do Modo de Edição
@@ -259,7 +261,7 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
               <Button onClick={toggleEdit} variant="outline" size="sm">
                 <Pencil className="w-4 h-4 mr-1.5" /> Editar Avaliação / Fotos
               </Button>
-              <Button onClick={() => setEditTarget("checkin")} variant="outline" size="sm">
+              <Button onClick={() => setEditCheckinFull(true)} variant="outline" size="sm">
                 <Pencil className="w-4 h-4 mr-1.5" /> Editar check-in
               </Button>
               {fotosWithUrl.length > 0 && (
@@ -501,6 +503,13 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
           onSaved={() => setReloadTick((t) => t + 1)}
         />
       )}
+
+      <CheckinFullEditor
+        open={editCheckinFull}
+        onOpenChange={setEditCheckinFull}
+        studentId={studentId}
+        onSaved={() => setReloadTick((t) => t + 1)}
+      />
     </div>
   );
 }

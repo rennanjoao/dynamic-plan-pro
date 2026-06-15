@@ -16,7 +16,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Apple, Dumbbell, Pill, TrendingUp, CheckCircle2,
-  Loader2, User, AlertCircle, Copy, Check, X, LogOut, Sparkles, ShoppingCart
+  Loader2, User, AlertCircle, Copy, Check, X, LogOut, Sparkles, ShoppingCart, FileEdit
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { toast } from "sonner";
@@ -163,6 +163,22 @@ export default function StudentArea() {
   });
 
   const firstName = profile?.full_name ? profile.full_name.split(" ")[0] : "Aluno";
+
+  // Anamnese — permite até 2 edições pelo aluno
+  const { data: anamnesisMeta } = useQuery({
+    queryKey: ["student-anamnesis-meta", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("anamnesis")
+        .select("id, submitted_at, student_edit_count")
+        .eq("student_id", userId)
+        .maybeSingle();
+      return data as { id: string; submitted_at: string | null; student_edit_count: number } | null;
+    },
+  });
+  const anamnesisEdits = Number(anamnesisMeta?.student_edit_count ?? 0);
+  const canEditAnamnesis = !!anamnesisMeta?.submitted_at && anamnesisEdits < 2;
 
   // ─── Dismiss simples (alerta de protocolo) — persiste no localStorage ───
   const dismissAlert = (id: string) => {
@@ -366,6 +382,32 @@ export default function StudentArea() {
         <h2 className="text-sm font-bold text-foreground uppercase tracking-wider mb-2 pt-2">
           Seu Protocolo
         </h2>
+
+        {anamnesisMeta?.submitted_at && (
+          <div className="rounded-xl border border-border bg-card/60 p-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <FileEdit className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">Minha Anamnese</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {canEditAnamnesis
+                    ? `Você pode editar mais ${2 - anamnesisEdits}x. Após isso, fale com seu treinador.`
+                    : "Limite de edições atingido. Para novas alterações fale com seu treinador."}
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!canEditAnamnesis}
+              onClick={() => navigate("/anamnesis?mode=edit")}
+            >
+              Editar
+            </Button>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {modules.map((mod) => (

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { uploadToCloudinary, NEURO_SLIDERS } from "@/lib/anamnesisSchema";
@@ -38,11 +38,15 @@ function Card({ children, label }: { children: React.ReactNode; label?: string }
 /* ── componente principal ───────────────────────────────────── */
 const Anamnesis = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isEditMode = searchParams.get("mode") === "edit";
   const [step, setStep] = useState<"code" | "form" | "done">("code");
   const [inviteCode, setInviteCode] = useState("");
   const [coach, setCoach] = useState<CoachInfo | null>(null);
   const [loggedUserId, setLoggedUserId] = useState<string | null>(null);
   const [bootstrapping, setBootstrapping] = useState(true);
+  const [editingAnamnesisId, setEditingAnamnesisId] = useState<string | null>(null);
+  const [studentEditCount, setStudentEditCount] = useState(0);
 
   const [validating, setValidating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -71,21 +75,59 @@ const Anamnesis = () => {
         // Já tem anamnese? então não precisa preencher de novo
         const { data: existing } = await supabase
           .from("anamnesis")
-          .select("id, submitted_at")
+          .select("id, submitted_at, payload, student_edit_count")
           .eq("student_id", user.id)
           .maybeSingle();
-        if (existing?.submitted_at) {
+        if (existing?.submitted_at && !isEditMode) {
           navigate("/student-area");
           return;
         }
 
         setLoggedUserId(user.id);
         const meta = (user.user_metadata || {}) as Record<string, string>;
-        setD(prev => ({
-          ...prev,
-          nome: prev.nome || meta.full_name || "",
-          email: prev.email || user.email || "",
-        }));
+
+        // Em modo edição: pré-carrega payload existente
+        if (isEditMode && existing?.submitted_at) {
+          const count = Number((existing as any).student_edit_count ?? 0);
+          if (count >= 2) {
+            showToast("Limite de 2 edições da anamnese atingido. Fale com seu treinador.");
+            navigate("/student-area");
+            return;
+          }
+          setEditingAnamnesisId(existing.id as string);
+          setStudentEditCount(count);
+          const p = (existing.payload || {}) as Record<string, any>;
+          // Hidrata estados específicos
+          if (p.gender === "F" || p.gender === "M") setGender(p.gender);
+          if (typeof p.tpm === "string" && p.tpm) setTpm(p.tpm.split(",").map((s: string) => s.trim()).filter(Boolean));
+          if (typeof p.queda_capilar_f === "string" && p.queda_capilar_f) setQuedaF(p.queda_capilar_f.split(",").map((s: string) => s.trim()).filter(Boolean));
+          const grp: ChoiceGroup = {};
+          for (const key of ["meta_prioridade","nivel_treino","tem_academia","pump","hidratacao","compulsao_estado","fezes","acorda_descansado","ciclo_regular","erecao_matinal","queda_masc","hist_pai","hist_avo_mat"]) {
+            if (typeof p[key] === "string") grp[key] = p[key];
+          }
+          setGroups(grp);
+          const previews: Record<string, string | null> = { frente: null, lateral_dir: null, lateral_esq: null, costas: null };
+          const fotos = (p.fotos as Record<string, string>) || {};
+          for (const k of ["frente","lateral_dir","lateral_esq","costas"]) {
+            if (fotos[k]) previews[k] = fotos[k];
+          }
+          setFotoPreviews(previews);
+          // Strings de input (campos planos)
+          const d0: Record<string, string> = {};
+          for (const [k, v] of Object.entries(p)) {
+            if (v == null) continue;
+            if (typeof v === "string" || typeof v === "number") d0[k] = String(v);
+          }
+          d0.nome = d0.nome || meta.full_name || "";
+          d0.email = d0.email || user.email || "";
+          setD(d0);
+        } else {
+          setD(prev => ({
+            ...prev,
+            nome: prev.nome || meta.full_name || "",
+            email: prev.email || user.email || "",
+          }));
+        }
 
         // Carrega vínculo de coach, se houver
         const { data: link } = await supabase
@@ -115,7 +157,7 @@ const Anamnesis = () => {
         setBootstrapping(false);
       }
     })();
-  }, [navigate]);
+  }, [navigate, isEditMode]);
 
   // ETAPA 1: VALIDAR CÓDIGO DO COACH
   const handleValidateCode = async (e?: React.FormEvent) => {
@@ -172,6 +214,13 @@ const Anamnesis = () => {
       }
 
       const fotos: Record<string, string> = {};
+      // Preserva fotos já enviadas em modo edição quando o aluno não carrega arquivo novo
+      if (isEditMode) {
+        for (const k of ["frente","lateral_dir","lateral_esq","costas"]) {
+          const url = fotoPreviews[k];
+          if (url && url.startsWith("http")) fotos[k] = url;
+        }
+      }
       for (const [key, file] of Object.entries(fotoFiles)) {
         if (file) { try { fotos[key] = await uploadToCloudinary(file); } catch { fotos[key] = ""; } }
       }
@@ -187,26 +236,32 @@ const Anamnesis = () => {
         if (!isNaN(n)) baseline[k] = n;
       });
 
-      const anamnesisRow = {
+      const anamnesisRow: Record<string, unknown> = {
         student_id: studentId,
         coach_id: coachIdOrNull,
         payload,
         baseline_metrics: baseline,
         submitted_at: new Date().toISOString(),
       };
-      const { data: prior } = await supabase
-        .from("anamnesis")
-        .select("id")
-        .eq("student_id", studentId!)
-        .maybeSingle();
-      if (prior?.id) {
-        await (supabase.from("anamnesis") as any).update(anamnesisRow).eq("id", prior.id);
+      if (isEditMode && editingAnamnesisId) {
+        anamnesisRow.student_edit_count = studentEditCount + 1;
+        anamnesisRow.updated_at = new Date().toISOString();
+        await (supabase.from("anamnesis") as any).update(anamnesisRow).eq("id", editingAnamnesisId);
       } else {
-        await (supabase.from("anamnesis") as any).insert(anamnesisRow);
+        const { data: prior } = await supabase
+          .from("anamnesis")
+          .select("id")
+          .eq("student_id", studentId!)
+          .maybeSingle();
+        if (prior?.id) {
+          await (supabase.from("anamnesis") as any).update(anamnesisRow).eq("id", prior.id);
+        } else {
+          await (supabase.from("anamnesis") as any).insert(anamnesisRow);
+        }
       }
 
       // Vincula aluno→coach
-      if (coachIdOrNull) {
+      if (coachIdOrNull && !isEditMode) {
         const { error: linkErr } = await supabase.functions.invoke("link-coach-student", {
           body: { coachId: coachIdOrNull },
         });
@@ -219,20 +274,27 @@ const Anamnesis = () => {
           studentName: String(payload.nome ?? ""),
           studentEmail: String(payload.email ?? ""),
           kind: "anamnesis",
-          summary: `Aluno enviou anamnese completa (${Object.keys(payload).length} campos).`,
+          summary: isEditMode
+            ? `Aluno atualizou a própria anamnese (edição ${studentEditCount + 1}/2).`
+            : `Aluno enviou anamnese completa (${Object.keys(payload).length} campos).`,
           data: { ...payload, genero: gender, tpm: tpm.join(", "), queda_capilar: quedaF.join(", ") },
           photos: fotos,
         });
       }
 
-      setStep("done");
+      if (isEditMode) {
+        showToast("Anamnese atualizada com sucesso.");
+        setTimeout(() => navigate("/student-area"), 800);
+      } else {
+        setStep("done");
+      }
     } catch (e: any) {
       console.error(e);
       showToast(e.message || "Erro ao processar cadastro.");
     } finally {
       setSaving(false);
     }
-  }, [d, gender, tpm, quedaF, groups, fotoFiles, coach, loggedUserId]);
+  }, [d, gender, tpm, quedaF, groups, fotoFiles, fotoPreviews, coach, loggedUserId, isEditMode, editingAnamnesisId, studentEditCount, navigate]);
 
   const chBtn = (id: string) => cn("px-5 py-2.5 rounded-xl text-sm font-bold border-2 transition-all", gender === id ? "border-primary bg-primary/15 text-primary" : "border-border/50 text-muted-foreground hover:border-primary/40");
 
@@ -298,8 +360,15 @@ const Anamnesis = () => {
   return (
     <div className="min-h-screen bg-background pb-20 relative">
       <div className="sticky top-0 z-50 flex items-center justify-between px-5 py-4 bg-background/90 backdrop-blur border-b border-border/40 shadow-sm">
-        <span className="font-bold text-sm text-primary tracking-widest uppercase">Ficha de Anamnese</span>
-        <Button variant="outline" size="sm" onClick={() => { setD({}); setGender(""); setGroups({}); showToast("Limpo."); }}>Limpar</Button>
+        <span className="font-bold text-sm text-primary tracking-widest uppercase">
+          {isEditMode ? `Editar Anamnese · ${studentEditCount + 1}/2` : "Ficha de Anamnese"}
+        </span>
+        {!isEditMode && (
+          <Button variant="outline" size="sm" onClick={() => { setD({}); setGender(""); setGroups({}); showToast("Limpo."); }}>Limpar</Button>
+        )}
+        {isEditMode && (
+          <Button variant="ghost" size="sm" onClick={() => navigate("/student-area")}>Voltar</Button>
+        )}
       </div>
 
       <div className="max-w-xl mx-auto px-4 py-8 space-y-8 relative z-10">
@@ -587,7 +656,9 @@ const Anamnesis = () => {
 
         {/* Botão enviar */}
         <Button size="lg" className="w-full h-14 text-base font-bold glow-primary" onClick={handleSubmit} disabled={saving}>
-          {saving ? "Criando conta e finalizando..." : "Finalizar Cadastro"}
+          {saving
+            ? isEditMode ? "Salvando alterações..." : "Criando conta e finalizando..."
+            : isEditMode ? "Salvar alterações" : "Finalizar Cadastro"}
         </Button>
       </div>
 
