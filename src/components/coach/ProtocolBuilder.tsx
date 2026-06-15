@@ -277,12 +277,32 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
           </Card>
 
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
+            {(() => {
+              const completion = computeCompletion(payload);
+              const doneCount = Object.values(completion).filter(Boolean).length;
+              return doneCount < 5 ? (
+                <div className="mb-2 px-1 text-[11px] text-muted-foreground">
+                  {doneCount} de 5 seções preenchidas
+                </div>
+              ) : null;
+            })()}
             <TabsList className="flex w-full overflow-x-auto gap-0 h-auto p-1">
-              <TabsTrigger value="macros" className="shrink-0"><BarChart3 className="w-3.5 h-3.5 mr-1" />Macros</TabsTrigger>
-              <TabsTrigger value="guidelines" className="shrink-0"><FileText className="w-3.5 h-3.5 mr-1" />Diretrizes</TabsTrigger>
-              <TabsTrigger value="workouts" className="shrink-0"><Dumbbell className="w-3.5 h-3.5 mr-1" />Treino</TabsTrigger>
-              <TabsTrigger value="diet" className="shrink-0"><UtensilsCrossed className="w-3.5 h-3.5 mr-1" />Dieta</TabsTrigger>
-              <TabsTrigger value="cycle" className="shrink-0"><Calendar className="w-3.5 h-3.5 mr-1" />Semana</TabsTrigger>
+              {(() => {
+                const c = computeCompletion(payload);
+                const tabs: Array<{ v: "macros"|"guidelines"|"workouts"|"diet"|"cycle"; label: string; icon: JSX.Element; done: boolean }> = [
+                  { v: "macros",     label: "Macros",     icon: <BarChart3 className="w-3.5 h-3.5 mr-1" />,        done: c.macros },
+                  { v: "guidelines", label: "Diretrizes", icon: <FileText className="w-3.5 h-3.5 mr-1" />,         done: c.guidelines },
+                  { v: "workouts",   label: "Treino",     icon: <Dumbbell className="w-3.5 h-3.5 mr-1" />,         done: c.workouts },
+                  { v: "diet",       label: "Dieta",      icon: <UtensilsCrossed className="w-3.5 h-3.5 mr-1" />,  done: c.diet },
+                  { v: "cycle",      label: "Semana",     icon: <Calendar className="w-3.5 h-3.5 mr-1" />,         done: c.cycle },
+                ];
+                return tabs.map((t) => (
+                  <TabsTrigger key={t.v} value={t.v} className="shrink-0">
+                    {t.icon}{t.label}
+                    {t.done && <CheckCircle2 className="w-3 h-3 ml-1 text-emerald-500" />}
+                  </TabsTrigger>
+                ));
+              })()}
             </TabsList>
             <TabsContent value="macros" className="mt-4"><MacrosTab payload={payload} setPayload={updatePayload} /></TabsContent>
             <TabsContent value="guidelines" className="mt-4"><GuidelinesTab payload={payload} setPayload={updatePayload} /></TabsContent>
