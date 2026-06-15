@@ -58,11 +58,12 @@ import ProtocolImportExport from "./ProtocolImportExport";
 import ProtocolImportHistory from "./ProtocolImportHistory";
 import WorkoutPeriodizationEditor from "./WorkoutPeriodizationEditor";
 import StudentProtocolPreview from "./StudentProtocolPreview";
-import { calcMealMacros, calcDayMacros, suggestTacoSubstitutes, tacoGroupToKind, parseWeightString } from "@/lib/macroCalc";
+import { calcMealMacros, calcDayMacros, suggestTacoSubstitutes, tacoGroupToKind, parseWeightString, optionMacros, compareOptions, type SubstitutionSeverity } from "@/lib/macroCalc";
 import { Progress } from "@/components/ui/progress";
 
 import { TACO_FOODS } from "@/data/tacoFoods";
 const TACO_DATA = TACO_FOODS.map((t, i) => ({ ...t, id: String(i), cookFactor: t.cookFactor ?? 1 }));
+import { searchFoods, type FoodHit } from "@/lib/foodSearch";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
