@@ -15,7 +15,10 @@ export const CHECKIN_METRICS = [
   { key: "cintura", label: "Cintura", unit: "cm" },
   { key: "quadril", label: "Quadril", unit: "cm" },
   { key: "coxa_d",  label: "Coxa",    unit: "cm" },
-  { key: "braco_d", label: "Braço",   unit: "cm" },
+  { key: "braco_d_relaxado",  label: "Braço D Rel.",  unit: "cm" },
+  { key: "braco_e_relaxado",  label: "Braço E Rel.",  unit: "cm" },
+  { key: "braco_d_contraido", label: "Braço D Cont.", unit: "cm" },
+  { key: "braco_e_contraido", label: "Braço E Cont.", unit: "cm" },
 ] as const;
 
 export const CHECKIN_SECTIONS: SectionDef[] = [

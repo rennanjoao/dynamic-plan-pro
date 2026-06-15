@@ -413,20 +413,53 @@ function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; setPaylo
 
 function GuidelinesTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void }) {
   const upd = (k: keyof ProtocolPayload["guidelines"], v: string) => setPayload({ ...payload, guidelines: { ...payload.guidelines, [k]: v } });
+  const [openMap, setOpenMap] = useState<Record<string, boolean>>({
+    training: true, diet: true, weekOrganization: true, supplementation: true,
+  });
+  const toggle = (k: string) => setOpenMap((m) => ({ ...m, [k]: !m[k] }));
+  const blocks: Array<{ k: keyof ProtocolPayload["guidelines"]; label: string; hint?: string; minH: string }> = [
+    { k: "training",         label: "Diretrizes de treino", hint: "Regras gerais (foco, intensidade, falha, descanso)", minH: "min-h-[100px]" },
+    { k: "diet",             label: "Diretrizes da dieta",  hint: "Hidratação, sal, fibras, suplementos com refeições",  minH: "min-h-[100px]" },
+    { k: "weekOrganization", label: "Organização da semana", hint: "Ex.: Seg/Qua/Sex carbo alto · Ter/Qui/Sab/Dom carbo baixo", minH: "min-h-[80px]" },
+    { k: "supplementation",  label: "Suplementação — obs. gerais", minH: "min-h-[100px]" },
+  ];
   return (
     <Card className="bg-card/60 border-border p-4 space-y-4">
-      <Field label="Diretrizes de treino" hint="Regras gerais (foco, intensidade, falha, descanso)">
-        <Textarea value={payload.guidelines.training} onChange={(e) => upd("training", e.target.value)} className="min-h-[100px] text-sm" />
-      </Field>
-      <Field label="Diretrizes da dieta" hint="Hidratação, sal, fibras, suplementos com refeições">
-        <Textarea value={payload.guidelines.diet} onChange={(e) => upd("diet", e.target.value)} className="min-h-[100px] text-sm" />
-      </Field>
-      <Field label="Organização da semana" hint="Ex.: Seg/Qua/Sex carbo alto · Ter/Qui/Sab/Dom carbo baixo">
-        <Textarea value={payload.guidelines.weekOrganization} onChange={(e) => upd("weekOrganization", e.target.value)} className="min-h-[80px] text-sm" />
-      </Field>
-      <Field label="Suplementação — obs. gerais">
-        <Textarea value={payload.guidelines.supplementation} onChange={(e) => upd("supplementation", e.target.value)} className="min-h-[100px] text-sm" />
-      </Field>
+      {blocks.map((b) => {
+        const isOpen = openMap[b.k as string] ?? true;
+        const val = (payload.guidelines[b.k] ?? "") as string;
+        const preview = val.trim().slice(0, 80);
+        return (
+          <div key={b.k as string} className="border border-border/40 rounded-lg overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggle(b.k as string)}
+              className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-muted/30 hover:bg-muted/50 text-left"
+            >
+              <div className="min-w-0">
+                <p className="text-xs font-semibold">{b.label}</p>
+                {!isOpen && preview && (
+                  <p className="text-[10px] text-muted-foreground truncate">{preview}{val.length > 80 ? "…" : ""}</p>
+                )}
+                {!isOpen && !preview && (
+                  <p className="text-[10px] text-muted-foreground italic">vazio</p>
+                )}
+              </div>
+              <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform shrink-0", isOpen && "rotate-180")} />
+            </button>
+            {isOpen && (
+              <div className="p-3 space-y-1">
+                {b.hint && <p className="text-[10px] text-muted-foreground">{b.hint}</p>}
+                <Textarea
+                  value={val}
+                  onChange={(e) => upd(b.k, e.target.value)}
+                  className={cn(b.minH, "text-sm")}
+                />
+              </div>
+            )}
+          </div>
+        );
+      })}
       <div className="border-t border-border/40 pt-4 space-y-2">
         <div className="flex items-center justify-between">
           <Label className="text-sm font-semibold flex items-center gap-2"><Pill className="w-4 h-4 text-primary" /> Suplementos</Label>
