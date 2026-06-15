@@ -1006,12 +1006,19 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                                       toast.error(`"${taco.name}" é ${tacoLabel} — adicione-o no card correto.`, { description: `Este card é de ${kindLabel}.`, duration: 4000 });
                                       return;
                                     }
-                                    updItem(mealIdx, kind, optIdx, ii, { baseName: taco.name, name: taco.name, isTaco: true, cookFactor: taco.cookFactor });
+                                    const isInd = taco.source === "industrial";
+                                    updItem(mealIdx, kind, optIdx, ii, {
+                                      baseName: taco.name,
+                                      name: taco.name,
+                                      isTaco: !isInd,
+                                      isIndustrial: isInd,
+                                      cookFactor: taco.cookFactor ?? 1,
+                                    });
                                   }}
-                                  onChangeName={(name) => updItem(mealIdx, kind, optIdx, ii, { name, baseName: name, isTaco: false, cookFactor: 1, rawWeight: 0 })}
+                                  onChangeName={(name) => updItem(mealIdx, kind, optIdx, ii, { name, baseName: name, isTaco: false, isIndustrial: false, cookFactor: 1, rawWeight: 0 })}
                                   onChangeWeight={(w) => {
                                     const patch: any = { weight: w };
-                                    if (it.isTaco) {
+                                    if (it.isTaco || it.isIndustrial) {
                                       const tacoRef = TACO_FOODS.find(
                                         (t) => t.name.toLowerCase() === String(it.baseName || it.name).toLowerCase()
                                       );
