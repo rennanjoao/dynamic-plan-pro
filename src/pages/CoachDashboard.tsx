@@ -864,6 +864,7 @@ export default function CoachDashboard() {
   const [historyStudent, setHistoryStudent] = useState<StudentStatus | null>(null);
   const [evoStudent, setEvoStudent] = useState<StudentStatus | null>(null);
   const [latestFbStudent, setLatestFbStudent] = useState<StudentStatus | null>(null);
+  const [settingsStudent, setSettingsStudent] = useState<StudentStatus | null>(null);
   const qc = useQueryClient();
 
   const { data: coachProfile } = useQuery({
@@ -1011,6 +1012,7 @@ export default function CoachDashboard() {
                     onUnlink={setUnlinkTarget}
                     onHistory={setHistoryStudent}
                     onLatestFeedback={(st) => setLatestFbStudent(st)}
+                    onSettings={(st) => setSettingsStudent(st)}
                   />
                 ))}
               </div>
