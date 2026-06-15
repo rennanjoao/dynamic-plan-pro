@@ -223,6 +223,29 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
 
   return (
     <Card className="bg-card/60 border-border p-4">
+      {p.enabled && collapsed ? (
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          className="w-full flex items-center justify-between gap-3 text-left"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <Calendar className="w-4 h-4 text-primary shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">
+                Periodização ativa — {p.weeks.length} semanas
+              </p>
+              <p className="text-[11px] text-muted-foreground truncate">
+                {p.weeks.map((w, i) => `S${i + 1}: ${w.sets || "?"}×${w.reps || "?"}`).join(" · ")}
+              </p>
+            </div>
+          </div>
+          <span className="text-[11px] text-primary flex items-center gap-1 shrink-0">
+            <ChevronDown className="w-3.5 h-3.5" /> Expandir
+          </span>
+        </button>
+      ) : (
+      <>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
           <Calendar className="w-4 h-4 text-primary" />
@@ -252,6 +275,13 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
           </div>
         </div>
       </div>
+      {p.enabled && (
+        <div className="flex justify-end mb-2">
+          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={toggleCollapsed}>
+            <Minimize2 className="w-3 h-3 mr-1" /> Minimizar periodização
+          </Button>
+        </div>
+      )}
 
       {p.enabled && (
         <>
