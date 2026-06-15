@@ -981,6 +981,17 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                   <div className="space-y-2.5">
                     {opts.map((opt: any, optIdx: number) => {
                       const items: any[] = Array.isArray(opt.items) ? opt.items : [];
+                      const optM = optionMacros(opt);
+                      const mainM = optIdx === 0 ? optM : optionMacros(opts[0]);
+                      const delta = optIdx > 0 ? compareOptions(mainM, optM) : null;
+                      const sevCls: Record<SubstitutionSeverity, string> = {
+                        ok:   "bg-emerald-500/10 text-emerald-500 border-emerald-500/30",
+                        warn: "bg-amber-500/15 text-amber-500 border-amber-500/40",
+                        err:  "bg-rose-500/15 text-rose-500 border-rose-500/40",
+                      };
+                      const sevLabel: Record<SubstitutionSeverity, string> = {
+                        ok: "equivalente", warn: "atenção", err: "desbalanceada",
+                      };
                       return (
                         <div key={optIdx} className="bg-card rounded-lg border border-border/50 p-2.5">
                           <div className="flex items-center gap-1.5 mb-1.5">
@@ -1036,6 +1047,27 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                             ))}
                           </div>
                           <button type="button" onClick={() => addItem(mealIdx, kind, optIdx)} className={`mt-1.5 text-[11px] flex items-center gap-1 px-1 ${cfg.color} opacity-60 hover:opacity-100`}><Plus className="w-3 h-3" /> alimento</button>
+                          {(optM.kcal > 0 || optM.protein > 0 || optM.carbs > 0 || optM.fat > 0) && (
+                            <div className="mt-2 pt-2 border-t border-dashed border-border/40 flex items-center justify-between gap-2 flex-wrap">
+                              <div className="flex items-center gap-2 text-[10px] tabular-nums" title="Cálculo automático — visível apenas para o coach">
+                                <span className="font-bold text-foreground">{Math.round(optM.kcal)} kcal</span>
+                                <span className="text-blue-500">{optM.protein.toFixed(1)}p</span>
+                                <span className="text-amber-500">{optM.carbs.toFixed(1)}c</span>
+                                <span className="text-rose-500">{optM.fat.toFixed(1)}g</span>
+                              </div>
+                              {delta && (
+                                <span
+                                  className={`text-[9px] px-1.5 py-0.5 rounded border font-bold uppercase tracking-wider ${sevCls[delta.severity]}`}
+                                  title={`vs Op 1 — Δ kcal ${delta.kcal >= 0 ? "+" : ""}${delta.kcal} (${Math.round(delta.kcalPct*100)}%) · P ${delta.protein >= 0 ? "+" : ""}${delta.protein} · C ${delta.carbs >= 0 ? "+" : ""}${delta.carbs} · G ${delta.fat >= 0 ? "+" : ""}${delta.fat}`}
+                                >
+                                  {sevLabel[delta.severity]}
+                                  {delta.severity !== "ok" && delta.worstMetric && (
+                                    <span className="ml-1 opacity-80">· {delta.worstMetric === "kcal" ? "kcal" : delta.worstMetric === "protein" ? "P" : delta.worstMetric === "carbs" ? "C" : "G"}</span>
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
