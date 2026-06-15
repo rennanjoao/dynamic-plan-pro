@@ -548,11 +548,137 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
                   </>
                 )}
                 <Input value={ex.notes} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-xs" />
-                <button onClick={() => updDay(di, { exercises: day.exercises.filter((_, i) => i !== ei) })} className="text-muted-foreground hover:text-destructive p-1.5"><Trash2 className="w-3.5 h-3.5" /></button>
+                <div className="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => moveExercise(di, ei, "up")}
+                    disabled={ei === 0}
+                    className="text-muted-foreground hover:text-primary p-1 disabled:opacity-30"
+                    title="Mover para cima"
+                  >
+                    <ArrowUp className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveExercise(di, ei, "down")}
+                    disabled={ei === day.exercises.length - 1}
+                    className="text-muted-foreground hover:text-primary p-1 disabled:opacity-30"
+                    title="Mover para baixo"
+                  >
+                    <ArrowDown className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => updDay(di, { exercises: day.exercises.filter((_, i) => i !== ei) })} className="text-muted-foreground hover:text-destructive p-1.5"><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
               </div>
               );
             })}
-            <Button size="sm" variant="outline" onClick={() => updDay(di, { exercises: [...day.exercises, makeEmptyExercise()] })} className="h-7 text-xs mt-1"><Plus className="w-3 h-3 mr-1" /> Exercício</Button>
+            <div className="flex flex-wrap gap-2 mt-1">
+              <Button size="sm" variant="outline" onClick={() => updDay(di, { exercises: [...day.exercises, makeEmptyExercise()] })} className="h-7 text-xs"><Plus className="w-3 h-3 mr-1" /> Exercício</Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                onClick={() =>
+                  setPayload({
+                    ...payload,
+                    cardio: [
+                      ...(payload.cardio ?? []),
+                      {
+                        type: "",
+                        duration: "",
+                        intensity: "",
+                        workoutKey: day.key,
+                        associationType: "workout" as const,
+                        notes: "",
+                      },
+                    ],
+                  })
+                }
+              >
+                <Activity className="w-3 h-3 mr-1" /> Aeróbico neste treino
+              </Button>
+            </div>
+
+            {(payload.cardio ?? []).filter((c) => c.workoutKey === day.key && c.associationType === "workout").length > 0 && (
+              <div className="mt-3 pt-3 border-t border-border/40 space-y-2">
+                <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <Activity className="w-3.5 h-3.5 text-primary" /> Aeróbico do Treino {day.key}
+                </p>
+                {(payload.cardio ?? []).map((c, ci) => {
+                  if (c.workoutKey !== day.key || c.associationType !== "workout") return null;
+                  return (
+                    <div key={ci} className="bg-background border border-border/50 rounded-lg p-2 space-y-2">
+                      <div className="grid grid-cols-[1fr_auto] gap-2">
+                        <Select
+                          value={c.type || "Outro"}
+                          onValueChange={(v) => {
+                            const n = [...(payload.cardio ?? [])];
+                            n[ci] = { ...n[ci], type: v };
+                            setPayload({ ...payload, cardio: n });
+                          }}
+                        >
+                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Tipo" /></SelectTrigger>
+                          <SelectContent>
+                            {["AEJ","LISS","HIIT","Caminhada","Bicicleta","Outro"].map((t) => (
+                              <SelectItem key={t} value={t} className="text-xs">{t}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <button
+                          onClick={() => setPayload({ ...payload, cardio: (payload.cardio ?? []).filter((_, j) => j !== ci) })}
+                          className="text-muted-foreground hover:text-destructive p-1.5"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-[10px] uppercase text-muted-foreground">Duração</Label>
+                          <Input
+                            value={c.duration}
+                            onChange={(e) => {
+                              const n = [...(payload.cardio ?? [])];
+                              n[ci] = { ...n[ci], duration: e.target.value };
+                              setPayload({ ...payload, cardio: n });
+                            }}
+                            placeholder="40 min"
+                            className="h-8 text-xs mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] uppercase text-muted-foreground">Intensidade</Label>
+                          <Select
+                            value={c.intensity || "Moderada"}
+                            onValueChange={(v) => {
+                              const n = [...(payload.cardio ?? [])];
+                              n[ci] = { ...n[ci], intensity: v };
+                              setPayload({ ...payload, cardio: n });
+                            }}
+                          >
+                            <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {["Leve","Moderada","Alta"].map((t) => (
+                                <SelectItem key={t} value={t} className="text-xs">{t}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <Input
+                        value={c.notes}
+                        onChange={(e) => {
+                          const n = [...(payload.cardio ?? [])];
+                          n[ci] = { ...n[ci], notes: e.target.value };
+                          setPayload({ ...payload, cardio: n });
+                        }}
+                        placeholder="Observações do aeróbico"
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </Card>
       ))}
