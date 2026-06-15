@@ -14,6 +14,8 @@ const AdminLogin = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<"login" | "recover">("login");
+  const [recoverEmail, setRecoverEmail] = useState("");
 
   const routeByRole = async (userId: string) => {
     const [{ data: isAdmin }, { data: isCoach }] = await Promise.all([
@@ -72,6 +74,25 @@ const AdminLogin = () => {
     }
   };
 
+  const handleRecover = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(recoverEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      toast.success("Enviamos um link de redefinição para o seu e-mail");
+      setMode("login");
+      setRecoverEmail("");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao enviar link";
+      toast.error(msg);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
       <div className="absolute inset-0 gradient-hero" />
@@ -98,9 +119,14 @@ const AdminLogin = () => {
               <Shield className="w-7 h-7 text-primary" />
             </div>
             <h1 className="text-2xl font-bold text-foreground mb-1">Área Administrativa e Treinador</h1>
-            <p className="text-sm text-muted-foreground">Admin entra no painel geral; coach entra na área do treinador.</p>
+            <p className="text-sm text-muted-foreground">
+              {mode === "login"
+                ? "Admin entra no painel geral; coach entra na área do treinador."
+                : "Informe seu e-mail para receber o link de redefinição."}
+            </p>
           </div>
 
+          {mode === "login" ? (
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <Label htmlFor="admin-email" className="text-xs uppercase tracking-wider text-muted-foreground">Email</Label>
@@ -135,7 +161,37 @@ const AdminLogin = () => {
             <Button type="submit" className="w-full rounded-xl h-11 glow-primary" disabled={isLoading}>
               {isLoading ? "Verificando..." : "Entrar"}
             </Button>
+            <button type="button" onClick={() => setMode("recover")}
+              className="block w-full text-center text-xs text-muted-foreground hover:text-primary transition-colors mt-2">
+              Esqueci minha senha
+            </button>
           </form>
+          ) : (
+          <form onSubmit={handleRecover} className="space-y-4">
+            <div>
+              <Label htmlFor="recover-admin-email" className="text-xs uppercase tracking-wider text-muted-foreground">Email</Label>
+              <div className="relative mt-1.5">
+                <Mail className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="recover-admin-email"
+                  type="email"
+                  placeholder="seu@email.com"
+                  value={recoverEmail}
+                  onChange={(e) => setRecoverEmail(e.target.value)}
+                  className="pl-10 rounded-xl bg-secondary/30 border-border/50 focus:border-primary/50"
+                  required
+                />
+              </div>
+            </div>
+            <Button type="submit" className="w-full rounded-xl h-11 glow-primary" disabled={isLoading}>
+              {isLoading ? "Enviando..." : "Enviar link de redefinição"}
+            </Button>
+            <button type="button" onClick={() => setMode("login")}
+              className="block w-full text-center text-xs text-muted-foreground hover:text-primary transition-colors mt-2">
+              Voltar ao login
+            </button>
+          </form>
+          )}
         </div>
       </motion.div>
     </div>
