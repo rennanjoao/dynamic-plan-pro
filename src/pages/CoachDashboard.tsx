@@ -20,7 +20,7 @@ import {
   AlertTriangle, CheckCircle2, Search, Filter, Users,
   Dumbbell, ClipboardList, ArrowLeft,
   Loader2, Plus, Trash2, DollarSign, UserPlus, Calendar, X, User, LogOut,
-  MessageSquare, History, FileDown
+  MessageSquare, History, FileDown, Settings2
 } from "lucide-react";
 import CoachNotificationBell from "@/components/coach/CoachNotificationBell";
 import { Input } from "@/components/ui/input";
@@ -197,7 +197,7 @@ function AlertBadge({ level }: { level: AlertLevel }) {
 }
 
 function StudentRow({
-  student, onAnamnesis, onProtocol, onUnlink, onHistory, onLatestFeedback,
+  student, onAnamnesis, onProtocol, onUnlink, onHistory, onLatestFeedback, onSettings,
 }: {
   student: StudentStatus;
   onAnamnesis: (s: StudentStatus) => void;
@@ -205,6 +205,7 @@ function StudentRow({
   onUnlink: (s: StudentStatus) => void;
   onHistory: (s: StudentStatus) => void;
   onLatestFeedback: (s: StudentStatus) => void;
+  onSettings: (s: StudentStatus) => void;
 }) {
   const lastActivity =
     student.daysInactive === 0 ? "Hoje" :
@@ -249,8 +250,8 @@ function StudentRow({
           disabled={student.daysSinceLastFeedback >= 999}
           className={`text-xs flex items-center gap-1 mt-0.5 rounded px-1 -mx-1 transition-colors ${
             student.daysSinceLastFeedback >= 999 ? "text-muted-foreground cursor-default" :
-            student.daysSinceLastFeedback >= 17 ? "text-red-500 font-medium hover:bg-red-500/10" :
-            student.daysSinceLastFeedback >= 14 ? "text-orange-500 hover:bg-orange-500/10" :
+            student.daysSinceLastFeedback >= student.criticalDays ? "text-red-500 font-medium hover:bg-red-500/10" :
+            student.daysSinceLastFeedback >= student.warningDays ? "text-orange-500 hover:bg-orange-500/10" :
             "text-emerald-500 hover:bg-emerald-500/10"
           }`}
           title={student.daysSinceLastFeedback < 999 ? "Ver feedback atual" : undefined}
@@ -276,6 +277,9 @@ function StudentRow({
         </button>
         <button onClick={() => onHistory(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Histórico de Check-ins">
           <History className="w-4 h-4" />
+        </button>
+        <button onClick={() => onSettings(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Configurar feedback do aluno">
+          <Settings2 className="w-4 h-4" />
         </button>
         <button onClick={() => onUnlink(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-destructive transition-colors" title="Desvincular">
           <X className="w-4 h-4" />
