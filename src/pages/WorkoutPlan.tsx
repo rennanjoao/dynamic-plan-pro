@@ -152,6 +152,50 @@ export default function WorkoutPlan() {
                       </div>
                     ))}
                   </div>
+
+                  {/* Aeróbico vinculado a este dia de treino */}
+                  {Array.isArray(safePayload?.cardio) &&
+                    safePayload.cardio.filter(
+                      (c: any) => c.workoutKey === day.key && c.associationType === "workout"
+                    ).length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-border/40 space-y-2">
+                        <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                          <Activity className="w-3.5 h-3.5 text-primary" />
+                          Aeróbico prescrito para este treino
+                        </h4>
+                        {safePayload.cardio
+                          .filter(
+                            (c: any) => c.workoutKey === day.key && c.associationType === "workout"
+                          )
+                          .map((c: any, i: number) => (
+                            <div
+                              key={i}
+                              className="bg-background border border-border/50 rounded-lg p-3"
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-bold text-sm text-primary">
+                                  {c.type || "Aeróbico"}
+                                </span>
+                                {c.duration && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {c.duration}
+                                  </Badge>
+                                )}
+                              </div>
+                              {c.intensity && (
+                                <Badge variant="secondary" className="text-xs mr-1">
+                                  {c.intensity}
+                                </Badge>
+                              )}
+                              {c.notes && (
+                                <p className="text-xs text-muted-foreground italic mt-1">
+                                  {c.notes}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                      </div>
+                    )}
                   
                   {/* BOTÃO DE DÚVIDA DO TREINO */}
                   <ProtocolQuestionButton context="exercise" variant="full" />
