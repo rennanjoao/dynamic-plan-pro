@@ -16,6 +16,7 @@ const Index        = lazyWithRetry(() => import("./pages/Index"));
 const Admin        = lazyWithRetry(() => import("./pages/Admin"));
 const AdminLogin   = lazyWithRetry(() => import("./pages/AdminLogin"));
 const Auth         = lazyWithRetry(() => import("./pages/Auth"));
+const ResetPassword= lazyWithRetry(() => import("./pages/ResetPassword"));
 const StudentArea  = lazyWithRetry(() => import("./pages/StudentArea"));
 const NotFound     = lazyWithRetry(() => import("./pages/NotFound"));
 
@@ -64,6 +65,7 @@ const App = () => {
               <Route path="/"            element={<Index />} />
               <Route path="/auth"        element={<Auth />} />
               <Route path="/admin-login" element={<AdminLogin />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/register"    element={<CoachRegister />} />
 
               {/* Redirects de rotas antigas — mantém links antigos funcionando */}
