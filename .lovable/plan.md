@@ -1,43 +1,37 @@
-# BF% sempre automático
+## Problema confirmado
 
-## Objetivo
-Em todo lugar onde aparece "BF% estimado", o valor é **calculado a partir das medidas existentes** (US Navy: altura, pescoço, cintura, quadril p/ F + gênero). O aluno e o coach **não digitam** mais BF. Se faltar alguma medida, mostra um alerta pequeno abaixo do campo (ex.: "Faltam: pescoço, cintura"), mas **não bloqueia salvar/enviar**.
+Hoje, no `/coach`, o botão "Evolução e Anamnese" do `StudentRow` abre o `EvolutionDialog`, que renderiza apenas `EvolutionComparison` (fotos + medidas comparadas). O componente que tem a **anamnese inteira editável** (`AnamnesisViewer`, com todas as ~50 perguntas + upload de fotos + Editar Avaliação) só é acessível pelo Sheet lateral do `ProtocolBuilder`.
 
-## Arquivos afetados
+Resultado: quando o coach clica em editar pela tela principal, vê só fotos/medidas, não o questionário completo.
 
-### 1. Novo helper compartilhado — `src/lib/bfEstimate.ts`
-- Função única `estimateBF({ altura, cintura, pescoco, quadril, genero })` → `{ value: number | null, missing: string[] }`.
-- Fórmula US Navy (já usada em `ProgressDashboard`); remove o branch `bodyFatRaw` (não usa mais valor digitado).
-- `missing` lista as medidas obrigatórias ausentes/inválidas com label PT-BR.
+## Mudanças
 
-### 2. `src/components/coach/MeasurementsEditor.tsx`
-- Remover linha `body_fat` de `FIELDS` (não tem mais input de BF).
-- Acima do bloco de Fotos, novo card "BF% estimado" (somente leitura) usando `BFDisplay` com o valor computado a partir dos `values` atuais + `payload.genero`. Abaixo do número, alerta pequeno (`text-[11px] text-amber-500`) listando medidas faltantes quando `value === null`.
-- No `handleSave`, **não persistir** `body_fat` (deixa o helper recalcular sempre que for exibido). Coluna `body_fat` no DB permanece inalterada (sem migração).
+### 1. `src/pages/CoachDashboard.tsx` — Adicionar abas no EvolutionDialog
+Transformar o conteúdo do `EvolutionDialog` em duas abas (shadcn `Tabs`):
 
-### 3. `src/lib/anamnesisSchema.ts`
-- Remover o field `{ key: "body_fat", label: "Estimativa BF%" }` de `ANAMNESIS_SECTIONS[composicao]`. (Form do aluno já não rendia esse field — limpeza só.)
+- **Evolução** (padrão): `EvolutionComparisonLazy` (mantém o comportamento atual).
+- **Anamnese completa**: novo `AnamnesisViewerLazy` (já existe em `ProtocolBuilder`). Trazer o mesmo `lazy(() => import("@/components/anamnesis/AnamnesisViewer"))` para o `CoachDashboard`.
 
-### 4. `src/components/student/ComparisonBoard.tsx`
-- Substituir `anamBF`/`checkBF` lidos de `payload.body_fat` por chamada a `estimateBF` usando `baseline_metrics` / `current_metrics` + `genero` do payload da anamnese.
-- Sob cada `BFDisplay`, se `value` for null mostrar alerta discreto com `missing` (sem bloquear nada — é só leitura).
+Sem mexer em rotas, botões do `StudentRow`, alertas, billing ou notificações.
 
-### 5. `src/components/coach/EvolutionComparison.tsx`
-- Remover `body_fat` do `select(...)` em ambas queries (Supabase) e dos branches `if (anam.body_fat != null) ...`.
-- Para cada `Timepoint`, computar `metrics.body_fat` via `estimateBF(metrics + genero)`. Gênero vem do `payload` da anamnese (busca única).
-- Na tabela de medidas, se a linha `% Gordura` ficar `—`, anexar uma `<span>` com lista de medidas faltantes para o lado afetado.
+### 2. `src/components/anamnesis/AnamnesisViewer.tsx` — Edição com tipos corretos
+Hoje, no modo edição, **todos** os campos viram `<textarea>`. Trocar pelo controle adequado lendo `f.type` / `f.options` do `ANAMNESIS_SECTIONS`:
 
-### 6. `src/components/student/ProgressDashboard.tsx`
-- Substituir `estimateBF` local por import do helper compartilhado.
-- Remover leituras de `payload.body_fat`/`bodyFatRaw` (sempre estima).
+- `type: "number"` (ou keys numéricas de `BASELINE_KEYS` — altura, peso, circunferências, meta_peso, meta_prazo) → `<Input type="number" step={f.step ?? "0.1"}>`.
+- `f.options` definidos (selects como `meta_prioridade`, `nivel_treino`, `tem_academia`, etc.) → `<Select>` shadcn com as opções.
+- `data_nasc`, `horario_dormir`, `horario_acordar` → `<Input type="date"|"time">` conforme o caso.
+- Sliders de `NEURO_SLIDERS` → `<Slider min=0 max=10>` (se presentes no schema).
+- Demais campos de texto livre → continuam como `<Textarea>`.
 
-## Fora de escopo
-- Coluna `body_fat` no Supabase (não remover, sem migração).
-- Lógica de billing, alertas diários, notify-coach.
-- UI de Anamnese/Check-in do aluno (já não pedem BF).
-- Configuração de feedback por aluno, colapsar diretrizes, preview de treino — já entregues.
+Helper interno `renderEditField(field, value, onChange)` para evitar duplicação. `handleSaveChanges` mantém-se igual (recalcula `baseline_metrics` a partir do `editPayload`).
+
+### 3. Nada mais
+- Não alterar `MeasurementsEditor`, `EvolutionComparison`, billing, `daily_alerts`, `notify-coach`, RLS, schema do DB.
+- Não remover nenhum botão do `StudentRow`.
+- `ProtocolBuilder` continua usando o mesmo `AnamnesisViewer` — ganha os tipos corretos de campo de brinde.
 
 ## Verificação
+
 - `bunx tsc --noEmit` limpo.
-- Anamnese sem pescoço → ComparisonBoard mostra "—" + "Faltam: pescoço".
-- Editor do coach: BF aparece logo após digitar pescoço/cintura/altura; envio funciona mesmo com BF nulo.
+- No `/coach`, abrir o botão "Evolução e Anamnese" → aparece aba **Anamnese completa** com todas as seções; clicar **Editar Avaliação / Fotos** permite editar todos os campos (number/select/date/textarea conforme o tipo) e salvar.
+- Aba **Evolução** continua mostrando `EvolutionComparison` como antes.
