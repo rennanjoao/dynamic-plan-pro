@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Calendar, BookmarkPlus, Library, Loader2, Trash2,
-  Eye, Copy, RefreshCcw, AlertCircle, History,
+  Eye, Copy, RefreshCcw, AlertCircle, History, ChevronDown, Minimize2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -48,6 +48,15 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
   const [busy, setBusy] = useState(false);
   const [previewWeek, setPreviewWeek] = useState<number | null>(null);
   const [historyTpl, setHistoryTpl] = useState<{ id: string; name: string } | null>(null);
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("perio_collapsed") === "true";
+  });
+  const toggleCollapsed = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    try { localStorage.setItem("perio_collapsed", String(next)); } catch { /* noop */ }
+  };
 
   const validation = useMemo(() => validatePeriodization(payload), [payload]);
   const errorByWeek = useMemo(() => {
