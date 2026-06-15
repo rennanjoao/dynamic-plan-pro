@@ -36,65 +36,47 @@ const METRIC_META: Record<MetricKey, { label: string; unit: string; icon: typeof
 };
 
 /**
- * Estimativa de BF multi-variável.
- *
+ * Estimativa de %BF.
  * Prioridade:
- *   1. body_fat digitado pelo aluno (valor real medido)
- *   2. Fórmula US Navy (requer cintura + altura; para F requer também quadril)
- *   3. RFM (Relative Fat Mass) — fallback cintura/altura
- *
- * Ajuste por nível de treino: atletas têm BF menor pela composição muscular.
+ *   1. body_fat digitado pelo aluno (valor real medido).
+ *   2. Fórmula com pescoço/cintura/quadril/altura.
+ * Retorna null quando não há dados suficientes.
  */
 function estimateBF(params: {
   altura: number;
   cintura: number;
+  pescoco: number;
   quadril?: number;
-  peso?: number;
   genero: string;
-  bodyFatRaw?: number;     // valor digitado (tem prioridade)
-  anosTeino?: number;      // anos de treinamento
-  nivelTreino?: string;    // "Iniciante" | "Intermediário" | "Avançado"
-}): number {
-  const { altura, cintura, quadril, genero, bodyFatRaw, anosTeino, nivelTreino } = params;
+  bodyFatRaw?: number;
+}): number | null {
+  const { altura, cintura, pescoco, quadril, genero, bodyFatRaw } = params;
 
-  // 1. Usa valor digitado se disponível e plausível
-  if (bodyFatRaw && bodyFatRaw > 2 && bodyFatRaw < 60) return bodyFatRaw;
-
-  if (!altura || altura < 100 || !cintura || cintura < 40) return 0;
-
-  let bf = 0;
-
-  // 2. US Navy (mais preciso — usa pescoço, cintura, quadril)
-  // Como não temos pescoço, usamos variante simplificada com cintura e quadril
-  if (quadril && quadril > 60) {
-    if (genero === "F") {
-      // US Navy feminino
-      bf = 163.205 * Math.log10(cintura + quadril - 0) - 97.684 * Math.log10(altura) - 78.387;
-    } else {
-      // Adaptado: sem pescoço, cintura sozinha no lugar de (cintura - pescoço)
-      bf = 86.01 * Math.log10(cintura) - 70.041 * Math.log10(altura) + 36.76;
-    }
-  } else {
-    // 3. RFM (Relative Fat Mass) — fallback
-    if (genero === "F") {
-      bf = 76 - 20 * (altura / cintura);
-    } else {
-      bf = 64 - 20 * (altura / cintura);
-    }
+  if (bodyFatRaw && bodyFatRaw > 2 && bodyFatRaw < 60) {
+    return Math.round(bodyFatRaw * 10) / 10;
   }
 
-  // Ajuste por nível de treino / anos treinando
-  // Atletas e avançados tendem a ter mais massa magra → BF menor
-  const anos = anosTeino ?? 0;
-  const nivel = (nivelTreino ?? "").toLowerCase();
-  let ajuste = 0;
-  if (nivel === "avançado" || anos >= 5) ajuste = -2.5;
-  else if (nivel === "intermediário" || anos >= 2) ajuste = -1.5;
-  else if (nivel === "iniciante" || anos >= 0) ajuste = 0;
+  if (!altura || altura < 100 || !cintura || cintura < 40 || !pescoco || pescoco < 20) {
+    return null;
+  }
 
-  bf = bf + ajuste;
+  const isF = (genero || "").toUpperCase().startsWith("F");
+  let bf: number;
 
-  return Math.max(2, Math.round(bf * 10) / 10);
+  if (isF) {
+    if (!quadril || quadril < 60) return null;
+    const inner = cintura + quadril - pescoco;
+    if (inner <= 0) return null;
+    bf = 495 / (1.29579 - 0.35004 * Math.log10(inner) + 0.22100 * Math.log10(altura)) - 450;
+  } else {
+    const inner = cintura - pescoco;
+    if (inner <= 0) return null;
+    bf = 495 / (1.0324 - 0.19077 * Math.log10(inner) + 0.15456 * Math.log10(altura)) - 450;
+  }
+
+  if (!isFinite(bf)) return null;
+  bf = Math.min(60, Math.max(isF ? 10 : 2, bf));
+  return Math.round(bf * 10) / 10;
 }
 
 const fmt = (v: number, unit: string) => `${v.toFixed(1)} ${unit}`;
