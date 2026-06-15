@@ -360,8 +360,15 @@ const Anamnesis = () => {
   return (
     <div className="min-h-screen bg-background pb-20 relative">
       <div className="sticky top-0 z-50 flex items-center justify-between px-5 py-4 bg-background/90 backdrop-blur border-b border-border/40 shadow-sm">
-        <span className="font-bold text-sm text-primary tracking-widest uppercase">Ficha de Anamnese</span>
-        <Button variant="outline" size="sm" onClick={() => { setD({}); setGender(""); setGroups({}); showToast("Limpo."); }}>Limpar</Button>
+        <span className="font-bold text-sm text-primary tracking-widest uppercase">
+          {isEditMode ? `Editar Anamnese · ${studentEditCount + 1}/2` : "Ficha de Anamnese"}
+        </span>
+        {!isEditMode && (
+          <Button variant="outline" size="sm" onClick={() => { setD({}); setGender(""); setGroups({}); showToast("Limpo."); }}>Limpar</Button>
+        )}
+        {isEditMode && (
+          <Button variant="ghost" size="sm" onClick={() => navigate("/student-area")}>Voltar</Button>
+        )}
       </div>
 
       <div className="max-w-xl mx-auto px-4 py-8 space-y-8 relative z-10">
@@ -649,7 +656,9 @@ const Anamnesis = () => {
 
         {/* Botão enviar */}
         <Button size="lg" className="w-full h-14 text-base font-bold glow-primary" onClick={handleSubmit} disabled={saving}>
-          {saving ? "Criando conta e finalizando..." : "Finalizar Cadastro"}
+          {saving
+            ? isEditMode ? "Salvando alterações..." : "Criando conta e finalizando..."
+            : isEditMode ? "Salvar alterações" : "Finalizar Cadastro"}
         </Button>
       </div>
 
