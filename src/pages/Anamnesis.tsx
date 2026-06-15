@@ -213,6 +213,17 @@ const Anamnesis = () => {
         studentId = authData.user.id;
       }
 
+      // Garante que o email do usuário esteja salvo no perfil (para envio de e-mails do coach)
+      try {
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        if (currentUser?.email) {
+          await (supabase.from("profiles") as any).upsert(
+            { user_id: studentId!, email: currentUser.email },
+            { onConflict: "user_id" }
+          );
+        }
+      } catch { /* não bloqueia o submit da anamnese */ }
+
       const fotos: Record<string, string> = {};
       // Preserva fotos já enviadas em modo edição quando o aluno não carrega arquivo novo
       if (isEditMode) {
