@@ -1,37 +1,37 @@
-## Problema confirmado
+## Adicionar "Esqueci minha senha"
 
-Hoje, no `/coach`, o botão "Evolução e Anamnese" do `StudentRow` abre o `EvolutionDialog`, que renderiza apenas `EvolutionComparison` (fotos + medidas comparadas). O componente que tem a **anamnese inteira editável** (`AnamnesisViewer`, com todas as ~50 perguntas + upload de fotos + Editar Avaliação) só é acessível pelo Sheet lateral do `ProtocolBuilder`.
-
-Resultado: quando o coach clica em editar pela tela principal, vê só fotos/medidas, não o questionário completo.
+Hoje `/auth` e `/admin-login` só têm e-mail + senha + Entrar. Não há fluxo de recuperação.
 
 ## Mudanças
 
-### 1. `src/pages/CoachDashboard.tsx` — Adicionar abas no EvolutionDialog
-Transformar o conteúdo do `EvolutionDialog` em duas abas (shadcn `Tabs`):
+### 1. Nova página `src/pages/ResetPassword.tsx`
+- Rota pública.
+- Detecta o `type=recovery` no hash da URL (Supabase já cria a sessão de recuperação automaticamente após o clique no link do e-mail).
+- Form com nova senha + confirmação → chama `supabase.auth.updateUser({ password })`.
+- Sucesso → `toast` + `navigate("/auth")`.
+- Mesma estética glassmorphism do `Auth.tsx` (gradient-hero, glass-strong, glow-primary).
 
-- **Evolução** (padrão): `EvolutionComparisonLazy` (mantém o comportamento atual).
-- **Anamnese completa**: novo `AnamnesisViewerLazy` (já existe em `ProtocolBuilder`). Trazer o mesmo `lazy(() => import("@/components/anamnesis/AnamnesisViewer"))` para o `CoachDashboard`.
+### 2. `src/App.tsx`
+- Adicionar `<Route path="/reset-password" element={<ResetPassword />} />` (pública, antes do `*`).
 
-Sem mexer em rotas, botões do `StudentRow`, alertas, billing ou notificações.
+### 3. `src/pages/Auth.tsx`
+- Adicionar link/botão **"Esqueci minha senha"** abaixo do botão Entrar.
+- Ao clicar: alterna o card para um modo "recuperação" (state local `mode: "login" | "recover"`) com um único campo de e-mail e botão "Enviar link".
+- Submit chama `supabase.auth.resetPasswordForEmail(email, { redirectTo: ${window.location.origin}/reset-password })`.
+- `toast.success("Enviamos um link de redefinição para seu e-mail")` e volta para o modo login.
+- Link "Voltar ao login" no modo recuperação.
 
-### 2. `src/components/anamnesis/AnamnesisViewer.tsx` — Edição com tipos corretos
-Hoje, no modo edição, **todos** os campos viram `<textarea>`. Trocar pelo controle adequado lendo `f.type` / `f.options` do `ANAMNESIS_SECTIONS`:
+### 4. `src/pages/AdminLogin.tsx`
+- Mesmo padrão: link "Esqueci minha senha" abaixo do botão, com modo recuperação inline reaproveitando o mesmo fluxo `resetPasswordForEmail`.
 
-- `type: "number"` (ou keys numéricas de `BASELINE_KEYS` — altura, peso, circunferências, meta_peso, meta_prazo) → `<Input type="number" step={f.step ?? "0.1"}>`.
-- `f.options` definidos (selects como `meta_prioridade`, `nivel_treino`, `tem_academia`, etc.) → `<Select>` shadcn com as opções.
-- `data_nasc`, `horario_dormir`, `horario_acordar` → `<Input type="date"|"time">` conforme o caso.
-- Sliders de `NEURO_SLIDERS` → `<Slider min=0 max=10>` (se presentes no schema).
-- Demais campos de texto livre → continuam como `<Textarea>`.
+## Fora de escopo
 
-Helper interno `renderEditField(field, value, onChange)` para evitar duplicação. `handleSaveChanges` mantém-se igual (recalcula `baseline_metrics` a partir do `editPayload`).
-
-### 3. Nada mais
-- Não alterar `MeasurementsEditor`, `EvolutionComparison`, billing, `daily_alerts`, `notify-coach`, RLS, schema do DB.
-- Não remover nenhum botão do `StudentRow`.
-- `ProtocolBuilder` continua usando o mesmo `AnamnesisViewer` — ganha os tipos corretos de campo de brinde.
+- Não criar templates customizados de e-mail (o Lovable Cloud já envia o e-mail padrão de recuperação).
+- Não mexer em RLS, billing, alertas, coach panel, anamnese.
 
 ## Verificação
 
 - `bunx tsc --noEmit` limpo.
-- No `/coach`, abrir o botão "Evolução e Anamnese" → aparece aba **Anamnese completa** com todas as seções; clicar **Editar Avaliação / Fotos** permite editar todos os campos (number/select/date/textarea conforme o tipo) e salvar.
-- Aba **Evolução** continua mostrando `EvolutionComparison` como antes.
+- Em `/auth`, clicar em "Esqueci minha senha" → form de e-mail → submit → toast de sucesso.
+- E-mail chega com link → ao abrir, vai para `/reset-password` → define nova senha → consegue logar.
+- Mesmo fluxo funciona em `/admin-login`.
