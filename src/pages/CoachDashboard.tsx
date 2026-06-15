@@ -46,6 +46,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 
 const ProtocolBuilder = lazy(() => import("@/components/coach/ProtocolBuilder"));
 const EvolutionComparisonLazy = lazy(() => import("@/components/coach/EvolutionComparison"));
+const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
 
 // ─── Latest Feedback Dialog (clique no label "Feedback hoje/há X dias") ──────
 
@@ -148,9 +149,22 @@ function EvolutionDialog({ student, open, onClose }: { student: StudentStatus | 
           <DialogTitle>Evolução e Anamnese — {student?.name || "Aluno"}</DialogTitle>
         </DialogHeader>
         {student && (
-          <Suspense fallback={<div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>}>
-            <EvolutionComparisonLazy studentId={student.id} studentName={student.name} />
-          </Suspense>
+          <Tabs defaultValue="evolucao" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="evolucao">Evolução</TabsTrigger>
+              <TabsTrigger value="anamnese">Anamnese completa</TabsTrigger>
+            </TabsList>
+            <TabsContent value="evolucao" className="mt-4">
+              <Suspense fallback={<div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>}>
+                <EvolutionComparisonLazy studentId={student.id} studentName={student.name} />
+              </Suspense>
+            </TabsContent>
+            <TabsContent value="anamnese" className="mt-4">
+              <Suspense fallback={<div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>}>
+                <AnamnesisViewerLazy studentId={student.id} studentName={student.name} />
+              </Suspense>
+            </TabsContent>
+          </Tabs>
         )}
       </DialogContent>
     </Dialog>
