@@ -183,7 +183,7 @@ const Anamnesis = () => {
 
       const baseline: Record<string, number> = {};
       ["altura", "peso", "pescoco", "cintura", "quadril", "braco_d_relaxado", "braco_e_relaxado", "braco_d_contraido", "braco_e_contraido", "coxa_d", "coxa_e", "pant_d", "pant_e"].forEach(k => {
-        const n = parseFloat(String(payload[k] ?? ""));
+        const n = parseFloat(String(payload[k] ?? "").replace(",", "."));
         if (!isNaN(n)) baseline[k] = n;
       });
 
@@ -342,6 +342,13 @@ const Anamnesis = () => {
         {/* 02 — Ponto de partida */}
         <section>
           <SecHead num="02" title="Seu ponto de partida" />
+          <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-3 space-y-1.5 text-xs text-muted-foreground">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-primary mb-2">📏 Como medir corretamente</p>
+            <p>• <span className="text-foreground font-medium">Pescoço:</span> logo abaixo do "gogó" (laringe).</p>
+            <p>• <span className="text-foreground font-medium">Cintura:</span> na altura do umbigo (M) ou na parte mais fina (F).</p>
+            <p>• <span className="text-foreground font-medium">Quadril:</span> na maior protuberância dos glúteos.</p>
+            <p>• A fita deve estar firme, <span className="text-foreground font-medium">sem afundar na pele</span>.</p>
+          </div>
           <Card>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Altura (cm)"><FiInput name="altura" type="number" placeholder="170" value={g("altura")} onChange={set("altura")} /></Field>
