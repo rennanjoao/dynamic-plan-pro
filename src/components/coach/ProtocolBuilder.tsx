@@ -46,7 +46,7 @@ import {
 import {
   Loader2, Save, Plus, Trash2, FileText, Dumbbell, UtensilsCrossed,
   Calendar, Sparkles, BarChart3, Activity, Pill, TrendingUp, TrendingDown, Minus,
-  Check, ChevronsUpDown, ChevronDown, Copy, BookmarkPlus, Library, ArrowLeftRight, Pencil, ClipboardList,
+  Check, CheckCircle2, ChevronsUpDown, ChevronDown, Copy, BookmarkPlus, Library, ArrowLeftRight, Pencil, ClipboardList,
   ArrowUp, ArrowDown, Eye
 } from "lucide-react";
 import { toast } from "sonner";
@@ -84,6 +84,21 @@ interface ProtocolRow {
   payload: ProtocolPayload;
   active: boolean | null;
   updated_at: string;
+}
+
+function computeCompletion(payload: ProtocolPayload | null) {
+  if (!payload) return { macros: false, guidelines: false, workouts: false, diet: false, cycle: false };
+  return {
+    macros: (payload.macros?.calories ?? 0) > 0 && (payload.macros?.protein ?? 0) > 0,
+    guidelines: Object.values(payload.guidelines ?? {}).some(
+      (v) => typeof v === "string" && v.trim().length > 10
+    ),
+    workouts: (payload.workouts ?? []).some((d: any) => (d.exercises ?? []).length > 0),
+    diet: (payload.meals ?? []).some((m: any) => (m.options?.[0]?.items ?? []).length > 0),
+    cycle: payload.setup?.carbCycle
+      ? Object.keys((payload as any).carbCycle ?? {}).length > 0
+      : (payload.workouts ?? []).length > 0,
+  };
 }
 
 export default function ProtocolBuilder({ studentId, studentName }: Props) {
