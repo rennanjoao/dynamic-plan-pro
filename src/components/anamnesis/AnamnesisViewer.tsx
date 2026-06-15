@@ -6,9 +6,11 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ANAMNESIS_SECTIONS, uploadToCloudinary } from "@/lib/anamnesisSchema";
+import { ANAMNESIS_SECTIONS, BASELINE_KEYS, NEURO_SLIDERS, uploadToCloudinary, type AnamnesisField } from "@/lib/anamnesisSchema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from "@/components/ui/accordion";
@@ -32,6 +34,19 @@ const PHOTO_KEYS: Array<{ key: string; label: string }> = [
   { key: "lateral_dir", label: "Lateral Direita" },
   { key: "lateral_esq", label: "Lateral Esquerda" },
 ];
+
+const NEURO_KEYS = new Set(NEURO_SLIDERS.map(s => s.key));
+const BASELINE_SET = new Set(BASELINE_KEYS as readonly string[]);
+const DATE_KEYS = new Set(["data_nasc"]);
+const TIME_KEYS = new Set(["horario_dormir", "horario_acordar"]);
+const NUMBER_KEYS = new Set<string>(["meta_peso", "meta_prazo", "dias_treino", "anos_treino"]);
+
+function fieldInputType(f: AnamnesisField): "number" | "date" | "time" | "textarea" {
+  if (DATE_KEYS.has(f.key)) return "date";
+  if (TIME_KEYS.has(f.key)) return "time";
+  if (f.type === "number" || BASELINE_SET.has(f.key) || NEURO_KEYS.has(f.key) || NUMBER_KEYS.has(f.key)) return "number";
+  return "textarea";
+}
 
 // FORMATADOR BLINDADO: Impede Crash caso o valor seja Array ou Objeto JSON
 function fmt(val: unknown): string {
