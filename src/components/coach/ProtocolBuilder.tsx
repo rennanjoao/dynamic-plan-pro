@@ -58,11 +58,12 @@ import ProtocolImportExport from "./ProtocolImportExport";
 import ProtocolImportHistory from "./ProtocolImportHistory";
 import WorkoutPeriodizationEditor from "./WorkoutPeriodizationEditor";
 import StudentProtocolPreview from "./StudentProtocolPreview";
-import { calcMealMacros, calcDayMacros, suggestTacoSubstitutes, tacoGroupToKind, parseWeightString } from "@/lib/macroCalc";
+import { calcMealMacros, calcDayMacros, suggestTacoSubstitutes, tacoGroupToKind, parseWeightString, optionMacros, compareOptions, type SubstitutionSeverity } from "@/lib/macroCalc";
 import { Progress } from "@/components/ui/progress";
 
 import { TACO_FOODS } from "@/data/tacoFoods";
 const TACO_DATA = TACO_FOODS.map((t, i) => ({ ...t, id: String(i), cookFactor: t.cookFactor ?? 1 }));
+import { searchFoods, type FoodHit } from "@/lib/foodSearch";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -980,6 +981,17 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                   <div className="space-y-2.5">
                     {opts.map((opt: any, optIdx: number) => {
                       const items: any[] = Array.isArray(opt.items) ? opt.items : [];
+                      const optM = optionMacros(opt);
+                      const mainM = optIdx === 0 ? optM : optionMacros(opts[0]);
+                      const delta = optIdx > 0 ? compareOptions(mainM, optM) : null;
+                      const sevCls: Record<SubstitutionSeverity, string> = {
+                        ok:   "bg-emerald-500/10 text-emerald-500 border-emerald-500/30",
+                        warn: "bg-amber-500/15 text-amber-500 border-amber-500/40",
+                        err:  "bg-rose-500/15 text-rose-500 border-rose-500/40",
+                      };
+                      const sevLabel: Record<SubstitutionSeverity, string> = {
+                        ok: "equivalente", warn: "atenção", err: "desbalanceada",
+                      };
                       return (
                         <div key={optIdx} className="bg-card rounded-lg border border-border/50 p-2.5">
                           <div className="flex items-center gap-1.5 mb-1.5">
@@ -1005,12 +1017,19 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                                       toast.error(`"${taco.name}" é ${tacoLabel} — adicione-o no card correto.`, { description: `Este card é de ${kindLabel}.`, duration: 4000 });
                                       return;
                                     }
-                                    updItem(mealIdx, kind, optIdx, ii, { baseName: taco.name, name: taco.name, isTaco: true, cookFactor: taco.cookFactor });
+                                    const isInd = taco.source === "industrial";
+                                    updItem(mealIdx, kind, optIdx, ii, {
+                                      baseName: taco.name,
+                                      name: taco.name,
+                                      isTaco: !isInd,
+                                      isIndustrial: isInd,
+                                      cookFactor: taco.cookFactor ?? 1,
+                                    });
                                   }}
-                                  onChangeName={(name) => updItem(mealIdx, kind, optIdx, ii, { name, baseName: name, isTaco: false, cookFactor: 1, rawWeight: 0 })}
+                                  onChangeName={(name) => updItem(mealIdx, kind, optIdx, ii, { name, baseName: name, isTaco: false, isIndustrial: false, cookFactor: 1, rawWeight: 0 })}
                                   onChangeWeight={(w) => {
                                     const patch: any = { weight: w };
-                                    if (it.isTaco) {
+                                    if (it.isTaco || it.isIndustrial) {
                                       const tacoRef = TACO_FOODS.find(
                                         (t) => t.name.toLowerCase() === String(it.baseName || it.name).toLowerCase()
                                       );
@@ -1028,6 +1047,27 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                             ))}
                           </div>
                           <button type="button" onClick={() => addItem(mealIdx, kind, optIdx)} className={`mt-1.5 text-[11px] flex items-center gap-1 px-1 ${cfg.color} opacity-60 hover:opacity-100`}><Plus className="w-3 h-3" /> alimento</button>
+                          {(optM.kcal > 0 || optM.protein > 0 || optM.carbs > 0 || optM.fat > 0) && (
+                            <div className="mt-2 pt-2 border-t border-dashed border-border/40 flex items-center justify-between gap-2 flex-wrap">
+                              <div className="flex items-center gap-2 text-[10px] tabular-nums" title="Cálculo automático — visível apenas para o coach">
+                                <span className="font-bold text-foreground">{Math.round(optM.kcal)} kcal</span>
+                                <span className="text-blue-500">{optM.protein.toFixed(1)}p</span>
+                                <span className="text-amber-500">{optM.carbs.toFixed(1)}c</span>
+                                <span className="text-rose-500">{optM.fat.toFixed(1)}g</span>
+                              </div>
+                              {delta && (
+                                <span
+                                  className={`text-[9px] px-1.5 py-0.5 rounded border font-bold uppercase tracking-wider ${sevCls[delta.severity]}`}
+                                  title={`vs Op 1 — Δ kcal ${delta.kcal >= 0 ? "+" : ""}${delta.kcal} (${Math.round(delta.kcalPct*100)}%) · P ${delta.protein >= 0 ? "+" : ""}${delta.protein} · C ${delta.carbs >= 0 ? "+" : ""}${delta.carbs} · G ${delta.fat >= 0 ? "+" : ""}${delta.fat}`}
+                                >
+                                  {sevLabel[delta.severity]}
+                                  {delta.severity !== "ok" && delta.worstMetric && (
+                                    <span className="ml-1 opacity-80">· {delta.worstMetric === "kcal" ? "kcal" : delta.worstMetric === "protein" ? "P" : delta.worstMetric === "carbs" ? "C" : "G"}</span>
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -1067,6 +1107,19 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
 
             <details className="rounded-lg border border-border/40 p-2">
               <summary className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground cursor-pointer select-none">Macros da refeição</summary>
+              <div className="mt-2 mb-2 flex items-center gap-3 text-[10px] tabular-nums text-muted-foreground" title="Cálculo automático com base nos alimentos da Op 1 de cada macro — visível apenas para o coach">
+                {(() => {
+                  const mm = calcMealMacros(m);
+                  return (
+                    <>
+                      <span className="font-bold text-foreground">Auto: {Math.round(mm.kcal)} kcal</span>
+                      <span className="text-blue-500">{mm.protein.toFixed(1)}p</span>
+                      <span className="text-amber-500">{mm.carbs.toFixed(1)}c</span>
+                      <span className="text-rose-500">{mm.fat.toFixed(1)}g</span>
+                    </>
+                  );
+                })()}
+              </div>
               <div className="grid grid-cols-3 gap-2 mt-2">
                 <div><Label className="text-[10px] uppercase text-amber-500">Carbo (g)</Label><Input type="number" value={m.macros.carbs} onChange={(e) => updMacro(mealIdx, "carbs", Number(e.target.value) || 0)} className="h-8 text-xs mt-1" /></div>
                 <div><Label className="text-[10px] uppercase text-blue-500">Proteína (g)</Label><Input type="number" value={m.macros.protein} onChange={(e) => updMacro(mealIdx, "protein", Number(e.target.value) || 0)} className="h-8 text-xs mt-1" /></div>
@@ -1212,22 +1265,15 @@ function FoodRow({
 }: {
   it: any;
   kind: "carb" | "protein" | "fat";
-  onPickTaco: (t: typeof TACO_DATA[number]) => void;
+  onPickTaco: (t: FoodHit) => void;
   onChangeName: (s: string) => void;
   onChangeWeight: (s: string) => void;
   onRemove: () => void;
 }) {
   const [focused, setFocused] = useState(false);
   const q = (it.baseName || it.name || "").toString().trim().toLowerCase();
-  const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  const matches = useMemo(() => {
-    if (q.length < 2) return [];
-    const nq = norm(q);
-    return TACO_DATA
-      .filter((t) => norm(t.name).includes(nq))
-      .slice(0, 8);
-  }, [q]);
-  const showSuggestions = focused && matches.length > 0 && !it.isTaco;
+  const matches = useMemo<FoodHit[]>(() => (q.length < 2 ? [] : searchFoods(q, 10)), [q]);
+  const showSuggestions = focused && matches.length > 0 && !it.isTaco && !it.isIndustrial;
 
   return (
     <>
@@ -1256,12 +1302,15 @@ function FoodRow({
                 const badgeLabel = tKind === "protein" ? "prot" : tKind === "fat" ? "gord" : "carb";
                 return (
                   <button
-                    key={taco.id}
+                    key={`${taco.source}-${taco.name}`}
                     type="button"
                     onMouseDown={(e) => { e.preventDefault(); onPickTaco(taco); setFocused(false); }}
                     className="w-full flex items-center gap-2 text-left px-2 py-1.5 text-xs hover:bg-accent"
                   >
                     <span className="flex-1 truncate">{taco.name}</span>
+                    {taco.source === "industrial" && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-violet-500/10 text-violet-500 border border-violet-500/30" title={`Industrializado · ${taco.brand}`}>IND</span>
+                    )}
                     <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${badgeCls}`}>{badgeLabel}</span>
                     {taco.cookFactor !== 1 && <span className="text-[9px] text-muted-foreground">×{taco.cookFactor}</span>}
                   </button>
@@ -1272,6 +1321,9 @@ function FoodRow({
         </div>
         {it.isTaco && (
           <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/30 shrink-0" title="Vinculado à tabela TACO">TACO</span>
+        )}
+        {it.isIndustrial && (
+          <span className="text-[9px] px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-500 border border-violet-500/30 shrink-0" title="Alimento industrializado (rótulo do fabricante)">IND</span>
         )}
         <button onClick={onRemove} className="text-muted-foreground hover:text-destructive p-1 shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
       </div>

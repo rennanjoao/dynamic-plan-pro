@@ -9,6 +9,7 @@
  */
 
 import { TACO_FOODS, type TacoFood } from "@/data/tacoFoods";
+import { INDUSTRIAL_FOODS, industrialByName, type IndustrialFood } from "@/data/industrialFoods";
 
 /** Mapeia o `group` da TACO para o `kind` de card (carb | protein | fat). */
 export function tacoGroupToKind(group: TacoFood["group"]): "carb" | "protein" | "fat" {
@@ -30,6 +31,14 @@ function tacoByName(name: string): TacoFood | undefined {
   if (!name) return undefined;
   const n = name.trim().toLowerCase();
   return TACO_FOODS.find((t) => t.name.toLowerCase() === n);
+}
+
+/**
+ * Lookup unificado: TACO primeiro, depois industrializados.
+ * Retorna o registro nutricional (g/100g) para qualquer alimento conhecido.
+ */
+function foodByName(name: string): TacoFood | IndustrialFood | undefined {
+  return tacoByName(name) || industrialByName(name);
 }
 
 /**
@@ -70,25 +79,27 @@ export function parseWeightString(
 
 export function calcItemMacros(item: any): Macros {
   if (!item) return { ...ZERO };
-  if (item.isTaco === true) {
-    const taco = tacoByName(item.baseName || item.name);
-    if (!taco) return { ...ZERO };
+  // isTaco === true cobre TACO + industrializados (ambos têm tabela conhecida g/100g).
+  // isIndustrial === true também aceito para clareza.
+  if (item.isTaco === true || item.isIndustrial === true) {
+    const food = foodByName(item.baseName || item.name);
+    if (!food) return { ...ZERO };
 
     // Prioriza rawWeight numérico já gravado; senão, parseia weight string.
     let grams = 0;
     if (typeof item.rawWeight === "number" && item.rawWeight > 0) {
       grams = item.rawWeight;
     } else if (item.weight != null) {
-      const unitW = typeof (taco as any).unitWeight === "number" ? (taco as any).unitWeight : 50;
+      const unitW = typeof (food as any).unitWeight === "number" ? (food as any).unitWeight : 50;
       grams = parseWeightString(item.weight, unitW).grams;
     }
     if (!grams || !isFinite(grams) || grams <= 0) return { ...ZERO };
     const f = grams / 100;
     return {
-      kcal: +(taco.kcal * f).toFixed(1),
-      protein: +(taco.p * f).toFixed(1),
-      carbs: +(taco.c * f).toFixed(1),
-      fat: +(taco.g * f).toFixed(1),
+      kcal: +(food.kcal * f).toFixed(1),
+      protein: +(food.p * f).toFixed(1),
+      carbs: +(food.c * f).toFixed(1),
+      fat: +(food.g * f).toFixed(1),
     };
   }
   if (item.manualMacros) {
@@ -163,6 +174,85 @@ export function calcDayMacros(meals: any[]): Macros {
     fat: +out.fat.toFixed(1),
   };
 }
+
+/**
+ * Macros de UMA opção (principal ou substituição).
+ * Soma todos os items da opção; usado para comparar opções entre si.
+ */
+export function optionMacros(option: any): Macros {
+  if (!option) return { ...ZERO };
+  const items: any[] = Array.isArray(option.items) ? option.items : [];
+  const out: Macros = { ...ZERO };
+  items.forEach((it) => {
+    const m = calcItemMacros(it);
+    out.kcal    += m.kcal;
+    out.protein += m.protein;
+    out.carbs   += m.carbs;
+    out.fat     += m.fat;
+  });
+  return {
+    kcal: +out.kcal.toFixed(1),
+    protein: +out.protein.toFixed(1),
+    carbs: +out.carbs.toFixed(1),
+    fat: +out.fat.toFixed(1),
+  };
+}
+
+/** Limites de tolerância (delta percentual). */
+export const SUBSTITUTION_THRESHOLDS = {
+  warnKcal: 0.10, warnMacro: 0.15,
+  errKcal:  0.20, errMacro:  0.30,
+} as const;
+
+export type SubstitutionSeverity = "ok" | "warn" | "err";
+
+export interface SubstitutionDelta {
+  kcal: number; protein: number; carbs: number; fat: number;
+  kcalPct: number; proteinPct: number; carbsPct: number; fatPct: number;
+  severity: SubstitutionSeverity;
+  worstMetric: "kcal" | "protein" | "carbs" | "fat" | null;
+}
+
+/**
+ * Compara uma substituição contra a opção principal e classifica
+ * a severidade do desbalanceamento. Usado apenas no painel do coach.
+ */
+export function compareOptions(main: Macros, alt: Macros): SubstitutionDelta {
+  const pct = (a: number, b: number) => (b === 0 ? (a === 0 ? 0 : 1) : (a - b) / b);
+  const d = {
+    kcal:    +(alt.kcal    - main.kcal   ).toFixed(1),
+    protein: +(alt.protein - main.protein).toFixed(1),
+    carbs:   +(alt.carbs   - main.carbs  ).toFixed(1),
+    fat:     +(alt.fat     - main.fat    ).toFixed(1),
+    kcalPct:    pct(alt.kcal,    main.kcal),
+    proteinPct: pct(alt.protein, main.protein),
+    carbsPct:   pct(alt.carbs,   main.carbs),
+    fatPct:     pct(alt.fat,     main.fat),
+  };
+  const k = Math.abs(d.kcalPct);
+  const macroAbs = [
+    { key: "protein" as const, v: Math.abs(d.proteinPct) },
+    { key: "carbs"   as const, v: Math.abs(d.carbsPct)   },
+    { key: "fat"     as const, v: Math.abs(d.fatPct)     },
+  ];
+  const worstMacro = macroAbs.reduce((a, b) => (b.v > a.v ? b : a));
+
+  let severity: SubstitutionSeverity = "ok";
+  let worstMetric: SubstitutionDelta["worstMetric"] = null;
+
+  if (k >= SUBSTITUTION_THRESHOLDS.errKcal || worstMacro.v >= SUBSTITUTION_THRESHOLDS.errMacro) {
+    severity = "err";
+  } else if (k >= SUBSTITUTION_THRESHOLDS.warnKcal || worstMacro.v >= SUBSTITUTION_THRESHOLDS.warnMacro) {
+    severity = "warn";
+  }
+  if (severity !== "ok") {
+    worstMetric = k >= worstMacro.v ? "kcal" : worstMacro.key;
+  }
+  return { ...d, severity, worstMetric };
+}
+
+// Re-export para conveniência dos consumidores
+export { INDUSTRIAL_FOODS };
 
 /**
  * Sugere substituições TACO para um item — mesmo kind/grupo, macro dominante

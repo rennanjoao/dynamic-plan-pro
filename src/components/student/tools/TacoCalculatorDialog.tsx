@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calculator } from "lucide-react";
-import { searchTaco, equivalentGrams, type TacoFood, type TacoMode } from "@/data/tacoFoods";
+import { equivalentGrams, type TacoFood, type TacoMode } from "@/data/tacoFoods";
+import { searchFoods } from "@/lib/foodSearch";
 
 interface Props { trigger?: React.ReactNode }
 
@@ -25,7 +26,7 @@ function Picker({
 }: { label: string; value: TacoFood | null; onPick: (f: TacoFood) => void }) {
   const [q, setQ] = useState(value?.name ?? "");
   const [open, setOpen] = useState(false);
-  const results = searchTaco(q);
+  const results = searchFoods(q, 12);
 
   return (
     <div>
@@ -43,12 +44,17 @@ function Picker({
             {results.map((f) => (
               <button
                 type="button"
-                key={f.name}
+                key={`${f.source}-${f.name}`}
                 onClick={() => { onPick(f); setQ(f.name); setOpen(false); }}
                 className="w-full text-left px-3 py-2 text-xs hover:bg-muted/60 flex justify-between gap-2"
               >
-                <span>{f.name}</span>
-                <span className="text-muted-foreground">{f.kcal} kcal</span>
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <span className="truncate">{f.name}</span>
+                  {f.source === "industrial" && (
+                    <span className="text-[9px] px-1 py-0.5 rounded bg-violet-500/10 text-violet-500 border border-violet-500/30 shrink-0">IND</span>
+                  )}
+                </span>
+                <span className="text-muted-foreground shrink-0">{Math.round(f.kcal)} kcal</span>
               </button>
             ))}
           </div>

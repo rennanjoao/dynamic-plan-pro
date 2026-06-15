@@ -1,75 +1,89 @@
-## Objetivo
+# Alimentos Industrializados + Cálculo Nutricional Coach/Aluno
 
-Quatro ajustes interdependentes:
+## 1. Base de dados de industrializados (novo arquivo `src/data/industrialFoods.ts`)
 
-1. Aluno escolhe entre **novo check-in** ou **atualizar o último** (até 3 edições no mesmo check-in).
-2. Aluno pode **editar a própria anamnese** até 2 vezes.
-3. Bug: feedback/edição feita pelo coach não atualiza na tela de Evolução do aluno.
-4. Coach passa a editar **check-in completo** (hoje só edita medidas/fotos via `MeasurementsEditor`); anamnese completa já está editável.
+Cria uma nova lista separada da TACO, mantendo a TACO como fonte primária. Cada item segue o mesmo formato (g/100g) para reaproveitar `calcMacros`:
 
----
+```ts
+export interface IndustrialFood extends TacoFood {
+  brand: string;             // "Tirolez", "Itambé", "Betânia", "Genérico"
+  source: "industrial";
+  servingG?: number;         // porção referência do rótulo (ex: 30)
+  saturatedFat?: number;     // g/100g
+  sodium?: number;           // mg/100g
+  lactoseFree?: boolean;
+}
+```
 
-## 1. Aluno — novo check-in vs atualizar último (3 edições)
+Itens cadastrados (valores convertidos da porção informada para por 100g):
 
-**Schema:** adicionar coluna `edit_count INT NOT NULL DEFAULT 0` em `public.check_ins`. Sem migration de dados (default 0).
+| Nome | kcal | P | C | G | Sat | Na | Lactose-free |
+|---|---|---|---|---|---|---|---|
+| Requeijão Light Tirolez | 187 | 8.7 | 2.3 | 16.0 | 11.0 | 490 | — |
+| Requeijão Light Itambé | 153 | 13.0 | 1.3 | 10.7 | 7.0 | 520 | — |
+| Requeijão Tradicional Tirolez | 253 | 5.7 | 1.7 | 25.0 | 17.0 | 453 | — |
+| Requeijão Zero Lactose Tirolez | 273 | 7.0 | 0.3 | 27.0 | 17.0 | 490 | ✓ |
+| Requeijão Zero Lactose Light Betânia | 193 | 10.7 | 2.0 | 16.0 | — | — | ✓ |
+| Creme de Arroz (genérico) | 370 | 7.0 | 82.0 | 0.5 | — | — | — |
 
-**UI em `src/pages/CheckIn.tsx`:**
-- Ao montar, buscar o último check-in do aluno (`order submitted_at desc limit 1`).
-- Se existir e `edit_count < 3`, abrir um diálogo inicial:
-  - **"Fazer novo check-in"** (fluxo atual, insert).
-  - **"Atualizar último check-in"** (carrega o `payload` + `current_metrics` + `fotos` no formulário; submit faz `update` em vez de `insert` e incrementa `edit_count`). Mostra contador "Edição X de 3".
-- Se `edit_count >= 3`, só permite novo (com aviso "Você já editou este check-in 3 vezes").
-- Notificação ao coach indica `kind: "checkin"` com flag `updated: true` quando for edição.
+`group` = `dairy` para requeijões; `carb` para creme de arroz.
 
-## 2. Aluno — editar a própria anamnese (2 edições)
+## 2. Busca unificada com prioridade TACO
 
-**Schema:** adicionar coluna `student_edit_count INT NOT NULL DEFAULT 0` em `public.anamnesis`.
+Em `src/data/tacoFoods.ts` (ou novo `src/lib/foodSearch.ts`):
+- `searchFood(query)` retorna `{ taco: TacoFood[]; industrial: IndustrialFood[] }`.
+- Resultados TACO aparecem primeiro; industrializados só aparecem quando o nome é explicitamente buscado (ex: "requeijão", "tirolez") ou quando não há TACO equivalente.
+- Os pickers existentes (`TacoCalculatorDialog`, `ProtocolBuilder` item picker) passam a usar esta busca unificada, mostrando uma etiqueta `Industrializado · <marca>` quando aplicável.
 
-**UI em `src/pages/StudentArea.tsx`** (ou no card de perfil — confirmar local exato durante implementação):
-- Botão "Editar minha anamnese" visível só se `student_edit_count < 2`.
-- Abre uma página/sheet reaproveitando a UI da `Anamnesis.tsx` em modo "edit": pré-carrega o `payload`, sem etapa de código/signup, salva via `update` e incrementa `student_edit_count`.
-- Após atingir 2, troca para mensagem "Para novas alterações fale com seu coach".
+## 3. Cálculo automático de kcal e macros
 
-## 3. Bug: edição do coach não reflete na Evolução
+`src/lib/macroCalc.ts` já tem `calcItemMacros`, `calcMealMacros`, `calcDayMacros`. Ajustes:
+- `calcItemMacros` passa a aceitar tanto `TacoFood` quanto `IndustrialFood` (busca em ambas as listas).
+- Adiciona helper `optionMacros(option)` que soma os itens daquela opção (principal ou substituição) e retorna `{ kcal, p, c, g }`.
+- Adiciona `compareOptions(main, alt)` retornando deltas absolutos e percentuais.
 
-Causas prováveis (vou validar no console/network do preview da Ana Paula):
-- `useStudentData` usa cache de React Query. Já tem subscription em `check_ins`, mas o invalidate está condicionado a `studentId` derivado da sessão. Quando o coach edita, a aluna precisa de invalidate; o realtime cobre, mas pode estar com filtro por `student_id eq` em outro lugar.
-- `Evolution.tsx` não força refetch ao montar.
+Tolerâncias para alertar coach (configuráveis em uma constante no topo do arquivo):
+- ±10% kcal **ou** ±15% em qualquer macro → badge âmbar "Atenção".
+- ±20% kcal **ou** ±30% em qualquer macro → badge vermelho "Desbalanceada".
 
-**Ações:**
-- `useStudentData`: adicionar `refetchOnMount: "always"` e `staleTime: 0` nas três queries (anamnesis/check-ins/protocol).
-- Conferir se o `update` do coach no `MeasurementsEditor` e no `AnamnesisViewer` define `updated_at = now()` (já fazem) — garantir que o canal realtime captura UPDATE (já é `*` por padrão).
-- Adicionar log temporário no canal realtime para confirmar entrega; se não chegar, trocar para invalidate on `visibilitychange`.
+## 4. Visão do Coach — `ProtocolBuilder`
 
-## 4. Coach — editar check-in completo
+No bloco de cada opção dentro de `MacroOptionsList` (linha ~1214) e no resumo da refeição (linha ~1135):
+- Mostrar abaixo de cada **opção** (principal e substituições) uma linha compacta: `XX kcal · Pp · Cc · Gg`.
+- Em substituições, anexar badge de delta vs. opção principal usando `compareOptions`. Cor segue a tolerância acima.
+- O cabeçalho da refeição (já existe `mm.protein` etc.) ganha `kcal` total ao lado dos macros.
 
-Estender o botão **"Editar check-in"** do `AnamnesisViewer` para abrir uma versão completa, não só medidas.
+Nenhuma mudança nos campos manuais de macros da refeição — eles continuam editáveis pelo coach como meta; o cálculo automático aparece como leitura adicional.
 
-**Implementação:** criar `src/components/coach/CheckinFullEditor.tsx` espelhando o layout de `CheckIn.tsx`, mas em `Dialog`:
-- Carrega o último `check_ins` do aluno.
-- Edita todas as seções de `CHECKIN_SECTIONS` + métricas + fotos + `coach_feedback`.
-- Salva com `update` em `check_ins.id`, atualizando `payload`, `current_metrics` e `updated_at`.
-- Substitui o uso atual de `MeasurementsEditor target="checkin"` no botão "Editar check-in"; mantém o `MeasurementsEditor` em uso para anamnese.
+## 5. Visão do Aluno — `StructuredMealsViewer`
 
----
+Mantém exatamente como está: somente nome do alimento, peso e observações. **Não** exibir kcal/macros por opção nem por refeição. O `NutritionStrategyHeader` (totais do dia) continua igual — ele já é informação macro de alto nível, não detalhe por opção.
 
-## Arquivos a tocar
+Garantir que campos de macro/kcal que possam ter sido adicionados ao item (`calcKcal`, etc.) **não vazem** no render do aluno. Auditar `MacroSection` para confirmar.
 
-- `supabase/migrations/<timestamp>_checkin_anamnesis_edit_counters.sql` (novo)
-- `src/pages/CheckIn.tsx` (modal de escolha + modo update)
-- `src/pages/StudentArea.tsx` (botão editar anamnese — local exato a confirmar)
-- `src/pages/Anamnesis.tsx` (suportar `?mode=edit` reusando o form para o aluno)
-- `src/hooks/useStudentData.ts` (refetch agressivo)
-- `src/components/anamnesis/AnamnesisViewer.tsx` (trocar abertura do "Editar check-in" para o novo editor)
-- `src/components/coach/CheckinFullEditor.tsx` (novo)
+## 6. Onde o cálculo é disparado
 
-## Fora de escopo
+- **Tempo real no `ProtocolBuilder`**: ao editar `weight`/`baseName`/trocar food, recalcular via `useMemo` sobre `option.items`.
+- **Persistência**: NÃO armazenar kcal/macros calculados no `diet_strategy_json` (são derivados; ficam só em memória). Isso evita migração de dados.
+- **Substituições**: as marcações de desbalanceamento são puramente client-side no painel do coach.
 
-- Histórico de versões de check-in/anamnese.
-- Alterações de billing, RLS de outras tabelas, alertas diários.
-- Mudança visual da Evolução além do refresh automático.
+## 7. Arquivos a tocar
 
-## Verificação
+- `src/data/industrialFoods.ts` (novo)
+- `src/lib/foodSearch.ts` (novo) — ou estender `tacoFoods.ts`
+- `src/lib/macroCalc.ts` (adicionar `optionMacros`, `compareOptions`, suportar industrial)
+- `src/components/coach/ProtocolBuilder.tsx` (kcal/macros por opção + badge de delta na substituição + kcal no cabeçalho)
+- `src/components/student/tools/TacoCalculatorDialog.tsx` (Picker passa a usar `searchFood`)
+- `src/components/student/StructuredMealsViewer.tsx` (auditoria — sem mudança visível ao aluno)
+
+## 8. Fora de escopo
+
+- Sem alterações de schema/DB.
+- Sem mudanças no aluno além da auditoria (zero vazamento de kcal).
+- Sem importação de planilha de industrializados — cadastro é via código.
+- Sem alterações em billing, daily_alerts, RLS, anamnese ou check-in.
+
+## 9. Verificação
 
 - `bunx tsc --noEmit` limpo.
-- Fluxo manual: aluno edita check-in 3x e bloqueia; aluno edita anamnese 2x e bloqueia; coach edita check-in completo e aluna vê na Evolução sem F5; aluno cria check-in novo.
+- Manualmente: criar refeição com requeijão + creme de arroz, conferir kcal/macros no painel do coach, abrir painel do aluno e confirmar que não aparecem números kcal/macros por opção.
