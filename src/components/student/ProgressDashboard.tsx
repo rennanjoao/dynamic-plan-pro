@@ -185,13 +185,19 @@ export const ProgressDashboard = () => {
   const chartData = useMemo(() => {
     return points.map((p, i) => ({
       ...p,
-      delta: i === 0 ? 0 : p[metric] - points[i - 1][metric],
+      delta:
+        i === 0
+          ? 0
+          : ((p[metric] ?? 0) as number) - ((points[i - 1][metric] ?? 0) as number),
     }));
   }, [points, metric]);
 
   const yDomain = useMemo(() => {
     if (chartData.length === 0) return ["auto", "auto"] as [number | string, number | string];
-    const values = chartData.map((d) => d[metric] as number).filter(Boolean);
+    const values = chartData
+      .map((d) => d[metric])
+      .filter((v): v is number => typeof v === "number" && isFinite(v));
+    if (values.length === 0) return ["auto", "auto"] as [number | string, number | string];
     const min = Math.min(...values);
     const max = Math.max(...values);
     const range = max - min;
@@ -201,7 +207,10 @@ export const ProgressDashboard = () => {
 
   const activeColor = useMemo(() => {
     if (chartData.length < 2) return "hsl(var(--primary))";
-    const delta = chartData[chartData.length - 1][metric] - chartData[0][metric];
+    const last = chartData[chartData.length - 1][metric];
+    const first = chartData[0][metric];
+    if (typeof last !== "number" || typeof first !== "number") return "hsl(var(--primary))";
+    const delta = last - first;
     const isImproving = metric === "gordura" || metric === "cintura" ? delta < 0 : delta < 0;
     return isImproving ? "hsl(142 71% 45%)" : "hsl(var(--primary))";
   }, [chartData, metric]);
@@ -262,15 +271,32 @@ export const ProgressDashboard = () => {
   const first = points[0];
   const last = points[points.length - 1];
   const deltaPeso = last.peso - first.peso;
-  const deltaGordura = last.gordura - first.gordura;
+  const hasBF = typeof last.gordura === "number" && typeof first.gordura === "number";
+  const deltaGordura = hasBF ? (last.gordura as number) - (first.gordura as number) : 0;
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <SummaryCard icon={Scale} label="Peso atual" value={fmt(last.peso, "kg")} accent="text-primary"
           delta={<DeltaBadge delta={deltaPeso} unit="kg" />} />
-        <SummaryCard icon={Percent} label="Gordura estimada" value={`${last.gordura.toFixed(1)}%`} accent="text-primary"
-          delta={<DeltaBadge delta={deltaGordura} unit="%" />} />
+        <SummaryCard
+          icon={Percent}
+          label="Gordura estimada"
+          value={typeof last.gordura === "number" ? `${last.gordura.toFixed(1)}%` : "—"}
+          accent="text-primary"
+          delta={
+            hasBF ? (
+              <div className="flex items-center gap-1.5">
+                <DeltaBadge delta={deltaGordura} unit="%" />
+                <span className="text-[10px] text-muted-foreground">vs. início</span>
+              </div>
+            ) : (
+              <span className="text-[10px] text-muted-foreground">
+                Informe pescoço, cintura e altura
+              </span>
+            )
+          }
+        />
         <SummaryCard icon={Flame} label="Sequência" value={`🔥 ${streak}`} accent="text-primary"
           delta={<span className="text-[10px] text-muted-foreground">
             {streak === 0 ? "Faça seu 1º check-in" : streak === 1 ? "quinzena registrada" : "quinzenas seguidas"}
