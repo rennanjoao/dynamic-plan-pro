@@ -474,29 +474,38 @@ export type Database = {
         Row: {
           coach_id: string
           created_at: string
+          critical_days: number | null
+          feedback_interval_days: number | null
           id: string
           notes: string | null
           status: string
           student_id: string
           updated_at: string
+          warning_days: number | null
         }
         Insert: {
           coach_id: string
           created_at?: string
+          critical_days?: number | null
+          feedback_interval_days?: number | null
           id?: string
           notes?: string | null
           status?: string
           student_id: string
           updated_at?: string
+          warning_days?: number | null
         }
         Update: {
           coach_id?: string
           created_at?: string
+          critical_days?: number | null
+          feedback_interval_days?: number | null
           id?: string
           notes?: string | null
           status?: string
           student_id?: string
           updated_at?: string
+          warning_days?: number | null
         }
         Relationships: []
       }
