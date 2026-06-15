@@ -331,13 +331,53 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
                 {(s.fields || []).map((f) => (
                   <div key={f.key} className="flex flex-col md:flex-row md:items-center justify-between gap-2 py-1.5 text-sm border-b border-border/40 last:border-0">
                     <span className="text-muted-foreground font-medium">{f.label}</span>
-                    {isEditing ? (
-                      <textarea
-                        value={(editPayload[f.key] as string) || ""}
-                        onChange={(e) => setEditPayload({...editPayload, [f.key]: e.target.value})}
-                        className="flex min-h-[40px] w-full md:max-w-[55%] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary resize-y"
-                      />
-                    ) : (
+                    {isEditing ? (() => {
+                      const kind = fieldInputType(f);
+                      const val = editPayload[f.key];
+                      const onChange = (v: string) => setEditPayload({ ...editPayload, [f.key]: v });
+                      const common = "w-full md:max-w-[55%]";
+                      if (kind === "number") {
+                        return (
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            step={(f.step as string | number | undefined) ?? "0.1"}
+                            min={NEURO_KEYS.has(f.key) ? 0 : undefined}
+                            max={NEURO_KEYS.has(f.key) ? 10 : undefined}
+                            value={val === null || val === undefined ? "" : String(val)}
+                            onChange={(e) => onChange(e.target.value)}
+                            className={common}
+                          />
+                        );
+                      }
+                      if (kind === "date") {
+                        return (
+                          <Input
+                            type="date"
+                            value={(val as string) || ""}
+                            onChange={(e) => onChange(e.target.value)}
+                            className={common}
+                          />
+                        );
+                      }
+                      if (kind === "time") {
+                        return (
+                          <Input
+                            type="time"
+                            value={(val as string) || ""}
+                            onChange={(e) => onChange(e.target.value)}
+                            className={common}
+                          />
+                        );
+                      }
+                      return (
+                        <Textarea
+                          value={(val as string) || ""}
+                          onChange={(e) => onChange(e.target.value)}
+                          className={`${common} min-h-[40px] resize-y`}
+                        />
+                      );
+                    })() : (
                       <span className="font-medium text-right max-w-[55%] text-foreground">{fmt(data[f.key])}</span>
                     )}
                   </div>
