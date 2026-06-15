@@ -337,6 +337,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
 
       {payload && (
         <StudentProtocolPreview
+          key={`${activeTab}-${previewOpen ? "open" : "closed"}`}
           open={previewOpen}
           onClose={() => setPreviewOpen(false)}
           payload={payload}
