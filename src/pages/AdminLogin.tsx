@@ -14,6 +14,8 @@ const AdminLogin = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<"login" | "recover">("login");
+  const [recoverEmail, setRecoverEmail] = useState("");
 
   const routeByRole = async (userId: string) => {
     const [{ data: isAdmin }, { data: isCoach }] = await Promise.all([
@@ -67,6 +69,25 @@ const AdminLogin = () => {
       } else {
         toast.error(message || "Erro ao fazer login");
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRecover = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(recoverEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      toast.success("Enviamos um link de redefinição para o seu e-mail");
+      setMode("login");
+      setRecoverEmail("");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao enviar link";
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }
