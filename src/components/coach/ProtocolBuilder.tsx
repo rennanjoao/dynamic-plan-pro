@@ -1213,22 +1213,15 @@ function FoodRow({
 }: {
   it: any;
   kind: "carb" | "protein" | "fat";
-  onPickTaco: (t: typeof TACO_DATA[number]) => void;
+  onPickTaco: (t: FoodHit) => void;
   onChangeName: (s: string) => void;
   onChangeWeight: (s: string) => void;
   onRemove: () => void;
 }) {
   const [focused, setFocused] = useState(false);
   const q = (it.baseName || it.name || "").toString().trim().toLowerCase();
-  const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  const matches = useMemo(() => {
-    if (q.length < 2) return [];
-    const nq = norm(q);
-    return TACO_DATA
-      .filter((t) => norm(t.name).includes(nq))
-      .slice(0, 8);
-  }, [q]);
-  const showSuggestions = focused && matches.length > 0 && !it.isTaco;
+  const matches = useMemo<FoodHit[]>(() => (q.length < 2 ? [] : searchFoods(q, 10)), [q]);
+  const showSuggestions = focused && matches.length > 0 && !it.isTaco && !it.isIndustrial;
 
   return (
     <>
@@ -1257,12 +1250,15 @@ function FoodRow({
                 const badgeLabel = tKind === "protein" ? "prot" : tKind === "fat" ? "gord" : "carb";
                 return (
                   <button
-                    key={taco.id}
+                    key={`${taco.source}-${taco.name}`}
                     type="button"
                     onMouseDown={(e) => { e.preventDefault(); onPickTaco(taco); setFocused(false); }}
                     className="w-full flex items-center gap-2 text-left px-2 py-1.5 text-xs hover:bg-accent"
                   >
                     <span className="flex-1 truncate">{taco.name}</span>
+                    {taco.source === "industrial" && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-violet-500/10 text-violet-500 border border-violet-500/30" title={`Industrializado · ${taco.brand}`}>IND</span>
+                    )}
                     <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${badgeCls}`}>{badgeLabel}</span>
                     {taco.cookFactor !== 1 && <span className="text-[9px] text-muted-foreground">×{taco.cookFactor}</span>}
                   </button>
