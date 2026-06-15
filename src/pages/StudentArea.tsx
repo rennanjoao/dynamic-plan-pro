@@ -21,6 +21,7 @@ import {
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { toast } from "sonner";
 import FeedbackCountdownAlert from "@/components/student/FeedbackCountdownAlert";
+import { TrainerAlert } from "@/components/student/TrainerAlert";
 
 // Chave do localStorage por user — evita colisão entre alunos no mesmo browser
 const DISMISSED_KEY = (uid: string) => `dismissed_alerts_${uid}`;
@@ -272,6 +273,9 @@ export default function StudentArea() {
             onDismiss={dismissAlert}
           />
         )}
+
+        {/* ALERTA DO COACH (daily_alerts + protocolo atualizado em tempo real) */}
+        <TrainerAlert />
 
         {/* ALERTA DE PROTOCOLO ATUALIZADO */}
         {protocolAlert && !dismissedAlerts.includes(protocolAlert.id) && (
