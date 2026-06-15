@@ -1,11 +1,10 @@
 /**
  * ProgressDashboard.tsx
  *
- * CORREÇÃO — Estimativa de BF:
- *   Usa fórmula multi-variável baseada em TODOS os dados disponíveis:
- *   peso, altura, cintura, sexo e anos de treino (nível de atividade).
- *   Se o aluno digitou body_fat no check-in/anamnese, usa o valor real.
- *   Caso contrário, calcula pela fórmula RFM (US Navy adaptada).
+ * Estimativa de %BF baseada em medidas reais:
+ *   pescoço, cintura, quadril (F) e altura.
+ *   Se o aluno digitou body_fat na anamnese/check-in, usa o valor real.
+ *   Sem dados suficientes → retorna null (UI mostra "—").
  */
 
 import { useMemo, useState } from "react";
@@ -26,7 +25,7 @@ interface Point {
   label: string;
   dateFull: string;
   peso: number;
-  gordura: number;
+  gordura: number | null;
   cintura: number;
 }
 
@@ -37,65 +36,47 @@ const METRIC_META: Record<MetricKey, { label: string; unit: string; icon: typeof
 };
 
 /**
- * Estimativa de BF multi-variável.
- *
+ * Estimativa de %BF.
  * Prioridade:
- *   1. body_fat digitado pelo aluno (valor real medido)
- *   2. Fórmula US Navy (requer cintura + altura; para F requer também quadril)
- *   3. RFM (Relative Fat Mass) — fallback cintura/altura
- *
- * Ajuste por nível de treino: atletas têm BF menor pela composição muscular.
+ *   1. body_fat digitado pelo aluno (valor real medido).
+ *   2. Fórmula com pescoço/cintura/quadril/altura.
+ * Retorna null quando não há dados suficientes.
  */
 function estimateBF(params: {
   altura: number;
   cintura: number;
+  pescoco: number;
   quadril?: number;
-  peso?: number;
   genero: string;
-  bodyFatRaw?: number;     // valor digitado (tem prioridade)
-  anosTeino?: number;      // anos de treinamento
-  nivelTreino?: string;    // "Iniciante" | "Intermediário" | "Avançado"
-}): number {
-  const { altura, cintura, quadril, genero, bodyFatRaw, anosTeino, nivelTreino } = params;
+  bodyFatRaw?: number;
+}): number | null {
+  const { altura, cintura, pescoco, quadril, genero, bodyFatRaw } = params;
 
-  // 1. Usa valor digitado se disponível e plausível
-  if (bodyFatRaw && bodyFatRaw > 2 && bodyFatRaw < 60) return bodyFatRaw;
-
-  if (!altura || altura < 100 || !cintura || cintura < 40) return 0;
-
-  let bf = 0;
-
-  // 2. US Navy (mais preciso — usa pescoço, cintura, quadril)
-  // Como não temos pescoço, usamos variante simplificada com cintura e quadril
-  if (quadril && quadril > 60) {
-    if (genero === "F") {
-      // US Navy feminino
-      bf = 163.205 * Math.log10(cintura + quadril - 0) - 97.684 * Math.log10(altura) - 78.387;
-    } else {
-      // Adaptado: sem pescoço, cintura sozinha no lugar de (cintura - pescoço)
-      bf = 86.01 * Math.log10(cintura) - 70.041 * Math.log10(altura) + 36.76;
-    }
-  } else {
-    // 3. RFM (Relative Fat Mass) — fallback
-    if (genero === "F") {
-      bf = 76 - 20 * (altura / cintura);
-    } else {
-      bf = 64 - 20 * (altura / cintura);
-    }
+  if (bodyFatRaw && bodyFatRaw > 2 && bodyFatRaw < 60) {
+    return Math.round(bodyFatRaw * 10) / 10;
   }
 
-  // Ajuste por nível de treino / anos treinando
-  // Atletas e avançados tendem a ter mais massa magra → BF menor
-  const anos = anosTeino ?? 0;
-  const nivel = (nivelTreino ?? "").toLowerCase();
-  let ajuste = 0;
-  if (nivel === "avançado" || anos >= 5) ajuste = -2.5;
-  else if (nivel === "intermediário" || anos >= 2) ajuste = -1.5;
-  else if (nivel === "iniciante" || anos >= 0) ajuste = 0;
+  if (!altura || altura < 100 || !cintura || cintura < 40 || !pescoco || pescoco < 20) {
+    return null;
+  }
 
-  bf = bf + ajuste;
+  const isF = (genero || "").toUpperCase().startsWith("F");
+  let bf: number;
 
-  return Math.max(2, Math.round(bf * 10) / 10);
+  if (isF) {
+    if (!quadril || quadril < 60) return null;
+    const inner = cintura + quadril - pescoco;
+    if (inner <= 0) return null;
+    bf = 495 / (1.29579 - 0.35004 * Math.log10(inner) + 0.22100 * Math.log10(altura)) - 450;
+  } else {
+    const inner = cintura - pescoco;
+    if (inner <= 0) return null;
+    bf = 495 / (1.0324 - 0.19077 * Math.log10(inner) + 0.15456 * Math.log10(altura)) - 450;
+  }
+
+  if (!isFinite(bf)) return null;
+  bf = Math.min(60, Math.max(isF ? 10 : 2, bf));
+  return Math.round(bf * 10) / 10;
 }
 
 const fmt = (v: number, unit: string) => `${v.toFixed(1)} ${unit}`;
@@ -156,14 +137,13 @@ export const ProgressDashboard = () => {
     const payloadAna = (anamnesis?.payload as Record<string, unknown>) || {};
     const altura = Number(baseline.altura || payloadAna.altura || 0);
     const genero = (payloadAna.genero as string) || (payloadAna.sexo as string) || "M";
-    const anosTeino = Number(payloadAna.anos_treino ?? 0);
-    const nivelTreino = (payloadAna.nivel_treino as string) || "";
 
     const raw: Array<Point & { ts: number }> = [];
 
     if (anamnesis?.submitted_at && baseline.peso) {
       const cintura = Number(baseline.cintura || 0);
       const quadril = Number(baseline.quadril || payloadAna.quadril || 0);
+      const pescoco = Number(baseline.pescoco || payloadAna.pescoco || 0);
       const bodyFatRaw = Number(payloadAna.body_fat || 0);
       raw.push({
         idx: 0,
@@ -172,7 +152,7 @@ export const ProgressDashboard = () => {
         dateFull: new Date(anamnesis.submitted_at).toLocaleDateString("pt-BR"),
         peso: Number(baseline.peso),
         cintura,
-        gordura: estimateBF({ altura, cintura, quadril, genero, bodyFatRaw, anosTeino, nivelTreino }),
+        gordura: estimateBF({ altura, cintura, pescoco, quadril, genero, bodyFatRaw }),
       });
     }
 
@@ -182,6 +162,7 @@ export const ProgressDashboard = () => {
       if (!peso) return;
       const cintura = Number(chk.current_metrics.cintura || 0);
       const quadril = Number(chk.current_metrics.quadril || 0);
+      const pescoco = Number(chk.current_metrics.pescoco || 0);
       const chkPayload = (chk.payload as Record<string, unknown>) || {};
       const bodyFatRaw = Number(chkPayload.body_fat || 0);
       raw.push({
@@ -191,7 +172,7 @@ export const ProgressDashboard = () => {
         dateFull: new Date(chk.submitted_at).toLocaleDateString("pt-BR"),
         peso,
         cintura,
-        gordura: estimateBF({ altura, cintura, quadril, genero, bodyFatRaw, anosTeino, nivelTreino }),
+        gordura: estimateBF({ altura, cintura, pescoco, quadril, genero, bodyFatRaw }),
       });
     });
 
@@ -204,13 +185,19 @@ export const ProgressDashboard = () => {
   const chartData = useMemo(() => {
     return points.map((p, i) => ({
       ...p,
-      delta: i === 0 ? 0 : p[metric] - points[i - 1][metric],
+      delta:
+        i === 0
+          ? 0
+          : ((p[metric] ?? 0) as number) - ((points[i - 1][metric] ?? 0) as number),
     }));
   }, [points, metric]);
 
   const yDomain = useMemo(() => {
     if (chartData.length === 0) return ["auto", "auto"] as [number | string, number | string];
-    const values = chartData.map((d) => d[metric] as number).filter(Boolean);
+    const values = chartData
+      .map((d) => d[metric])
+      .filter((v): v is number => typeof v === "number" && isFinite(v));
+    if (values.length === 0) return ["auto", "auto"] as [number | string, number | string];
     const min = Math.min(...values);
     const max = Math.max(...values);
     const range = max - min;
@@ -220,7 +207,10 @@ export const ProgressDashboard = () => {
 
   const activeColor = useMemo(() => {
     if (chartData.length < 2) return "hsl(var(--primary))";
-    const delta = chartData[chartData.length - 1][metric] - chartData[0][metric];
+    const last = chartData[chartData.length - 1][metric];
+    const first = chartData[0][metric];
+    if (typeof last !== "number" || typeof first !== "number") return "hsl(var(--primary))";
+    const delta = last - first;
     const isImproving = metric === "gordura" || metric === "cintura" ? delta < 0 : delta < 0;
     return isImproving ? "hsl(142 71% 45%)" : "hsl(var(--primary))";
   }, [chartData, metric]);
@@ -281,15 +271,32 @@ export const ProgressDashboard = () => {
   const first = points[0];
   const last = points[points.length - 1];
   const deltaPeso = last.peso - first.peso;
-  const deltaGordura = last.gordura - first.gordura;
+  const hasBF = typeof last.gordura === "number" && typeof first.gordura === "number";
+  const deltaGordura = hasBF ? (last.gordura as number) - (first.gordura as number) : 0;
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <SummaryCard icon={Scale} label="Peso atual" value={fmt(last.peso, "kg")} accent="text-primary"
           delta={<DeltaBadge delta={deltaPeso} unit="kg" />} />
-        <SummaryCard icon={Percent} label="Gordura estimada" value={`${last.gordura.toFixed(1)}%`} accent="text-primary"
-          delta={<DeltaBadge delta={deltaGordura} unit="%" />} />
+        <SummaryCard
+          icon={Percent}
+          label="Gordura estimada"
+          value={typeof last.gordura === "number" ? `${last.gordura.toFixed(1)}%` : "—"}
+          accent="text-primary"
+          delta={
+            hasBF ? (
+              <div className="flex items-center gap-1.5">
+                <DeltaBadge delta={deltaGordura} unit="%" />
+                <span className="text-[10px] text-muted-foreground">vs. início</span>
+              </div>
+            ) : (
+              <span className="text-[10px] text-muted-foreground">
+                Informe pescoço, cintura e altura
+              </span>
+            )
+          }
+        />
         <SummaryCard icon={Flame} label="Sequência" value={`🔥 ${streak}`} accent="text-primary"
           delta={<span className="text-[10px] text-muted-foreground">
             {streak === 0 ? "Faça seu 1º check-in" : streak === 1 ? "quinzena registrada" : "quinzenas seguidas"}
