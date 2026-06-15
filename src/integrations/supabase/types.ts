@@ -57,6 +57,7 @@ export type Database = {
           created_at: string
           id: string
           payload: Json
+          student_edit_count: number
           student_id: string
           submitted_at: string | null
           updated_at: string
@@ -70,6 +71,7 @@ export type Database = {
           created_at?: string
           id?: string
           payload?: Json
+          student_edit_count?: number
           student_id: string
           submitted_at?: string | null
           updated_at?: string
@@ -83,6 +85,7 @@ export type Database = {
           created_at?: string
           id?: string
           payload?: Json
+          student_edit_count?: number
           student_id?: string
           submitted_at?: string | null
           updated_at?: string
@@ -218,6 +221,7 @@ export type Database = {
           coach_id: string | null
           created_at: string
           current_metrics: Json
+          edit_count: number
           feedback_read_at: string | null
           id: string
           payload: Json
@@ -234,6 +238,7 @@ export type Database = {
           coach_id?: string | null
           created_at?: string
           current_metrics?: Json
+          edit_count?: number
           feedback_read_at?: string | null
           id?: string
           payload?: Json
@@ -250,6 +255,7 @@ export type Database = {
           coach_id?: string | null
           created_at?: string
           current_metrics?: Json
+          edit_count?: number
           feedback_read_at?: string | null
           id?: string
           payload?: Json
