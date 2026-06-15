@@ -13,6 +13,7 @@ import {
   ResponsiveContainer, TooltipProps, LabelList,
 } from "recharts";
 import { useStudentData } from "@/hooks/useStudentData";
+import { estimateBF as estimateBFShared } from "@/lib/bfEstimate";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,11 +37,8 @@ const METRIC_META: Record<MetricKey, { label: string; unit: string; icon: typeof
 };
 
 /**
- * Estimativa de %BF.
- * Prioridade:
- *   1. body_fat digitado pelo aluno (valor real medido).
- *   2. Fórmula com pescoço/cintura/quadril/altura.
- * Retorna null quando não há dados suficientes.
+ * Estimativa de %BF derivada exclusivamente das medidas (US Navy).
+ * Sempre automático — nunca lê valor digitado.
  */
 function estimateBF(params: {
   altura: number;
@@ -48,35 +46,8 @@ function estimateBF(params: {
   pescoco: number;
   quadril?: number;
   genero: string;
-  bodyFatRaw?: number;
 }): number | null {
-  const { altura, cintura, pescoco, quadril, genero, bodyFatRaw } = params;
-
-  if (bodyFatRaw && bodyFatRaw > 2 && bodyFatRaw < 60) {
-    return Math.round(bodyFatRaw * 10) / 10;
-  }
-
-  if (!altura || altura < 100 || !cintura || cintura < 40 || !pescoco || pescoco < 20) {
-    return null;
-  }
-
-  const isF = (genero || "").toUpperCase().startsWith("F");
-  let bf: number;
-
-  if (isF) {
-    if (!quadril || quadril < 60) return null;
-    const inner = cintura + quadril - pescoco;
-    if (inner <= 0) return null;
-    bf = 495 / (1.29579 - 0.35004 * Math.log10(inner) + 0.22100 * Math.log10(altura)) - 450;
-  } else {
-    const inner = cintura - pescoco;
-    if (inner <= 0) return null;
-    bf = 495 / (1.0324 - 0.19077 * Math.log10(inner) + 0.15456 * Math.log10(altura)) - 450;
-  }
-
-  if (!isFinite(bf)) return null;
-  bf = Math.min(60, Math.max(isF ? 10 : 2, bf));
-  return Math.round(bf * 10) / 10;
+  return estimateBFShared(params).value;
 }
 
 const fmt = (v: number, unit: string) => `${v.toFixed(1)} ${unit}`;
@@ -144,7 +115,6 @@ export const ProgressDashboard = () => {
       const cintura = Number(baseline.cintura || 0);
       const quadril = Number(baseline.quadril || payloadAna.quadril || 0);
       const pescoco = Number(baseline.pescoco || payloadAna.pescoco || 0);
-      const bodyFatRaw = Number(payloadAna.body_fat || 0);
       raw.push({
         idx: 0,
         ts: new Date(anamnesis.submitted_at).getTime(),
@@ -152,7 +122,7 @@ export const ProgressDashboard = () => {
         dateFull: new Date(anamnesis.submitted_at).toLocaleDateString("pt-BR"),
         peso: Number(baseline.peso),
         cintura,
-        gordura: estimateBF({ altura, cintura, pescoco, quadril, genero, bodyFatRaw }),
+        gordura: estimateBF({ altura, cintura, pescoco, quadril, genero }),
       });
     }
 
@@ -163,8 +133,6 @@ export const ProgressDashboard = () => {
       const cintura = Number(chk.current_metrics.cintura || 0);
       const quadril = Number(chk.current_metrics.quadril || 0);
       const pescoco = Number(chk.current_metrics.pescoco || 0);
-      const chkPayload = (chk.payload as Record<string, unknown>) || {};
-      const bodyFatRaw = Number(chkPayload.body_fat || 0);
       raw.push({
         idx: 0,
         ts: new Date(chk.submitted_at).getTime(),
@@ -172,7 +140,7 @@ export const ProgressDashboard = () => {
         dateFull: new Date(chk.submitted_at).toLocaleDateString("pt-BR"),
         peso,
         cintura,
-        gordura: estimateBF({ altura, cintura, pescoco, quadril, genero, bodyFatRaw }),
+        gordura: estimateBF({ altura, cintura, pescoco, quadril, genero }),
       });
     });
 

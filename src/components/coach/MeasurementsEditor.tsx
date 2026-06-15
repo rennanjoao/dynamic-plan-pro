@@ -14,6 +14,8 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2, Save, Upload } from "lucide-react";
 import { BASELINE_KEYS, uploadToCloudinary } from "@/lib/anamnesisSchema";
+import { estimateBF } from "@/lib/bfEstimate";
+import BFDisplay from "@/components/shared/BFDisplay";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -34,7 +36,6 @@ const FIELDS: Array<{ key: string; label: string; unit?: string }> = [
   { key: "coxa_e",           label: "Coxa E",             unit: "cm" },
   { key: "pant_d",           label: "Panturrilha D",      unit: "cm" },
   { key: "pant_e",           label: "Panturrilha E",      unit: "cm" },
-  { key: "body_fat",         label: "BF% estimado",       unit: "%"  },
 ];
 
 const PHOTO_SLOTS: Array<{ key: string; label: string }> = [
@@ -121,6 +122,17 @@ export default function MeasurementsEditor({ open, onOpenChange, studentId, targ
     return b;
   }, [values]);
 
+  const bf = useMemo(() => {
+    const genero = (origPayload.genero as string) || (origPayload.sexo as string) || "M";
+    return estimateBF({
+      altura: values.altura,
+      cintura: values.cintura,
+      pescoco: values.pescoco,
+      quadril: values.quadril,
+      genero,
+    });
+  }, [values, origPayload]);
+
   async function handleSave() {
     if (!rowId) return;
     setSaving(true);
@@ -134,6 +146,8 @@ export default function MeasurementsEditor({ open, onOpenChange, studentId, targ
         merged[f.key] = isNaN(n) ? raw : n;
       }
     }
+    // BF% nunca é persistido: é sempre recalculado a partir das medidas.
+    delete merged.body_fat;
     const table = target === "anamnesis" ? "anamnesis" : "check_ins";
     const update: Record<string, unknown> = { payload: merged, updated_at: new Date().toISOString() };
     if (target === "anamnesis") update.baseline_metrics = baseline;
@@ -181,6 +195,25 @@ export default function MeasurementsEditor({ open, onOpenChange, studentId, targ
                   />
                 </div>
               ))}
+            </div>
+
+            <div className="rounded-lg border border-border bg-muted/10 p-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">BF% estimado (automático)</Label>
+                {bf.value != null ? (
+                  <BFDisplay value={bf.value} showLabel={false} />
+                ) : (
+                  <span className="text-sm text-muted-foreground">—</span>
+                )}
+              </div>
+              {bf.value == null && bf.missing.length > 0 && (
+                <p className="text-[11px] text-amber-500 mt-1">
+                  Faltam para calcular: {bf.missing.join(", ")}
+                </p>
+              )}
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Calculado pela fórmula US Navy a partir das medidas acima.
+              </p>
             </div>
 
             <div>

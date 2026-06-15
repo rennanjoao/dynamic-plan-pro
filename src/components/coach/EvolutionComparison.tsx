@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2, TrendingDown, TrendingUp, Minus, FileText, ArrowLeft, ZoomIn } from "lucide-react";
 import { CHECKIN_METRICS } from "@/lib/checkInSchema";
+import { estimateBF } from "@/lib/bfEstimate";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -61,19 +62,30 @@ export default function EvolutionComparison({
     (async () => {
       setLoading(true);
       const [{ data: anam }, { data: cis }] = await Promise.all([
-        sb.from("anamnesis").select("id, submitted_at, baseline_metrics, payload, body_fat")
+        sb.from("anamnesis").select("id, submitted_at, baseline_metrics, payload")
           .eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle(),
-        sb.from("check_ins").select("id, submitted_at, current_metrics, payload, coach_feedback, body_fat")
+        sb.from("check_ins").select("id, submitted_at, current_metrics, payload, coach_feedback")
           .eq("student_id", studentId).order("submitted_at", { ascending: false }),
       ]);
 
       const list: Timepoint[] = [];
 
+      const anamPayload = (anam?.payload || {}) as Record<string, unknown>;
+      const genero = ((anamPayload.genero as string) || (anamPayload.sexo as string) || "M");
+      const baselineAltura = (anam?.baseline_metrics?.altura as number | undefined) ?? (anamPayload.altura as number | undefined);
+
       if (anam) {
         const payload = (anam.payload || {}) as Record<string, unknown>;
         const fotos = (payload.fotos as Record<string, string>) || {};
         const metrics = { ...(anam.baseline_metrics || {}) } as Record<string, number | undefined>;
-        if (anam.body_fat != null) metrics.body_fat = anam.body_fat;
+        const bf = estimateBF({
+          altura: metrics.altura ?? baselineAltura,
+          cintura: metrics.cintura,
+          pescoco: metrics.pescoco,
+          quadril: metrics.quadril,
+          genero,
+        });
+        if (bf.value != null) metrics.body_fat = bf.value;
         list.push({
           id: `anam-${anam.id}`,
           kind: "anamnese",
@@ -87,7 +99,14 @@ export default function EvolutionComparison({
         const payload = (c.payload || {}) as Record<string, unknown>;
         const fotos = (payload.fotos as Record<string, string>) || {};
         const metrics = { ...(c.current_metrics || {}) } as Record<string, number | undefined>;
-        if (c.body_fat != null) metrics.body_fat = c.body_fat;
+        const bf = estimateBF({
+          altura: metrics.altura ?? baselineAltura,
+          cintura: metrics.cintura,
+          pescoco: metrics.pescoco,
+          quadril: metrics.quadril,
+          genero,
+        });
+        if (bf.value != null) metrics.body_fat = bf.value;
         list.push({
           id: `ci-${c.id}`,
           kind: "checkin",

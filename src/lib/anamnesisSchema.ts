@@ -49,7 +49,6 @@ export const ANAMNESIS_SECTIONS: AnamnesisSection[] = [
     { key: "coxa_e", label: "Coxa E (cm)" },
     { key: "pant_d", label: "Pant. D (cm)" },
     { key: "pant_e", label: "Pant. E (cm)" },
-    { key: "body_fat", label: "Estimativa BF%", type: "number", step: "0.1", unit: "%", half: true },
     { key: "hist_peso", label: "Histórico de peso" },
   ]},
   { id: "objetivos", title: "Para onde quer chegar", fields: [
