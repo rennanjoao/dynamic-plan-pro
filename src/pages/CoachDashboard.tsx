@@ -1056,6 +1056,14 @@ export default function CoachDashboard() {
           open={!!latestFbStudent}
           onClose={() => setLatestFbStudent(null)}
         />
+
+        <StudentFeedbackConfigDialog
+          student={settingsStudent}
+          coachId={coachId}
+          open={!!settingsStudent}
+          onClose={() => setSettingsStudent(null)}
+          onSaved={() => qc.invalidateQueries({ queryKey: ["coach-students"] })}
+        />
       </main>
     </div>
   );
