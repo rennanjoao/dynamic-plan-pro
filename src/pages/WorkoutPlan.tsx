@@ -207,13 +207,18 @@ export default function WorkoutPlan() {
           )}
         />
 
-        {/* Aeróbicos prescritos */}
-        {Array.isArray(safePayload?.cardio) && safePayload.cardio.length > 0 && (
+        {/* Aeróbicos prescritos (apenas os NÃO vinculados a um treino específico) */}
+        {Array.isArray(safePayload?.cardio) &&
+          safePayload.cardio.filter(
+            (c: any) => !(c.workoutKey && c.associationType === "workout")
+          ).length > 0 && (
           <div className="space-y-3">
             <h2 className="font-bold text-sm text-foreground flex items-center gap-2 px-1">
               <Activity className="w-4 h-4 text-primary" /> Aeróbico Prescrito
             </h2>
-            {safePayload.cardio.map((c: any, i: number) => (
+            {safePayload.cardio
+              .filter((c: any) => !(c.workoutKey && c.associationType === "workout"))
+              .map((c: any, i: number) => (
               <Card key={i} className="bg-card border border-border rounded-xl p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-bold text-primary">{c.type || "Aeróbico"}</span>
