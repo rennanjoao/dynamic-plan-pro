@@ -14,6 +14,41 @@ interface Props {
   onRemove: () => void;
 }
 
+const MAX_DIM = 1200;
+const JPEG_QUALITY = 0.78;
+
+async function compressImage(file: File): Promise<File> {
+  if (!file.type.startsWith("image/")) return file;
+  try {
+    const url = URL.createObjectURL(file);
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => resolve(im);
+      im.onerror = reject;
+      im.src = url;
+    });
+    const { naturalWidth: w, naturalHeight: h } = img;
+    const scale = Math.min(1, MAX_DIM / Math.max(w, h));
+    const dw = Math.round(w * scale);
+    const dh = Math.round(h * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = dw;
+    canvas.height = dh;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) { URL.revokeObjectURL(url); return file; }
+    ctx.drawImage(img, 0, 0, dw, dh);
+    const blob = await new Promise<Blob | null>((res) =>
+      canvas.toBlob(res, "image/jpeg", JPEG_QUALITY)
+    );
+    URL.revokeObjectURL(url);
+    if (!blob || blob.size >= file.size) return file;
+    const newName = file.name.replace(/\.\w+$/, "") + ".jpg";
+    return new File([blob], newName, { type: "image/jpeg", lastModified: Date.now() });
+  } catch {
+    return file;
+  }
+}
+
 export function FotoSlot({ label, preview, onFile, onRemove }: Props) {
   const inp = useRef<HTMLInputElement>(null);
 
@@ -32,8 +67,12 @@ export function FotoSlot({ label, preview, onFile, onRemove }: Props) {
         type="file"
         accept="image/*"
         className="hidden"
-        onChange={(e) => {
-          if (e.target.files?.[0]) onFile(e.target.files[0]);
+        onChange={async (e) => {
+          const f = e.target.files?.[0];
+          if (!f) return;
+          const compressed = await compressImage(f);
+          onFile(compressed);
+          e.target.value = "";
         }}
       />
       {preview ? (

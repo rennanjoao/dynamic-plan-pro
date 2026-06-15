@@ -27,8 +27,6 @@ const POSE_LABEL: Record<string, string> = {
 
 const EXTRA_METRICS = [
   { key: "body_fat", label: "% Gordura", unit: "%" },
-  { key: "arm_relaxed", label: "Braço relaxado", unit: "cm" },
-  { key: "arm_flexed", label: "Braço contraído", unit: "cm" },
 ] as const;
 const ALL_METRICS = [...CHECKIN_METRICS, ...EXTRA_METRICS];
 
@@ -63,9 +61,9 @@ export default function EvolutionComparison({
     (async () => {
       setLoading(true);
       const [{ data: anam }, { data: cis }] = await Promise.all([
-        sb.from("anamnesis").select("id, submitted_at, baseline_metrics, payload, body_fat, arm_relaxed, arm_flexed")
+        sb.from("anamnesis").select("id, submitted_at, baseline_metrics, payload, body_fat")
           .eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle(),
-        sb.from("check_ins").select("id, submitted_at, current_metrics, payload, coach_feedback, body_fat, arm_relaxed, arm_flexed")
+        sb.from("check_ins").select("id, submitted_at, current_metrics, payload, coach_feedback, body_fat")
           .eq("student_id", studentId).order("submitted_at", { ascending: false }),
       ]);
 
@@ -76,8 +74,6 @@ export default function EvolutionComparison({
         const fotos = (payload.fotos as Record<string, string>) || {};
         const metrics = { ...(anam.baseline_metrics || {}) } as Record<string, number | undefined>;
         if (anam.body_fat != null) metrics.body_fat = anam.body_fat;
-        if (anam.arm_relaxed != null) metrics.arm_relaxed = anam.arm_relaxed;
-        if (anam.arm_flexed != null) metrics.arm_flexed = anam.arm_flexed;
         list.push({
           id: `anam-${anam.id}`,
           kind: "anamnese",
@@ -92,8 +88,6 @@ export default function EvolutionComparison({
         const fotos = (payload.fotos as Record<string, string>) || {};
         const metrics = { ...(c.current_metrics || {}) } as Record<string, number | undefined>;
         if (c.body_fat != null) metrics.body_fat = c.body_fat;
-        if (c.arm_relaxed != null) metrics.arm_relaxed = c.arm_relaxed;
-        if (c.arm_flexed != null) metrics.arm_flexed = c.arm_flexed;
         list.push({
           id: `ci-${c.id}`,
           kind: "checkin",

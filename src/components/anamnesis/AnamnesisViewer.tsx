@@ -166,7 +166,9 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
     try {
       // Recalcula o baseline_metrics numérico
       const baseline: Record<string, number> = {};
-      ["altura", "peso", "cintura", "quadril", "braco_d", "braco_e", "coxa_d", "coxa_e", "pant_d", "pant_e"].forEach(k => {
+      ["altura", "peso", "pescoco", "cintura", "quadril",
+       "braco_d_relaxado", "braco_e_relaxado", "braco_d_contraido", "braco_e_contraido",
+       "coxa_d", "coxa_e", "pant_d", "pant_e"].forEach(k => {
         const n = parseFloat(String(editPayload[k] ?? ""));
         if (!isNaN(n)) baseline[k] = n;
       });
