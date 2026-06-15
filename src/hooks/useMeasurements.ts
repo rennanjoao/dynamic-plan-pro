@@ -140,18 +140,37 @@ export const useMeasurements = () => {
   };
 };
 
-// Simple body fat estimation using waist-to-height ratio
-function calculateBodyFat(measurement: Omit<BodyMeasurement, "id" | "measurement_date">): number | null {
-  // This is a simplified calculation. In reality, you'd need gender, age, height
-  if (!measurement.waist) return null;
-  
-  // Assuming average height of 170cm for estimation
-  const waistToHeightRatio = measurement.waist / 170;
-  
-  // Simple formula (not medical grade)
-  const bodyFat = (waistToHeightRatio - 0.35) * 100 + 15;
-  
-  return Math.max(5, Math.min(50, bodyFat)); // Clamp between 5% and 50%
+// US Navy Method for body fat estimation
+// Requires: height (cm), neck (cm), waist (cm), and hip (cm) for females.
+function calculateBodyFat(
+  measurement: Omit<BodyMeasurement, "id" | "measurement_date"> & {
+    neck?: number | null;
+    height?: number | null;
+    hip?: number | null;
+    gender?: "M" | "F" | string | null;
+  }
+): number | null {
+  const height = Number(measurement.height ?? 0);
+  const neck = Number(measurement.neck ?? 0);
+  const waist = Number(measurement.waist ?? 0);
+  const hip = Number(measurement.hip ?? 0);
+  const gender = (measurement.gender ?? "M").toString().toUpperCase();
+
+  if (height <= 0 || neck <= 0 || waist <= 0) return null;
+
+  let bf: number;
+  if (gender === "F") {
+    const inner = waist + hip - neck;
+    if (inner <= 0) return null;
+    bf = 495 / (1.29579 - 0.35004 * Math.log10(inner) + 0.22100 * Math.log10(height)) - 450;
+  } else {
+    const inner = waist - neck;
+    if (inner <= 0) return null;
+    bf = 495 / (1.0324 - 0.19077 * Math.log10(inner) + 0.15456 * Math.log10(height)) - 450;
+  }
+
+  if (!isFinite(bf) || bf <= 0) return null;
+  return Number(bf.toFixed(2));
 }
 
 // Jackson-Pollock protocols for body fat calculation

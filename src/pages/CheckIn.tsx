@@ -73,8 +73,8 @@ export default function CheckIn() {
   }, [data]);
 
   function delta(key: string) {
-    const ini = parseFloat(metrics[`ini_${key}`] ?? "");
-    const cur = parseFloat(metrics[`cur_${key}`] ?? "");
+    const ini = parseFloat(String(metrics[`ini_${key}`] ?? "").replace(",", "."));
+    const cur = parseFloat(String(metrics[`cur_${key}`] ?? "").replace(",", "."));
     if (isNaN(ini) || isNaN(cur)) return null;
     return cur - ini;
   }
@@ -96,7 +96,7 @@ export default function CheckIn() {
     try {
       const current_metrics: Record<string, number> = {};
       CHECKIN_METRICS.forEach((m) => {
-        const v = parseFloat(metrics[`cur_${m.key}`] ?? "");
+        const v = parseFloat(String(metrics[`cur_${m.key}`] ?? "").replace(",", "."));
         if (!isNaN(v)) current_metrics[m.key] = v;
       });
 
@@ -186,6 +186,13 @@ export default function CheckIn() {
           <h2 className="text-sm font-bold text-primary uppercase tracking-wider mb-4">
             Medidas atuais
           </h2>
+          <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 mb-4 space-y-1 text-[11px] text-muted-foreground">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-1">📏 Como medir</p>
+            <p>• <span className="text-foreground font-medium">Pescoço:</span> logo abaixo do "gogó".</p>
+            <p>• <span className="text-foreground font-medium">Cintura:</span> no umbigo (M) ou parte mais fina (F).</p>
+            <p>• <span className="text-foreground font-medium">Quadril:</span> na maior protuberância dos glúteos.</p>
+            <p>• Fita firme, <span className="text-foreground font-medium">sem afundar na pele</span>.</p>
+          </div>
           <div className="space-y-3">
             {CHECKIN_METRICS.map((m) => {
               const d = delta(m.key);

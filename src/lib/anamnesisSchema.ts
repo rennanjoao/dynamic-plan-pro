@@ -18,7 +18,7 @@ export const NEURO_SLIDERS = [
 ];
 
 export const BASELINE_KEYS = [
-  "altura","peso","cintura","quadril",
+  "altura","peso","pescoco","cintura","quadril",
   "braco_d_relaxado","braco_e_relaxado","braco_d_contraido","braco_e_contraido","coxa_d","coxa_e","pant_d","pant_e",
 ] as const;
 
@@ -38,6 +38,7 @@ export const ANAMNESIS_SECTIONS: AnamnesisSection[] = [
   { id: "composicao", title: "Ponto de partida", fields: [
     { key: "altura", label: "Altura (cm)" },
     { key: "peso", label: "Peso (kg)" },
+    { key: "pescoco", label: "Pescoço (cm)" },
     { key: "cintura", label: "Cintura (cm)" },
     { key: "quadril", label: "Quadril (cm)" },
     { key: "braco_d_relaxado",  label: "Braço D Relaxado (cm)",  type: "number", step: "0.1", half: true },
