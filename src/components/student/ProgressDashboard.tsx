@@ -115,7 +115,6 @@ export const ProgressDashboard = () => {
       const cintura = Number(baseline.cintura || 0);
       const quadril = Number(baseline.quadril || payloadAna.quadril || 0);
       const pescoco = Number(baseline.pescoco || payloadAna.pescoco || 0);
-      const bodyFatRaw = Number(payloadAna.body_fat || 0);
       raw.push({
         idx: 0,
         ts: new Date(anamnesis.submitted_at).getTime(),
@@ -123,7 +122,7 @@ export const ProgressDashboard = () => {
         dateFull: new Date(anamnesis.submitted_at).toLocaleDateString("pt-BR"),
         peso: Number(baseline.peso),
         cintura,
-        gordura: estimateBF({ altura, cintura, pescoco, quadril, genero, bodyFatRaw }),
+        gordura: estimateBF({ altura, cintura, pescoco, quadril, genero }),
       });
     }
 
@@ -134,8 +133,6 @@ export const ProgressDashboard = () => {
       const cintura = Number(chk.current_metrics.cintura || 0);
       const quadril = Number(chk.current_metrics.quadril || 0);
       const pescoco = Number(chk.current_metrics.pescoco || 0);
-      const chkPayload = (chk.payload as Record<string, unknown>) || {};
-      const bodyFatRaw = Number(chkPayload.body_fat || 0);
       raw.push({
         idx: 0,
         ts: new Date(chk.submitted_at).getTime(),
@@ -143,7 +140,7 @@ export const ProgressDashboard = () => {
         dateFull: new Date(chk.submitted_at).toLocaleDateString("pt-BR"),
         peso,
         cintura,
-        gordura: estimateBF({ altura, cintura, pescoco, quadril, genero, bodyFatRaw }),
+        gordura: estimateBF({ altura, cintura, pescoco, quadril, genero }),
       });
     });
 
