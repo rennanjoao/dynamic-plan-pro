@@ -1,29 +1,41 @@
-## Plano final — % Gordura Estimada
+## Problema
 
-### Diagnóstico
-O `+0.5%` em "Gordura estimada" é o delta entre o baseline (anamnese) e o último check-in. A fórmula atual em `ProgressDashboard.tsx` é simplificada (sem pescoço) e ainda aplica um ajuste por anos/nível de treino que distorce o resultado.
+O botão "Ver como aluno" no ProtocolBuilder sempre abre `StudentProtocolPreview` exibindo apenas o Treino, independente da aba que o coach está editando (Macros, Diretrizes, Treino, Dieta ou Semana).
 
-### Mudanças
+## Objetivo
 
-**1. `src/components/student/ProgressDashboard.tsx`**
-- Reescrever `estimateBF` com a fórmula baseada em pescoço/cintura/quadril/altura:
-  - Homens: `495 / (1.0324 − 0.19077·log10(cintura − pescoço) + 0.15456·log10(altura)) − 450`
-  - Mulheres: `495 / (1.29579 − 0.35004·log10(cintura + quadril − pescoço) + 0.22100·log10(altura)) − 450`
-- Prioridade: `body_fat` digitado pelo aluno → fórmula → senão retorna `null` (UI mostra "—").
-- Validações: `(W−N)` ou `(W+Hp−N)` precisam ser > 0; clamp 2–60%.
-- **Remover** o ajuste por `anos_treino`/`nivel_treino` do cálculo — a informação continua salva na anamnese e visível ao coach, apenas não interfere mais no BF.
-- Ler `pescoco` de `baseline_metrics.pescoco` (anamnese) e `current_metrics.pescoco` (check-ins).
-- Label do card: manter "Gordura estimada"; badge de variação rotulado como "vs. início". **Sem mencionar "Marinha dos EUA"** em nenhum texto da UI.
-- Quando faltarem dados (pescoço/cintura/quadril/altura), exibir "—" no card e ocultar a série "Gordura" do gráfico em vez de mostrar zeros.
+A pré-visualização deve refletir o contexto atual:
+- Editando **Macros** → preview dos macros (calorias, P/C/G, água) como o aluno vê
+- Editando **Diretrizes** → preview do bloco de diretrizes
+- Editando **Treino** → preview de treinos + aeróbicos (comportamento atual)
+- Editando **Dieta** → preview das refeições (estrutura StructuredMealsViewer-like)
+- Editando **Semana** → preview do ciclo semanal (dias alto/baixo, treinos por dia)
 
-**2. Nada muda em**
-- `useMeasurements.ts` (já tem a fórmula correta com pescoço)
-- Schemas de anamnese/check-in (campo `pescoco` já existe)
-- `ComparisonBoard.tsx`, `EvolutionComparison.tsx`
-- Visualização do coach (anos/nível de treino seguem aparecendo no `AnamnesisViewer`)
+## Mudanças
 
-### Resultado
-- Número principal = estimativa atual de %BF baseada em medidas reais (pescoço/cintura/quadril/altura).
-- Badge abaixo = variação vs. baseline, com label "vs. início".
-- Sem dados suficientes → "—", sem valor fake.
-- Tempo/nível de treino segue registrado e acessível ao coach, mas fora da fórmula.
+### 1. `src/components/coach/ProtocolBuilder.tsx`
+- Converter a `<Tabs defaultValue="macros">` em controlled (`value={activeTab}` + `onValueChange={setActiveTab}`) com novo state `activeTab`.
+- Passar `section={activeTab}` para `<StudentProtocolPreview>`.
+- Atualizar o label do botão para refletir contexto: `Ver como aluno — {labelDaAba}`.
+
+### 2. `src/components/coach/StudentProtocolPreview.tsx`
+- Aceitar nova prop `section: "macros" | "guidelines" | "workouts" | "diet" | "cycle"` (default `"workouts"` para retrocompat).
+- Renderizar apenas o bloco correspondente:
+  - **macros**: cards com `payload.macros` (calorias, proteína, carbo, gordura, água, meta) no mesmo estilo que o aluno vê na rotina dinâmica.
+  - **guidelines**: lista de `payload.guidelines` (cardio/suplementos/observações) em cartões.
+  - **workouts**: bloco atual (accordion de treinos + aeróbicos vinculados + cardio global).
+  - **diet**: refeições (`payload.meals`) com opções de carbo/proteína/gordura e observações — espelhando `StructuredMealsViewer` em forma simplificada inline (sem reusar o componente para evitar dependências de toolbar).
+  - **cycle**: tabela semanal de `payload.week` (dia da semana → treino atribuído + alto/baixo carbo se ativo).
+- Título do Sheet muda dinamicamente ("Visão do Aluno — Treino", "— Dieta", etc).
+
+### Nada mais é alterado
+- Schemas, `StudentArea`, `DynamicRoutine`, `WorkoutPlan` permanecem intactos.
+- Lógica de salvamento, sincronização com `coach_plans` e abas internas não muda.
+
+## Detalhes técnicos
+
+- `activeTab` inicial = `"macros"` (mesmo default atual).
+- Mapeamento label: `macros→Macros`, `guidelines→Diretrizes`, `workouts→Treino`, `diet→Dieta`, `cycle→Semana`.
+- Preview de Dieta lê `payload.meals` (array com `name`, `time`, `carbOptions`, `proteinOptions`, `fatOptions`, `notes`) — formatando cada opção com nome+peso, igual à visão do aluno.
+- Preview de Semana lê `payload.week` (estrutura existente com `weekdays`/`carbCycle`).
+- Sem novas dependências, sem migrações de banco.

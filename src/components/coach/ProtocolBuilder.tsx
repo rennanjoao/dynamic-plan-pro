@@ -104,6 +104,15 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [setupCarbCycle, setSetupCarbCycle] = useState(false);
   const [consultOpen, setConsultOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"macros" | "guidelines" | "workouts" | "diet" | "cycle">("macros");
+
+  const tabLabel: Record<typeof activeTab, string> = {
+    macros: "Macros",
+    guidelines: "Diretrizes",
+    workouts: "Treino",
+    diet: "Dieta",
+    cycle: "Semana",
+  } as const;
 
   useEffect(() => {
     if (!isDirty) return;
@@ -219,7 +228,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             </Button>
             {payload && (
               <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}>
-                <Eye className="w-3.5 h-3.5 mr-1.5" /> Ver como aluno
+                <Eye className="w-3.5 h-3.5 mr-1.5" /> Ver como aluno — {tabLabel[activeTab]}
               </Button>
             )}
             <Button variant="outline" size="sm" onClick={() => setSetupOpen(true)}><Sparkles className="w-3.5 h-3.5 mr-1.5" /> Recriar Base</Button>
@@ -251,7 +260,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             </div>
           </Card>
 
-          <Tabs defaultValue="macros">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
             <TabsList className="flex w-full overflow-x-auto gap-0 h-auto p-1">
               <TabsTrigger value="macros" className="shrink-0"><BarChart3 className="w-3.5 h-3.5 mr-1" />Macros</TabsTrigger>
               <TabsTrigger value="guidelines" className="shrink-0"><FileText className="w-3.5 h-3.5 mr-1" />Diretrizes</TabsTrigger>
@@ -332,6 +341,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
           onClose={() => setPreviewOpen(false)}
           payload={payload}
           studentName={studentName}
+          section={activeTab}
         />
       )}
     </div>
