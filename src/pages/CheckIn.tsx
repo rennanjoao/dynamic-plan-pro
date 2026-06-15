@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, CheckCircle2, Loader2, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, TrendingDown, TrendingUp, Minus, FilePlus2, FileEdit } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -51,17 +51,75 @@ export default function CheckIn() {
     frente: null, lateral_dir: null, lateral_esq: null, costas: null,
   });
 
+  // Modo: choose | new | update (atualiza último check-in)
+  const [mode, setMode] = useState<"choose" | "new" | "update">("choose");
+  const [lastCheckin, setLastCheckin] = useState<{
+    id: string; submitted_at: string; edit_count: number;
+    payload: Record<string, unknown>; current_metrics: Record<string, number>;
+  } | null>(null);
+  const [loadingLast, setLoadingLast] = useState(true);
+
+  // Carrega último check-in para decidir o que oferecer
+  useEffect(() => {
+    if (!studentId) return;
+    (async () => {
+      setLoadingLast(true);
+      const { data: row } = await sb
+        .from("check_ins")
+        .select("id, submitted_at, edit_count, payload, current_metrics")
+        .eq("student_id", studentId)
+        .order("submitted_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setLastCheckin(row ?? null);
+      // Se não existe nenhum, segue direto para novo
+      if (!row) setMode("new");
+      setLoadingLast(false);
+    })();
+  }, [studentId]);
+
+  function startNew() {
+    setData({});
+    setMetrics({});
+    setFotoFiles({ frente: null, lateral_dir: null, lateral_esq: null, costas: null });
+    setFotoPreviews({ frente: null, lateral_dir: null, lateral_esq: null, costas: null });
+    setMode("new");
+  }
+
+  function startUpdate() {
+    if (!lastCheckin) return;
+    const p = (lastCheckin.payload ?? {}) as Record<string, unknown>;
+    const rawMetrics = (p.metrics_raw as Record<string, string>) ?? {};
+    setData({ ...p });
+    // Reidrata métricas atuais a partir de current_metrics e ini de metrics_raw
+    const m: Record<string, string> = { ...rawMetrics };
+    CHECKIN_METRICS.forEach((cm) => {
+      const cur = lastCheckin.current_metrics?.[cm.key];
+      if (typeof cur === "number") m[`cur_${cm.key}`] = String(cur);
+    });
+    setMetrics(m);
+    // Fotos existentes vão como previews; só substituem se o aluno carregar arquivo novo
+    const fotos = (p.fotos as Record<string, string>) ?? {};
+    setFotoPreviews({
+      frente: fotos.frente || null,
+      lateral_dir: fotos.lateral_dir || null,
+      lateral_esq: fotos.lateral_esq || null,
+      costas: fotos.costas || null,
+    });
+    setMode("update");
+  }
+
   const baseline = anamnesis?.baseline_metrics ?? {};
 
   useEffect(() => {
-    if (Object.keys(metrics).length === 0 && baseline) {
+    if (mode === "new" && Object.keys(metrics).length === 0 && baseline) {
       const init: Record<string, string> = {};
       CHECKIN_METRICS.forEach((m) => {
         if (baseline[m.key] != null) init[`ini_${m.key}`] = String(baseline[m.key]);
       });
       setMetrics(init);
     }
-  }, [baseline, metrics]);
+  }, [baseline, metrics, mode]);
 
   const progress = useMemo(() => {
     const all = CHECKIN_SECTIONS.flatMap((s) => s.fields);
@@ -92,6 +150,10 @@ export default function CheckIn() {
 
   async function submit() {
     if (!studentId) { toast.error("Não autenticado"); return; }
+    if (mode === "update" && lastCheckin && lastCheckin.edit_count >= 3) {
+      toast.error("Você já editou este check-in 3 vezes.");
+      return;
+    }
     setSaving(true);
     try {
       const current_metrics: Record<string, number> = {};
@@ -100,8 +162,12 @@ export default function CheckIn() {
         if (!isNaN(v)) current_metrics[m.key] = v;
       });
 
-      // Upload fotos (best-effort)
-      const fotos: Record<string, string> = {};
+      // Upload fotos novas (best-effort). Preserva URLs existentes em modo update.
+      const existingFotos =
+        mode === "update" && lastCheckin
+          ? ((lastCheckin.payload as Record<string, unknown>)?.fotos as Record<string, string>) || {}
+          : {};
+      const fotos: Record<string, string> = { ...existingFotos };
       for (const key of FOTO_KEYS) {
         const file = fotoFiles[key];
         if (file) {
@@ -109,12 +175,25 @@ export default function CheckIn() {
         }
       }
 
-      const { error } = await sb.from("check_ins").insert({
-        student_id: studentId,
-        current_metrics,
-        payload: { ...data, metrics_raw: metrics, fotos },
-      });
-      if (error) throw error;
+      if (mode === "update" && lastCheckin) {
+        const { error } = await sb
+          .from("check_ins")
+          .update({
+            current_metrics,
+            payload: { ...data, metrics_raw: metrics, fotos },
+            edit_count: (lastCheckin.edit_count ?? 0) + 1,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", lastCheckin.id);
+        if (error) throw error;
+      } else {
+        const { error } = await sb.from("check_ins").insert({
+          student_id: studentId,
+          current_metrics,
+          payload: { ...data, metrics_raw: metrics, fotos },
+        });
+        if (error) throw error;
+      }
 
       try {
         const { data: link } = await sb
@@ -139,8 +218,11 @@ export default function CheckIn() {
               studentName,
               studentEmail,
               kind: "checkin",
-              summary: "Aluno enviou um novo check-in quinzenal.",
-              data: { ...data, ...current_metrics, fotos },
+              summary:
+                mode === "update"
+                  ? "Aluno atualizou o último check-in."
+                  : "Aluno enviou um novo check-in quinzenal.",
+              data: { ...data, ...current_metrics, fotos, _updated: mode === "update" },
             });
           }
         }
@@ -148,7 +230,11 @@ export default function CheckIn() {
         console.warn("notifyCoach falhou (check-in)", notifyErr);
       }
 
-      toast.success("Check-in enviado ao seu coach.");
+      toast.success(
+        mode === "update"
+          ? "Check-in atualizado e enviado ao seu coach."
+          : "Check-in enviado ao seu coach."
+      );
       qc.invalidateQueries({ queryKey: ["check-ins", studentId] });
       setTimeout(() => navigate("/evolution"), 1000);
     } catch (e) {
@@ -159,16 +245,96 @@ export default function CheckIn() {
     }
   }
 
+  // Tela de escolha entre novo check-in e atualizar o último
+  if (mode === "choose") {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border">
+          <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/student-area")}>
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+            <h1 className="text-base font-bold text-foreground">Check-in</h1>
+          </div>
+        </header>
+        <main className="max-w-3xl mx-auto px-4 py-10 space-y-4">
+          {loadingLast ? (
+            <div className="flex justify-center py-10">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : (
+            <>
+              <h2 className="text-lg font-bold text-foreground">O que deseja fazer?</h2>
+              <p className="text-sm text-muted-foreground">
+                Você pode iniciar um novo check-in ou ajustar o último que enviou.
+              </p>
+
+              <div className="grid sm:grid-cols-2 gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={startNew}
+                  className="text-left rounded-2xl border border-border bg-card/60 p-5 hover:border-primary/60 hover:bg-card transition-colors"
+                >
+                  <FilePlus2 className="w-6 h-6 text-primary mb-3" />
+                  <h3 className="text-sm font-bold text-foreground mb-1">Fazer novo check-in</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Envie a quinzena atual, com novas medidas e fotos.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={startUpdate}
+                  disabled={!lastCheckin || (lastCheckin.edit_count ?? 0) >= 3}
+                  className={cn(
+                    "text-left rounded-2xl border p-5 transition-colors",
+                    !lastCheckin || (lastCheckin.edit_count ?? 0) >= 3
+                      ? "border-border/40 bg-card/30 opacity-60 cursor-not-allowed"
+                      : "border-border bg-card/60 hover:border-primary/60 hover:bg-card"
+                  )}
+                >
+                  <FileEdit className="w-6 h-6 text-primary mb-3" />
+                  <h3 className="text-sm font-bold text-foreground mb-1">Atualizar último check-in</h3>
+                  {lastCheckin ? (
+                    <p className="text-xs text-muted-foreground">
+                      Enviado em{" "}
+                      {new Date(lastCheckin.submitted_at).toLocaleDateString("pt-BR")}.{" "}
+                      <span className="font-semibold text-foreground">
+                        Edições usadas: {lastCheckin.edit_count ?? 0}/3
+                      </span>
+                      {(lastCheckin.edit_count ?? 0) >= 3 &&
+                        " — limite atingido, crie um novo."}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Você ainda não tem nenhum check-in registrado.
+                    </p>
+                  )}
+                </button>
+              </div>
+            </>
+          )}
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background pb-32">
       <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/student-area")}>
+          <Button variant="ghost" size="icon" onClick={() => setMode("choose")}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-base font-bold text-foreground">Check-in</h1>
-            <p className="text-[11px] text-muted-foreground">Atualize seus dados da quinzena</p>
+            <h1 className="text-base font-bold text-foreground">
+              {mode === "update" ? "Atualizar check-in" : "Check-in"}
+            </h1>
+            <p className="text-[11px] text-muted-foreground">
+              {mode === "update" && lastCheckin
+                ? `Edição ${(lastCheckin.edit_count ?? 0) + 1} de 3`
+                : "Atualize seus dados da quinzena"}
+            </p>
           </div>
           <div className="text-right">
             <div className="text-xs font-semibold text-primary">{progress}%</div>
