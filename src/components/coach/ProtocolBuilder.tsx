@@ -103,6 +103,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [setupMeals, setSetupMeals] = useState(5);
   const [setupCarbCycle, setSetupCarbCycle] = useState(false);
   const [consultOpen, setConsultOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
     if (!isDirty) return;
@@ -216,6 +217,11 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             <Button variant="outline" size="sm" onClick={() => setConsultOpen(true)}>
               <ClipboardList className="w-3.5 h-3.5 mr-1.5" /> Anamnese / Feedback
             </Button>
+            {payload && (
+              <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}>
+                <Eye className="w-3.5 h-3.5 mr-1.5" /> Ver como aluno
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => setSetupOpen(true)}><Sparkles className="w-3.5 h-3.5 mr-1.5" /> Recriar Base</Button>
           </div>
         </div>
