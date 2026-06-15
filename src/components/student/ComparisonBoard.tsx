@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { TrendingDown, TrendingUp, Minus } from "lucide-react";
 import type { Anamnesis, CheckIn } from "@/hooks/useStudentData";
 import BFDisplay from "@/components/shared/BFDisplay";
+import { estimateBF } from "@/lib/bfEstimate";
 
 interface Props {
   anamnesis: Anamnesis | null;
@@ -40,8 +41,24 @@ export default function ComparisonBoard({ anamnesis, latestCheckIn }: Props) {
   const checkFotos = (latestCheckIn?.payload as any)?.fotos as Record<string, string> | undefined;
   const anamFront = anamFotos?.frente || anamFotos?.front || "";
   const checkFront = checkFotos?.frente || checkFotos?.front || latestCheckIn?.photo_url || "";
-  const anamBF = (anamnesis?.payload as any)?.body_fat;
-  const checkBF = (latestCheckIn?.payload as any)?.body_fat;
+  const anamPayload = (anamnesis?.payload as any) || {};
+  const genero = (anamPayload.genero as string) || (anamPayload.sexo as string) || "M";
+  const baseline = anamnesis?.baseline_metrics || {};
+  const current = latestCheckIn?.current_metrics || {};
+  const anamBF = estimateBF({
+    altura: baseline.altura ?? anamPayload.altura,
+    cintura: baseline.cintura ?? anamPayload.cintura,
+    pescoco: baseline.pescoco ?? anamPayload.pescoco,
+    quadril: baseline.quadril ?? anamPayload.quadril,
+    genero,
+  });
+  const checkBF = estimateBF({
+    altura: baseline.altura ?? anamPayload.altura,
+    cintura: current.cintura,
+    pescoco: current.pescoco,
+    quadril: current.quadril,
+    genero,
+  });
 
   return (
     <>
@@ -59,8 +76,11 @@ export default function ComparisonBoard({ anamnesis, latestCheckIn }: Props) {
             )}
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-muted-foreground">Partida</span>
-              {anamBF != null && <BFDisplay value={anamBF} />}
+              {anamBF.value != null ? <BFDisplay value={anamBF.value} /> : <span className="text-muted-foreground">—</span>}
             </div>
+            {anamBF.value == null && anamBF.missing.length > 0 && (
+              <p className="text-[10px] text-amber-500">Faltam: {anamBF.missing.join(", ")}</p>
+            )}
           </div>
           <div className="space-y-2">
             {checkFront ? (
@@ -70,8 +90,11 @@ export default function ComparisonBoard({ anamnesis, latestCheckIn }: Props) {
             )}
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-muted-foreground">Hoje</span>
-              {checkBF != null && <BFDisplay value={checkBF} />}
+              {checkBF.value != null ? <BFDisplay value={checkBF.value} /> : <span className="text-muted-foreground">—</span>}
             </div>
+            {checkBF.value == null && checkBF.missing.length > 0 && latestCheckIn && (
+              <p className="text-[10px] text-amber-500">Faltam: {checkBF.missing.join(", ")}</p>
+            )}
           </div>
         </div>
       </Card>
