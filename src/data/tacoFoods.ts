@@ -135,6 +135,27 @@ export function searchTaco(query: string): TacoFood[] {
   return [...starts, ...contains].slice(0, 10);
 }
 
+/**
+ * Busca unificada: TACO primeiro (fonte primária), industrializados
+ * em seguida. Cada item carrega a flag `source` para que o UI possa
+ * distinguir as origens.
+ *
+ * Usar quando o picker quiser exibir as duas listas combinadas.
+ */
+export function searchFoods(query: string): Array<(TacoFood & { source: "taco" }) | (TacoFood & { source: "industrial"; brand?: string })> {
+  // Import dinâmico evitado para manter sync; lista industrial é pequena.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { INDUSTRIAL_FOODS } = require("./industrialFoods") as typeof import("./industrialFoods");
+  const tacoHits = searchTaco(query).map((t) => ({ ...t, source: "taco" as const }));
+  const q = query.trim().toLowerCase();
+  const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const nq = norm(q);
+  const industrialHits = INDUSTRIAL_FOODS
+    .filter((f) => norm(f.name).includes(nq) || norm(f.brand).includes(nq))
+    .map((f) => ({ ...f, source: "industrial" as const }));
+  return [...tacoHits, ...industrialHits].slice(0, 14);
+}
+
 export function rawToCooked(food: TacoFood, rawGrams: number): number {
   if (!food.cookFactor) return rawGrams;
   return Math.round(rawGrams * food.cookFactor);
