@@ -167,6 +167,7 @@ export type Database = {
           hip: number | null
           id: string
           measurement_date: string
+          neck: number | null
           thigh: number | null
           user_id: string
           waist: number | null
@@ -183,6 +184,7 @@ export type Database = {
           hip?: number | null
           id?: string
           measurement_date?: string
+          neck?: number | null
           thigh?: number | null
           user_id: string
           waist?: number | null
@@ -199,6 +201,7 @@ export type Database = {
           hip?: number | null
           id?: string
           measurement_date?: string
+          neck?: number | null
           thigh?: number | null
           user_id?: string
           waist?: number | null
