@@ -21,6 +21,7 @@ const sb: any = supabase;
 const FIELDS: Array<{ key: string; label: string; unit?: string }> = [
   { key: "altura",           label: "Altura",             unit: "cm" },
   { key: "peso",             label: "Peso",               unit: "kg" },
+  { key: "pescoco",          label: "Pescoço",            unit: "cm" },
   { key: "cintura",          label: "Cintura",            unit: "cm" },
   { key: "quadril",          label: "Quadril",            unit: "cm" },
   // ── braços padronizados ──────────────────────────────────────────
