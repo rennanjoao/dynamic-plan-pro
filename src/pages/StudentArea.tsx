@@ -22,6 +22,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { toast } from "sonner";
 import FeedbackCountdownAlert from "@/components/student/FeedbackCountdownAlert";
 import { TrainerAlert } from "@/components/student/TrainerAlert";
+import { useWakeLock } from "@/hooks/useWakeLock";
 
 // Chave do localStorage por user — evita colisão entre alunos no mesmo browser
 const DISMISSED_KEY = (uid: string) => `dismissed_alerts_${uid}`;
@@ -46,6 +47,7 @@ function saveDismissed(uid: string, ids: string[]) {
 export default function StudentArea() {
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string | null>(null);
+  useWakeLock();
   const [copiedPix, setCopiedPix] = useState(false);
   const [dismissedAlerts, setDismissedAlerts] = useState<string[]>([]);
   const [notifyingCoach, setNotifyingCoach] = useState(false);
