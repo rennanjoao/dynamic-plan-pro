@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ProtocolPayloadSchema } from "@/lib/protocolSchema";
 import ProtocolQuestionButton from "@/components/student/ProtocolQuestionButton";
 import WorkoutPeriodizationView from "@/components/student/WorkoutPeriodizationView";
+import { useWakeLock } from "@/hooks/useWakeLock";
 
 const WEEKDAYS_LABEL: Record<string, string> = {
   seg: "Segunda", ter: "Terça", qua: "Quarta",
@@ -43,6 +44,7 @@ function InfoPopover({ termKey }: { termKey: keyof typeof TERM_INFO }) {
 export default function WorkoutPlan() {
   const navigate = useNavigate();
   const [userId, setUserId] = useState("");
+  useWakeLock();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
