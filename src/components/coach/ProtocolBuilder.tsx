@@ -325,6 +325,15 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
           </div>
         </SheetContent>
       </Sheet>
+
+      {payload && (
+        <StudentProtocolPreview
+          open={previewOpen}
+          onClose={() => setPreviewOpen(false)}
+          payload={payload}
+          studentName={studentName}
+        />
+      )}
     </div>
   );
 }
