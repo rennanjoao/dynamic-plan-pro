@@ -1,0 +1,2 @@
+ALTER TABLE public.daily_alerts ALTER COLUMN created_at SET DEFAULT now();
+COMMENT ON TABLE public.daily_alerts IS 'Alertas periódicos do coach para o aluno. created_at usado para janela de 7 dias em alertas "once".';
