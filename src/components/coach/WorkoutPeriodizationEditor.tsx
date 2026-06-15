@@ -481,6 +481,8 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
         templateName={historyTpl?.name ?? ""}
         onRestore={restoreFromVersion}
       />
+      </>
+      )}
     </Card>
   );
 }
