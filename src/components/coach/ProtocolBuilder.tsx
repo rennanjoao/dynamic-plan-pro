@@ -465,6 +465,15 @@ function GuidelinesTab({ payload, setPayload }: { payload: ProtocolPayload; setP
 function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void; coachId: string | null }) {
   const updDay = (idx: number, patch: Partial<ProtocolPayload["workouts"][number]>) => { const n = [...payload.workouts]; n[idx] = { ...n[idx], ...patch }; setPayload({ ...payload, workouts: n }); };
   const updEx = (di: number, ei: number, patch: any) => { const n = [...payload.workouts]; const exs = [...n[di].exercises]; exs[ei] = { ...exs[ei], ...patch }; n[di] = { ...n[di], exercises: exs }; setPayload({ ...payload, workouts: n }); };
+  const moveExercise = (di: number, ei: number, direction: "up" | "down") => {
+    const n = [...payload.workouts];
+    const exs = [...n[di].exercises];
+    const targetIdx = direction === "up" ? ei - 1 : ei + 1;
+    if (targetIdx < 0 || targetIdx >= exs.length) return;
+    [exs[ei], exs[targetIdx]] = [exs[targetIdx], exs[ei]];
+    n[di] = { ...n[di], exercises: exs };
+    setPayload({ ...payload, workouts: n });
+  };
   const periodOn = !!payload.periodization?.enabled;
   const [overrideOpen, setOverrideOpen] = useState<Record<number, boolean>>({});
   return (
