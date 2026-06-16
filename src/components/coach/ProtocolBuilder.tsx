@@ -869,7 +869,7 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
   function getOptsForKind(meal: any, kind: "carb" | "protein" | "fat") {
     const all: any[] = Array.isArray(meal.options) ? meal.options : [];
     const filtered = all.filter((o: any) => o?.kind === kind);
-    while (filtered.length < 2) filtered.push({ kind, title: `Opção ${filtered.length + 1}`, notes: "", items: [{ name: "", baseName: "", weight: "", rawWeight: 0, cookFactor: 1, isTaco: false }] });
+    if (filtered.length === 0) filtered.push({ kind, title: "Opção 1", notes: "", items: [{ name: "", baseName: "", weight: "", rawWeight: 0, cookFactor: 1, isTaco: false }] });
     return filtered.slice(0, 3);
   }
 
@@ -1032,7 +1032,7 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                           <div className="flex items-center gap-1.5 mb-1.5">
                             <span className={`text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded ${cfg.bg} ${cfg.color} border ${cfg.border}`}>Op {optIdx + 1}</span>
                             <Input value={opt.title || ""} onChange={(e) => updOption(mealIdx, kind, optIdx, { title: e.target.value })} placeholder="Título (ex: versão off-season)" className="h-6 text-[11px] flex-1 bg-transparent border-0 border-b border-dashed rounded-none px-1" />
-                            {opts.length > 1 && (
+                            {optIdx > 0 && (
                               <button type="button" onClick={() => removeOption(mealIdx, kind, optIdx)} className="text-muted-foreground hover:text-destructive p-0.5 shrink-0"><Trash2 className="w-3 h-3" /></button>
                             )}
                           </div>
