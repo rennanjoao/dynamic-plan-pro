@@ -98,7 +98,7 @@ export const ANAMNESIS_SECTIONS: AnamnesisSection[] = [
   { id: "sono", title: "Descanso & recuperação", fields: [
     { key: "tempo_sono", label: "Tempo para dormir" },
     { key: "pico_cansaco", label: "Pico de cansaço" },
-    { key: "acorda_descansado", label: "Acorda descansado?" },
+    { key: "acorda_descansado", label: "Como acorda?", type: "choices", options: ["Descansado", "Com disposição", "Cansado", "Com dor"] },
     { key: "acorda_noite", label: "Acorda à noite?" },
     { key: "sintomas_noturnos", label: "Sintomas noturnos" },
     { key: "hrv", label: "HRV" },
