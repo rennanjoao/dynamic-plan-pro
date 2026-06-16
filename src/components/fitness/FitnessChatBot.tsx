@@ -29,10 +29,16 @@ interface FitnessChatBotProps {
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fitness-chat`;
 const BUBBLE_DURATION = 6000;
 
-const QUICK_ACTIONS = [
-  { label: "Ajustar Macros", prompt: "Me ajude a ajustar meus macronutrientes para cutting com base no meu perfil." },
-  { label: "Relatório Evolução", prompt: "Gere um relatório resumido da minha evolução com base nas minhas medidas." },
+const STUDENT_QUICK_ACTIONS = [
+  { label: "Ajustar Macros", prompt: "Me ajude a ajustar meus macronutrientes com base no meu perfil e objetivo atual." },
+  { label: "Minha Evolução", prompt: "Gere um resumo da minha evolução com base nas minhas medidas e check-ins." },
   { label: "Técnica Agachamento", prompt: "Explique a técnica correta do agachamento com barra, incluindo cadência e RPE ideal." },
+];
+
+const COACH_QUICK_ACTIONS = [
+  { label: "Como usar o Builder", prompt: "Me explique como construir um protocolo de dieta completo para um aluno na plataforma, do zero." },
+  { label: "Analisar Check-in", prompt: "Com base nos check-ins recentes dos meus alunos, quem tem feedback pendente e o que devo priorizar?" },
+  { label: "Sugerir Substituições", prompt: "Quais são boas substituições proteicas para um aluno com intolerância a lactose e que não gosta de atum?" },
 ];
 
 const DEFAULT_WELCOME = "Olá, sou o agente virtual da Elite Hub. Como posso ajudar?";
@@ -265,7 +271,7 @@ export const FitnessChatBot = ({ athleteContext }: FitnessChatBotProps) => {
               {/* Quick Actions */}
               {messages.length <= 1 && (
                 <div className="flex flex-wrap gap-2 pt-2">
-                  {QUICK_ACTIONS.map((action) => (
+                  {(athleteContext?.isCoach ? COACH_QUICK_ACTIONS : STUDENT_QUICK_ACTIONS).map((action) => (
                     <button
                       key={action.label}
                       onClick={() => handleSend(action.prompt)}

@@ -418,6 +418,18 @@ export default function CheckIn() {
           <h2 className="text-sm font-bold text-primary uppercase tracking-wider mb-4">
             Fotos de Progresso
           </h2>
+          <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 mb-4 space-y-1 text-[11px] text-muted-foreground">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-1">📸 Como tirar a foto correta</p>
+            {[
+              "Mesmo ambiente e fundo de sempre",
+              "Mesma iluminação (evite sombras e contraluz)",
+              "Mesma roupa — sunga, bermuda ou top",
+              "Mesmo horário (preferencialmente em jejum)",
+              "Câmera na altura da cintura, distância de 1,5m",
+            ].map((tip) => (
+              <p key={tip}>· <span className="text-foreground font-medium">{tip}</span></p>
+            ))}
+          </div>
           <div className="grid grid-cols-4 gap-2">
             {FOTO_KEYS.map((key) => (
               <FotoSlot
@@ -434,7 +446,7 @@ export default function CheckIn() {
 
       <footer className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t border-border z-20">
         <div className="max-w-3xl mx-auto px-4 py-3 flex gap-2">
-          <Button className="flex-1" onClick={submit} disabled={saving || progress < 40}>
+          <Button className="flex-1" onClick={submit} disabled={saving || progress < 25}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
             Enviar check-in
           </Button>
