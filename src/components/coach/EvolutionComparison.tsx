@@ -57,6 +57,7 @@ export default function EvolutionComparison({
   const [anamneseOnly, setAnamneseOnly] = useState(false);
   const [feedbackOnlyId, setFeedbackOnlyId] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [activePoseFilter, setActivePoseFilter] = useState<typeof POSE_KEYS[number] | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -292,14 +293,55 @@ export default function EvolutionComparison({
         </div>
       </div>
 
-      {/* Fotos lado a lado (4 poses) */}
+      {/* Fotos por pose — cada linha = 1 pose, cada coluna = 1 ponto */}
       <Card className="p-3">
-        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1">
-          <ZoomIn className="w-3 h-3" /> Clique nas fotos para ampliar
-        </p>
-        <div className="grid grid-cols-2 gap-3">
-          <PhotoColumn point={left} onZoom={setZoomedImage} />
-          <PhotoColumn point={right} onZoom={setZoomedImage} />
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <ZoomIn className="w-3 h-3" /> Clique para ampliar
+          </p>
+          <div className="flex flex-wrap gap-1 ml-auto">
+            <button
+              type="button"
+              onClick={() => setActivePoseFilter(null)}
+              className={`text-[10px] px-2 py-1 rounded border transition-colors ${activePoseFilter === null ? "bg-primary text-primary-foreground border-primary" : "border-border/50 text-muted-foreground hover:border-primary hover:text-primary"}`}
+            >
+              Todas
+            </button>
+            {POSE_KEYS.map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setActivePoseFilter(activePoseFilter === k ? null : k)}
+                className={`text-[10px] px-2 py-1 rounded border transition-colors ${activePoseFilter === k ? "bg-primary text-primary-foreground border-primary" : "border-border/50 text-muted-foreground hover:border-primary hover:text-primary"}`}
+              >
+                {POSE_LABEL[k]}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-3">
+          {POSE_KEYS.filter((k) => activePoseFilter === null || activePoseFilter === k).map((k) => (
+            <div key={k}>
+              <p className="text-[10px] uppercase tracking-wider text-primary font-bold mb-1.5">{POSE_LABEL[k]}</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[left, right].map((point, pi) => (
+                  <div key={pi} className="space-y-1">
+                    <p className="text-[9px] text-center text-muted-foreground">{point.label}</p>
+                    <div
+                      className="aspect-[3/4] rounded-md border border-border/50 overflow-hidden bg-muted/20 flex items-center justify-center cursor-zoom-in"
+                      onClick={() => point.fotos[k] && setZoomedImage(point.fotos[k])}
+                    >
+                      {point.fotos[k] ? (
+                        <img src={point.fotos[k]} alt={POSE_LABEL[k]} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-[9px] text-muted-foreground">—</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </Card>
 
@@ -352,6 +394,7 @@ export default function EvolutionComparison({
           onClick={() => setZoomedImage(null)}
         >
           <img src={zoomedImage} alt="Zoom Visualização" className="max-w-full max-h-full object-contain rounded-md shadow-2xl" />
+          <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-white/70">Clique para fechar</p>
         </div>
       )}
     </div>
@@ -365,36 +408,4 @@ function toNum(v: unknown): number | null {
     return isFinite(n) ? n : null;
   }
   return null;
-}
-
-function PhotoColumn({ point, onZoom }: { point: Timepoint, onZoom: (url: string) => void }) {
-  return (
-    <div className="space-y-2">
-      <p className="text-center text-[10px] font-semibold text-foreground/80">{point.label}</p>
-      <div className="grid grid-cols-2 gap-1.5">
-        {POSE_KEYS.map((k) => (
-          <div key={k} className="space-y-1">
-            <div 
-              className="aspect-[3/4] rounded-md border border-border/50 overflow-hidden bg-muted/20 flex items-center justify-center relative group"
-            >
-              {point.fotos[k] ? (
-                <>
-                  <img 
-                    src={point.fotos[k]} 
-                    alt={POSE_LABEL[k]} 
-                    className="w-full h-full object-cover cursor-zoom-in group-hover:scale-105 transition-transform duration-300" 
-                    onClick={() => onZoom(point.fotos[k])}
-                  />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
-                </>
-              ) : (
-                <span className="text-[9px] text-muted-foreground">—</span>
-              )}
-            </div>
-            <p className="text-[9px] text-center text-muted-foreground uppercase tracking-wider">{POSE_LABEL[k]}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 }
