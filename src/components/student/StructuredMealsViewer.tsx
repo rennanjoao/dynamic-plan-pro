@@ -24,6 +24,9 @@ function getCookedMultiplier(name: string): number {
   if (/(camar[ãa]o|fruto.*mar)/.test(s)) return 0.75;
   if (/(ovo)/.test(s)) return 0.90;
   if (/(coração|fígado|moela)/.test(s)) return 0.70;
+  if (/(m[uú]sculo\s+bovino|ac[eé]m|costela|bisteca)/.test(s)) return 0.68;
+  if (/(pernil|lombo\s+su[ií]no)/.test(s)) return 0.72;
+  if (/(sardinha|mussarela|queijo)/.test(s)) return 1;
   return 1;
 }
 
