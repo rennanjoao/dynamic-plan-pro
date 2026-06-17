@@ -804,6 +804,7 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
   const [saveTplFor, setSaveTplFor] = useState<{ idx: number; name: string; kind: string } | null>(null);
   const [loadTplOpen, setLoadTplOpen] = useState(false);
   const [templates, setTemplates] = useState<any[]>([]);
+  const [collapsedMeals, setCollapsedMeals] = useState<Record<number, boolean>>({});
 
   async function reloadTemplates() {
     if (!coachId) return;
@@ -959,7 +960,10 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
         </Card>
       </div>
 
-      {payload.meals.map((m, mealIdx) => (
+      {payload.meals.map((m, mealIdx) => {
+        const isCollapsed = !!collapsedMeals[mealIdx];
+        const mealM = calcMealMacros(m);
+        return (
         <Card key={mealIdx} className="bg-card/60 border-border overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-border/40 bg-muted/10">
             <Input
@@ -970,6 +974,11 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
               className="h-8 text-sm font-bold text-primary flex-1"
             />
             <Input value={m.time} onChange={(e) => updMealField(mealIdx, { time: e.target.value })} placeholder="07:00" className="h-8 text-sm w-20 shrink-0" />
+            {isCollapsed && mealM.kcal > 0 && (
+              <span className="text-[10px] font-bold tabular-nums text-muted-foreground shrink-0 px-1.5 py-0.5 rounded bg-muted/40 border border-border/40">
+                {Math.round(mealM.kcal)} kcal
+              </span>
+            )}
             {payload.setup.carbCycle && (
               <button type="button"
                 onClick={() => updMealField(mealIdx, { carbCycle: !(m as any).carbCycle } as any)}
@@ -977,11 +986,20 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                 <TrendingUp className="w-3.5 h-3.5" /> Ciclo
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => setCollapsedMeals((prev) => ({ ...prev, [mealIdx]: !isCollapsed }))}
+              className="text-muted-foreground hover:text-primary p-1.5 shrink-0"
+              title={isCollapsed ? "Expandir refeição" : "Minimizar refeição"}
+            >
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isCollapsed ? "" : "rotate-180"}`} />
+            </button>
             <button onClick={() => duplicateMeal(mealIdx)} className="text-muted-foreground hover:text-primary p-1.5 shrink-0" title="Duplicar refeição"><Copy className="w-3.5 h-3.5" /></button>
             <button onClick={() => setSaveTplFor({ idx: mealIdx, name: m.name || "Modelo", kind: "mixed" })} className="text-muted-foreground hover:text-primary p-1.5 shrink-0" title="Salvar como modelo"><BookmarkPlus className="w-3.5 h-3.5" /></button>
             <button onClick={() => setPayload({ ...payload, meals: payload.meals.filter((_, idx) => idx !== mealIdx) })} className="text-muted-foreground hover:text-destructive p-1.5 shrink-0"><Trash2 className="w-4 h-4" /></button>
           </div>
 
+          {!isCollapsed && (
           <div className="p-4 space-y-3">
             {(["carb", "protein", "fat"] as const).map((kind) => {
               const cfg = KIND[kind];
@@ -1041,6 +1059,19 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                           <div className="space-y-1.5">
                             {items.map((it: any, ii: number) => (
                               <div key={ii} className="bg-background rounded border border-border/40 px-2 py-2 space-y-1.5">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-[9px] text-amber-500 font-bold uppercase tracking-wider">
+                                    {(it as any).optional ? "⚡ Opcional (não soma)" : ""}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => updItem(mealIdx, kind, optIdx, ii, { optional: !(it as any).optional })}
+                                    className={`text-[9px] px-2 py-0.5 rounded border transition-colors ${(it as any).optional ? "bg-amber-500/15 border-amber-500/40 text-amber-600 font-bold" : "border-border/50 text-muted-foreground hover:border-amber-400 hover:text-amber-500"}`}
+                                    title="Marcar como opcional — não entra no cálculo de kcal"
+                                  >
+                                    {(it as any).optional ? "✓ Opcional" : "Opcional?"}
+                                  </button>
+                                </div>
                                 <FoodRow
                                   it={it}
                                   kind={kind}
@@ -1049,8 +1080,11 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                                     if (tKind !== kind) {
                                       const kindLabel = kind === "protein" ? "Proteína" : kind === "fat" ? "Gordura" : "Carbo";
                                       const tacoLabel = tKind === "protein" ? "Proteína" : tKind === "fat" ? "Gordura" : "Carbo";
-                                      toast.error(`"${taco.name}" é ${tacoLabel} — adicione-o no card correto.`, { description: `Este card é de ${kindLabel}.`, duration: 4000 });
-                                      return;
+                                      toast.warning(`"${taco.name}" é classificado como ${tacoLabel} no TACO`, {
+                                        description: `Você está adicionando em ${kindLabel}. As kcal serão calculadas normalmente.`,
+                                        duration: 5000,
+                                      });
+                                      // NÃO retorna — permite a inserção normalmente
                                     }
                                     const isInd = taco.source === "industrial";
                                     updItem(mealIdx, kind, optIdx, ii, {
@@ -1139,31 +1173,11 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                 className="mt-1 min-h-[60px] text-xs"
               />
             </div>
-
-            <details className="rounded-lg border border-border/40 p-2">
-              <summary className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground cursor-pointer select-none">Macros da refeição</summary>
-              <div className="mt-2 mb-2 flex items-center gap-3 text-[10px] tabular-nums text-muted-foreground" title="Cálculo automático com base nos alimentos da Op 1 de cada macro — visível apenas para o coach">
-                {(() => {
-                  const mm = calcMealMacros(m);
-                  return (
-                    <>
-                      <span className="font-bold text-foreground">Auto: {Math.round(mm.kcal)} kcal</span>
-                      <span className="text-blue-500">{mm.protein.toFixed(1)}p</span>
-                      <span className="text-amber-500">{mm.carbs.toFixed(1)}c</span>
-                      <span className="text-rose-500">{mm.fat.toFixed(1)}g</span>
-                    </>
-                  );
-                })()}
-              </div>
-              <div className="grid grid-cols-3 gap-2 mt-2">
-                <div><Label className="text-[10px] uppercase text-amber-500">Carbo (g)</Label><Input type="number" value={m.macros.carbs} onChange={(e) => updMacro(mealIdx, "carbs", Number(e.target.value) || 0)} className="h-8 text-xs mt-1" /></div>
-                <div><Label className="text-[10px] uppercase text-blue-500">Proteína (g)</Label><Input type="number" value={m.macros.protein} onChange={(e) => updMacro(mealIdx, "protein", Number(e.target.value) || 0)} className="h-8 text-xs mt-1" /></div>
-                <div><Label className="text-[10px] uppercase text-rose-500">Gordura (g)</Label><Input type="number" value={m.macros.fat} onChange={(e) => updMacro(mealIdx, "fat", Number(e.target.value) || 0)} className="h-8 text-xs mt-1" /></div>
-              </div>
-            </details>
           </div>
+          )}
         </Card>
-      ))}
+        );
+      })}
       <Button variant="outline" size="sm" onClick={() => setPayload({ ...payload, meals: [...payload.meals, makeEmptyMeal(`Refeição ${payload.meals.length + 1}`)] })} className="w-full">
         <Plus className="w-4 h-4 mr-1.5" /> Adicionar Nova Refeição
       </Button>

@@ -1,6 +1,7 @@
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { useStudentData } from "@/hooks/useStudentData";
 import { TrendingUp, Loader2 } from "lucide-react";
+import { estimateBF } from "@/lib/bfEstimate";
 
 export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
   const { anamnesis, checkIns, loading } = useStudentData(studentId);
@@ -20,20 +21,19 @@ export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
   const altura = Number(baseline.altura || 0);
   const genero = payloadAna.genero || "M";
 
-  // Algoritmo RFM (Relative Fat Mass) para estimativa de gordura corporal por antropometria
-  const calcularBF = (alt: number, cint: number, sex: string) => {
-    if (!alt || !cint) return 0;
-    const rfm = sex === "M" ? 64 - 20 * (alt / cint) : 76 - 20 * (alt / cint);
-    return Math.max(2, Math.round(rfm * 10) / 10);
-  };
-
-  const rawData: Array<{ date: string; peso: number; gordura: number; timestamp: number }> = [];
+  const rawData: Array<{ date: string; peso: number; gordura: number | null; timestamp: number }> = [];
 
   // Ponto Inicial: Linha de base da Anamnese
   if (anamnesis?.submitted_at && baseline.peso) {
     const pesoBase = Number(baseline.peso);
     const cinturaBase = Number(baseline.cintura || 0);
-    const bfBase = calcularBF(altura, cinturaBase, genero);
+    const bfBase = estimateBF({
+      altura,
+      cintura: cinturaBase,
+      pescoco: Number(baseline.pescoco || 0),
+      quadril: Number(baseline.quadril || 0),
+      genero,
+    }).value;
 
     rawData.push({
       date: new Date(anamnesis.submitted_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
@@ -49,7 +49,13 @@ export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
       if (chk.current_metrics && chk.submitted_at) {
         const pesoAtual = Number(chk.current_metrics.peso || 0);
         const cinturaAtual = Number(chk.current_metrics.cintura || 0);
-        const bfAtual = calcularBF(altura, cinturaAtual, genero);
+        const bfAtual = estimateBF({
+          altura,
+          cintura: cinturaAtual,
+          pescoco: Number(chk.current_metrics.pescoco || 0),
+          quadril: Number(chk.current_metrics.quadril || 0),
+          genero,
+        }).value;
 
         rawData.push({
           date: new Date(chk.submitted_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
@@ -64,6 +70,7 @@ export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
   // Ordenação cronológica estrita limitado às últimas 14 medições
   const chartData = rawData
     .filter((d) => d.peso > 0)
+    // gordura null é permitido — o gráfico omite o ponto automaticamente
     .sort((a, b) => a.timestamp - b.timestamp)
     .slice(-14);
 
@@ -84,7 +91,10 @@ export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
   const ultimaMedida = chartData[chartData.length - 1];
   const primeiraMedida = chartData[0];
   const mudancaPeso = (ultimaMedida.peso - primeiraMedida.peso).toFixed(1);
-  const mudancaGordura = (ultimaMedida.gordura - primeiraMedida.gordura).toFixed(1);
+  const mudancaGordura =
+    ultimaMedida.gordura !== null && primeiraMedida.gordura !== null
+      ? (ultimaMedida.gordura - primeiraMedida.gordura).toFixed(1)
+      : "0";
 
   return (
     <div className="glass rounded-2xl p-8">
@@ -128,6 +138,11 @@ export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
         </AreaChart>
       </ResponsiveContainer>
 
+      <p className="mt-3 text-[11px] text-muted-foreground leading-relaxed">
+        * O % de Gordura Estimada é calculado pela fórmula US Navy com base nas medidas informadas (cintura, pescoço e quadril).
+        Trata-se de uma estimativa e pode apresentar variações devido à individualidade biológica. Não substitui avaliação profissional.
+      </p>
+
       <div className="mt-6 grid grid-cols-2 gap-4">
         <div className="glass rounded-xl p-4">
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Mudança de Peso</p>
@@ -138,8 +153,13 @@ export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
         <div className="glass rounded-xl p-4">
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Gordura Estimada</p>
           <p className={`text-2xl font-bold mt-1 ${Number(mudancaGordura) <= 0 ? 'text-emerald-400' : 'text-primary'}`}>
-            {Number(mudancaGordura) > 0 ? '+' : ''}{mudancaGordura}%
+            {ultimaMedida.gordura !== null && primeiraMedida.gordura !== null
+              ? `${Number(mudancaGordura) > 0 ? '+' : ''}${mudancaGordura}%`
+              : '—'}
           </p>
+          {ultimaMedida.gordura === null && (
+            <p className="text-[10px] text-muted-foreground mt-1">Informe cintura e pescoço nos check-ins</p>
+          )}
         </div>
       </div>
     </div>

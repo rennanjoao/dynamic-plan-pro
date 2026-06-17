@@ -79,6 +79,8 @@ export function parseWeightString(
 
 export function calcItemMacros(item: any): Macros {
   if (!item) return { ...ZERO };
+  // Itens marcados como opcional não entram no cálculo
+  if (item.optional === true) return { ...ZERO };
   // isTaco === true cobre TACO + industrializados (ambos têm tabela conhecida g/100g).
   // isIndustrial === true também aceito para clareza.
   if (item.isTaco === true || item.isIndustrial === true) {

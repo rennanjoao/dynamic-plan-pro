@@ -74,6 +74,43 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Atum em água (drenado)",                   kcal: 116, p: 25.5, c: 0, g: 1.0,  group: "protein" },
   { name: "Whey protein isolado",                     kcal: 367, p: 80.0, c: 6.7, g: 3.3, group: "protein" },
 
+  // ─── CARNES BOVINA (PANELA / ENSOPADO) ──────────────────────────────────────
+  { name: "Acém bovino (cru)",                        kcal: 189, p: 18.0, c: 0, g: 12.7, group: "protein", cookFactor: 0.65 },
+  { name: "Acém bovino (cozido)",                     kcal: 291, p: 27.7, c: 0, g: 19.5, group: "protein", valuesArCooked: true },
+  { name: "Músculo bovino (cru)",                     kcal: 134, p: 20.8, c: 0, g: 5.4,  group: "protein", cookFactor: 0.65 },
+  { name: "Músculo bovino (cozido)",                  kcal: 206, p: 32.0, c: 0, g: 8.3,  group: "protein", valuesArCooked: true },
+  { name: "Costela bovina (crua)",                    kcal: 302, p: 17.8, c: 0, g: 25.6, group: "protein", cookFactor: 0.60 },
+  { name: "Costela bovina (cozida)",                  kcal: 503, p: 29.6, c: 0, g: 42.6, group: "protein", valuesArCooked: true },
+  { name: "Paleta bovina (crua)",                     kcal: 173, p: 19.5, c: 0, g: 10.3, group: "protein", cookFactor: 0.65 },
+  { name: "Paleta bovina (cozida)",                   kcal: 266, p: 30.0, c: 0, g: 15.8, group: "protein", valuesArCooked: true },
+  { name: "Lagarto bovino (cru)",                     kcal: 128, p: 21.5, c: 0, g: 4.5,  group: "protein", cookFactor: 0.68 },
+  { name: "Lagarto bovino (cozido)",                  kcal: 188, p: 31.6, c: 0, g: 6.6,  group: "protein", valuesArCooked: true },
+  { name: "Coxão duro (cru)",                         kcal: 131, p: 21.8, c: 0, g: 4.7,  group: "protein", cookFactor: 0.68 },
+  { name: "Coxão duro (cozido)",                      kcal: 193, p: 32.1, c: 0, g: 6.9,  group: "protein", valuesArCooked: true },
+  { name: "Fraldinha (crua)",                         kcal: 154, p: 20.5, c: 0, g: 7.9,  group: "protein", cookFactor: 0.70 },
+  { name: "Fraldinha (grelhada)",                     kcal: 220, p: 29.3, c: 0, g: 11.3, group: "protein", valuesArCooked: true },
+  { name: "Alcatra (crua)",                           kcal: 134, p: 20.2, c: 0, g: 5.7,  group: "protein", cookFactor: 0.70 },
+  { name: "Alcatra (grelhada)",                       kcal: 191, p: 28.9, c: 0, g: 8.1,  group: "protein", valuesArCooked: true },
+  { name: "Maminha (crua)",                           kcal: 145, p: 20.8, c: 0, g: 6.5,  group: "protein", cookFactor: 0.70 },
+  { name: "Maminha (grelhada)",                       kcal: 207, p: 29.7, c: 0, g: 9.3,  group: "protein", valuesArCooked: true },
+
+  // ─── CARNES SUÍNAS ───────────────────────────────────────────────────────────
+  { name: "Pernil suíno (cru)",                       kcal: 150, p: 18.5, c: 0, g: 8.5,  group: "protein", cookFactor: 0.65 },
+  { name: "Pernil suíno (assado)",                    kcal: 231, p: 28.4, c: 0, g: 13.1, group: "protein", valuesArCooked: true },
+  { name: "Lombo suíno (cru)",                        kcal: 143, p: 20.1, c: 0, g: 7.0,  group: "protein", cookFactor: 0.70 },
+  { name: "Lombo suíno (assado)",                     kcal: 204, p: 28.7, c: 0, g: 10.0, group: "protein", valuesArCooked: true },
+  { name: "Costela suína (crua)",                     kcal: 267, p: 15.6, c: 0, g: 22.8, group: "protein", cookFactor: 0.60 },
+  { name: "Costela suína (cozida)",                   kcal: 445, p: 26.0, c: 0, g: 38.0, group: "protein", valuesArCooked: true },
+  { name: "Paleta suína (crua)",                      kcal: 186, p: 17.0, c: 0, g: 13.0, group: "protein", cookFactor: 0.65 },
+  { name: "Paleta suína (cozida)",                    kcal: 286, p: 26.2, c: 0, g: 20.0, group: "protein", valuesArCooked: true },
+  { name: "Bisteca suína (crua)",                     kcal: 219, p: 18.3, c: 0, g: 16.1, group: "protein", cookFactor: 0.70 },
+  { name: "Bisteca suína (grelhada)",                 kcal: 313, p: 26.1, c: 0, g: 23.0, group: "protein", valuesArCooked: true },
+  { name: "File de porco (cru)",                      kcal: 158, p: 19.5, c: 0, g: 9.0,  group: "protein", cookFactor: 0.70 },
+  { name: "File de porco (grelhado)",                 kcal: 226, p: 27.9, c: 0, g: 12.9, group: "protein", valuesArCooked: true },
+  { name: "Panceta suína (crua)",                     kcal: 389, p: 12.0, c: 0, g: 38.6, group: "protein", cookFactor: 0.70 },
+  { name: "Linguiça suína (crua)",                    kcal: 254, p: 15.6, c: 3.0, g: 20.8, group: "protein", cookFactor: 0.80 },
+  { name: "Linguiça suína (grelhada)",                kcal: 318, p: 19.5, c: 3.7, g: 26.0, group: "protein", valuesArCooked: true },
+
   // ─── GORDURAS ────────────────────────────────────────────────────────────────
   { name: "Azeite extra virgem",          kcal: 884, p: 0.0,  c: 0.0,  g: 100.0, group: "fat" },
   { name: "Óleo de coco",                 kcal: 892, p: 0.0,  c: 0.0,  g: 99.1,  group: "fat" },
@@ -118,6 +155,14 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Queijo cottage",            kcal: 88,  p: 11.7, c: 2.5, g: 4.0,  group: "dairy" },
   { name: "Queijo minas frescal",      kcal: 264, p: 17.4, c: 3.2, g: 20.2, group: "dairy" },
   { name: "Ricota fresca",             kcal: 135, p: 11.3, c: 3.2, g: 8.5,  group: "dairy" },
+  { name: "Requeijão cremoso",         kcal: 250, p: 7.5,  c: 3.0, g: 23.5, group: "dairy" },
+  { name: "Requeijão light",           kcal: 140, p: 8.0,  c: 4.0, g: 10.5, group: "dairy" },
+  { name: "Cream cheese",              kcal: 342, p: 6.2,  c: 4.1, g: 34.0, group: "dairy" },
+  { name: "Queijo prato",              kcal: 358, p: 22.6, c: 1.6, g: 29.3, group: "dairy" },
+  { name: "Queijo muçarela",           kcal: 300, p: 21.6, c: 2.4, g: 23.0, group: "dairy" },
+  { name: "Leite integral",            kcal: 61,  p: 2.9,  c: 4.6, g: 3.2,  group: "dairy" },
+  { name: "Iogurte natural integral",  kcal: 68,  p: 3.7,  c: 4.9, g: 3.7,  group: "dairy" },
+  { name: "Creme de leite",            kcal: 249, p: 2.7,  c: 3.7, g: 25.5, group: "dairy" },
 ];
 
 // ─── FUNÇÕES ──────────────────────────────────────────────────────────────────
