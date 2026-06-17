@@ -1059,6 +1059,19 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                           <div className="space-y-1.5">
                             {items.map((it: any, ii: number) => (
                               <div key={ii} className="bg-background rounded border border-border/40 px-2 py-2 space-y-1.5">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-[9px] text-amber-500 font-bold uppercase tracking-wider">
+                                    {(it as any).optional ? "⚡ Opcional (não soma)" : ""}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => updItem(mealIdx, kind, optIdx, ii, { optional: !(it as any).optional })}
+                                    className={`text-[9px] px-2 py-0.5 rounded border transition-colors ${(it as any).optional ? "bg-amber-500/15 border-amber-500/40 text-amber-600 font-bold" : "border-border/50 text-muted-foreground hover:border-amber-400 hover:text-amber-500"}`}
+                                    title="Marcar como opcional — não entra no cálculo de kcal"
+                                  >
+                                    {(it as any).optional ? "✓ Opcional" : "Opcional?"}
+                                  </button>
+                                </div>
                                 <FoodRow
                                   it={it}
                                   kind={kind}
