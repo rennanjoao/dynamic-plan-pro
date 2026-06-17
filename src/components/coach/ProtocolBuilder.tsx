@@ -1067,8 +1067,11 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                                     if (tKind !== kind) {
                                       const kindLabel = kind === "protein" ? "Proteína" : kind === "fat" ? "Gordura" : "Carbo";
                                       const tacoLabel = tKind === "protein" ? "Proteína" : tKind === "fat" ? "Gordura" : "Carbo";
-                                      toast.error(`"${taco.name}" é ${tacoLabel} — adicione-o no card correto.`, { description: `Este card é de ${kindLabel}.`, duration: 4000 });
-                                      return;
+                                      toast.warning(`"${taco.name}" é classificado como ${tacoLabel} no TACO`, {
+                                        description: `Você está adicionando em ${kindLabel}. As kcal serão calculadas normalmente.`,
+                                        duration: 5000,
+                                      });
+                                      // NÃO retorna — permite a inserção normalmente
                                     }
                                     const isInd = taco.source === "industrial";
                                     updItem(mealIdx, kind, optIdx, ii, {
