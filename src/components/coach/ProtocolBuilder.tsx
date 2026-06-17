@@ -960,7 +960,10 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
         </Card>
       </div>
 
-      {payload.meals.map((m, mealIdx) => (
+      {payload.meals.map((m, mealIdx) => {
+        const isCollapsed = !!collapsedMeals[mealIdx];
+        const mealM = calcMealMacros(m);
+        return (
         <Card key={mealIdx} className="bg-card/60 border-border overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-border/40 bg-muted/10">
             <Input
@@ -971,6 +974,11 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
               className="h-8 text-sm font-bold text-primary flex-1"
             />
             <Input value={m.time} onChange={(e) => updMealField(mealIdx, { time: e.target.value })} placeholder="07:00" className="h-8 text-sm w-20 shrink-0" />
+            {isCollapsed && mealM.kcal > 0 && (
+              <span className="text-[10px] font-bold tabular-nums text-muted-foreground shrink-0 px-1.5 py-0.5 rounded bg-muted/40 border border-border/40">
+                {Math.round(mealM.kcal)} kcal
+              </span>
+            )}
             {payload.setup.carbCycle && (
               <button type="button"
                 onClick={() => updMealField(mealIdx, { carbCycle: !(m as any).carbCycle } as any)}
@@ -978,11 +986,20 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                 <TrendingUp className="w-3.5 h-3.5" /> Ciclo
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => setCollapsedMeals((prev) => ({ ...prev, [mealIdx]: !isCollapsed }))}
+              className="text-muted-foreground hover:text-primary p-1.5 shrink-0"
+              title={isCollapsed ? "Expandir refeição" : "Minimizar refeição"}
+            >
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isCollapsed ? "" : "rotate-180"}`} />
+            </button>
             <button onClick={() => duplicateMeal(mealIdx)} className="text-muted-foreground hover:text-primary p-1.5 shrink-0" title="Duplicar refeição"><Copy className="w-3.5 h-3.5" /></button>
             <button onClick={() => setSaveTplFor({ idx: mealIdx, name: m.name || "Modelo", kind: "mixed" })} className="text-muted-foreground hover:text-primary p-1.5 shrink-0" title="Salvar como modelo"><BookmarkPlus className="w-3.5 h-3.5" /></button>
             <button onClick={() => setPayload({ ...payload, meals: payload.meals.filter((_, idx) => idx !== mealIdx) })} className="text-muted-foreground hover:text-destructive p-1.5 shrink-0"><Trash2 className="w-4 h-4" /></button>
           </div>
 
+          {!isCollapsed && (
           <div className="p-4 space-y-3">
             {(["carb", "protein", "fat"] as const).map((kind) => {
               const cfg = KIND[kind];
