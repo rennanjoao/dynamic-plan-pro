@@ -804,6 +804,7 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
   const [saveTplFor, setSaveTplFor] = useState<{ idx: number; name: string; kind: string } | null>(null);
   const [loadTplOpen, setLoadTplOpen] = useState(false);
   const [templates, setTemplates] = useState<any[]>([]);
+  const [collapsedMeals, setCollapsedMeals] = useState<Record<number, boolean>>({});
 
   async function reloadTemplates() {
     if (!coachId) return;
