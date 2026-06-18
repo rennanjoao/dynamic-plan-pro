@@ -39,17 +39,27 @@ function CrownSVG() {
   );
 }
 
-function TrophySVG() {
+/** Troféu dentro de anel dourado — mais elegante para redes sociais */
+function TrophyRing() {
   const gold = "#C9A84C";
   return (
-    <svg width="64" height="72" viewBox="0 0 64 72" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M14 8 H50 V28 C50 38 42 46 32 46 C22 46 14 38 14 28 Z" fill={gold} />
-      <path d="M14 12 H6 V20 C6 26 10 30 16 30" stroke={gold} strokeWidth="3" fill="none" />
-      <path d="M50 12 H58 V20 C58 26 54 30 48 30" stroke={gold} strokeWidth="3" fill="none" />
-      <rect x="26" y="46" width="12" height="10" fill={gold} />
-      <rect x="18" y="56" width="28" height="6" rx="1" fill={gold} />
-      <rect x="14" y="62" width="36" height="6" rx="1" fill={gold} />
-      <circle cx="32" cy="24" r="6" fill="#0A0A0A" opacity="0.25" />
+    <svg width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Anel externo */}
+      <circle cx="48" cy="48" r="46" stroke={gold} strokeWidth="2" opacity="0.35" />
+      {/* Anel interno */}
+      <circle cx="48" cy="48" r="40" stroke={gold} strokeWidth="1" opacity="0.2" />
+      {/* Fundo do anel */}
+      <circle cx="48" cy="48" r="43" fill="#1A1300" opacity="0.7" />
+      {/* Troféu centralizado */}
+      <g transform="translate(16, 14)">
+        <path d="M14 8 H50 V28 C50 38 42 46 32 46 C22 46 14 38 14 28 Z" fill={gold} />
+        <path d="M14 12 H6 V20 C6 26 10 30 16 30" stroke={gold} strokeWidth="3" fill="none" />
+        <path d="M50 12 H58 V20 C58 26 54 30 48 30" stroke={gold} strokeWidth="3" fill="none" />
+        <rect x="26" y="46" width="12" height="10" fill={gold} />
+        <rect x="18" y="56" width="28" height="6" rx="1" fill={gold} />
+        <rect x="14" y="62" width="36" height="6" rx="1" fill={gold} />
+        <circle cx="32" cy="24" r="6" fill="#0A0A0A" opacity="0.25" />
+      </g>
     </svg>
   );
 }
@@ -71,10 +81,10 @@ export default function WorkoutShareCard({
     month: "long",
     year: "numeric",
   });
-  const gold = "#C9A84C";
-  const red = "#CC0000";
-  const bg = "#0A0A0A";
-  const card1 = "#1A1A1A";
+  const gold   = "#C9A84C";
+  const red    = "#CC0000";
+  const bg     = "#0A0A0A";
+  const card1  = "#1A1A1A";
   const divider = "#2A2A2A";
 
   const generateBlob = async (): Promise<Blob | null> => {
@@ -136,7 +146,7 @@ export default function WorkoutShareCard({
     <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
       <div className="w-full max-w-md space-y-4 my-auto">
         <div className="flex items-center justify-between">
-          <h3 className="text-white font-bold text-lg">Treino concluído 🏆</h3>
+          <h3 className="text-white font-bold text-lg">Treino concluído</h3>
           <button
             type="button"
             onClick={onClose}
@@ -147,7 +157,7 @@ export default function WorkoutShareCard({
           </button>
         </div>
 
-        {/* CARD GERADO — fundo sempre escuro, identidade Elite Prime Hub */}
+        {/* CARD GERADO */}
         <div
           ref={cardRef}
           style={{
@@ -189,7 +199,7 @@ export default function WorkoutShareCard({
             <CrownSVG />
           </div>
 
-          {/* Centro: troféu + frase */}
+          {/* Centro: troféu com anel + frase */}
           <div
             style={{
               flex: 1,
@@ -197,13 +207,15 @@ export default function WorkoutShareCard({
               flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
-              gap: "12px",
+              gap: "10px",
               textAlign: "center",
             }}
           >
-            <TrophySVG />
+            <TrophyRing />
             <p style={{ color: "#fff", fontSize: "22px", fontWeight: 900, lineHeight: 1.1 }}>
-              Treino concluído.
+              Treino {workoutName.split("·")[0]?.trim() ?? ""}
+              <br />
+              <span style={{ color: "#fff" }}>concluído.</span>
             </p>
             <p style={{ color: gold, fontSize: "13px", fontStyle: "italic", fontWeight: 600 }}>
               Consistência é o único atalho.
@@ -225,16 +237,16 @@ export default function WorkoutShareCard({
                     fontWeight: 700,
                   }}
                 >
-                  {weekLabel}
+                  {weekLabel.toUpperCase()}
                 </p>
               </div>
             )}
           </div>
 
           {/* Divisor dourado */}
-          <div style={{ height: "1px", backgroundColor: gold, opacity: 0.5, margin: "8px 0 12px" }} />
+          <div style={{ height: "1px", backgroundColor: gold, opacity: 0.4, margin: "8px 0 12px" }} />
 
-          {/* Stats 2×2 */}
+          {/* Stats 2×2 — duração em dourado */}
           <div
             style={{
               display: "grid",
@@ -243,10 +255,10 @@ export default function WorkoutShareCard({
             }}
           >
             {[
-              { l: "DURAÇÃO", v: fmtDuration(durationSec) },
-              { l: "SÉRIES", v: String(totalSets) },
-              { l: "EXERCÍCIOS", v: `${completedExercises}/${totalExercises}` },
-              { l: "TREINO", v: workoutName },
+              { l: "DURAÇÃO",    v: fmtDuration(durationSec), highlight: true },
+              { l: "SÉRIES",     v: String(totalSets),         highlight: false },
+              { l: "EXERCÍCIOS", v: `${completedExercises} / ${totalExercises}`, highlight: false },
+              { l: "TREINO",     v: workoutName,               highlight: false },
             ].map((s, i) => (
               <div
                 key={i}
@@ -254,7 +266,7 @@ export default function WorkoutShareCard({
                   backgroundColor: card1,
                   borderRadius: "10px",
                   padding: "10px 12px",
-                  border: `1px solid ${divider}`,
+                  border: `1px solid ${s.highlight ? gold + "55" : divider}`,
                 }}
               >
                 <p
@@ -267,7 +279,14 @@ export default function WorkoutShareCard({
                 >
                   {s.l}
                 </p>
-                <p style={{ color: "#fff", fontSize: "14px", fontWeight: 800, marginTop: "2px" }}>
+                <p
+                  style={{
+                    color: s.highlight ? gold : "#fff",
+                    fontSize: "14px",
+                    fontWeight: 800,
+                    marginTop: "2px",
+                  }}
+                >
                   {s.v}
                 </p>
               </div>
@@ -290,12 +309,13 @@ export default function WorkoutShareCard({
           </div>
         </div>
 
+        {/* Botões de ação */}
         <div className="space-y-2">
           <Button
             type="button"
             onClick={handleShare}
             disabled={busy}
-            className="w-full h-11 font-bold"
+            className="w-full h-12 font-bold rounded-2xl"
             style={{ background: `linear-gradient(135deg, ${red}, #8B0000)`, color: "#fff" }}
           >
             {busy ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Share2 className="w-4 h-4 mr-2" />}
@@ -306,7 +326,7 @@ export default function WorkoutShareCard({
             variant="outline"
             onClick={handleSave}
             disabled={busy}
-            className="w-full h-11 font-bold"
+            className="w-full h-12 font-bold rounded-2xl"
           >
             <Download className="w-4 h-4 mr-2" />
             Salvar imagem
@@ -315,7 +335,7 @@ export default function WorkoutShareCard({
             type="button"
             variant="ghost"
             onClick={onClose}
-            className="w-full text-white/60 hover:text-white"
+            className="w-full rounded-2xl text-white/60 hover:text-white"
           >
             Fechar
           </Button>
