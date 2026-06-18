@@ -5,14 +5,15 @@
  * - carbMode e isCooked agora vivem aqui (estado global), não nos MealCards
  * - StickyDietBar centraliza os dois controles numa barra sticky no topo
  * - MealCard não tem mais useState para isCooked nem o toggle local de cru/cozido
- * - NutritionStrategyHeader mantém apenas os macros (sem os botões de ciclo de carbo)
- * - hasCookable calculado no root e passado para a barra + para cada card
+ * - NutritionStrategyHeader recalcula iterativamente macros REAIS da dieta considerando
+ * se a refeição participa do ciclo e dimensionando resíduos (proteína/gordura) da fonte de carbo.
  */
 
 import { useState, useMemo } from "react";
 import { Clock, Flame, Dna, Wheat, Droplets, Salad } from "lucide-react";
 import { type CarbMode } from "@/components/student/CarbCycleSelector";
 import StickyDietBar from "@/components/student/StickyDietBar";
+import { calcItemMacros } from "@/lib/macroCalc";
 
 // ─── Math engine ──────────────────────────────────────────────────────────────
 function getCookedMultiplier(name: string): number {
@@ -98,6 +99,58 @@ function mealHasCookable(meal: any): boolean {
     );
 }
 
+function calculateRealTotals(
+  meals: any[],
+  carbMode: CarbMode,
+  highPct: number,
+  lowPct: number
+) {
+  let totalP = 0;
+  let totalC = 0;
+  let totalF = 0;
+
+  meals.forEach((meal) => {
+    // Isola as refeições que não participam do ciclo
+    const effectiveMode = meal.carbCycle === false ? "base" : carbMode;
+    const carbMult =
+      effectiveMode === "high"
+        ? 1 + highPct / 100
+        : effectiveMode === "low" || effectiveMode === "off"
+        ? 1 - lowPct / 100
+        : 1;
+
+    const opts: any[] = Array.isArray(meal.options) ? meal.options : [];
+    const seenKind: Record<string, boolean> = {};
+
+    opts.forEach((opt) => {
+      const kind = opt?.kind || "other";
+      // Soma apenas a Opção Principal (Opção 1) no placar
+      if (seenKind[kind]) return;
+      seenKind[kind] = true;
+
+      const isCarbGroup = kind === "carb";
+      const items: any[] = Array.isArray(opt?.items) ? opt.items : [];
+
+      items.forEach((it) => {
+        const m = calcItemMacros(it);
+        // Aplica o ciclo apenas no grupo carboidrato.
+        // Como fisicamente aumenta a porção da aveia/arroz, escala C, P e F do item.
+        const mult = isCarbGroup ? carbMult : 1;
+
+        totalP += m.protein * mult;
+        totalC += m.carbs * mult;
+        totalF += m.fat * mult;
+      });
+    });
+  });
+
+  return {
+    protein: Math.round(totalP),
+    carbs: Math.round(totalC),
+    fat: Math.round(totalF),
+  };
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 const KIND_META = {
   carb:    { label: "CARBOIDRATO",       color: "text-amber-400",   border: "border-amber-500/20",   bg: "bg-amber-500/5"   },
@@ -110,7 +163,7 @@ type Kind = keyof typeof KIND_META;
 
 const OPTION_LABELS = ["OPÇÃO PRINCIPAL", "OPÇÃO ALTERNATIVA", "OPÇÃO 3", "OPÇÃO 4", "OPÇÃO 5"];
 
-// ─── NutritionStrategyHeader — macros recalculados conforme ciclo de carbo ────
+// ─── NutritionStrategyHeader — macros recalculados de forma exata ─────────────
 function NutritionStrategyHeader({
   payload,
   carbMode,
@@ -122,29 +175,39 @@ function NutritionStrategyHeader({
   highPct: number;
   lowPct: number;
 }) {
-  const m = payload?.macros ?? {};
+  let { protein: adjProtein, carbs: adjCarbs, fat: adjFat } = calculateRealTotals(
+    payload?.meals || [],
+    carbMode,
+    highPct,
+    lowPct
+  );
 
-  const carbMult =
-    carbMode === "high" ? 1 + highPct / 100
-    : carbMode === "low" || carbMode === "off" ? 1 - lowPct / 100
-    : 1;
+  // Fallback de segurança para legados onde calcItemMacros retorne 0
+  if (adjProtein === 0 && adjCarbs === 0 && adjFat === 0) {
+    const m = payload?.macros ?? {};
+    adjProtein = Math.round(Number(m.protein ?? 0));
+    adjFat = Math.round(Number(m.fat ?? 0));
 
-  const baseCarbs    = Number(m.carbs    ?? 0);
-  const baseFat      = Number(m.fat      ?? 0);
-  const baseProtein  = Number(m.protein  ?? 0);
+    const baseCarbs = Number(m.carbs ?? 0);
+    const globalMult =
+      carbMode === "high"
+        ? 1 + highPct / 100
+        : carbMode === "low" || carbMode === "off"
+        ? 1 - lowPct / 100
+        : 1;
+    adjCarbs = Math.round(baseCarbs * globalMult);
+  }
 
-  const adjCarbs = Math.round(baseCarbs * carbMult);
-
-  // CORRETO: calorias = soma real dos macros ajustados
-  const adjCalories = baseProtein > 0 || adjCarbs > 0 || baseFat > 0
-    ? Math.round(baseProtein * 4 + adjCarbs * 4 + baseFat * 9)
+  // Calorias somadas estritamente sob os blocos de macronutrientes já dimensionados
+  const adjCalories = adjProtein > 0 || adjCarbs > 0 || adjFat > 0
+    ? Math.round((adjProtein * 4) + (adjCarbs * 4) + (adjFat * 9))
     : 0;
 
   const macros = [
     { icon: Flame,    value: adjCalories || "—", unit: "kcal", label: "Energia"  },
-    { icon: Dna,      value: baseProtein  || "—", unit: "g",   label: "Proteína" },
-    { icon: Wheat,    value: adjCarbs     || "—", unit: "g",   label: "Carbo"    },
-    { icon: Droplets, value: baseFat      || "—", unit: "g",   label: "Gordura"  },
+    { icon: Dna,      value: adjProtein  || "—", unit: "g",   label: "Proteína" },
+    { icon: Wheat,    value: adjCarbs    || "—", unit: "g",   label: "Carbo"    },
+    { icon: Droplets, value: adjFat      || "—", unit: "g",   label: "Gordura"  },
   ];
 
   const modeLabel = carbMode === "high" ? "↑ Carboidrato Alto"
