@@ -16,8 +16,8 @@
  * [CORREÇÃO] Substituído EvolutionComparisonLazy por AnamnesisViewerLazy no Sheet lateral
  * [BUG] Lista do TACO sendo cortada em alimentos adicionais (overflow-hidden)
  * Fix: removido overflow-hidden e adicionado focus-within:z-50 quando expandido.
- * [BUG] Busca no TACO não encontrava palavras sem acento (ex: FEIJAO)
- * Fix: FoodRow agora utiliza fallback robusto com .normalize("NFD")
+ * [BUG] Busca no TACO não encontrava palavras sem acento (ex: FEIJAO) e tinha conflito de Z-Index interno
+ * Fix: FoodRow agora utiliza fallback robusto com .normalize("NFD") e camadas z-[60]/z-[70] mapeadas.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -1329,20 +1329,31 @@ function FoodRow({
   const matches = useMemo<FoodHit[]>(() => {
     if (rawQ.length < 2) return [];
     
-    // Fallback robusto anti-acentos e anti-case sensitive direto no client
+    // Texto limpo sem acentos e em minúsculas
     const normalizedQ = rawQ.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     
-    // Busca principal (pode falhar por falta de acentos)
-    let sysMatches = searchFoods(rawQ, 10);
+    // 1. Força a busca varrendo 100% da tabela TACO localmente (ignora acentos)
+    const tacoMatches = TACO_DATA.filter(t => 
+      t.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(normalizedQ)
+    ).map(t => ({ ...t, source: "taco" as const }));
     
-    // Se a busca falhar, forçamos uma busca manual higienizada diretamente na TACO_DATA
-    if (!sysMatches || sysMatches.length === 0) {
-      sysMatches = TACO_DATA.filter(t => 
-        t.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(normalizedQ)
-      ).slice(0, 10).map(t => ({ ...t, source: "taco" as const }));
+    // 2. Puxa a busca do sistema para não perdermos os Industrializados
+    const sysMatches = searchFoods(rawQ, 15) || [];
+    
+    // 3. Mescla tudo, priorizando a TACO e removendo duplicatas
+    const merged = [...tacoMatches, ...sysMatches];
+    const unique: FoodHit[] = [];
+    const seen = new Set();
+    
+    for (const item of merged) {
+      if (!seen.has(item.name)) {
+        seen.add(item.name);
+        unique.push(item);
+      }
     }
     
-    return sysMatches;
+    // Aumentamos para 15 para exibir todas as variações (ex: Feijão carioca, preto, cru, cozido...)
+    return unique.slice(0, 15);
   }, [rawQ]);
 
   const showSuggestions = focused && matches.length > 0 && !it.isTaco && !it.isIndustrial;
