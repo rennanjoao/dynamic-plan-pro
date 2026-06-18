@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, AlertTriangle, Activity, Info, Play } from "lucide-react";
+import { ArrowLeft, Loader2, AlertTriangle, Activity, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -93,9 +93,13 @@ export default function WorkoutPlan() {
   const rawPayload = planData?.workout_periodization_json || {};
   const parsed = ProtocolPayloadSchema.safeParse(rawPayload);
   const safePayload: any = parsed.success ? parsed.data : rawPayload;
-
   const workouts = Array.isArray(safePayload?.workouts) ? safePayload.workouts : [];
   const trainingGuideline = safePayload?.guidelines?.training;
+
+  const handleStartWorkout = (dayKey: string) => {
+    setWorkoutModeDay(dayKey);
+    setShowWorkoutMode(true);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -111,7 +115,6 @@ export default function WorkoutPlan() {
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
 
-        {/* DIRETRIZES DO TREINADOR */}
         {trainingGuideline && (
           <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl shadow-sm">
             <h3 className="text-amber-600 font-bold flex items-center gap-2 mb-2">
@@ -123,49 +126,11 @@ export default function WorkoutPlan() {
           </div>
         )}
 
-        {/* ── BOTÕES INICIAR MODO TREINO — aparecem SEMPRE, antes da view periodizada ── */}
-        {workouts.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold px-1">
-              Modo Treino
-            </p>
-            {workouts.map((day: any, i: number) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => { setWorkoutModeDay(day.key); setShowWorkoutMode(true); }}
-                className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-white transition-opacity hover:opacity-90 active:scale-[0.99]"
-                style={{ backgroundColor: "#0A0A0A", border: "1px solid #2A2A2A" }}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-9 h-9 rounded-lg flex items-center justify-center font-black text-sm text-white shrink-0"
-                    style={{ backgroundColor: "#CC0000" }}
-                  >
-                    {day.key}
-                  </div>
-                  <div className="text-left">
-                    <p className="font-bold text-sm text-white">Treino {day.key}</p>
-                    {day.focus && (
-                      <p className="text-xs" style={{ color: "#C9A84C" }}>{day.focus}</p>
-                    )}
-                  </div>
-                </div>
-                <div
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-white text-xs font-bold shrink-0"
-                  style={{ backgroundColor: "#CC0000" }}
-                >
-                  <Play className="w-3 h-3 fill-white" /> Iniciar
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* VIEW PERIODIZADA + LEGADA (detalhes dos exercícios) */}
+        {/* WorkoutPeriodizationView agora recebe onStartWorkout e injeta o botão Iniciar dentro dos cards */}
         <WorkoutPeriodizationView
           workouts={workouts as any}
           periodization={safePayload?.periodization}
+          onStartWorkout={handleStartWorkout}
           renderLegacy={() =>
             workouts.length === 0 ? (
               <p className="text-center text-muted-foreground italic py-10">
@@ -190,51 +155,47 @@ export default function WorkoutPlan() {
                         </div>
                       </div>
                     </AccordionTrigger>
-
                     <AccordionContent className="px-4 pb-4 border-t border-border/40">
                       <div className="space-y-4 mt-4">
-                        {Array.isArray(day.exercises) &&
-                          day.exercises.map((ex: any, idx: number) => (
-                            <div key={idx} className="bg-background border border-border/50 rounded-lg p-3">
-                              <h4 className="font-bold text-sm text-primary mb-2 flex items-start gap-2">
-                                <span className="mt-0.5">•</span> {ex.name}
-                              </h4>
-                              <div className={`grid gap-2 mb-2 ${ex.cadence ? "grid-cols-4" : "grid-cols-3"}`}>
-                                <div className="bg-muted/50 p-2 rounded text-center">
-                                  <p className="text-[10px] text-muted-foreground uppercase">Séries</p>
-                                  <p className="font-semibold text-sm">{ex.sets || "-"}</p>
-                                </div>
-                                <div className="bg-muted/50 p-2 rounded text-center">
-                                  <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
-                                    Reps <InfoPopover termKey="reps" />
-                                  </p>
-                                  <p className="font-semibold text-sm">{ex.reps || "-"}</p>
-                                </div>
-                                {ex.cadence && (
-                                  <div className="bg-muted/50 p-2 rounded text-center">
-                                    <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
-                                      Cadência <InfoPopover termKey="cadence" />
-                                    </p>
-                                    <p className="font-semibold text-sm">{ex.cadence}</p>
-                                  </div>
-                                )}
-                                <div className="bg-muted/50 p-2 rounded text-center">
-                                  <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
-                                    Descanso <InfoPopover termKey="rest" />
-                                  </p>
-                                  <p className="font-semibold text-sm">{ex.rest || "-"}</p>
-                                </div>
+                        {Array.isArray(day.exercises) && day.exercises.map((ex: any, idx: number) => (
+                          <div key={idx} className="bg-background border border-border/50 rounded-lg p-3">
+                            <h4 className="font-bold text-sm text-primary mb-2 flex items-start gap-2">
+                              <span className="mt-0.5">•</span> {ex.name}
+                            </h4>
+                            <div className={`grid gap-2 mb-2 ${ex.cadence ? "grid-cols-4" : "grid-cols-3"}`}>
+                              <div className="bg-muted/50 p-2 rounded text-center">
+                                <p className="text-[10px] text-muted-foreground uppercase">Séries</p>
+                                <p className="font-semibold text-sm">{ex.sets || "-"}</p>
                               </div>
-                              {ex.notes && (
-                                <p className="text-xs text-muted-foreground mt-2 italic bg-muted/30 p-2 rounded border-l-2 border-primary/50">
-                                  {ex.notes}
+                              <div className="bg-muted/50 p-2 rounded text-center">
+                                <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
+                                  Reps <InfoPopover termKey="reps" />
                                 </p>
+                                <p className="font-semibold text-sm">{ex.reps || "-"}</p>
+                              </div>
+                              {ex.cadence && (
+                                <div className="bg-muted/50 p-2 rounded text-center">
+                                  <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
+                                    Cadência <InfoPopover termKey="cadence" />
+                                  </p>
+                                  <p className="font-semibold text-sm">{ex.cadence}</p>
+                                </div>
                               )}
+                              <div className="bg-muted/50 p-2 rounded text-center">
+                                <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
+                                  Descanso <InfoPopover termKey="rest" />
+                                </p>
+                                <p className="font-semibold text-sm">{ex.rest || "-"}</p>
+                              </div>
                             </div>
-                          ))}
+                            {ex.notes && (
+                              <p className="text-xs text-muted-foreground mt-2 italic bg-muted/30 p-2 rounded border-l-2 border-primary/50">
+                                {ex.notes}
+                              </p>
+                            )}
+                          </div>
+                        ))}
                       </div>
-
-                      {/* Aeróbico vinculado a este dia */}
                       {Array.isArray(safePayload?.cardio) &&
                         safePayload.cardio.filter(
                           (c: any) => c.workoutKey === day.key && c.associationType === "workout"
@@ -245,9 +206,7 @@ export default function WorkoutPlan() {
                               Aeróbico prescrito para este treino
                             </h4>
                             {safePayload.cardio
-                              .filter(
-                                (c: any) => c.workoutKey === day.key && c.associationType === "workout"
-                              )
+                              .filter((c: any) => c.workoutKey === day.key && c.associationType === "workout")
                               .map((c: any, ci: number) => (
                                 <div key={ci} className="bg-background border border-border/50 rounded-lg p-3">
                                   <div className="flex items-center justify-between mb-1">
@@ -260,7 +219,6 @@ export default function WorkoutPlan() {
                               ))}
                           </div>
                         )}
-
                       <ProtocolQuestionButton context="exercise" variant="full" />
                     </AccordionContent>
                   </AccordionItem>
@@ -270,11 +228,9 @@ export default function WorkoutPlan() {
           }
         />
 
-        {/* Aeróbicos NÃO vinculados a treino específico */}
+        {/* Aeróbicos não vinculados a treino */}
         {Array.isArray(safePayload?.cardio) &&
-          safePayload.cardio.filter(
-            (c: any) => !(c.workoutKey && c.associationType === "workout")
-          ).length > 0 && (
+          safePayload.cardio.filter((c: any) => !(c.workoutKey && c.associationType === "workout")).length > 0 && (
             <div className="space-y-3">
               <h2 className="font-bold text-sm text-foreground flex items-center gap-2 px-1">
                 <Activity className="w-4 h-4 text-primary" /> Aeróbico Prescrito
@@ -304,7 +260,6 @@ export default function WorkoutPlan() {
           )}
       </main>
 
-      {/* MODO TREINO OVERLAY */}
       {showWorkoutMode && (
         <WorkoutMode
           workouts={workouts as any}
