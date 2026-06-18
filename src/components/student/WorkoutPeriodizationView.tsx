@@ -175,7 +175,7 @@ export default function WorkoutPeriodizationView({
                     className="h-7 text-xs bg-background text-foreground"
                   />
                 ) : (
-                  w.label
+                  `Semana ${i + 1}`
                 )}
               </button>
             ))}
