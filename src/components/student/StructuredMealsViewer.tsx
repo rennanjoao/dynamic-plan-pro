@@ -175,39 +175,32 @@ function NutritionStrategyHeader({
   highPct: number;
   lowPct: number;
 }) {
-  let { protein: adjProtein, carbs: adjCarbs, fat: adjFat } = calculateRealTotals(
-    payload?.meals || [],
-    carbMode,
-    highPct,
-    lowPct
-  );
+  const m = payload?.macros ?? {};
 
-  // Fallback de segurança para legados onde calcItemMacros retorne 0
-  if (adjProtein === 0 && adjCarbs === 0 && adjFat === 0) {
-    const m = payload?.macros ?? {};
-    adjProtein = Math.round(Number(m.protein ?? 0));
-    adjFat = Math.round(Number(m.fat ?? 0));
+  const carbMult =
+    carbMode === "high"
+      ? 1 + highPct / 100
+      : carbMode === "low" || carbMode === "off"
+      ? 1 - lowPct / 100
+      : 1;
 
-    const baseCarbs = Number(m.carbs ?? 0);
-    const globalMult =
-      carbMode === "high"
-        ? 1 + highPct / 100
-        : carbMode === "low" || carbMode === "off"
-        ? 1 - lowPct / 100
-        : 1;
-    adjCarbs = Math.round(baseCarbs * globalMult);
-  }
+  const baseCarbs   = Number(m.carbs   ?? 0);
+  const baseFat     = Number(m.fat     ?? 0);
+  const baseProtein = Number(m.protein ?? 0);
 
-  // Calorias somadas estritamente sob os blocos de macronutrientes já dimensionados
-  const adjCalories = adjProtein > 0 || adjCarbs > 0 || adjFat > 0
-    ? Math.round((adjProtein * 4) + (adjCarbs * 4) + (adjFat * 9))
+  const adjCarbs = Math.round(baseCarbs * carbMult);
+
+  // Calorias = soma real dos macros ajustados (ignora m.calories para evitar
+  // propagar divergências de arredondamento do campo digitado pelo coach).
+  const adjCalories = baseProtein > 0 || adjCarbs > 0 || baseFat > 0
+    ? Math.round(baseProtein * 4 + adjCarbs * 4 + baseFat * 9)
     : 0;
 
   const macros = [
     { icon: Flame,    value: adjCalories || "—", unit: "kcal", label: "Energia"  },
-    { icon: Dna,      value: adjProtein  || "—", unit: "g",   label: "Proteína" },
+    { icon: Dna,      value: baseProtein || "—", unit: "g",   label: "Proteína" },
     { icon: Wheat,    value: adjCarbs    || "—", unit: "g",   label: "Carbo"    },
-    { icon: Droplets, value: adjFat      || "—", unit: "g",   label: "Gordura"  },
+    { icon: Droplets, value: baseFat     || "—", unit: "g",   label: "Gordura"  },
   ];
 
   const modeLabel = carbMode === "high" ? "↑ Carboidrato Alto"
