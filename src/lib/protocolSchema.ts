@@ -74,7 +74,7 @@ export const ExerciseOverrideSchema = z.object({
 export const PeriodizationSchema = z.object({
   enabled: z.boolean().default(false),
   weeks: z.array(WeekMetaSchema).length(4).default([
-    { label: "Semana 1 — Carga Máxima",            sets: "4 a 5 séries", reps: "5 a 8 reps",   rest: "2 min",      cadence: "1s conc / 2s exc" },
+    { label: "Semana 1 — Carga Máxima",             sets: "4 a 5 séries", reps: "5 a 8 reps",   rest: "2 min",      cadence: "1s conc / 2s exc" },
     { label: "Semana 2 — Qualidade Neuromuscular", sets: "3 a 4 séries", reps: "10 a 12 reps", rest: "60s a 90s",  cadence: "1s conc / 1-2s exc" },
     { label: "Semana 3 — Qualidade Neuromuscular", sets: "3 a 4 séries", reps: "10 a 12 reps", rest: "60s a 90s",  cadence: "1s conc / 1-2s exc" },
     { label: "Semana 4 — Estresse Metabólico",     sets: "2 a 4 séries", reps: "15 a 20 reps", rest: "30s a 45s",  cadence: "1s conc / 1s exc" },
@@ -112,7 +112,7 @@ export const MealFoodItemSchema = z.preprocess(
     rawWeight: z.number().optional(),
     cookFactor: z.number().optional(),
     isTaco: z.boolean().optional(),
-    optional: z.boolean().optional(),
+    optional: z.boolean().optional(), // <-- FLAG DE CORREÇÃO AQUI
     manualMacros: z.object({
       protein: z.number().default(0),
       carbs: z.number().default(0),
