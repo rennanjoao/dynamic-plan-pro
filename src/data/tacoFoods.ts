@@ -79,6 +79,11 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Frango peito s/ pele (desfiado)", kcal: 159, p: 34.6, c: 0.0,  g: 2.4,  group: "protein", valuesArCooked: true },
   { name: "Frango coxa+sobrecoxa (cru)",     kcal: 161, p: 19.2, c: 0.0,  g: 9.3,  group: "protein", cookFactor: 0.70 },
   { name: "Frango coxa+sobrecoxa (assado)",  kcal: 179, p: 22.7, c: 0.0,  g: 10.1, group: "protein", valuesArCooked: true },
+  // Coxa+sobrecoxa — versões explícitas com e sem pele
+  { name: "Frango coxa+sobrecoxa s/ pele (crua)",    kcal: 161, p: 19.2, c: 0.0, g:  9.3, group: "protein", cookFactor: 0.70 },
+  { name: "Frango coxa+sobrecoxa s/ pele (cozida)",  kcal: 213, p: 25.8, c: 0.0, g: 12.2, group: "protein", valuesArCooked: true },
+  { name: "Frango coxa+sobrecoxa c/ pele (crua)",    kcal: 191, p: 16.0, c: 0.0, g: 14.1, group: "protein", cookFactor: 0.68 },
+  { name: "Frango coxa+sobrecoxa c/ pele (assada)",  kcal: 282, p: 23.5, c: 0.0, g: 20.8, group: "protein", valuesArCooked: true },
   { name: "Ovo de galinha inteiro (cru)",    kcal: 143, p: 13.0, c: 1.6,  g: 9.5,  group: "protein", cookFactor: 0.92, unitWeight: 50 },
   { name: "Ovo de galinha inteiro (cozido)", kcal: 146, p: 13.3, c: 1.6,  g: 9.7,  group: "protein", valuesArCooked: true, unitWeight: 50 },
   { name: "Ovo de galinha (frito s/ óleo)",  kcal: 146, p: 13.3, c: 1.6,  g: 9.7,  group: "protein", valuesArCooked: true, unitWeight: 50 },
@@ -107,6 +112,19 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Contra-filé (grelhado)",          kcal: 207, p: 30.6, c: 0.0,  g: 9.3,  group: "protein", valuesArCooked: true },
   { name: "Picanha s/ gordura (crua)",       kcal: 149, p: 21.3, c: 0.0,  g: 6.5,  group: "protein", cookFactor: 0.70 },
   { name: "Picanha c/ gordura (grelhada)",   kcal: 304, p: 37.7, c: 0.0,  g: 16.4, group: "protein", valuesArCooked: true },
+  { name: "Picanha c/ gordura (crua)",         kcal: 244, p: 16.0, c: 0.0, g: 20.0, group: "protein", cookFactor: 0.68 },
+  { name: "Picanha s/ gordura (grelhada)",     kcal: 205, p: 30.4, c: 0.0, g:  9.3, group: "protein", valuesArCooked: true },
+  // Cortes gordos bovinos — com e sem gordura
+  { name: "Costela bovina c/ gordura (crua)",  kcal: 292, p: 15.5, c: 0.0, g: 25.6, group: "protein", cookFactor: 0.58 },
+  { name: "Costela bovina c/ gordura (cozida)",kcal: 504, p: 26.7, c: 0.0, g: 44.1, group: "protein", valuesArCooked: true },
+  { name: "Costela bovina s/ gordura (crua)",  kcal: 136, p: 21.0, c: 0.0, g:  5.8, group: "protein", cookFactor: 0.65 },
+  { name: "Costela bovina s/ gordura (cozida)",kcal: 209, p: 32.3, c: 0.0, g:  8.9, group: "protein", valuesArCooked: true },
+  { name: "Cupim (cru)",                       kcal: 242, p: 18.2, c: 0.0, g: 18.8, group: "protein", cookFactor: 0.63 },
+  { name: "Cupim (assado)",                    kcal: 384, p: 28.9, c: 0.0, g: 29.8, group: "protein", valuesArCooked: true },
+  { name: "Maminha (crua)",                    kcal: 160, p: 19.7, c: 0.0, g:  9.0, group: "protein", cookFactor: 0.70 },
+  { name: "Maminha (grelhada)",                kcal: 229, p: 28.1, c: 0.0, g: 12.9, group: "protein", valuesArCooked: true },
+  { name: "Fraldinha (crua)",                  kcal: 155, p: 20.4, c: 0.0, g:  8.1, group: "protein", cookFactor: 0.70 },
+  { name: "Fraldinha (grelhada)",              kcal: 221, p: 29.1, c: 0.0, g: 11.6, group: "protein", valuesArCooked: true },
 
   // ─── PROTEÍNAS - SUÍNO ───────────────────────────────────────────────────────
   { name: "Lombo suíno (cru)",               kcal: 143, p: 20.1, c: 0.0,  g: 7.0,  group: "protein", cookFactor: 0.70 },
@@ -115,6 +133,11 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Pernil suíno (assado)",           kcal: 231, p: 28.4, c: 0.0,  g: 13.1, group: "protein", valuesArCooked: true },
   { name: "Bisteca suína (crua)",            kcal: 219, p: 18.3, c: 0.0,  g: 16.1, group: "protein", cookFactor: 0.70 },
   { name: "Bisteca suína (grelhada)",        kcal: 313, p: 26.1, c: 0.0,  g: 23.0, group: "protein", valuesArCooked: true },
+  // Bisteca suína — com e sem gordura explicitados
+  { name: "Bisteca suína c/ gordura (crua)",     kcal: 219, p: 18.3, c: 0.0, g: 16.1, group: "protein", cookFactor: 0.70 },
+  { name: "Bisteca suína c/ gordura (grelhada)", kcal: 313, p: 26.1, c: 0.0, g: 23.0, group: "protein", valuesArCooked: true },
+  { name: "Bisteca suína s/ gordura (crua)",     kcal: 145, p: 21.5, c: 0.0, g:  6.6, group: "protein", cookFactor: 0.70 },
+  { name: "Bisteca suína s/ gordura (grelhada)", kcal: 207, p: 30.7, c: 0.0, g:  9.4, group: "protein", valuesArCooked: true },
 
   // ─── PROTEÍNAS - PEIXES & FRUTOS DO MAR ──────────────────────────────────────
   { name: "Tilápia / St. Peters (crua)",     kcal: 96,  p: 20.1, c: 0.0,  g: 1.7,  group: "protein", cookFactor: 0.75 },
