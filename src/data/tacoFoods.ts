@@ -19,6 +19,8 @@ export interface TacoFood {
   group: "carb" | "protein" | "fat" | "veg" | "fruit" | "dairy" | "other";
   cookFactor?: number;
   valuesArCooked?: boolean;
+  /** peso médio em gramas de 1 unidade deste alimento (para "uni", "unidade", "ovo", "fatia") */
+  unitWeight?: number;
 }
 
 export const TACO_FOODS: TacoFood[] = [
@@ -40,9 +42,9 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Batata inglesa (cozida)",         kcal: 52,  p: 1.2,  c: 11.9, g: 0.1, group: "carb",    valuesArCooked: true },
   { name: "Mandioca (crua)",                 kcal: 151, p: 1.1,  c: 36.2, g: 0.3, group: "carb",    cookFactor: 0.85 },
   { name: "Mandioca (cozida)",               kcal: 125, p: 0.9,  c: 29.9, g: 0.3, group: "carb",    valuesArCooked: true },
-  { name: "Pão francês",                     kcal: 300, p: 8.0,  c: 58.6, g: 3.1, group: "carb" },
-  { name: "Pão integral",                    kcal: 253, p: 9.4,  c: 49.9, g: 2.9, group: "carb" },
-  { name: "Tapioca (goma hidratada/pronta)", kcal: 130, p: 0.1,  c: 32.1, g: 0.2, group: "carb" },
+  { name: "Pão francês",                     kcal: 300, p: 8.0,  c: 58.6, g: 3.1, group: "carb", unitWeight: 50 },
+  { name: "Pão integral",                    kcal: 253, p: 9.4,  c: 49.9, g: 2.9, group: "carb", unitWeight: 25 },
+  { name: "Tapioca (goma hidratada/pronta)", kcal: 130, p: 0.1,  c: 32.1, g: 0.2, group: "carb", unitWeight: 60 },
   { name: "Tapioca (goma seca/polvilho)",    kcal: 358, p: 0.0,  c: 89.4, g: 0.1, group: "carb",    cookFactor: 2.5 },
   { name: "Cuscuz de milho (preparado)",     kcal: 113, p: 2.6,  c: 25.5, g: 0.4, group: "carb" },
   { name: "Fubá/flocos de milho (cru)",      kcal: 354, p: 7.1,  c: 77.5, g: 1.5, group: "carb",    cookFactor: 3.5 },
@@ -61,8 +63,8 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Contra-filé (grelhado)",                   kcal: 207, p: 30.6, c: 0, g: 9.3,  group: "protein", valuesArCooked: true },
   { name: "Picanha (crua)",                           kcal: 213, p: 26.4, c: 0, g: 11.5, group: "protein", cookFactor: 0.70 },
   { name: "Picanha (grelhada)",                       kcal: 304, p: 37.7, c: 0, g: 16.4, group: "protein", valuesArCooked: true },
-  { name: "Ovo inteiro (cru)",                        kcal: 143, p: 13.0, c: 1.6, g: 9.5, group: "protein", cookFactor: 0.92 },
-  { name: "Ovo inteiro (cozido)",                     kcal: 146, p: 13.3, c: 1.6, g: 9.7, group: "protein", valuesArCooked: true },
+  { name: "Ovo inteiro (cru)",                        kcal: 143, p: 13.0, c: 1.6, g: 9.5, group: "protein", cookFactor: 0.92, unitWeight: 50 },
+  { name: "Ovo inteiro (cozido)",                     kcal: 146, p: 13.3, c: 1.6, g: 9.7, group: "protein", valuesArCooked: true, unitWeight: 50 },
   { name: "Clara de ovo (crua)",                      kcal: 43,  p: 9.0,  c: 0.4, g: 0.0, group: "protein", cookFactor: 0.85 },
   { name: "Tilápia (crua)",                           kcal: 96,  p: 20.1, c: 0, g: 1.7,  group: "protein", cookFactor: 0.75 },
   { name: "Tilápia (cozida)",                         kcal: 128, p: 26.8, c: 0, g: 2.3,  group: "protein", valuesArCooked: true },
@@ -126,9 +128,9 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Amendoim torrado s/ sal",      kcal: 544, p: 22.5, c: 20.3, g: 43.9,  group: "fat" },
 
   // ─── FRUTAS ──────────────────────────────────────────────────────────────────
-  { name: "Banana prata",  kcal: 89, p: 1.3, c: 23.8, g: 0.1, group: "fruit" },
-  { name: "Banana nanica", kcal: 92, p: 1.4, c: 23.4, g: 0.1, group: "fruit" },
-  { name: "Maçã fuji",     kcal: 56, p: 0.3, c: 15.2, g: 0.0, group: "fruit" },
+  { name: "Banana prata",  kcal: 89, p: 1.3, c: 23.8, g: 0.1, group: "fruit", unitWeight: 70 },
+  { name: "Banana nanica", kcal: 92, p: 1.4, c: 23.4, g: 0.1, group: "fruit", unitWeight: 80 },
+  { name: "Maçã fuji",     kcal: 56, p: 0.3, c: 15.2, g: 0.0, group: "fruit", unitWeight: 130 },
   { name: "Mamão papaia",  kcal: 40, p: 0.5, c: 10.4, g: 0.1, group: "fruit" },
   { name: "Morango",       kcal: 30, p: 0.9, c:  6.8, g: 0.3, group: "fruit" },
   { name: "Abacaxi",       kcal: 48, p: 0.9, c: 12.3, g: 0.1, group: "fruit" },
