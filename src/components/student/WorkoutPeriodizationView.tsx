@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { AlertTriangle, MoreVertical, Pencil, Check } from "lucide-react";
+import { AlertTriangle, MoreVertical, Pencil, Check, Play } from "lucide-react";
 
 /* ---------- Tipos ---------- */
 interface Exercise {
@@ -30,12 +30,11 @@ interface WeekMeta {
   cadence: string;
 }
 
-/* ---------- Defaults de Periodização ---------- */
 const DEFAULT_WEEKS: WeekMeta[] = [
-  { label: "Semana 1", sets: "4 a 5 séries", reps: "5 a 8 reps", rest: "120s", cadence: "Excêntrica 2s" },
+  { label: "Semana 1", sets: "4 a 5 séries", reps: "5 a 8 reps",   rest: "120s",      cadence: "Excêntrica 2s" },
   { label: "Semana 2", sets: "3 a 4 séries", reps: "10 a 12 reps", rest: "60s a 90s", cadence: "—" },
   { label: "Semana 3", sets: "3 a 4 séries", reps: "10 a 12 reps", rest: "60s a 90s", cadence: "—" },
-  { label: "Semana 4", sets: "2 a 4 séries", reps: "15 a 20 reps", rest: "30-45s", cadence: "1s / 1s" },
+  { label: "Semana 4", sets: "2 a 4 séries", reps: "15 a 20 reps", rest: "30-45s",    cadence: "1s / 1s" },
 ];
 
 const BANNER_TEXT =
@@ -44,11 +43,10 @@ const BANNER_TEXT =
 /* ---------- Props ---------- */
 interface Props {
   workouts: WorkoutDay[];
-  /** Render fallback (visão legada). Mantém a UI atual intacta quando periodização está OFF. */
   renderLegacy: () => React.ReactNode;
-  /** Permite alternar para Modo Edição (coach). */
   allowEdit?: boolean;
-  /** Periodização vinda do payload do protocolo (definida pelo coach). */
+  /** Callback para iniciar o modo treino num dia específico — vem do WorkoutPlan */
+  onStartWorkout?: (dayKey: string) => void;
   periodization?: {
     enabled?: boolean;
     weeks?: WeekMeta[];
@@ -56,17 +54,24 @@ interface Props {
   };
 }
 
-type Overrides = Record<number, Record<string, Partial<Exercise>>>; // weekIdx → exId → fields
+type Overrides = Record<number, Record<string, Partial<Exercise>>>;
 
 function exId(day: WorkoutDay, idx: number) {
   return `${day.key}_${idx}`;
 }
 
-export default function WorkoutPeriodizationView({ workouts, renderLegacy, allowEdit = false, periodization }: Props) {
-  // Resolve dados da periodização vindos do payload (com fallback para defaults).
-  const incomingWeeks = (periodization?.weeks && periodization.weeks.length === 4)
-    ? periodization.weeks
-    : DEFAULT_WEEKS;
+export default function WorkoutPeriodizationView({
+  workouts,
+  renderLegacy,
+  allowEdit = false,
+  onStartWorkout,
+  periodization,
+}: Props) {
+  const incomingWeeks =
+    periodization?.weeks && periodization.weeks.length === 4
+      ? periodization.weeks
+      : DEFAULT_WEEKS;
+
   const incomingOverrides: Overrides = {};
   if (periodization?.overrides) {
     for (const [k, v] of Object.entries(periodization.overrides)) {
@@ -74,8 +79,11 @@ export default function WorkoutPeriodizationView({ workouts, renderLegacy, allow
       if (!Number.isNaN(idx)) incomingOverrides[idx] = v as Record<string, Partial<Exercise>>;
     }
   }
-  // Aluno: sempre que o coach ativou a periodização, exibe periodizada.
-  const initialOn = allowEdit ? !!periodization?.enabled : (periodization?.enabled ?? true);
+
+  const initialOn = allowEdit
+    ? !!periodization?.enabled
+    : periodization?.enabled ?? true;
+
   const [periodizationOn, setPeriodizationOn] = useState(initialOn);
   const [activeWeek, setActiveWeek] = useState(0);
   const [editMode, setEditMode] = useState(false);
@@ -91,7 +99,10 @@ export default function WorkoutPeriodizationView({ workouts, renderLegacy, allow
   const setOverride = (weekIdx: number, exerciseId: string, patch: Partial<Exercise>) => {
     setOverrides((prev) => ({
       ...prev,
-      [weekIdx]: { ...(prev[weekIdx] || {}), [exerciseId]: { ...(prev[weekIdx]?.[exerciseId] || {}), ...patch } },
+      [weekIdx]: {
+        ...(prev[weekIdx] || {}),
+        [exerciseId]: { ...(prev[weekIdx]?.[exerciseId] || {}), ...patch },
+      },
     }));
   };
 
@@ -108,11 +119,15 @@ export default function WorkoutPeriodizationView({ workouts, renderLegacy, allow
 
   return (
     <div className="space-y-4">
-      {/* Controles superiores — apenas coach vê o toggle e modo edição */}
+      {/* Toggle — só coach vê */}
       {allowEdit && (
         <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-border bg-card">
           <div className="flex items-center gap-3">
-            <Switch checked={periodizationOn} onCheckedChange={setPeriodizationOn} id="periodization-toggle" />
+            <Switch
+              checked={periodizationOn}
+              onCheckedChange={setPeriodizationOn}
+              id="periodization-toggle"
+            />
             <Label htmlFor="periodization-toggle" className="text-sm font-semibold cursor-pointer">
               Ativar Periodização
             </Label>
@@ -123,19 +138,23 @@ export default function WorkoutPeriodizationView({ workouts, renderLegacy, allow
               variant={editMode ? "default" : "outline"}
               onClick={() => setEditMode((v) => !v)}
             >
-              {editMode ? <><Check className="w-4 h-4 mr-1" />Concluir</> : <><Pencil className="w-4 h-4 mr-1" />Modo Edição</>}
+              {editMode ? (
+                <><Check className="w-4 h-4 mr-1" />Concluir</>
+              ) : (
+                <><Pencil className="w-4 h-4 mr-1" />Modo Edição</>
+              )}
             </Button>
           )}
         </div>
       )}
 
-      {/* Renderização legada (intacta) — apenas quando o toggle está OFF e o coach tem controle */}
+      {/* Legado — só coach quando periodização OFF */}
       {allowEdit && !periodizationOn && renderLegacy()}
 
-      {/* Visão Periodizada */}
+      {/* Visão periodizada */}
       {periodizationOn && (
         <>
-          {/* Abas de semanas */}
+          {/* Abas de semana */}
           <div className="grid grid-cols-4 gap-2">
             {weeks.map((w, i) => (
               <button
@@ -162,7 +181,7 @@ export default function WorkoutPeriodizationView({ workouts, renderLegacy, allow
             ))}
           </div>
 
-          {/* Metadados da semana ativa */}
+          {/* Meta da semana */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-3 rounded-xl border border-primary/30 bg-primary/5">
             {(["sets", "reps", "rest", "cadence"] as const).map((k) => (
               <div key={k} className="text-center">
@@ -182,7 +201,7 @@ export default function WorkoutPeriodizationView({ workouts, renderLegacy, allow
             ))}
           </div>
 
-          {/* Banner fixo de observação */}
+          {/* Banner */}
           <Alert className="border-amber-500/40 bg-amber-500/10">
             <AlertTriangle className="h-4 w-4 text-amber-600" />
             <AlertDescription className="text-xs leading-relaxed text-foreground/90">
@@ -190,9 +209,11 @@ export default function WorkoutPeriodizationView({ workouts, renderLegacy, allow
             </AlertDescription>
           </Alert>
 
-          {/* Exercícios (com override por semana) */}
+          {/* Cards de treino com botão Iniciar */}
           {workouts.length === 0 ? (
-            <p className="text-center text-muted-foreground italic py-10">Nenhum exercício publicado.</p>
+            <p className="text-center text-muted-foreground italic py-10">
+              Nenhum exercício publicado.
+            </p>
           ) : (
             <Accordion type="single" collapsible className="w-full space-y-3">
               {resolvedExercises.map((day, i) => (
@@ -202,18 +223,36 @@ export default function WorkoutPeriodizationView({ workouts, renderLegacy, allow
                   className="bg-card border border-border rounded-xl overflow-hidden"
                 >
                   <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/30">
-                    <div className="flex items-center gap-3 text-left">
-                      <div className="w-9 h-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-black">
+                    <div className="flex items-center gap-3 text-left w-full">
+                      <div className="w-9 h-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-black shrink-0">
                         {day.key}
                       </div>
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <h3 className="font-bold text-sm">Treino {day.key}</h3>
-                        <p className="text-[11px] text-muted-foreground">{day.focus || "Geral"}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">
+                          {day.focus || "Geral"}
+                        </p>
                       </div>
+                      {/* ── BOTÃO INICIAR — só aparece para o aluno (não no modo edição do coach) ── */}
+                      {!allowEdit && onStartWorkout && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onStartWorkout(day.key);
+                          }}
+                          style={{ backgroundColor: "#CC0000" }}
+                          className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-white text-[11px] font-bold mr-1"
+                        >
+                          <Play className="w-3 h-3 fill-white" />
+                          Iniciar
+                        </button>
+                      )}
                     </div>
                   </AccordionTrigger>
+
                   <AccordionContent className="px-4 pb-4 border-t border-border/40 space-y-3 pt-3">
-                    {(day.exercises as (Exercise & { __id: string })[]).map((ex, idx) => (
+                    {(day.exercises as (Exercise & { __id: string })[]).map((ex) => (
                       <ExerciseRow
                         key={ex.__id}
                         exercise={ex}
@@ -262,7 +301,9 @@ function ExerciseRow({
               </Button>
             </PopoverTrigger>
             <PopoverContent side="left" className="w-56 p-2 space-y-1">
-              <p className="text-[11px] text-muted-foreground px-2 pb-1">Override apenas nesta semana</p>
+              <p className="text-[11px] text-muted-foreground px-2 pb-1">
+                Override apenas nesta semana
+              </p>
               <Button
                 size="sm"
                 variant="ghost"
@@ -278,7 +319,11 @@ function ExerciseRow({
                 size="sm"
                 variant="ghost"
                 className="w-full justify-start text-xs"
-                onClick={() => onPatch({ notes: window.prompt("Observação:", exercise.notes || "") || "" })}
+                onClick={() =>
+                  onPatch({
+                    notes: window.prompt("Observação:", exercise.notes || "") || "",
+                  })
+                }
               >
                 Adicionar observação
               </Button>
