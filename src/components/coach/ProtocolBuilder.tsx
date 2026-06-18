@@ -14,6 +14,8 @@
  * [FEATURE] Observação por opção (campo notes inline)
  * [UI/UX] Adição de cabeçalhos e dicas (placeholders) na tabela de Workouts.
  * [CORREÇÃO] Substituído EvolutionComparisonLazy por AnamnesisViewerLazy no Sheet lateral
+ * [BUG] Lista do TACO sendo cortada em alimentos adicionais (overflow-hidden)
+ * Fix: removido overflow-hidden e adicionado focus-within:z-50 quando expandido.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -311,7 +313,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             <TabsContent value="cycle" className="mt-4"><WeekCycleTab payload={payload} setPayload={updatePayload} /></TabsContent>
           </Tabs>
 
-          <div className="flex justify-end sticky bottom-4">
+          <div className="flex justify-end sticky bottom-4 z-40">
             <Button onClick={save} disabled={saving} size="lg" className="shadow-lg">
               {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
               {isEditMode ? "Atualizar Protocolo" : "Criar Protocolo"}
@@ -964,8 +966,8 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
         const isCollapsed = !!collapsedMeals[mealIdx];
         const mealM = calcMealMacros(m);
         return (
-        <Card key={mealIdx} className="bg-card/60 border-border overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-border/40 bg-muted/10">
+        <Card key={mealIdx} className={`bg-card/60 border-border ${isCollapsed ? "overflow-hidden" : "overflow-visible relative focus-within:z-50"}`}>
+          <div className={`flex items-center gap-2 px-4 py-3 border-b border-border/40 bg-muted/10 ${isCollapsed ? "" : "rounded-t-xl"}`}>
             <Input
               list="meal-name-presets"
               value={m.name}
