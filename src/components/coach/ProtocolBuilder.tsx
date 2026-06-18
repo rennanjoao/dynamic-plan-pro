@@ -16,6 +16,8 @@
  * [CORREÇÃO] Substituído EvolutionComparisonLazy por AnamnesisViewerLazy no Sheet lateral
  * [BUG] Lista do TACO sendo cortada em alimentos adicionais (overflow-hidden)
  * Fix: removido overflow-hidden e adicionado focus-within:z-50 quando expandido.
+ * [BUG] Busca no TACO não encontrava palavras sem acento (ex: FEIJAO)
+ * Fix: FoodRow agora utiliza fallback robusto com .normalize("NFD")
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -1048,7 +1050,7 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                         ok: "equivalente", warn: "atenção", err: "desbalanceada",
                       };
                       return (
-                        <div key={optIdx} className="bg-card rounded-lg border border-border/50 p-2.5">
+                        <div key={optIdx} className="relative focus-within:z-[60] bg-card rounded-lg border border-border/50 p-2.5">
                           <div className="flex items-center gap-1.5 mb-1.5">
                             <span className={`text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded ${cfg.bg} ${cfg.color} border ${cfg.border}`}>Op {optIdx + 1}</span>
                             <Input value={opt.title || ""} onChange={(e) => updOption(mealIdx, kind, optIdx, { title: e.target.value })} placeholder="Título (ex: versão off-season)" className="h-6 text-[11px] flex-1 bg-transparent border-0 border-b border-dashed rounded-none px-1" />
@@ -1060,7 +1062,7 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
 
                           <div className="space-y-1.5">
                             {items.map((it: any, ii: number) => (
-                              <div key={ii} className="bg-background rounded border border-border/40 px-2 py-2 space-y-1.5">
+                              <div key={ii} className="relative focus-within:z-[70] bg-background rounded border border-border/40 px-2 py-2 space-y-1.5">
                                 <div className="flex items-center justify-between gap-2">
                                   <span className="text-[9px] text-amber-500 font-bold uppercase tracking-wider">
                                     {(it as any).optional ? "⚡ Opcional (não soma)" : ""}
@@ -1322,8 +1324,27 @@ function FoodRow({
   onRemove: () => void;
 }) {
   const [focused, setFocused] = useState(false);
-  const q = (it.baseName || it.name || "").toString().trim().toLowerCase();
-  const matches = useMemo<FoodHit[]>(() => (q.length < 2 ? [] : searchFoods(q, 10)), [q]);
+  const rawQ = (it.baseName || it.name || "").toString().trim();
+  
+  const matches = useMemo<FoodHit[]>(() => {
+    if (rawQ.length < 2) return [];
+    
+    // Fallback robusto anti-acentos e anti-case sensitive direto no client
+    const normalizedQ = rawQ.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    
+    // Busca principal (pode falhar por falta de acentos)
+    let sysMatches = searchFoods(rawQ, 10);
+    
+    // Se a busca falhar, forçamos uma busca manual higienizada diretamente na TACO_DATA
+    if (!sysMatches || sysMatches.length === 0) {
+      sysMatches = TACO_DATA.filter(t => 
+        t.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(normalizedQ)
+      ).slice(0, 10).map(t => ({ ...t, source: "taco" as const }));
+    }
+    
+    return sysMatches;
+  }, [rawQ]);
+
   const showSuggestions = focused && matches.length > 0 && !it.isTaco && !it.isIndustrial;
 
   return (
