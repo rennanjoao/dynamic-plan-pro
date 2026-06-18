@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, Dumbbell, AlertTriangle, Activity, Info } from "lucide-react";
+import { ArrowLeft, Loader2, Dumbbell, AlertTriangle, Activity, Info, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ProtocolPayloadSchema } from "@/lib/protocolSchema";
 import ProtocolQuestionButton from "@/components/student/ProtocolQuestionButton";
 import WorkoutPeriodizationView from "@/components/student/WorkoutPeriodizationView";
+import WorkoutMode from "@/components/student/WorkoutMode";
 import { useWakeLock } from "@/hooks/useWakeLock";
 
 const WEEKDAYS_LABEL: Record<string, string> = {
@@ -44,6 +45,8 @@ function InfoPopover({ termKey }: { termKey: keyof typeof TERM_INFO }) {
 export default function WorkoutPlan() {
   const navigate = useNavigate();
   const [userId, setUserId] = useState("");
+  const [showWorkoutMode, setShowWorkoutMode] = useState(false);
+  const [workoutModeDay, setWorkoutModeDay] = useState<string | undefined>(undefined);
   useWakeLock();
 
   useEffect(() => {
@@ -57,7 +60,16 @@ export default function WorkoutPlan() {
     queryKey: ["student-workout-json", userId],
     enabled: !!userId,
     queryFn: async () => {
-      const { data } = await supabase.from("coach_plans").select("workout_periodization_json").eq("student_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      const { data } = await supabase.from("coach_plans").select("workout_periodization_json, coach_id").eq("student_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      return data ?? null;
+    },
+  });
+
+  const { data: coachProfile } = useQuery({
+    queryKey: ["coach-profile-name", (planData as any)?.coach_id],
+    enabled: !!(planData as any)?.coach_id,
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("full_name").eq("id", (planData as any).coach_id).maybeSingle();
       return data ?? null;
     },
   });
@@ -107,14 +119,22 @@ export default function WorkoutPlan() {
             {workouts.map((day: any, i: number) => (
               <AccordionItem key={i} value={`workout-${i}`} className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
                 <AccordionTrigger className="px-4 py-4 hover:no-underline hover:bg-muted/30">
-                  <div className="flex items-center gap-3 text-left">
-                    <div className="w-10 h-10 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-black text-lg">
+                  <div className="flex items-center gap-3 text-left w-full">
+                    <div className="w-10 h-10 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-black text-lg shrink-0">
                       {day.key}
                     </div>
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <h3 className="font-bold text-base">Treino {day.key}</h3>
                       <p className="text-xs text-muted-foreground">{day.focus || "Geral"}</p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setWorkoutModeDay(day.key); setShowWorkoutMode(true); }}
+                      style={{ backgroundColor: "#CC0000" }}
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-white text-xs font-bold mr-2"
+                    >
+                      <Play className="w-3 h-3" /> Iniciar
+                    </button>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="px-4 pb-4 border-t border-border/40">
@@ -242,6 +262,16 @@ export default function WorkoutPlan() {
           </div>
         )}
       </main>
+      {showWorkoutMode && (
+        <WorkoutMode
+          workouts={workouts as any}
+          userId={userId}
+          coachName={(coachProfile as any)?.full_name ?? undefined}
+          initialDay={workoutModeDay}
+          periodization={safePayload?.periodization}
+          onClose={() => { setShowWorkoutMode(false); setWorkoutModeDay(undefined); }}
+        />
+      )}
     </div>
   );
 }

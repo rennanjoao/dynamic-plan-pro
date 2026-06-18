@@ -110,21 +110,54 @@ type Kind = keyof typeof KIND_META;
 
 const OPTION_LABELS = ["OPÇÃO PRINCIPAL", "OPÇÃO ALTERNATIVA", "OPÇÃO 3", "OPÇÃO 4", "OPÇÃO 5"];
 
-// ─── NutritionStrategyHeader — só macros, sem botões de ciclo de carbo ────────
-function NutritionStrategyHeader({ payload }: { payload: any }) {
+// ─── NutritionStrategyHeader — macros recalculados conforme ciclo de carbo ────
+function NutritionStrategyHeader({
+  payload,
+  carbMode,
+  highPct,
+  lowPct,
+}: {
+  payload: any;
+  carbMode: CarbMode;
+  highPct: number;
+  lowPct: number;
+}) {
   const m = payload?.macros ?? {};
+
+  const carbMult =
+    carbMode === "high" ? 1 + highPct / 100
+    : carbMode === "low" || carbMode === "off" ? 1 - lowPct / 100
+    : 1;
+
+  const baseCarbs    = Number(m.carbs    ?? 0);
+  const baseCalories = Number(m.calories ?? 0);
+  const baseFat      = Number(m.fat      ?? 0);
+  const baseProtein  = Number(m.protein  ?? 0);
+
+  const adjCarbs    = Math.round(baseCarbs * carbMult);
+  const carbDelta   = adjCarbs - baseCarbs;
+  const adjCalories = Math.round(baseCalories + carbDelta * 4);
+
   const macros = [
-    { icon: Flame,    value: m.calories ?? "—", unit: "kcal", label: "Energia"  },
-    { icon: Dna,      value: m.protein  ?? "—", unit: "g",    label: "Proteína" },
-    { icon: Wheat,    value: m.carbs    ?? "—", unit: "g",    label: "Carbo"    },
-    { icon: Droplets, value: m.fat      ?? "—", unit: "g",    label: "Gordura"  },
+    { icon: Flame,    value: adjCalories || "—", unit: "kcal", label: "Energia"  },
+    { icon: Dna,      value: baseProtein  || "—", unit: "g",   label: "Proteína" },
+    { icon: Wheat,    value: adjCarbs     || "—", unit: "g",   label: "Carbo"    },
+    { icon: Droplets, value: baseFat      || "—", unit: "g",   label: "Gordura"  },
   ];
+
+  const modeLabel = carbMode === "high" ? "↑ Carboidrato Alto"
+    : carbMode === "low" || carbMode === "off" ? "↓ Carboidrato Baixo"
+    : null;
+
   return (
     <div className="glass-strong rounded-2xl overflow-hidden glow-primary mb-4">
-      <div className="gradient-primary-soft px-5 py-3 border-b border-white/5">
+      <div className="gradient-primary-soft px-5 py-3 border-b border-white/5 flex items-center justify-between">
         <p className="text-[10px] uppercase tracking-[0.2em] text-primary/70 font-bold">
           Estratégia Nutricional
         </p>
+        {modeLabel && (
+          <span className="text-[10px] font-bold text-amber-400">{modeLabel}</span>
+        )}
       </div>
       <div className="grid grid-cols-4 divide-x divide-white/5">
         {macros.map(({ icon: Icon, value, unit, label }) => (
@@ -138,6 +171,16 @@ function NutritionStrategyHeader({ payload }: { payload: any }) {
       </div>
     </div>
   );
+}
+
+function humanizeUnit(weight: string): string {
+  if (!weight) return "";
+  return weight
+    .replace(/\b(uni|un)\b/gi, "unidade(s)")
+    .replace(/\bml\b/gi, "ml (mililitros)")
+    .replace(/\bmg\b/gi, "mg (miligramas)")
+    .replace(/\bkg\b/gi, "kg (quilogramas)")
+    .replace(/\bg\b/gi, "g (gramas)");
 }
 
 // ─── MacroSection ─────────────────────────────────────────────────────────────
@@ -194,7 +237,7 @@ function MacroSection({
                     </span>
                     {item.weight && (
                       <span className={`text-xs tabular-nums shrink-0 font-bold ${cfg.color}`}>
-                        {item.weight}
+                        {humanizeUnit(item.weight)}
                       </span>
                     )}
                   </li>
@@ -350,7 +393,12 @@ export default function StructuredMealsViewer({ payload }: { payload: any }) {
   return (
     <div className="w-full max-w-full overflow-x-hidden">
       {/* Macros — estático, não precisa de sticky */}
-      <NutritionStrategyHeader payload={safeData} />
+      <NutritionStrategyHeader
+        payload={safeData}
+        carbMode={carbMode}
+        highPct={highPct}
+        lowPct={lowPct}
+      />
 
       {/* Barra sticky com os dois controles */}
       <StickyDietBar
