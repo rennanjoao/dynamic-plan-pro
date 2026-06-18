@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { X, Pause, RotateCcw, Check, Image as ImageIcon, Flame, ChevronRight } from "lucide-react";
+import { X, Pause, RotateCcw, Check, Image as ImageIcon, Flame } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -55,20 +55,53 @@ const DEFAULT_WEEKS: WeekMeta[] = [
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
 
-function parseSets(s?: string): number {
+/** Retorna o número MÁXIMO do range (para gerar bolhas). Ex: "4 a 5 séries" → 5 */
+function parseSetsMax(s?: string): number {
   if (!s) return 3;
-  const m = String(s).match(/\d+/);
-  return m ? Math.max(1, parseInt(m[0], 10)) : 3;
+  const nums = String(s).match(/\d+/g);
+  if (!nums) return 3;
+  return Math.max(1, Math.max(...nums.map(Number)));
 }
+
+/** Retorna o número MÍNIMO do range (compatibilidade com isExDone). Ex: "4 a 5 séries" → 4 */
+function parseSetsMin(s?: string): number {
+  if (!s) return 3;
+  const nums = String(s).match(/\d+/g);
+  if (!nums) return 3;
+  return Math.max(1, Math.min(...nums.map(Number)));
+}
+
+/** Range legível: "4 a 5" ou "4" se mín === máx */
+function parseSetsLabel(s?: string): string {
+  if (!s) return "3";
+  const nums = String(s).match(/\d+/g);
+  if (!nums) return "3";
+  const mn = Math.min(...nums.map(Number));
+  const mx = Math.max(...nums.map(Number));
+  return mn === mx ? String(mn) : `${mn} a ${mx}`;
+}
+
+/** Range de reps legível */
+function parseRepsLabel(s?: string): string {
+  if (!s) return "—";
+  const nums = String(s).match(/\d+/g);
+  if (!nums) return s;
+  const mn = Math.min(...nums.map(Number));
+  const mx = Math.max(...nums.map(Number));
+  return mn === mx ? String(mn) : `${mn} a ${mx}`;
+}
+
 function parseRestSec(rest?: string): number {
   if (!rest) return 60;
   const str = rest.toLowerCase();
+  // Pega o primeiro número — usa o menor valor do range para não travar demais
   const m = str.match(/(\d+)\s*(min|m|s|seg)?/);
   if (!m) return 60;
   const n = parseInt(m[1], 10);
   if (m[2] && m[2].startsWith("m")) return n * 60;
   return n;
 }
+
 function fmtMMSS(s: number) {
   const m = Math.floor(s / 60), sec = s % 60;
   return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
@@ -89,7 +122,6 @@ export default function WorkoutMode({
       ? periodization.weeks
       : DEFAULT_WEEKS;
 
-  // ── Dia fixo: se veio initialDay, trava nele. Não mostra seletor. ──
   const [selectedDay] = useState<string>(
     initialDay ?? workouts[0]?.key ?? ""
   );
@@ -101,7 +133,6 @@ export default function WorkoutMode({
   const [showShare, setShowShare] = useState(false);
   const [currentExIdx, setCurrentExIdx] = useState(0);
 
-  // Restore sessão salva
   useEffect(() => {
     try {
       const raw = localStorage.getItem(storageKey);
@@ -119,7 +150,6 @@ export default function WorkoutMode({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist
   useEffect(() => {
     if (!startedAt) return;
     localStorage.setItem(
@@ -128,13 +158,11 @@ export default function WorkoutMode({
     );
   }, [startedAt, selectedDay, activeWeek, completed, storageKey]);
 
-  // Clock
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, []);
 
-  // ── Treino e exercícios do dia fixo ──
   const day = workouts.find((d) => d.key === selectedDay) ?? workouts[0];
 
   const exercises: Exercise[] = (day?.exercises ?? []).map((ex, idx) => {
@@ -153,11 +181,13 @@ export default function WorkoutMode({
     };
   });
 
-  const currentEx       = exercises[currentExIdx];
-  const currentExSets   = parseSets(currentEx?.sets);
-  const currentExKey    = day ? `${day.key}::${currentExIdx}` : "";
-  const currentDoneSets = completed[currentExKey] ?? [];
-  const defaultRest     = parseRestSec(currentEx?.rest);
+  const currentEx        = exercises[currentExIdx];
+  // Bolhas geradas pelo MAX; exercício "feito" quando atingir o MIN
+  const currentExSetsMax = parseSetsMax(currentEx?.sets);
+  const currentExSetsMin = parseSetsMin(currentEx?.sets);
+  const currentExKey     = day ? `${day.key}::${currentExIdx}` : "";
+  const currentDoneSets  = completed[currentExKey] ?? [];
+  const defaultRest      = parseRestSec(currentEx?.rest);
 
   const [restRemaining, setRestRemaining] = useState(defaultRest);
   const [restRunning, setRestRunning]     = useState(false);
@@ -172,7 +202,8 @@ export default function WorkoutMode({
   const advanceSerieAuto = () => {
     setCompleted((prev) => {
       const arr = prev[currentExKey] ?? [];
-      if (arr.length >= currentExSets)
+      // Avança quando atinge o mínimo de séries
+      if (arr.length >= currentExSetsMin)
         setCurrentExIdx((i) => Math.min(i + 1, exercises.length - 1));
       return prev;
     });
@@ -199,16 +230,13 @@ export default function WorkoutMode({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restRunning]);
 
-  // ── AÇÃO PRINCIPAL ──
   const handleFizASerie = () => {
     const nextIdx = currentDoneSets.length;
-    if (nextIdx >= currentExSets) {
-      // todas as séries feitas — só reinicia o timer
+    if (nextIdx >= currentExSetsMax) {
       setRestRemaining(defaultRest);
       setRestRunning(true);
       return;
     }
-    // marca a série + inicia descanso
     setCompleted((prev) => {
       const arr = prev[currentExKey] ?? [];
       if (arr.includes(nextIdx)) return prev;
@@ -230,21 +258,21 @@ export default function WorkoutMode({
     setRestRemaining(defaultRest);
   };
 
+  // Exercício "done" quando séries feitas >= mínimo do range
   const isExDone = (idx: number) =>
-    (completed[`${day!.key}::${idx}`]?.length ?? 0) >= parseSets(exercises[idx]?.sets);
+    (completed[`${day!.key}::${idx}`]?.length ?? 0) >= parseSetsMin(exercises[idx]?.sets);
 
   const toggleExDone = (idx: number) => {
     const k     = `${day!.key}::${idx}`;
-    const total = parseSets(exercises[idx]?.sets);
+    const total = parseSetsMax(exercises[idx]?.sets);
     setCompleted((prev) => {
-      const done = (prev[k]?.length ?? 0) >= total;
+      const done = (prev[k]?.length ?? 0) >= parseSetsMin(exercises[idx]?.sets);
       if (done) return { ...prev, [k]: [] };
       return { ...prev, [k]: Array.from({ length: total }, (_, i) => i) };
     });
   };
 
-  // ── Métricas ──
-  const totalSets = exercises.reduce((a, e) => a + parseSets(e.sets), 0);
+  const totalSets = exercises.reduce((a, e) => a + parseSetsMin(e.sets), 0);
   const doneSets  = exercises.reduce(
     (a, _, idx) => a + (completed[`${day!.key}::${idx}`]?.length ?? 0),
     0
@@ -253,8 +281,8 @@ export default function WorkoutMode({
   const completedExCnt = exercises.reduce((a, _, idx) => a + (isExDone(idx) ? 1 : 0), 0);
   const hasAnyDone     = doneSets > 0 || completedExCnt > 0;
   const elapsedSec     = startedAt ? Math.floor((now - startedAt) / 1000) : 0;
-  const serieAtual     = Math.min(currentDoneSets.length + 1, currentExSets);
-  const todasFeitas    = currentDoneSets.length >= currentExSets;
+  const serieAtual     = Math.min(currentDoneSets.length + 1, currentExSetsMax);
+  const todasFeitas    = currentDoneSets.length >= currentExSetsMax;
   const weekLabel      = isPeriodizationOn ? weeks[activeWeek]?.label : undefined;
 
   const handleClose = () => {
@@ -335,25 +363,25 @@ export default function WorkoutMode({
           </div>
         )}
 
-        {/* ── Timer ── */}
+        {/* ── Timer hero ── */}
         <div
-          className="rounded-2xl p-5 text-center"
+          className="rounded-2xl p-6 text-center"
           style={{
             background: "linear-gradient(135deg, #1A1A1A, #0A0A0A)",
             border: "1px solid rgba(255,255,255,0.08)",
           }}
         >
-          <p className="text-[10px] uppercase tracking-[0.18em] text-white/50 font-bold mb-1">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-white/50 font-bold mb-2">
             {restRunning
               ? "descansando..."
               : todasFeitas
               ? "exercício completo!"
-              : `série ${serieAtual} de ${currentExSets}`}
+              : `série ${serieAtual} de ${currentExSetsMax}`}
           </p>
-          <p className="text-5xl font-black text-white tabular-nums leading-none my-2">
+          <p className="text-6xl font-black text-white tabular-nums leading-none my-3">
             {fmtMMSS(restRemaining)}
           </p>
-          <p className="text-sm text-white/60 mb-4 truncate px-4">{currentEx?.name ?? ""}</p>
+          <p className="text-sm text-white/60 mb-5 truncate px-4">{currentEx?.name ?? ""}</p>
           <div className="flex items-center justify-center gap-2">
             {!restRunning ? (
               <button
@@ -361,7 +389,7 @@ export default function WorkoutMode({
                 disabled={todasFeitas}
                 onClick={handleFizASerie}
                 style={{ backgroundColor: todasFeitas ? "#374151" : "#CC0000" }}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-full text-white font-bold text-sm disabled:opacity-50"
+                className="flex items-center gap-2 px-6 py-2.5 rounded-full text-white font-bold text-sm disabled:opacity-50"
               >
                 <Check className="w-4 h-4" />
                 {todasFeitas ? "Séries concluídas" : "Fiz a série → descansar"}
@@ -370,7 +398,7 @@ export default function WorkoutMode({
               <button
                 type="button"
                 onClick={() => setRestRunning(false)}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-full text-white font-bold text-sm"
+                className="flex items-center gap-2 px-6 py-2.5 rounded-full text-white font-bold text-sm"
                 style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
               >
                 <Pause className="w-4 h-4" /> Pausar
@@ -387,18 +415,26 @@ export default function WorkoutMode({
           </div>
         </div>
 
-        {/* ── Card exercício atual com bolhas ── */}
+        {/* ── Card exercício atual — redesenhado ── */}
         {currentEx && (
-          <div className="bg-card border border-primary/30 rounded-xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="font-bold text-sm truncate flex-1">{currentEx.name}</h2>
-              <span className="text-xs text-muted-foreground ml-2 shrink-0">
-                {currentDoneSets.length}/{currentExSets} séries
+          <div
+            className="rounded-xl p-4 space-y-4"
+            style={{
+              background: "#111",
+              border: "1px solid rgba(204,0,0,0.35)",
+            }}
+          >
+            {/* Cabeçalho */}
+            <div className="flex items-start justify-between gap-2">
+              <h2 className="font-bold text-base leading-tight flex-1">{currentEx.name}</h2>
+              <span className="text-xs text-white/40 shrink-0 mt-0.5">
+                {currentDoneSets.length} / {currentExSetsMax} séries
               </span>
             </div>
-            {/* Bolhas de série */}
-            <div className="flex gap-2 flex-wrap">
-              {Array.from({ length: currentExSets }).map((_, i) => {
+
+            {/* Bolhas de série — maiores e mais expressivas */}
+            <div className="flex gap-2.5 flex-wrap">
+              {Array.from({ length: currentExSetsMax }).map((_, i) => {
                 const done      = currentDoneSets.includes(i);
                 const isCurrent = !done && i === currentDoneSets.length;
                 return (
@@ -407,12 +443,15 @@ export default function WorkoutMode({
                     type="button"
                     onClick={() => toggleSetManual(i)}
                     title="Toque para corrigir"
-                    className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all ${
+                    style={
                       done
-                        ? "bg-foreground text-background border-foreground"
+                        ? { background: "#22c55e", borderColor: "#22c55e", color: "#fff" }
                         : isCurrent
-                        ? "border-primary text-primary"
-                        : "border-border text-muted-foreground"
+                        ? { background: "rgba(204,0,0,0.15)", borderColor: "#CC0000", color: "#CC0000" }
+                        : { background: "transparent", borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.35)" }
+                    }
+                    className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all ${
+                      isCurrent ? "animate-pulse" : ""
                     }`}
                   >
                     {done ? <Check className="w-4 h-4" /> : i + 1}
@@ -420,34 +459,77 @@ export default function WorkoutMode({
                 );
               })}
             </div>
-            {/* Detalhes do exercício */}
+
+            {/* Caixa de repetições em destaque + chips */}
             <div className="grid grid-cols-3 gap-2">
-              {[
-                { l: "Séries",   v: currentEx.sets    || "—" },
-                { l: "Reps",     v: currentEx.reps    || "—" },
-                { l: "Descanso", v: currentEx.rest     || "—" },
-              ].map((m, i) => (
-                <div key={i} className="bg-muted/40 rounded-lg p-2 text-center">
-                  <p className="text-[9px] uppercase text-muted-foreground">{m.l}</p>
-                  <p className="text-xs font-bold mt-0.5">{m.v}</p>
+              {/* Reps — destaque */}
+              <div
+                className="col-span-3 rounded-lg p-3 flex items-center justify-between"
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
+              >
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-white/40 font-bold">Repetições alvo</p>
+                  <p className="text-2xl font-black text-white mt-0.5">{parseRepsLabel(currentEx.reps)}</p>
                 </div>
-              ))}
+                {/* Badge range de tempo de descanso */}
+                <div
+                  className="px-3 py-1.5 rounded-full text-xs font-bold"
+                  style={{ background: "rgba(204,0,0,0.2)", color: "#ff6b6b", border: "1px solid rgba(204,0,0,0.4)" }}
+                >
+                  {currentEx.rest ?? "—"}
+                </div>
+              </div>
+              {/* Séries */}
+              <div
+                className="rounded-lg p-2.5 text-center"
+                style={{ background: "rgba(255,255,255,0.04)" }}
+              >
+                <p className="text-[9px] uppercase tracking-widest text-white/40 font-bold">SÉRIES</p>
+                <p className="text-sm font-bold mt-0.5 text-white">{parseSetsLabel(currentEx.sets)}</p>
+              </div>
+              {/* Descanso */}
+              <div
+                className="rounded-lg p-2.5 text-center"
+                style={{ background: "rgba(255,255,255,0.04)" }}
+              >
+                <p className="text-[9px] uppercase tracking-widest text-white/40 font-bold">DESCANSO</p>
+                <p className="text-sm font-bold mt-0.5 text-white">{currentEx.rest ?? "—"}</p>
+              </div>
+              {/* Cadência */}
+              <div
+                className="rounded-lg p-2.5 text-center"
+                style={{ background: "rgba(255,255,255,0.04)" }}
+              >
+                <p className="text-[9px] uppercase tracking-widest text-white/40 font-bold">CADÊNCIA</p>
+                <p className="text-sm font-bold mt-0.5 text-white">{currentEx.cadence ?? "—"}</p>
+              </div>
             </div>
+
+            {/* Notas com borda colorida lateral */}
             {currentEx.notes && (
-              <p className="text-xs text-muted-foreground italic bg-muted/30 p-2 rounded border-l-2 border-primary/50">
+              <p
+                className="text-xs text-white/60 italic p-3 rounded-lg"
+                style={{
+                  background: "rgba(204,0,0,0.06)",
+                  borderLeft: "3px solid rgba(204,0,0,0.6)",
+                }}
+              >
                 {currentEx.notes}
               </p>
             )}
           </div>
         )}
 
-        {/* ── Lista de exercícios do treino ── */}
-        <div className="space-y-2">
+        {/* ── Lista de exercícios com mini-dots ── */}
+        <div className="space-y-1.5">
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold px-1">
+            Exercícios do treino
+          </p>
           {exercises.map((ex, idx) => {
-            const done      = isExDone(idx);
-            const isCurrent = idx === currentExIdx;
-            const exDone    = completed[`${day!.key}::${idx}`]?.length ?? 0;
-            const exTotal   = parseSets(ex.sets);
+            const done       = isExDone(idx);
+            const isCurrent  = idx === currentExIdx;
+            const exDone     = completed[`${day!.key}::${idx}`]?.length ?? 0;
+            const exTotalMax = parseSetsMax(ex.sets);
             return (
               <div
                 key={idx}
@@ -462,6 +544,7 @@ export default function WorkoutMode({
                     : "border-border"
                 }`}
               >
+                {/* Checkbox manual */}
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); toggleExDone(idx); }}
@@ -473,14 +556,35 @@ export default function WorkoutMode({
                 >
                   {done && <Check className="w-4 h-4" />}
                 </button>
+
                 <div className="flex-1 min-w-0">
                   <p className={`font-semibold text-sm truncate ${done ? "line-through text-muted-foreground" : ""}`}>
                     {ex.name}
                   </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {exDone}/{exTotal} séries · {ex.reps ?? "—"} reps · {ex.rest ?? "—"}
-                  </p>
+                  {/* Mini-dots de progresso de séries */}
+                  <div className="flex items-center gap-1 mt-1.5">
+                    {Array.from({ length: exTotalMax }).map((_, si) => (
+                      <span
+                        key={si}
+                        className="rounded-full transition-all"
+                        style={{
+                          width: si < exDone ? "8px" : "6px",
+                          height: si < exDone ? "8px" : "6px",
+                          backgroundColor:
+                            si < exDone
+                              ? "#22c55e"
+                              : isCurrent && si === exDone
+                              ? "#CC0000"
+                              : "rgba(255,255,255,0.15)",
+                        }}
+                      />
+                    ))}
+                    <span className="text-[10px] text-muted-foreground ml-1">
+                      {ex.reps ?? "—"}
+                    </span>
+                  </div>
                 </div>
+
                 <button
                   type="button"
                   onClick={(e) => {
@@ -518,7 +622,7 @@ export default function WorkoutMode({
             <Button
               type="button"
               onClick={() => setShowShare(true)}
-              className="w-full h-12 text-base font-bold"
+              className="w-full h-12 text-base font-bold rounded-2xl"
               style={{ background: "linear-gradient(135deg, #CC0000, #8B0000)", color: "#fff" }}
             >
               🏆 Concluir treino
