@@ -112,6 +112,7 @@ export const MealFoodItemSchema = z.preprocess(
     rawWeight: z.number().optional(),
     cookFactor: z.number().optional(),
     isTaco: z.boolean().optional(),
+    optional: z.boolean().optional(),
     manualMacros: z.object({
       protein: z.number().default(0),
       carbs: z.number().default(0),
