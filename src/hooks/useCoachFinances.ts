@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 export interface FinanceRecord {
   id: string;
   student_id: string | null;
-  description: string;
+  description: string; 
   amount: number;
   status: string; // 'pending' | 'paid' | 'overdue'
   due_date: string | null;
