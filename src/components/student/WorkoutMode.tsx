@@ -26,18 +26,10 @@ interface WeekMeta {
   rest: string;
   cadence: string;
 }
-interface ExerciseOverride {
-  name?: string;
-  sets?: string;
-  reps?: string;
-  cadence?: string;
-  rest?: string;
-  notes?: string;
-}
 interface Periodization {
   enabled?: boolean;
   weeks?: WeekMeta[];
-  overrides?: Record<string, Record<string, ExerciseOverride>>;
+  overrides?: Record<string, Record<string, Partial<Exercise>>>;
 }
 interface Props {
   workouts: WorkoutDay[];
@@ -62,7 +54,6 @@ const DEFAULT_WEEKS: WeekMeta[] = [
 ];
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
-const exIdKey = (dayKey: string, exIdx: number) => `${dayKey}_${exIdx}`;
 
 function parseSets(s?: string): number {
   if (!s) return 3;
@@ -83,34 +74,34 @@ function fmtMMSS(s: number) {
   return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
-export default function WorkoutMode({ workouts, userId, coachName, initialDay, periodization, onClose }: Props) {
+export default function WorkoutMode({
+  workouts,
+  userId,
+  coachName,
+  initialDay,
+  periodization,
+  onClose,
+}: Props) {
   const storageKey = `workout_session_${userId}_${todayKey()}`;
   const isPeriodizationOn = periodization?.enabled ?? false;
-  const weeks = (periodization?.weeks && periodization.weeks.length === 4) ? periodization.weeks : DEFAULT_WEEKS;
+  const weeks =
+    periodization?.weeks && periodization.weeks.length === 4
+      ? periodization.weeks
+      : DEFAULT_WEEKS;
 
-  const [selectedDay, setSelectedDay] = useState<string>(() => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) {
-        const s: SessionState = JSON.parse(raw);
-        return initialDay ?? s.selectedDay ?? workouts[0]?.key ?? "";
-      }
-    } catch { }
-    return initialDay ?? workouts[0]?.key ?? "";
-  });
-  const [activeWeek, setActiveWeek] = useState<number>(() => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) return (JSON.parse(raw) as SessionState).activeWeek ?? 0;
-    } catch { }
-    return 0;
-  });
+  // ── Dia fixo: se veio initialDay, trava nele. Não mostra seletor. ──
+  const [selectedDay] = useState<string>(
+    initialDay ?? workouts[0]?.key ?? ""
+  );
+
+  const [activeWeek, setActiveWeek] = useState<number>(0);
   const [completed, setCompleted] = useState<Record<string, number[]>>({});
   const [startedAt, setStartedAt] = useState<number>(0);
   const [now, setNow] = useState(Date.now());
   const [showShare, setShowShare] = useState(false);
   const [currentExIdx, setCurrentExIdx] = useState(0);
 
+  // Restore sessão salva
   useEffect(() => {
     try {
       const raw = localStorage.getItem(storageKey);
@@ -118,63 +109,71 @@ export default function WorkoutMode({ workouts, userId, coachName, initialDay, p
         const s: SessionState = JSON.parse(raw);
         setStartedAt(s.startedAt || Date.now());
         setCompleted(s.completed || {});
+        setActiveWeek(s.activeWeek ?? 0);
       } else {
         setStartedAt(Date.now());
       }
     } catch {
       setStartedAt(Date.now());
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Persist
   useEffect(() => {
     if (!startedAt) return;
-    localStorage.setItem(storageKey, JSON.stringify({ startedAt, selectedDay, activeWeek, completed }));
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify({ startedAt, selectedDay, activeWeek, completed })
+    );
   }, [startedAt, selectedDay, activeWeek, completed, storageKey]);
 
+  // Clock
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, []);
 
+  // ── Treino e exercícios do dia fixo ──
   const day = workouts.find((d) => d.key === selectedDay) ?? workouts[0];
 
   const exercises: Exercise[] = (day?.exercises ?? []).map((ex, idx) => {
     if (!isPeriodizationOn) return ex;
     const weekOverrides = periodization?.overrides?.[String(activeWeek)] ?? {};
-    const override = weekOverrides[exIdKey(day!.key, idx)] ?? {};
+    const override = weekOverrides[`${day!.key}_${idx}`] ?? {};
     const wm = weeks[activeWeek];
     return {
       ...ex,
-      sets: override.sets ?? wm.sets ?? ex.sets,
-      reps: override.reps ?? wm.reps ?? ex.reps,
-      rest: override.rest ?? wm.rest ?? ex.rest,
+      sets:    override.sets    ?? wm.sets    ?? ex.sets,
+      reps:    override.reps    ?? wm.reps    ?? ex.reps,
+      rest:    override.rest    ?? wm.rest    ?? ex.rest,
       cadence: override.cadence ?? wm.cadence ?? ex.cadence,
-      notes: override.notes ?? ex.notes,
-      name: override.name ?? ex.name,
+      notes:   override.notes   ?? ex.notes,
+      name:    override.name    ?? ex.name,
     };
   });
 
-  const currentEx = exercises[currentExIdx];
-  const currentExSets = parseSets(currentEx?.sets);
-  const currentExKey = day ? `${day.key}::${currentExIdx}` : "";
+  const currentEx       = exercises[currentExIdx];
+  const currentExSets   = parseSets(currentEx?.sets);
+  const currentExKey    = day ? `${day.key}::${currentExIdx}` : "";
   const currentDoneSets = completed[currentExKey] ?? [];
-  const defaultRest = parseRestSec(currentEx?.rest);
+  const defaultRest     = parseRestSec(currentEx?.rest);
 
   const [restRemaining, setRestRemaining] = useState(defaultRest);
-  const [restRunning, setRestRunning] = useState(false);
+  const [restRunning, setRestRunning]     = useState(false);
   const restRef = useRef<number | null>(null);
 
   useEffect(() => {
     setRestRemaining(defaultRest);
     setRestRunning(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentExKey, activeWeek]);
 
   const advanceSerieAuto = () => {
     setCompleted((prev) => {
       const arr = prev[currentExKey] ?? [];
-      if (arr.length >= currentExSets) setCurrentExIdx((i) => Math.min(i + 1, exercises.length - 1));
+      if (arr.length >= currentExSets)
+        setCurrentExIdx((i) => Math.min(i + 1, exercises.length - 1));
       return prev;
     });
   };
@@ -196,23 +195,24 @@ export default function WorkoutMode({ workouts, userId, coachName, initialDay, p
         return r - 1;
       });
     }, 1000);
-    return () => {
-      if (restRef.current) window.clearInterval(restRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { if (restRef.current) window.clearInterval(restRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restRunning]);
 
-  const handleIniciarDescanso = () => {
-    const nextSetIdx = currentDoneSets.length;
-    if (nextSetIdx >= currentExSets) {
+  // ── AÇÃO PRINCIPAL ──
+  const handleFizASerie = () => {
+    const nextIdx = currentDoneSets.length;
+    if (nextIdx >= currentExSets) {
+      // todas as séries feitas — só reinicia o timer
       setRestRemaining(defaultRest);
       setRestRunning(true);
       return;
     }
+    // marca a série + inicia descanso
     setCompleted((prev) => {
       const arr = prev[currentExKey] ?? [];
-      if (arr.includes(nextSetIdx)) return prev;
-      return { ...prev, [currentExKey]: [...arr, nextSetIdx] };
+      if (arr.includes(nextIdx)) return prev;
+      return { ...prev, [currentExKey]: [...arr, nextIdx] };
     });
     setRestRemaining(defaultRest);
     setRestRunning(true);
@@ -221,18 +221,20 @@ export default function WorkoutMode({ workouts, userId, coachName, initialDay, p
   const toggleSetManual = (setIdx: number) => {
     setCompleted((prev) => {
       const arr = prev[currentExKey] ?? [];
-      const next = arr.includes(setIdx) ? arr.filter((i) => i !== setIdx) : [...arr, setIdx];
+      const next = arr.includes(setIdx)
+        ? arr.filter((i) => i !== setIdx)
+        : [...arr, setIdx];
       return { ...prev, [currentExKey]: next };
     });
     setRestRunning(false);
     setRestRemaining(defaultRest);
   };
 
-  const isExerciseDone = (idx: number) =>
+  const isExDone = (idx: number) =>
     (completed[`${day!.key}::${idx}`]?.length ?? 0) >= parseSets(exercises[idx]?.sets);
 
-  const toggleExerciseDone = (idx: number) => {
-    const k = `${day!.key}::${idx}`;
+  const toggleExDone = (idx: number) => {
+    const k     = `${day!.key}::${idx}`;
     const total = parseSets(exercises[idx]?.sets);
     setCompleted((prev) => {
       const done = (prev[k]?.length ?? 0) >= total;
@@ -241,21 +243,19 @@ export default function WorkoutMode({ workouts, userId, coachName, initialDay, p
     });
   };
 
-  const totalSetsDay = exercises.reduce((acc, e) => acc + parseSets(e.sets), 0);
-  const doneSetsDay = exercises.reduce(
-    (acc, _, idx) => acc + (completed[`${day!.key}::${idx}`]?.length ?? 0),
-    0,
+  // ── Métricas ──
+  const totalSets = exercises.reduce((a, e) => a + parseSets(e.sets), 0);
+  const doneSets  = exercises.reduce(
+    (a, _, idx) => a + (completed[`${day!.key}::${idx}`]?.length ?? 0),
+    0
   );
-  const progressPct = totalSetsDay ? Math.round((doneSetsDay / totalSetsDay) * 100) : 0;
-  const completedExCount = exercises.reduce(
-    (acc, _, idx) => acc + (isExerciseDone(idx) ? 1 : 0),
-    0,
-  );
-  const hasAnyDone = doneSetsDay > 0 || completedExCount > 0;
-  const elapsedSec = startedAt ? Math.floor((now - startedAt) / 1000) : 0;
-  const serieAtual = Math.min(currentDoneSets.length + 1, currentExSets);
-  const todasSeriesFeitas = currentDoneSets.length >= currentExSets;
-  const currentWeekLabel = isPeriodizationOn ? weeks[activeWeek]?.label : undefined;
+  const progressPct    = totalSets ? Math.round((doneSets / totalSets) * 100) : 0;
+  const completedExCnt = exercises.reduce((a, _, idx) => a + (isExDone(idx) ? 1 : 0), 0);
+  const hasAnyDone     = doneSets > 0 || completedExCnt > 0;
+  const elapsedSec     = startedAt ? Math.floor((now - startedAt) / 1000) : 0;
+  const serieAtual     = Math.min(currentDoneSets.length + 1, currentExSets);
+  const todasFeitas    = currentDoneSets.length >= currentExSets;
+  const weekLabel      = isPeriodizationOn ? weeks[activeWeek]?.label : undefined;
 
   const handleClose = () => {
     if (hasAnyDone && !confirm("Sair do modo treino? Seu progresso fica salvo.")) return;
@@ -267,43 +267,42 @@ export default function WorkoutMode({ workouts, userId, coachName, initialDay, p
     onClose();
   };
 
-  if (!day) {
-    return (
-      <div className="fixed inset-0 z-50 bg-background flex items-center justify-center p-6">
-        <div className="text-center space-y-3">
-          <p className="text-muted-foreground">Nenhum treino disponível.</p>
-          <Button onClick={onClose}>Fechar</Button>
-        </div>
+  if (!day) return (
+    <div className="fixed inset-0 z-50 bg-background flex items-center justify-center p-6">
+      <div className="text-center space-y-3">
+        <p className="text-muted-foreground">Nenhum treino disponível.</p>
+        <Button onClick={onClose}>Fechar</Button>
       </div>
-    );
-  }
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 z-50 bg-background overflow-y-auto pb-32">
-      {/* HEADER */}
+
+      {/* ── Header ── */}
       <header className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-4 py-3 flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={handleClose} aria-label="Fechar">
+        <Button variant="ghost" size="icon" onClick={handleClose}>
           <X className="w-5 h-5" />
         </Button>
         <div className="flex-1 min-w-0">
           <h1 className="font-bold text-base truncate">
-            Treino {day.key}
-            {day.focus ? ` · ${day.focus}` : ""}
+            Treino {day.key}{day.focus ? ` · ${day.focus}` : ""}
           </h1>
           <p className="text-[11px] text-muted-foreground">
             <Flame className="w-3 h-3 inline -mt-0.5 mr-0.5 text-primary" />
             {fmtMMSS(elapsedSec)} em andamento
           </p>
         </div>
-        <Badge variant="default" className="bg-primary/15 text-primary border-primary/30">
+        <Badge className="bg-primary/15 text-primary border-primary/30 animate-pulse shrink-0">
           ATIVO
         </Badge>
       </header>
 
       <main className="max-w-2xl mx-auto p-4 space-y-4">
-        {/* PERIODIZAÇÃO */}
+
+        {/* ── Semanas (só periodização ativa) ── */}
         {isPeriodizationOn && (
-          <div className="bg-card border border-border rounded-xl p-3 space-y-2">
+          <div className="bg-card border border-border rounded-xl p-3 space-y-3">
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
               Semana atual
             </p>
@@ -312,11 +311,8 @@ export default function WorkoutMode({ workouts, userId, coachName, initialDay, p
                 <button
                   key={i}
                   type="button"
-                  onClick={() => {
-                    setActiveWeek(i);
-                    setRestRunning(false);
-                  }}
-                  className={`px-2 py-2 rounded-lg text-[11px] font-bold border transition ${
+                  onClick={() => { setActiveWeek(i); setRestRunning(false); }}
+                  className={`py-2 rounded-lg text-[11px] font-bold border transition ${
                     activeWeek === i
                       ? "bg-primary text-primary-foreground border-primary"
                       : "bg-background text-foreground border-border hover:bg-muted/50"
@@ -326,55 +322,49 @@ export default function WorkoutMode({ workouts, userId, coachName, initialDay, p
                 </button>
               ))}
             </div>
-            <div className="grid grid-cols-4 gap-2 pt-1">
+            <div className="grid grid-cols-4 gap-2">
               {(["sets", "reps", "rest", "cadence"] as const).map((k) => (
                 <div key={k} className="text-center">
                   <p className="text-[9px] uppercase tracking-wider text-muted-foreground">
                     {k === "sets" ? "Séries" : k === "reps" ? "Reps" : k === "rest" ? "Descanso" : "Cadência"}
                   </p>
-                  <p className="text-[11px] font-bold text-foreground mt-0.5">
-                    {weeks[activeWeek][k] || "—"}
-                  </p>
+                  <p className="text-[11px] font-bold mt-0.5">{weeks[activeWeek][k] || "—"}</p>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* CRONÔMETRO DE DESCANSO */}
+        {/* ── Timer ── */}
         <div
-          className="rounded-2xl p-5 text-center shadow-xl"
+          className="rounded-2xl p-5 text-center"
           style={{
-            background: restRunning
-              ? "linear-gradient(135deg, #1A1A1A, #2A1010)"
-              : "linear-gradient(135deg, #1A1A1A, #0A0A0A)",
+            background: "linear-gradient(135deg, #1A1A1A, #0A0A0A)",
             border: "1px solid rgba(255,255,255,0.08)",
           }}
         >
-          <p className="text-[10px] uppercase tracking-[0.18em] text-white/60 font-bold mb-1">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-white/50 font-bold mb-1">
             {restRunning
               ? "descansando..."
-              : todasSeriesFeitas
+              : todasFeitas
               ? "exercício completo!"
               : `série ${serieAtual} de ${currentExSets}`}
           </p>
           <p className="text-5xl font-black text-white tabular-nums leading-none my-2">
             {fmtMMSS(restRemaining)}
           </p>
-          <p className="text-sm text-white/80 font-semibold mb-4 truncate">
-            {currentEx?.name ?? ""}
-          </p>
+          <p className="text-sm text-white/60 mb-4 truncate px-4">{currentEx?.name ?? ""}</p>
           <div className="flex items-center justify-center gap-2">
             {!restRunning ? (
               <button
                 type="button"
-                disabled={todasSeriesFeitas}
-                onClick={handleIniciarDescanso}
-                style={{ backgroundColor: todasSeriesFeitas ? "#374151" : "#CC0000" }}
+                disabled={todasFeitas}
+                onClick={handleFizASerie}
+                style={{ backgroundColor: todasFeitas ? "#374151" : "#CC0000" }}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-full text-white font-bold text-sm disabled:opacity-50"
               >
                 <Check className="w-4 h-4" />
-                {todasSeriesFeitas ? "Séries concluídas" : "Fiz a série → descansar"}
+                {todasFeitas ? "Séries concluídas" : "Fiz a série → descansar"}
               </button>
             ) : (
               <button
@@ -388,65 +378,35 @@ export default function WorkoutMode({ workouts, userId, coachName, initialDay, p
             )}
             <button
               type="button"
-              onClick={() => {
-                setRestRunning(false);
-                setRestRemaining(defaultRest);
-              }}
+              onClick={() => { setRestRunning(false); setRestRemaining(defaultRest); }}
               className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm"
-              style={{
-                border: "1px solid rgba(255,255,255,0.2)",
-                color: "rgba(255,255,255,0.6)",
-              }}
+              style={{ border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)" }}
             >
               <RotateCcw className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* SELETOR DE DIAS */}
-        {workouts.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-            {workouts.map((d) => (
-              <button
-                key={d.key}
-                type="button"
-                onClick={() => {
-                  setSelectedDay(d.key);
-                  setCurrentExIdx(0);
-                  setRestRunning(false);
-                }}
-                className={`shrink-0 px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
-                  d.key === selectedDay
-                    ? "bg-foreground text-background border-foreground"
-                    : "bg-card text-foreground border-border hover:bg-muted"
-                }`}
-              >
-                {d.key}
-                {d.focus ? ` · ${d.focus}` : ""}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* EXERCÍCIO ATUAL DESTACADO */}
+        {/* ── Card exercício atual com bolhas ── */}
         {currentEx && (
-          <div className="bg-card border border-primary/30 rounded-xl p-4 space-y-3 shadow-md">
+          <div className="bg-card border border-primary/30 rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="font-bold text-base truncate flex-1">{currentEx.name}</h2>
-              <span className="text-xs text-muted-foreground font-semibold shrink-0 ml-2">
+              <h2 className="font-bold text-sm truncate flex-1">{currentEx.name}</h2>
+              <span className="text-xs text-muted-foreground ml-2 shrink-0">
                 {currentDoneSets.length}/{currentExSets} séries
               </span>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
+            {/* Bolhas de série */}
+            <div className="flex gap-2 flex-wrap">
               {Array.from({ length: currentExSets }).map((_, i) => {
-                const done = currentDoneSets.includes(i);
+                const done      = currentDoneSets.includes(i);
                 const isCurrent = !done && i === currentDoneSets.length;
                 return (
                   <button
                     key={i}
                     type="button"
                     onClick={() => toggleSetManual(i)}
-                    title="Toque para corrigir manualmente"
+                    title="Toque para corrigir"
                     className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all ${
                       done
                         ? "bg-foreground text-background border-foreground"
@@ -460,17 +420,15 @@ export default function WorkoutMode({ workouts, userId, coachName, initialDay, p
                 );
               })}
             </div>
-            <div className="grid grid-cols-3 gap-2 text-center">
+            {/* Detalhes do exercício */}
+            <div className="grid grid-cols-3 gap-2">
               {[
-                { l: "Séries", v: currentEx.sets || "—" },
-                { l: "Reps", v: currentEx.reps || "—" },
-                { l: "Descanso", v: currentEx.rest || "—" },
-                ...(isPeriodizationOn && currentEx.cadence
-                  ? [{ l: "Cadência", v: currentEx.cadence }]
-                  : []),
+                { l: "Séries",   v: currentEx.sets    || "—" },
+                { l: "Reps",     v: currentEx.reps    || "—" },
+                { l: "Descanso", v: currentEx.rest     || "—" },
               ].map((m, i) => (
-                <div key={i} className="bg-muted/40 rounded-md p-2">
-                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground">{m.l}</p>
+                <div key={i} className="bg-muted/40 rounded-lg p-2 text-center">
+                  <p className="text-[9px] uppercase text-muted-foreground">{m.l}</p>
                   <p className="text-xs font-bold mt-0.5">{m.v}</p>
                 </div>
               ))}
@@ -483,13 +441,13 @@ export default function WorkoutMode({ workouts, userId, coachName, initialDay, p
           </div>
         )}
 
-        {/* LISTA DOS DEMAIS EXERCÍCIOS */}
+        {/* ── Lista de exercícios do treino ── */}
         <div className="space-y-2">
           {exercises.map((ex, idx) => {
-            const done = isExerciseDone(idx);
+            const done      = isExDone(idx);
             const isCurrent = idx === currentExIdx;
-            const doneSets = completed[`${day!.key}::${idx}`]?.length ?? 0;
-            const totalSets = parseSets(ex.sets);
+            const exDone    = completed[`${day!.key}::${idx}`]?.length ?? 0;
+            const exTotal   = parseSets(ex.sets);
             return (
               <div
                 key={idx}
@@ -506,10 +464,7 @@ export default function WorkoutMode({ workouts, userId, coachName, initialDay, p
               >
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleExerciseDone(idx);
-                  }}
+                  onClick={(e) => { e.stopPropagation(); toggleExDone(idx); }}
                   className={`w-8 h-8 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
                     done
                       ? "bg-primary border-primary text-primary-foreground"
@@ -519,9 +474,11 @@ export default function WorkoutMode({ workouts, userId, coachName, initialDay, p
                   {done && <Check className="w-4 h-4" />}
                 </button>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm truncate">{ex.name}</p>
+                  <p className={`font-semibold text-sm truncate ${done ? "line-through text-muted-foreground" : ""}`}>
+                    {ex.name}
+                  </p>
                   <p className="text-[11px] text-muted-foreground">
-                    {doneSets}/{totalSets} séries · {ex.reps ?? "—"} reps · {ex.rest ?? "—"}
+                    {exDone}/{exTotal} séries · {ex.reps ?? "—"} reps · {ex.rest ?? "—"}
                   </p>
                 </div>
                 <button
@@ -534,29 +491,27 @@ export default function WorkoutMode({ workouts, userId, coachName, initialDay, p
                 >
                   <ImageIcon className="w-3.5 h-3.5" /> GIF
                 </button>
-                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
               </div>
             );
           })}
         </div>
 
-        {/* PROGRESSO */}
+        {/* ── Progresso ── */}
         <div className="bg-card border border-border rounded-xl p-3 space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-foreground">
-              <Flame className="w-3.5 h-3.5 inline -mt-0.5 mr-1 text-primary" />
-              Progresso do treino
+            <p className="text-xs font-semibold flex items-center gap-1.5">
+              <Flame className="w-3.5 h-3.5 text-primary" /> Progresso
             </p>
             <p className="text-sm font-black text-primary">{progressPct}%</p>
           </div>
           <Progress value={progressPct} className="h-2" />
           <p className="text-[11px] text-muted-foreground">
-            {doneSetsDay}/{totalSetsDay} séries · {completedExCount}/{exercises.length} exercícios
+            {doneSets}/{totalSets} séries · {completedExCnt}/{exercises.length} exercícios
           </p>
         </div>
       </main>
 
-      {/* BOTÃO FIXO INFERIOR */}
+      {/* ── Botão concluir ── */}
       {hasAnyDone && (
         <div className="fixed bottom-0 left-0 right-0 z-20 p-4 bg-gradient-to-t from-background via-background/95 to-transparent">
           <div className="max-w-2xl mx-auto">
@@ -576,11 +531,11 @@ export default function WorkoutMode({ workouts, userId, coachName, initialDay, p
         <WorkoutShareCard
           workoutName={`${day.key}${day.focus ? ` · ${day.focus}` : ""}`}
           durationSec={elapsedSec}
-          totalSets={doneSetsDay}
-          completedExercises={completedExCount}
+          totalSets={doneSets}
+          completedExercises={completedExCnt}
           totalExercises={exercises.length}
           coachName={coachName}
-          weekLabel={currentWeekLabel}
+          weekLabel={weekLabel}
           onClose={handleSharedDone}
         />
       )}
