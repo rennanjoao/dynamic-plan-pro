@@ -130,13 +130,15 @@ function NutritionStrategyHeader({
     : 1;
 
   const baseCarbs    = Number(m.carbs    ?? 0);
-  const baseCalories = Number(m.calories ?? 0);
   const baseFat      = Number(m.fat      ?? 0);
   const baseProtein  = Number(m.protein  ?? 0);
 
-  const adjCarbs    = Math.round(baseCarbs * carbMult);
-  const carbDelta   = adjCarbs - baseCarbs;
-  const adjCalories = Math.round(baseCalories + carbDelta * 4);
+  const adjCarbs = Math.round(baseCarbs * carbMult);
+
+  // CORRETO: calorias = soma real dos macros ajustados
+  const adjCalories = baseProtein > 0 || adjCarbs > 0 || baseFat > 0
+    ? Math.round(baseProtein * 4 + adjCarbs * 4 + baseFat * 9)
+    : 0;
 
   const macros = [
     { icon: Flame,    value: adjCalories || "—", unit: "kcal", label: "Energia"  },
