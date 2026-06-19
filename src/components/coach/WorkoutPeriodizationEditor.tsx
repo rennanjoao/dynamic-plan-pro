@@ -24,6 +24,59 @@ import TemplateHistoryDialog from "./TemplateHistoryDialog";
 import { SYSTEM_TEMPLATES } from "@/data/workoutSystemTemplates";
 import { cn } from "@/lib/utils";
 
+// ─── Validação de recuperação muscular entre dias ────────────────────────────
+// Mapeia palavras-chave do campo `focus` para grupos musculares
+const MUSCLE_GROUPS: Record<string, string[]> = {
+  "peito":    ["peito", "peitoral", "chest", "supino", "crucifixo"],
+  "costas":   ["costas", "dorsal", "back", "puxada", "remada", "lat"],
+  "ombro":    ["ombro", "deltóide", "deltoid", "shoulder", "desenvolvimento"],
+  "biceps":   ["bíceps", "biceps", "rosca"],
+  "triceps":  ["tríceps", "triceps", "trícep", "tricep", "paralela", "pulley"],
+  "quadri":   ["quadríceps", "quadriceps", "agachamento", "leg press", "hack", "inferiores", "perna", "leg"],
+  "posterior":["posterior", "femoral", "terra", "romeno", "stiff", "glúteo", "gluteo", "bumbum", "cadeia posterior"],
+  "core":     ["core", "abdômen", "abdomen", "abdominal"],
+};
+
+// Grupos que precisam de pelo menos 48h entre sessões (antagonistas pesados)
+const NEEDS_48H = ["peito","costas","ombro","quadri","posterior"];
+
+function detectMuscleGroups(focus: string): string[] {
+  const lower = (focus || "").toLowerCase();
+  return Object.entries(MUSCLE_GROUPS)
+    .filter(([, kws]) => kws.some((kw) => lower.includes(kw)))
+    .map(([group]) => group);
+}
+
+/**
+ * Retorna avisos de recuperação muscular inadequada para um array de workouts.
+ * Assume que os dias se repetem ciclicamente (sem dia fixo da semana).
+ */
+function checkMuscleRecovery(workouts: Array<{ key: string; focus: string }>): string[] {
+  const warnings: string[] = [];
+  const n = workouts.length;
+  if (n < 2) return warnings;
+
+  for (let i = 0; i < n; i++) {
+    const curr = workouts[i];
+    const next = workouts[(i + 1) % n];
+    const currGroups = detectMuscleGroups(curr.focus);
+    const nextGroups = detectMuscleGroups(next.focus);
+
+    const overlap = currGroups.filter((g) => nextGroups.includes(g) && NEEDS_48H.includes(g));
+    if (overlap.length > 0) {
+      const isWrap = i === n - 1;
+      const label = isWrap
+        ? `Treino ${curr.key} → retorno ao Treino ${next.key}`
+        : `Treino ${curr.key} → Treino ${next.key}`;
+      warnings.push(
+        `${label}: grupo(s) ${overlap.map((g) => g.charAt(0).toUpperCase() + g.slice(1)).join(", ")} treinado(s) em dias consecutivos — recuperação insuficiente (mín. 48h).`
+      );
+    }
+  }
+  return warnings;
+}
+
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
 
@@ -49,6 +102,7 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
   const [busy, setBusy] = useState(false);
   const [previewWeek, setPreviewWeek] = useState<number | null>(null);
   const [historyTpl, setHistoryTpl] = useState<{ id: string; name: string } | null>(null);
+  const [previewTpl, setPreviewTpl] = useState<any | null>(null);
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("perio_collapsed") === "true";
@@ -301,6 +355,24 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
             </div>
           )}
 
+          {/* Avisos de recuperação muscular */}
+          {(() => {
+            const muscleWarnings = checkMuscleRecovery(payload.workouts || []);
+            return muscleWarnings.length > 0 ? (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 mb-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+                  <p className="text-[11px] font-bold text-amber-500">Aviso de recuperação muscular</p>
+                </div>
+                <ul className="space-y-0.5">
+                  {muscleWarnings.map((w, i) => (
+                    <li key={i} className="text-[11px] text-amber-600">{w}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null;
+          })()}
+
           {/* Editor de metadados das 4 semanas */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
             {p.weeks.map((w, i) => (
@@ -450,6 +522,7 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
           {loadOpen && (
             <TemplateLibrary
               userTemplates={templates}
+              onPreview={(tpl) => setPreviewTpl(tpl)}
               onApply={(tpl, mode) => {
                 const baseTreinos = tpl.treinos || {};
                 const workouts = Array.isArray(baseTreinos.workouts) ? baseTreinos.workouts : [];
@@ -470,7 +543,72 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
         </DialogContent>
       </Dialog>
 
-      <WeekPreviewDialog
+      {/* Dialog: preview do template antes de aplicar */}
+      <Dialog open={!!previewTpl} onOpenChange={(v) => !v && setPreviewTpl(null)}>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Preview: {previewTpl?.name}</DialogTitle>
+            <DialogDescription className="text-xs">Revise os treinos antes de aplicar.</DialogDescription>
+          </DialogHeader>
+          {previewTpl && (
+            <div className="space-y-3 py-2">
+              {(previewTpl.treinos?.workouts || []).map((d: any) => (
+                <div key={d.key} className="rounded-lg border border-border bg-background/40 p-3">
+                  <p className="text-xs font-bold text-primary mb-2">Treino {d.key} — {d.focus}</p>
+                  <ul className="space-y-1">
+                    {(d.exercises || []).map((ex: any, i: number) => (
+                      <li key={i} className="text-[11px] text-foreground/90 flex items-baseline gap-2">
+                        <span className="font-medium">{ex.name}</span>
+                        <span className="text-muted-foreground">{ex.sets}×{ex.reps}</span>
+                        {ex.rest && <span className="text-muted-foreground">· {ex.rest}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+              {(() => {
+                const ws = checkMuscleRecovery(previewTpl.treinos?.workouts || []);
+                return ws.length > 0 ? (
+                  <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2">
+                    <p className="text-[11px] font-bold text-amber-500 mb-1">⚠ Avisos de recuperação</p>
+                    {ws.map((w, i) => <p key={i} className="text-[11px] text-amber-600">{w}</p>)}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-emerald-500">✓ Recuperação muscular adequada entre os dias.</p>
+                );
+              })()}
+              <div className="flex gap-2 pt-2">
+                <Button className="flex-1" onClick={() => {
+                  const tpl = previewTpl;
+                  setPreviewTpl(null);
+                  const baseTreinos = tpl.treinos || {};
+                  const workouts = Array.isArray(baseTreinos.workouts) ? baseTreinos.workouts : [];
+                  const next = { ...payload };
+                  if (workouts.length) next.workouts = workouts as any;
+                  if (baseTreinos.periodization) next.periodization = baseTreinos.periodization;
+                  setPayload(next);
+                  toast.success("Template aplicado com exercícios");
+                  setLoadOpen(false);
+                }}>▶ Aplicar com exercícios</Button>
+                <Button variant="outline" className="flex-1" onClick={() => {
+                  const tpl = previewTpl;
+                  setPreviewTpl(null);
+                  const baseTreinos = tpl.treinos || {};
+                  const workouts = Array.isArray(baseTreinos.workouts) ? baseTreinos.workouts : [];
+                  const next = { ...payload };
+                  if (workouts.length) next.workouts = workouts.map((d: any) => ({ key: d.key, focus: d.focus, exercises: [] })) as any;
+                  if (baseTreinos.periodization) next.periodization = baseTreinos.periodization;
+                  setPayload(next);
+                  toast.success("Estrutura aplicada — adicione seus exercícios");
+                  setLoadOpen(false);
+                }}>○ Usar estrutura vazia</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+            <WeekPreviewDialog
         open={previewWeek !== null}
         onOpenChange={(v) => !v && setPreviewWeek(null)}
         payload={payload}
@@ -505,9 +643,10 @@ interface TemplateLibraryProps {
   onApply: (tpl: any, mode: "filled" | "empty") => void;
   onHistory: (tpl: any) => void;
   onDelete: (id: string) => void;
+  onPreview: (tpl: any) => void;
 }
 
-function TemplateLibrary({ userTemplates, onApply, onHistory, onDelete }: TemplateLibraryProps) {
+function TemplateLibrary({ userTemplates, onApply, onHistory, onDelete, onPreview }: TemplateLibraryProps) {
   const [filterDiv, setFilterDiv] = useState<string>("todos");
   const [filterProfile, setFilterProfile] = useState<string>("todos");
 
@@ -565,33 +704,47 @@ function TemplateLibrary({ userTemplates, onApply, onHistory, onDelete }: Templa
         </p>
       )}
 
-      <div className="space-y-2">
-        {filtered.map((tpl: any) => (
-          <div key={tpl.id} className="border border-border rounded-lg p-3 bg-background/40">
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold truncate">{tpl.name}</p>
-                <div className="flex flex-wrap gap-1.5 mt-1">
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-bold">
-                    {tpl.division || "—"}
-                  </span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                    {tpl.profile?.replace(/_/g, " ") || "—"}
-                  </span>
-                  {tpl.isSystem ? (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold">
-                      Sistema
-                    </span>
-                  ) : (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 font-bold">
-                      Seu
-                    </span>
-                  )}
-                </div>
+      {/* Lista compacta: seletor + botão de preview */}
+      <div className="border border-border rounded-lg overflow-hidden divide-y divide-border/50">
+        {filtered.map((tpl: any, idx: number) => (
+          <div
+            key={tpl.id}
+            className="flex items-center gap-2 px-3 py-2 hover:bg-muted/30 transition-colors"
+          >
+            {/* Nome + badges numa linha */}
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold truncate">{tpl.name}</p>
+              <div className="flex gap-1 mt-0.5">
+                {tpl.division && (
+                  <span className="text-[9px] px-1 py-px rounded bg-muted text-muted-foreground font-bold">{tpl.division}</span>
+                )}
+                {tpl.isSystem ? (
+                  <span className="text-[9px] px-1 py-px rounded bg-primary/10 text-primary font-bold">Sistema</span>
+                ) : (
+                  <span className="text-[9px] px-1 py-px rounded bg-amber-500/10 text-amber-600 font-bold">Seu</span>
+                )}
               </div>
+            </div>
+            {/* Ações compactas */}
+            <div className="flex items-center gap-1 shrink-0">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-[11px] px-2"
+                title="Visualizar antes de aplicar"
+                onClick={() => onPreview(tpl)}
+              >
+                <Eye className="w-3.5 h-3.5" />
+              </Button>
+              <Button size="sm" variant="default" className="h-7 text-[11px] px-2" onClick={() => onApply(tpl, "filled")}>
+                ▶
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-[11px] px-2" onClick={() => onApply(tpl, "empty")}>
+                ○
+              </Button>
               {!tpl.isSystem && (
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button size="sm" variant="ghost" className="h-7 text-xs" title="Histórico" onClick={() => onHistory(tpl)}>
+                <>
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Histórico" onClick={() => onHistory(tpl)}>
                     <History className="w-3.5 h-3.5" />
                   </Button>
                   <button
@@ -602,16 +755,8 @@ function TemplateLibrary({ userTemplates, onApply, onHistory, onDelete }: Templa
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
-                </div>
+                </>
               )}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => onApply(tpl, "filled")}>
-                ▶ Usar preenchido
-              </Button>
-              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onApply(tpl, "empty")}>
-                ○ Usar estrutura vazia
-              </Button>
             </div>
           </div>
         ))}
