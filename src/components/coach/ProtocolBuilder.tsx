@@ -393,12 +393,22 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
 
 function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void }) {
   const m = payload.macros;
-  const upd = (k: keyof typeof m, v: number | string) => setPayload({ ...payload, macros: { ...m, [k]: v } as typeof m });
+  const upd = (k: keyof typeof m, v: number | string) => {
+    const next = { ...m, [k]: v } as typeof m;
+    // Recalcula calorias automaticamente ao alterar macros
+    if (k === "protein" || k === "carbs" || k === "fat") {
+      const p = k === "protein" ? Number(v) : next.protein;
+      const c = k === "carbs"   ? Number(v) : next.carbs;
+      const f = k === "fat"     ? Number(v) : next.fat;
+      next.calories = Math.round(p * 4 + c * 4 + f * 9);
+    }
+    setPayload({ ...payload, macros: next });
+  };
   return (
     <Card className="bg-card/60 border-border p-4">
       <p className="text-xs text-muted-foreground mb-3">Base calórica e macros. Servem de referência para ciclo de carbo.</p>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <div><Label className="text-xs">Calorias</Label><Input type="number" value={m.calories} onChange={(e) => upd("calories", Number(e.target.value) || 0)} className="mt-1 h-9 text-sm" /></div>
+        <div><Label className="text-xs">Calorias <span className="text-[9px] text-muted-foreground">(auto)</span></Label><Input type="number" value={m.calories} onChange={(e) => upd("calories", Number(e.target.value) || 0)} className="mt-1 h-9 text-sm" /></div>
         <div><Label className="text-xs">Proteína (g)</Label><Input type="number" value={m.protein} onChange={(e) => upd("protein", Number(e.target.value) || 0)} className="mt-1 h-9 text-sm" /></div>
         <div><Label className="text-xs">Carbo (g)</Label><Input type="number" value={m.carbs} onChange={(e) => upd("carbs", Number(e.target.value) || 0)} className="mt-1 h-9 text-sm" /></div>
         <div><Label className="text-xs">Gordura (g)</Label><Input type="number" value={m.fat} onChange={(e) => upd("fat", Number(e.target.value) || 0)} className="mt-1 h-9 text-sm" /></div>
@@ -464,8 +474,18 @@ function GuidelinesTab({ payload, setPayload }: { payload: ProtocolPayload; setP
     { k: "weekOrganization", label: "Organização da semana", hint: "Ex.: Seg/Qua/Sex carbo alto · Ter/Qui/Sab/Dom carbo baixo", minH: "min-h-[80px]" },
     { k: "supplementation",  label: "Suplementação — obs. gerais", minH: "min-h-[100px]" },
   ];
+  const showToStudent: boolean = (payload as any).showGuidelines ?? false;
+  const setShowToStudent = (v: boolean) => setPayload({ ...payload, showGuidelines: v } as any);
   return (
     <Card className="bg-card/60 border-border p-4 space-y-4">
+      {/* Controle de visibilidade para o aluno */}
+      <div className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/20 px-3 py-2.5">
+        <div>
+          <p className="text-xs font-semibold">Exibir Diretrizes para o aluno</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Quando ativo, o aluno verá as diretrizes e a Regra de Ouro no Plano de Treino.</p>
+        </div>
+        <Switch checked={showToStudent} onCheckedChange={setShowToStudent} />
+      </div>
       {blocks.map((b) => {
         const isOpen = openMap[b.k as string] ?? true;
         const val = (payload.guidelines[b.k] ?? "") as string;
@@ -610,10 +630,15 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
             
             {day.exercises.map((ex, ei) => {
               const w1 = payload.periodization?.weeks?.[0];
-              const phSets    = periodOn && w1?.sets    ? `Auto: ${w1.sets}`    : "Séries (Ex: 4)";
-              const phReps    = periodOn && w1?.reps    ? `Auto: ${w1.reps}`    : "Reps (Ex: 8-12)";
-              const phCadence = periodOn && w1?.cadence ? `Auto: ${w1.cadence}` : "Ex: 3010";
-              const phRest    = periodOn && w1?.rest    ? `Auto: ${w1.rest}`    : "Descanso (Ex: 60s)";
+              // Quando periodização ativa, pré-preenche campos vazios com valores da Semana 1
+              const effSets    = ex.sets    || (periodOn && w1?.sets    ? w1.sets    : "");
+              const effReps    = ex.reps    || (periodOn && w1?.reps    ? w1.reps    : "");
+              const effCadence = ex.cadence || (periodOn && w1?.cadence ? w1.cadence : "");
+              const effRest    = ex.rest    || (periodOn && w1?.rest    ? w1.rest    : "");
+              const phSets    = periodOn && w1?.sets    ? `S1: ${w1.sets}`    : "Séries (Ex: 4)";
+              const phReps    = periodOn && w1?.reps    ? `S1: ${w1.reps}`    : "Reps (Ex: 8-12)";
+              const phCadence = periodOn && w1?.cadence ? `S1: ${w1.cadence}` : "Ex: 3010";
+              const phRest    = periodOn && w1?.rest    ? `S1: ${w1.rest}`    : "Descanso (Ex: 60s)";
               const collapsed = periodOn && !overrideOpen[di];
               return (
               <div key={ei} className={cn(
@@ -625,10 +650,10 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
                 <Input value={ex.name} onChange={(e) => updEx(di, ei, { name: e.target.value })} placeholder="Ex: Supino reto" className="h-8 text-xs" />
                 {!collapsed && (
                   <>
-                    <Input value={ex.sets} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder={phSets} className="h-8 text-xs" />
-                    <Input value={ex.reps} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder={phReps} className="h-8 text-xs" />
-                    <Input value={ex.cadence} onChange={(e) => updEx(di, ei, { cadence: e.target.value })} placeholder={phCadence} className="h-8 text-xs" title="3010 = Excêntrico / Pausa / Concêntrico / Pausa" />
-                    <Input value={ex.rest} onChange={(e) => updEx(di, ei, { rest: e.target.value })} placeholder={phRest} className="h-8 text-xs" />
+                    <Input value={effSets} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder={phSets} className={cn("h-8 text-xs", periodOn && !ex.sets && effSets ? "text-muted-foreground italic" : "")} title={periodOn && !ex.sets ? "Valor da Semana 1 — edite para personalizar" : ""} />
+                    <Input value={effReps} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder={phReps} className={cn("h-8 text-xs", periodOn && !ex.reps && effReps ? "text-muted-foreground italic" : "")} title={periodOn && !ex.reps ? "Valor da Semana 1 — edite para personalizar" : ""} />
+                    <Input value={effCadence} onChange={(e) => updEx(di, ei, { cadence: e.target.value })} placeholder={phCadence} className={cn("h-8 text-xs", periodOn && !ex.cadence && effCadence ? "text-muted-foreground italic" : "")} title="3010 = Excêntrico / Pausa / Concêntrico / Pausa" />
+                    <Input value={effRest} onChange={(e) => updEx(di, ei, { rest: e.target.value })} placeholder={phRest} className={cn("h-8 text-xs", periodOn && !ex.rest && effRest ? "text-muted-foreground italic" : "")} title={periodOn && !ex.rest ? "Valor da Semana 1 — edite para personalizar" : ""} />
                   </>
                 )}
                 <Input value={ex.notes} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-xs" />
@@ -809,6 +834,11 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
   const [loadTplOpen, setLoadTplOpen] = useState(false);
   const [templates, setTemplates] = useState<any[]>([]);
   const [collapsedMeals, setCollapsedMeals] = useState<Record<number, boolean>>({});
+  // Controla quais grupos de macros estão minimizados: key = "mealIdx:kind"
+  const [collapsedKinds, setCollapsedKinds] = useState<Record<string, boolean>>({});
+  const toggleKind = (mealIdx: number, kind: string) =>
+    setCollapsedKinds((prev) => ({ ...prev, [`${mealIdx}:${kind}`]: !prev[`${mealIdx}:${kind}`] }));
+  const isKindCollapsed = (mealIdx: number, kind: string) => !!collapsedKinds[`${mealIdx}:${kind}`];
 
   async function reloadTemplates() {
     if (!coachId) return;
@@ -1010,12 +1040,20 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
               const hidden = Array.isArray((m as any).hiddenKinds) && (m as any).hiddenKinds.includes(kind);
               if (hidden) return null;
               const opts = getOptsForKind(m, kind);
+              const kindCollapsed = isKindCollapsed(mealIdx, kind);
               return (
                 <div key={kind} className={`rounded-xl border ${cfg.border} ${cfg.bg} p-3`}>
                   <div className="flex items-center justify-between mb-2.5">
-                    <span className={`text-[11px] uppercase tracking-widest font-bold ${cfg.color}`}>{cfg.label}</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleKind(mealIdx, kind)}
+                      className={`flex items-center gap-1.5 text-[11px] uppercase tracking-widest font-bold ${cfg.color} hover:opacity-80`}
+                    >
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${kindCollapsed ? "-rotate-90" : ""}`} />
+                      {cfg.label}
+                    </button>
                     <div className="flex items-center gap-2">
-                      {opts.length < 3 && (
+                      {!kindCollapsed && opts.length < 3 && (
                         <button type="button" onClick={() => addOption(mealIdx, kind)} className={`text-[10px] flex items-center gap-1 ${cfg.color} opacity-60 hover:opacity-100 transition-opacity`}>
                           <Plus className="w-3 h-3" /> + opção
                         </button>
@@ -1035,7 +1073,7 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                     </div>
                   </div>
 
-                  <div className="space-y-2.5">
+                  {!kindCollapsed && <div className="space-y-2.5">
                     {opts.map((opt: any, optIdx: number) => {
                       const items: any[] = Array.isArray(opt.items) ? opt.items : [];
                       const optM = optionMacros(opt);
@@ -1144,7 +1182,7 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
                         </div>
                       );
                     })}
-                  </div>
+                  </div>}
                 </div>
               );
             })}
