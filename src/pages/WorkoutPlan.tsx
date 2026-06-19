@@ -2,16 +2,18 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, AlertTriangle, Activity, Info } from "lucide-react";
+import { ArrowLeft, Loader2, AlertTriangle, Activity, Info, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ProtocolPayloadSchema } from "@/lib/protocolSchema";
 import ProtocolQuestionButton from "@/components/student/ProtocolQuestionButton";
 import WorkoutPeriodizationView from "@/components/student/WorkoutPeriodizationView";
 import WorkoutMode from "@/components/student/WorkoutMode";
+import WorkoutHistory from "@/components/student/WorkoutHistory";
 import { useWakeLock } from "@/hooks/useWakeLock";
 
 const WEEKDAYS_LABEL: Record<string, string> = {
@@ -47,6 +49,7 @@ export default function WorkoutPlan() {
   const [userId, setUserId] = useState("");
   const [showWorkoutMode, setShowWorkoutMode] = useState(false);
   const [workoutModeDay, setWorkoutModeDay] = useState<string | undefined>(undefined);
+  const [showHistory, setShowHistory] = useState(false);
   useWakeLock();
 
   useEffect(() => {
@@ -111,6 +114,9 @@ export default function WorkoutPlan() {
           <h1 className="text-lg font-bold text-foreground">Plano de Treino</h1>
           <p className="text-xs text-muted-foreground">Biomecânica e Periodização</p>
         </div>
+        <Button variant="ghost" size="sm" onClick={() => setShowHistory(true)} className="gap-1.5">
+          <History className="w-4 h-4" /> Histórico
+        </Button>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
@@ -270,6 +276,15 @@ export default function WorkoutPlan() {
           onClose={() => { setShowWorkoutMode(false); setWorkoutModeDay(undefined); }}
         />
       )}
+
+      <Sheet open={showHistory} onOpenChange={setShowHistory}>
+        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader className="mb-4">
+            <SheetTitle>Histórico de Treinos</SheetTitle>
+          </SheetHeader>
+          <WorkoutHistory userId={userId} />
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
