@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import WorkoutShareCard from "./WorkoutShareCard";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Exercise {
   name: string;
@@ -289,7 +290,19 @@ export default function WorkoutMode({
     if (hasAnyDone && !confirm("Sair do modo treino? Seu progresso fica salvo.")) return;
     onClose();
   };
-  const handleSharedDone = () => {
+  const handleSharedDone = async () => {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      await supabase.from("workout_progress" as any).upsert({
+        user_id: userId,
+        workout_id: `${day.key}_${today}`,
+        completed: true,
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id,workout_id" });
+    } catch (e) {
+      console.warn("workout_progress save failed", e);
+    }
     localStorage.removeItem(storageKey);
     setShowShare(false);
     onClose();
