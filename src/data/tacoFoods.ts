@@ -74,9 +74,9 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Mel de abelha",                   kcal: 320, p: 0.3,  c: 82.0, g: 0.0, group: "carb", unitWeight: 15 }, // colher
 
   // ─── PROTEÍNAS - AVES & OVOS ─────────────────────────────────────────────────
-  { name: "Frango peito s/ pele (cru)",      kcal: 163, p: 32.0, c: 0.0,  g: 2.5,  group: "protein", cookFactor: 0.65 },
-  { name: "Frango peito s/ pele (grelhado)", kcal: 159, p: 34.6, c: 0.0,  g: 2.4,  group: "protein", valuesArCooked: true },
-  { name: "Frango peito s/ pele (desfiado)", kcal: 159, p: 34.6, c: 0.0,  g: 2.4,  group: "protein", valuesArCooked: true },
+  { name: "Frango peito s/ pele (cru)",      kcal: 172, p: 20.85, c: 0.0, g: 9.25, group: "protein", cookFactor: 0.65 },
+  { name: "Frango peito s/ pele (grelhado)", kcal: 185, p: 32.0,  c: 0.0, g: 6.0,  group: "protein", valuesArCooked: true },
+  { name: "Frango peito s/ pele (desfiado)", kcal: 185, p: 32.0,  c: 0.0, g: 6.0,  group: "protein", valuesArCooked: true },
   { name: "Frango coxa+sobrecoxa (cru)",     kcal: 161, p: 19.2, c: 0.0,  g: 9.3,  group: "protein", cookFactor: 0.70 },
   { name: "Frango coxa+sobrecoxa (assado)",  kcal: 179, p: 22.7, c: 0.0,  g: 10.1, group: "protein", valuesArCooked: true },
   // Coxa+sobrecoxa — versões explícitas com e sem pele
