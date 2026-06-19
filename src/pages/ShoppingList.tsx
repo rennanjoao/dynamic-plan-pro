@@ -15,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ArrowLeft, FileDown, Share2, ShoppingCart, Loader2, AlertCircle } from "lucide-react";
 import jsPDF from "jspdf";
-import { formatQty, aggregateShoppingList } from "@/lib/shoppingListAgg";
+import { aggregateShoppingList, formatAggItem, type AggItem } from "@/lib/shoppingListAgg";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const KIND_LABEL: Record<string, string> = {
@@ -27,7 +27,7 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
-type Item = { name: string; kind: string; gramsPerDay: number };
+// AggItem importado de shoppingListAgg
 
 const PERIODS = [
   { label: "1 dia", days: 1 },
@@ -82,12 +82,12 @@ export default function ShoppingList() {
   }, [meals]);
 
   // Computa itens agregados
-  const aggregated: Item[] = useMemo(
+  const aggregated: AggItem[] = useMemo(
     () => aggregateShoppingList(meals, selectedOptions),
     [meals, selectedOptions]
   );
 
-  const grouped: Record<string, Item[]> = useMemo(() => {
+  const grouped: Record<string, AggItem[]> = useMemo(() => {
     const g: Record<string, Item[]> = {};
     aggregated.forEach((it) => { (g[it.kind] ||= []).push(it); });
     return g;
@@ -100,8 +100,10 @@ export default function ShoppingList() {
     Object.keys(grouped).sort().forEach((kind) => {
       lines.push(`*${KIND_LABEL[kind] || kind}*`);
       grouped[kind].forEach((it) => {
-        const total = it.gramsPerDay * days;
-        lines.push(`• ${it.name} — ${formatQty(total)}`);
+        const qty = it.isCount
+          ? `${Math.round(it.total * days)} ${it.unit}`
+          : formatAggItem({ ...it, total: it.total * days });
+        lines.push(`• ${it.name} — ${qty}`);
       });
       lines.push("");
     });
@@ -130,9 +132,11 @@ export default function ShoppingList() {
       doc.setFontSize(11);
       grouped[kind].forEach((it) => {
         if (y > 280) { doc.addPage(); y = 18; }
-        const total = it.gramsPerDay * days;
+        const qty = it.isCount
+          ? `${Math.round(it.total * days)} ${it.unit}`
+          : formatAggItem({ ...it, total: it.total * days });
         doc.text(`[ ]  ${it.name}`, 18, y);
-        doc.text(formatQty(total), 180, y, { align: "right" });
+        doc.text(qty, 180, y, { align: "right" });
         y += 6;
       });
       y += 4;
@@ -292,8 +296,10 @@ export default function ShoppingList() {
                   <ul className="space-y-1.5">
                     {grouped[kind].map((it) => {
                       const key = `${kind}:${it.name}`;
-                      const total = it.gramsPerDay * days;
                       const isChecked = !!checked[key];
+                      const displayQty = it.isCount
+                        ? `${Math.round(it.total * days)} ${it.unit}`
+                        : formatAggItem({ ...it, total: it.total * days });
                       return (
                         <li key={key} className="flex items-center gap-3 py-1.5 border-b border-border/40 last:border-0">
                           <Checkbox checked={isChecked} onCheckedChange={() => toggleCheck(key)} id={key} />
@@ -303,7 +309,7 @@ export default function ShoppingList() {
                           >
                             {it.name}
                           </label>
-                          <span className="text-sm font-bold tabular-nums text-primary">{formatQty(total)}</span>
+                          <span className="text-sm font-bold tabular-nums text-primary">{displayQty}</span>
                         </li>
                       );
                     })}
