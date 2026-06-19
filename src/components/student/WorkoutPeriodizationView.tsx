@@ -47,6 +47,8 @@ interface Props {
   allowEdit?: boolean;
   /** Callback para iniciar o modo treino num dia específico — vem do WorkoutPlan */
   onStartWorkout?: (dayKey: string) => void;
+  /** Controla se a Diretriz/Banner é exibida para o aluno */
+  showGuidelines?: boolean;
   periodization?: {
     enabled?: boolean;
     weeks?: WeekMeta[];
@@ -65,6 +67,7 @@ export default function WorkoutPeriodizationView({
   renderLegacy,
   allowEdit = false,
   onStartWorkout,
+  showGuidelines = false,
   periodization,
 }: Props) {
   const incomingWeeks =
@@ -201,13 +204,15 @@ export default function WorkoutPeriodizationView({
             ))}
           </div>
 
-          {/* Banner */}
-          <Alert className="border-amber-500/40 bg-amber-500/10">
-            <AlertTriangle className="h-4 w-4 text-amber-600" />
-            <AlertDescription className="text-xs leading-relaxed text-foreground/90">
-              {BANNER_TEXT}
-            </AlertDescription>
-          </Alert>
+          {/* Banner — exibido apenas quando Coach habilita Diretrizes */}
+          {showGuidelines && (
+            <Alert className="border-amber-500/40 bg-amber-500/10">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-xs leading-relaxed text-foreground/90">
+                {BANNER_TEXT}
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Cards de treino com botão Iniciar */}
           {workouts.length === 0 ? (
