@@ -21,6 +21,7 @@ import {
 import { validatePeriodization } from "@/lib/periodizationValidation";
 import WeekPreviewDialog from "./WeekPreviewDialog";
 import TemplateHistoryDialog from "./TemplateHistoryDialog";
+import { SYSTEM_TEMPLATES } from "@/data/workoutSystemTemplates";
 import { cn } from "@/lib/utils";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -443,27 +444,29 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
       <Dialog open={loadOpen} onOpenChange={setLoadOpen}>
         <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
-            <DialogTitle>Templates salvos</DialogTitle>
-            <DialogDescription className="text-xs">Aplicar substitui treino e/ou periodização atuais.</DialogDescription>
+            <DialogTitle>Biblioteca de Treinos</DialogTitle>
+            <DialogDescription className="text-xs">Templates do sistema + seus templates salvos. Escolha como aplicar.</DialogDescription>
           </DialogHeader>
-          <div className="max-h-[60vh] overflow-y-auto space-y-2 py-2">
-            {templates.length === 0 && (
-              <p className="text-xs text-muted-foreground italic text-center py-6">Nenhum template salvo.</p>
-            )}
-            {templates.map((t) => (
-              <div key={t.id} className="flex items-center gap-2 border border-border rounded-lg p-2">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold truncate">{t.name}</p>
-                  <p className="text-[11px] text-muted-foreground">{t.description || t.level}</p>
-                </div>
-                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => applyTemplate(t)}>Aplicar</Button>
-                <Button size="sm" variant="ghost" className="h-7 text-xs" title="Histórico" onClick={() => setHistoryTpl({ id: t.id, name: t.name })}>
-                  <History className="w-3.5 h-3.5" />
-                </Button>
-                <button onClick={() => deleteTemplate(t.id)} className="text-muted-foreground hover:text-destructive p-1.5"><Trash2 className="w-3.5 h-3.5" /></button>
-              </div>
-            ))}
-          </div>
+          {loadOpen && (
+            <TemplateLibrary
+              userTemplates={templates}
+              onApply={(tpl, mode) => {
+                const baseTreinos = tpl.treinos || {};
+                const workouts = Array.isArray(baseTreinos.workouts) ? baseTreinos.workouts : [];
+                const finalWorkouts = mode === "filled"
+                  ? workouts
+                  : workouts.map((d: any) => ({ key: d.key, focus: d.focus, exercises: [] }));
+                const next = { ...payload };
+                if (workouts.length) next.workouts = finalWorkouts as any;
+                if (baseTreinos.periodization) next.periodization = baseTreinos.periodization;
+                setPayload(next);
+                toast.success(mode === "filled" ? "Template aplicado com exercícios" : "Estrutura aplicada — adicione seus exercícios");
+                setLoadOpen(false);
+              }}
+              onHistory={(t) => setHistoryTpl({ id: t.id, name: t.name })}
+              onDelete={deleteTemplate}
+            />
+          )}
         </DialogContent>
       </Dialog>
 
@@ -484,5 +487,135 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
       </>
       )}
     </Card>
+  );
+}
+
+// ─── Subcomponente: Biblioteca de templates (hooks isolados) ───
+const DIVISIONS = ["todos", "AB", "ABC", "ABCD", "ABCDE"] as const;
+const PROFILES: { value: string; label: string }[] = [
+  { value: "todos",                  label: "Todos os perfis" },
+  { value: "masculino_geral",        label: "Masculino Geral" },
+  { value: "masculino_posterior",    label: "Masculino Posterior" },
+  { value: "feminino_gluteo",        label: "Feminino Glúteo" },
+  { value: "feminino_musculatura",   label: "Feminino Musculatura" },
+];
+
+interface TemplateLibraryProps {
+  userTemplates: any[];
+  onApply: (tpl: any, mode: "filled" | "empty") => void;
+  onHistory: (tpl: any) => void;
+  onDelete: (id: string) => void;
+}
+
+function TemplateLibrary({ userTemplates, onApply, onHistory, onDelete }: TemplateLibraryProps) {
+  const [filterDiv, setFilterDiv] = useState<string>("todos");
+  const [filterProfile, setFilterProfile] = useState<string>("todos");
+
+  const all = [
+    ...SYSTEM_TEMPLATES.map((t) => ({ ...t, isSystem: true })),
+    ...userTemplates.map((t) => ({ ...t, isSystem: false })),
+  ];
+
+  const filtered = all.filter((t: any) => {
+    const divMatch = filterDiv === "todos" || t.division === filterDiv;
+    const profMatch = filterProfile === "todos" || t.profile === filterProfile;
+    return divMatch && profMatch;
+  });
+
+  return (
+    <div className="max-h-[60vh] overflow-y-auto space-y-3 py-2">
+      <div className="flex flex-wrap gap-1.5">
+        {DIVISIONS.map((d) => (
+          <button
+            key={d}
+            type="button"
+            onClick={() => setFilterDiv(d)}
+            className={cn(
+              "px-3 py-1 rounded-full text-[11px] font-bold border transition",
+              filterDiv === d
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-border text-muted-foreground hover:border-primary/50"
+            )}
+          >
+            {d === "todos" ? "Todas divisões" : d}
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {PROFILES.map((p) => (
+          <button
+            key={p.value}
+            type="button"
+            onClick={() => setFilterProfile(p.value)}
+            className={cn(
+              "px-3 py-1 rounded-full text-[11px] font-bold border transition",
+              filterProfile === p.value
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-border text-muted-foreground hover:border-primary/50"
+            )}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 && (
+        <p className="text-xs text-muted-foreground italic text-center py-6">
+          Nenhum template encontrado.
+        </p>
+      )}
+
+      <div className="space-y-2">
+        {filtered.map((tpl: any) => (
+          <div key={tpl.id} className="border border-border rounded-lg p-3 bg-background/40">
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold truncate">{tpl.name}</p>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-bold">
+                    {tpl.division || "—"}
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                    {tpl.profile?.replace(/_/g, " ") || "—"}
+                  </span>
+                  {tpl.isSystem ? (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold">
+                      Sistema
+                    </span>
+                  ) : (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 font-bold">
+                      Seu
+                    </span>
+                  )}
+                </div>
+              </div>
+              {!tpl.isSystem && (
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" title="Histórico" onClick={() => onHistory(tpl)}>
+                    <History className="w-3.5 h-3.5" />
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => onDelete(tpl.id)}
+                    className="text-muted-foreground hover:text-destructive p-1.5"
+                    title="Excluir"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => onApply(tpl, "filled")}>
+                ▶ Usar preenchido
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onApply(tpl, "empty")}>
+                ○ Usar estrutura vazia
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

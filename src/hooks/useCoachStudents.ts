@@ -159,6 +159,5 @@ export function useCoachStudents(coachId: string | null, feedbackIntervalDays = 
       });
     },
     enabled: !!coachId,
-    refetchInterval: 60_000,
   });
 }

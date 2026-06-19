@@ -196,7 +196,6 @@ export default function StudentArea() {
   // ─── ALERTA 2: Cobrança ───
   const { data: billingAlert } = useQuery({
     queryKey: ["student-billing-alert", userId],
-    enabled: !!userId,
     queryFn: async () => {
       if (!coachLink) return null;
       const { data: finance } = await supabase

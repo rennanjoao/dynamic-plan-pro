@@ -10,6 +10,7 @@ import { CoachGuard } from "./components/coach/CoachGuard";
 import { NavigationControls } from "@/components/NavigationControls";
 import { GlobalAIAssistant } from "@/components/GlobalAIAssistant";
 import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
 const Index        = lazyWithRetry(() => import("./pages/Index"));
@@ -77,16 +78,16 @@ const App = () => {
               <Route path="/anamnesis" element={<Anamnesis />} />
 
               {/* Aluno autenticado */}
-              <Route path="/student-area"  element={<AnamnesisGuard><StudentArea /></AnamnesisGuard>} />
-              <Route path="/check-in"      element={<AnamnesisGuard><CheckIn /></AnamnesisGuard>} />
-              <Route path="/evolution"     element={<AnamnesisGuard><Evolution /></AnamnesisGuard>} />
-              <Route path="/routine"       element={<AnamnesisGuard><DynamicRoutine /></AnamnesisGuard>} />
-              <Route path="/workout-plan"  element={<AnamnesisGuard><WorkoutPlanPage /></AnamnesisGuard>} />
-              <Route path="/supplements"   element={<AnamnesisGuard><Supplements /></AnamnesisGuard>} />
-              <Route path="/shopping-list" element={<AnamnesisGuard><ShoppingList /></AnamnesisGuard>} />
+              <Route path="/student-area"  element={<ErrorBoundary label="Erro na área do aluno. Recarregue."><AnamnesisGuard><StudentArea /></AnamnesisGuard></ErrorBoundary>} />
+              <Route path="/check-in"      element={<ErrorBoundary label="Erro na área do aluno. Recarregue."><AnamnesisGuard><CheckIn /></AnamnesisGuard></ErrorBoundary>} />
+              <Route path="/evolution"     element={<ErrorBoundary label="Erro na área do aluno. Recarregue."><AnamnesisGuard><Evolution /></AnamnesisGuard></ErrorBoundary>} />
+              <Route path="/routine"       element={<ErrorBoundary label="Erro na área do aluno. Recarregue."><AnamnesisGuard><DynamicRoutine /></AnamnesisGuard></ErrorBoundary>} />
+              <Route path="/workout-plan"  element={<ErrorBoundary label="Erro na área do aluno. Recarregue."><AnamnesisGuard><WorkoutPlanPage /></AnamnesisGuard></ErrorBoundary>} />
+              <Route path="/supplements"   element={<ErrorBoundary label="Erro na área do aluno. Recarregue."><AnamnesisGuard><Supplements /></AnamnesisGuard></ErrorBoundary>} />
+              <Route path="/shopping-list" element={<ErrorBoundary label="Erro na área do aluno. Recarregue."><AnamnesisGuard><ShoppingList /></AnamnesisGuard></ErrorBoundary>} />
 
               {/* Coach */}
-              <Route path="/coach"  element={<AdminGuard requiredRole="coach"><CoachGuard><CoachDashboard /></CoachGuard></AdminGuard>} />
+              <Route path="/coach"  element={<ErrorBoundary label="Erro na área do coach. Recarregue."><AdminGuard requiredRole="coach"><CoachGuard><CoachDashboard /></CoachGuard></AdminGuard></ErrorBoundary>} />
               <Route path="/planos" element={<Planos />} />
 
               {/* Admin */}
