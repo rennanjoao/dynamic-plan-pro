@@ -236,10 +236,10 @@ export const ProgressDashboard = () => {
     );
   }
 
-  const first = points[0];
-  const last = points[points.length - 1];
-  const deltaPeso = last.peso - first.peso;
-  const hasBF = typeof last.gordura === "number" && typeof first.gordura === "number";
+  const checkInPoints = points.filter((_, i) => i > 0 || points.length === 1);
+const first = checkInPoints[0] ?? points[0];
+const last = points[points.length - 1];
+const deltaPeso = last.peso - first.peso;  const hasBF = typeof last.gordura === "number" && typeof first.gordura === "number";
   const deltaGordura = hasBF ? (last.gordura as number) - (first.gordura as number) : 0;
 
   return (
