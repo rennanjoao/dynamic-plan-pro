@@ -98,6 +98,7 @@ export default function WorkoutPlan() {
   const safePayload: any = parsed.success ? parsed.data : rawPayload;
   const workouts = Array.isArray(safePayload?.workouts) ? safePayload.workouts : [];
   const trainingGuideline = safePayload?.guidelines?.training;
+  const showGuidelines: boolean = (safePayload as any)?.showGuidelines ?? false;
 
   const handleStartWorkout = (dayKey: string) => {
     setWorkoutModeDay(dayKey);
@@ -121,7 +122,7 @@ export default function WorkoutPlan() {
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
 
-        {trainingGuideline && (
+        {showGuidelines && trainingGuideline && (
           <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl shadow-sm">
             <h3 className="text-amber-600 font-bold flex items-center gap-2 mb-2">
               <AlertTriangle className="w-5 h-5" /> Atenção — Diretriz do Treinador
@@ -137,6 +138,7 @@ export default function WorkoutPlan() {
           workouts={workouts as any}
           periodization={safePayload?.periodization}
           onStartWorkout={handleStartWorkout}
+          showGuidelines={showGuidelines}
           renderLegacy={() =>
             workouts.length === 0 ? (
               <p className="text-center text-muted-foreground italic py-10">
