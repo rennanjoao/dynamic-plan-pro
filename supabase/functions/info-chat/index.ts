@@ -47,20 +47,17 @@ serve(async (req: Request) => {
       })),
     ];
 
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${GEMINI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gemini-2.5-flash",
-          messages: chatMessages,
-        }),
-      }
-    );
+    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${GEMINI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gemini-2.5-flash",
+        messages: chatMessages,
+      }),
+    });
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -70,16 +67,16 @@ serve(async (req: Request) => {
         );
       }
       if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "Créditos de IA esgotados. Contate o administrador." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
+        return new Response(JSON.stringify({ error: "Créditos de IA esgotados. Contate o administrador." }), {
+          status: 402,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
       const err = await response.json().catch(() => ({}));
-      return new Response(
-        JSON.stringify({ error: err?.error?.message ?? "Erro na IA" }),
-        { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ error: err?.error?.message ?? "Erro na IA" }), {
+        status: response.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const json = await response.json();
@@ -89,9 +86,9 @@ serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
-    return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Erro desconhecido" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Erro desconhecido" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
