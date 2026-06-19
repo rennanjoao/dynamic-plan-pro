@@ -279,7 +279,13 @@ function MacroSection({
             .map((it: any) => {
               const name = stripHtml(it?.baseName || it?.name || "");
               if (!name) return null;
-              const rawText = it.rawWeight ? `${it.rawWeight}g` : stripHtml(it.weight || "");
+              // CORREÇÃO: prioriza o weight textual do coach (preserva 'unidades', 'fatias', etc.).
+              // rawWeight (gramas internas TACO) é usado apenas quando weight está vazio ou é só número.
+              const weightStr = stripHtml(it.weight || "");
+              const hasUnitWord = /un|unid|fatia|ovo|colher|copo|porc/i.test(weightStr);
+              const rawText = hasUnitWord
+                ? weightStr
+                : (it.rawWeight ? `${it.rawWeight}g` : weightStr);
               const weight = rawText
                 ? applySmartMath(rawText, mode, isCooked, isCarb, name, highPct, lowPct)
                 : "";
