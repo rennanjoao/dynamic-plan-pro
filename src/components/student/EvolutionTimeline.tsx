@@ -29,8 +29,7 @@ export default function EvolutionTimeline({ checkIns }: Props) {
   // Prepara os dados do gráfico (ordem cronológica: do mais antigo para o mais novo)
   const chartData = useMemo(() => {
     if (!checkIns || checkIns.length === 0) return [];
-    return [...checkIns].reverse().map(c => ({
-      date: fmtDate(c.submitted_at),
+return [...checkIns].sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime()).map(c => ({      date: fmtDate(c.submitted_at),
       peso: c.current_metrics?.peso || 0,
     })).filter(d => d.peso > 0);
   }, [checkIns]);
