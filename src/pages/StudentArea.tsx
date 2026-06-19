@@ -415,27 +415,7 @@ export default function StudentArea() {
           </div>
         )}
 
-        {/* ── Anamnese ── */}
-        {anamnesisMeta?.submitted_at && (
-          <div className="rounded-xl border border-border bg-card/60 p-4 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                <FileEdit className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-foreground">Minha Anamnese</p>
-                <p className="text-[11px] text-muted-foreground">
-                  {canEditAnamnesis
-                    ? `Você pode editar mais ${2 - anamnesisEdits}x.`
-                    : "Limite de edições atingido. Fale com seu treinador."}
-                </p>
-              </div>
-            </div>
-            <Button size="sm" variant="outline" disabled={!canEditAnamnesis} onClick={() => navigate("/anamnesis?mode=edit")}>
-              Editar
-            </Button>
-          </div>
-        )}
+
 
         {/* ── DESTAQUES: Dieta e Treino (full width) ── */}
         <div className="space-y-3">
@@ -501,6 +481,15 @@ export default function StudentArea() {
                 </div>
                 <h3 className="font-bold text-foreground text-sm">{mod.title}</h3>
                 <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{mod.description}</p>
+                {(mod as any).showAnamnesisEdit && anamnesisMeta?.submitted_at && canEditAnamnesis && (
+                  <button
+                    className="mt-2 flex items-center gap-1 text-[10px] text-rose-400 hover:text-rose-500 transition-colors"
+                    onClick={(e) => { e.stopPropagation(); navigate("/anamnesis?mode=edit"); }}
+                  >
+                    <FileEdit className="w-3 h-3" />
+                    Editar anamnese ({2 - anamnesisEdits}x restante{2 - anamnesisEdits !== 1 ? "s" : ""})
+                  </button>
+                )}
               </CardContent>
             </Card>
           ))}
