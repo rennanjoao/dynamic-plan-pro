@@ -293,9 +293,10 @@ export default function WorkoutMode({
   const handleSharedDone = async () => {
     try {
       const today = new Date().toISOString().slice(0, 10);
+      const dayKey = day?.key ?? "X";
       await supabase.from("workout_progress" as any).upsert({
         user_id: userId,
-        workout_id: `${day.key}_${today}`,
+        workout_id: `${dayKey}_${today}`,
         completed: true,
         completed_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
