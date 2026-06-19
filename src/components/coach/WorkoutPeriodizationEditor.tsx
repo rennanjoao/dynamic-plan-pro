@@ -21,6 +21,7 @@ import {
 import { validatePeriodization } from "@/lib/periodizationValidation";
 import WeekPreviewDialog from "./WeekPreviewDialog";
 import TemplateHistoryDialog from "./TemplateHistoryDialog";
+import { SYSTEM_TEMPLATES } from "@/data/workoutSystemTemplates";
 import { cn } from "@/lib/utils";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -443,27 +444,29 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
       <Dialog open={loadOpen} onOpenChange={setLoadOpen}>
         <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
-            <DialogTitle>Templates salvos</DialogTitle>
-            <DialogDescription className="text-xs">Aplicar substitui treino e/ou periodização atuais.</DialogDescription>
+            <DialogTitle>Biblioteca de Treinos</DialogTitle>
+            <DialogDescription className="text-xs">Templates do sistema + seus templates salvos. Escolha como aplicar.</DialogDescription>
           </DialogHeader>
-          <div className="max-h-[60vh] overflow-y-auto space-y-2 py-2">
-            {templates.length === 0 && (
-              <p className="text-xs text-muted-foreground italic text-center py-6">Nenhum template salvo.</p>
-            )}
-            {templates.map((t) => (
-              <div key={t.id} className="flex items-center gap-2 border border-border rounded-lg p-2">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold truncate">{t.name}</p>
-                  <p className="text-[11px] text-muted-foreground">{t.description || t.level}</p>
-                </div>
-                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => applyTemplate(t)}>Aplicar</Button>
-                <Button size="sm" variant="ghost" className="h-7 text-xs" title="Histórico" onClick={() => setHistoryTpl({ id: t.id, name: t.name })}>
-                  <History className="w-3.5 h-3.5" />
-                </Button>
-                <button onClick={() => deleteTemplate(t.id)} className="text-muted-foreground hover:text-destructive p-1.5"><Trash2 className="w-3.5 h-3.5" /></button>
-              </div>
-            ))}
-          </div>
+          {loadOpen && (
+            <TemplateLibrary
+              userTemplates={templates}
+              onApply={(tpl, mode) => {
+                const baseTreinos = tpl.treinos || {};
+                const workouts = Array.isArray(baseTreinos.workouts) ? baseTreinos.workouts : [];
+                const finalWorkouts = mode === "filled"
+                  ? workouts
+                  : workouts.map((d: any) => ({ key: d.key, focus: d.focus, exercises: [] }));
+                const next = { ...payload };
+                if (workouts.length) next.workouts = finalWorkouts as any;
+                if (baseTreinos.periodization) next.periodization = baseTreinos.periodization;
+                setPayload(next);
+                toast.success(mode === "filled" ? "Template aplicado com exercícios" : "Estrutura aplicada — adicione seus exercícios");
+                setLoadOpen(false);
+              }}
+              onHistory={(t) => setHistoryTpl({ id: t.id, name: t.name })}
+              onDelete={deleteTemplate}
+            />
+          )}
         </DialogContent>
       </Dialog>
 
