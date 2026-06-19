@@ -985,6 +985,8 @@ export default function CoachDashboard() {
   const [evoStudent, setEvoStudent] = useState<StudentStatus | null>(null);
   const [latestFbStudent, setLatestFbStudent] = useState<StudentStatus | null>(null);
   const [settingsStudent, setSettingsStudent] = useState<StudentStatus | null>(null);
+  const [studentPage, setStudentPage] = useState(0);
+  const STUDENTS_PER_PAGE = 20;
   const qc = useQueryClient();
 
   const { data: coachProfile } = useQuery({
@@ -1007,6 +1009,15 @@ export default function CoachDashboard() {
       return matchSearch && matchFilter;
     });
   }, [students, search, filter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / STUDENTS_PER_PAGE));
+  const safePage = Math.min(studentPage, totalPages - 1);
+  const pagedStudents = useMemo(
+    () => filtered.slice(safePage * STUDENTS_PER_PAGE, safePage * STUDENTS_PER_PAGE + STUDENTS_PER_PAGE),
+    [filtered, safePage]
+  );
+
+  useEffect(() => { setStudentPage(0); }, [search, filter]);
 
   const stats = useMemo(() => ({
     total:    students.length,
@@ -1112,6 +1123,15 @@ export default function CoachDashboard() {
               <Button size="sm" variant="outline" onClick={() => setShowProfile(true)} className="h-9 gap-1.5">
                 <UserPlus className="w-3.5 h-3.5" /> Meu código de convite
               </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => qc.invalidateQueries({ queryKey: ["coach-students"] })}
+                className="h-9"
+                title="Atualizar lista"
+              >
+                Atualizar
+              </Button>
             </div>
 
             {isLoading ? (
@@ -1125,7 +1145,7 @@ export default function CoachDashboard() {
               </div>
             ) : (
               <div className="space-y-2">
-                {filtered.map((s) => (
+                {pagedStudents.map((s) => (
                   <StudentRow key={s.id} student={s}
                     onAnamnesis={(st) => setEvoStudent(st)}
                     onProtocol={(st) => { setSelectedStudent(st); setView("protocol"); }}
@@ -1135,6 +1155,29 @@ export default function CoachDashboard() {
                     onSettings={(st) => setSettingsStudent(st)}
                   />
                 ))}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between pt-3">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={safePage <= 0}
+                      onClick={() => setStudentPage((p) => Math.max(0, p - 1))}
+                    >
+                      ← Anterior
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      Página {safePage + 1} de {totalPages}
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={safePage >= totalPages - 1}
+                      onClick={() => setStudentPage((p) => p + 1)}
+                    >
+                      Próxima →
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </TabsContent>
