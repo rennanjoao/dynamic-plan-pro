@@ -175,8 +175,14 @@ function NutritionStrategyHeader({
   highPct: number;
   lowPct: number;
 }) {
-  const m = payload?.macros ?? {};
+  const meals: any[] = Array.isArray(payload?.meals) ? payload.meals : [];
 
+  // Usa os macros REAIS dos alimentos quando disponíveis; caso contrário,
+  // cai para os macros-meta definidos pelo coach (payload.macros).
+  const realTotals = calculateRealTotals(meals, carbMode, highPct, lowPct);
+  const hasRealData = realTotals.protein > 0 || realTotals.carbs > 0 || realTotals.fat > 0;
+
+  const m = payload?.macros ?? {};
   const carbMult =
     carbMode === "high"
       ? 1 + highPct / 100
@@ -187,20 +193,23 @@ function NutritionStrategyHeader({
   const baseCarbs   = Number(m.carbs   ?? 0);
   const baseFat     = Number(m.fat     ?? 0);
   const baseProtein = Number(m.protein ?? 0);
+  const adjCarbs    = Math.round(baseCarbs * carbMult);
 
-  const adjCarbs = Math.round(baseCarbs * carbMult);
+  // Prioriza totais reais dos alimentos TACO/industriais;
+  // usa metas do coach como fallback quando não há dados TACO.
+  const dispProtein = hasRealData ? realTotals.protein : baseProtein;
+  const dispCarbs   = hasRealData ? realTotals.carbs   : adjCarbs;
+  const dispFat     = hasRealData ? realTotals.fat     : baseFat;
 
-  // Calorias = soma real dos macros ajustados (ignora m.calories para evitar
-  // propagar divergências de arredondamento do campo digitado pelo coach).
-  const adjCalories = baseProtein > 0 || adjCarbs > 0 || baseFat > 0
-    ? Math.round(baseProtein * 4 + adjCarbs * 4 + baseFat * 9)
+  const adjCalories = dispProtein > 0 || dispCarbs > 0 || dispFat > 0
+    ? Math.round(dispProtein * 4 + dispCarbs * 4 + dispFat * 9)
     : 0;
 
   const macros = [
     { icon: Flame,    value: adjCalories || "—", unit: "kcal", label: "Energia"  },
-    { icon: Dna,      value: baseProtein || "—", unit: "g",   label: "Proteína" },
-    { icon: Wheat,    value: adjCarbs    || "—", unit: "g",   label: "Carbo"    },
-    { icon: Droplets, value: baseFat     || "—", unit: "g",   label: "Gordura"  },
+    { icon: Dna,      value: dispProtein || "—", unit: "g",   label: "Proteína" },
+    { icon: Wheat,    value: dispCarbs   || "—", unit: "g",   label: "Carbo"    },
+    { icon: Droplets, value: dispFat     || "—", unit: "g",   label: "Gordura"  },
   ];
 
   const modeLabel = carbMode === "high" ? "↑ Carboidrato Alto"
