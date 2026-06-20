@@ -23,6 +23,7 @@ import {
   ShoppingCart, FileEdit, Flame,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ChangePasswordButton } from "@/components/ChangePasswordButton";
 import { toast } from "sonner";
 import FeedbackCountdownAlert from "@/components/student/FeedbackCountdownAlert";
 import { TrainerAlert } from "@/components/student/TrainerAlert";
