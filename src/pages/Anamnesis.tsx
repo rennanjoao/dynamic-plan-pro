@@ -36,6 +36,8 @@ function SecHead({ num, title }: { num: string; title: string }) { return <div c
 function Card({ children, label }: { children: React.ReactNode; label?: string }) { return <div className="bg-card border border-border/40 rounded-xl p-4 mb-3 space-y-4">{label && <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground border-b border-border/30 pb-2">{label}</p>}{children}</div>; }
 
 /* ── componente principal ───────────────────────────────────── */
+const ANAMNESIS_DRAFT_KEY = (uid: string) => `anamnesis_draft_${uid}`;
+
 const Anamnesis = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -64,6 +66,37 @@ const Anamnesis = () => {
   const g = (k: string) => d[k] ?? "";
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3500); };
+
+  // ─── Autosave de rascunho (localStorage) ──────────────────────
+  // Salva o progresso a cada mudança (debounced) para evitar perda de dados
+  // se o aluno fechar a aba antes de submeter. Limpo no submit com sucesso.
+  useEffect(() => {
+    if (bootstrapping || step !== "form" || !loggedUserId || isEditMode) return;
+    const handle = setTimeout(() => {
+      try {
+        const draft = { d, gender, tpm, quedaF, groups, savedAt: Date.now() };
+        localStorage.setItem(ANAMNESIS_DRAFT_KEY(loggedUserId), JSON.stringify(draft));
+      } catch { /* quota etc. */ }
+    }, 600);
+    return () => clearTimeout(handle);
+  }, [d, gender, tpm, quedaF, groups, bootstrapping, step, loggedUserId, isEditMode]);
+
+  // Restaura rascunho ao montar (apenas em modo de cadastro, não em edição)
+  useEffect(() => {
+    if (!loggedUserId || isEditMode) return;
+    try {
+      const raw = localStorage.getItem(ANAMNESIS_DRAFT_KEY(loggedUserId));
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      if (draft?.d && typeof draft.d === "object") {
+        setD(prev => ({ ...draft.d, ...prev, nome: prev.nome || draft.d.nome || "", email: prev.email || draft.d.email || "" }));
+      }
+      if (draft?.gender === "F" || draft?.gender === "M") setGender(draft.gender);
+      if (Array.isArray(draft?.tpm)) setTpm(draft.tpm);
+      if (Array.isArray(draft?.quedaF)) setQuedaF(draft.quedaF);
+      if (draft?.groups && typeof draft.groups === "object") setGroups(draft.groups);
+    } catch { /* draft corrompido — ignora */ }
+  }, [loggedUserId, isEditMode]);
 
   // Detecta aluno já logado e pula código + signup
   useEffect(() => {
@@ -299,6 +332,8 @@ const Anamnesis = () => {
       } else {
         setStep("done");
       }
+      // limpa rascunho local após submit bem-sucedido
+      try { if (studentId) localStorage.removeItem(ANAMNESIS_DRAFT_KEY(studentId)); } catch { /* noop */ }
     } catch (e: any) {
       console.error(e);
       showToast(e.message || "Erro ao processar cadastro.");
