@@ -38,6 +38,27 @@ function saveDismissed(uid: string, ids: string[]) {
   try { localStorage.setItem(DISMISSED_KEY(uid), JSON.stringify(ids)); } catch { /* noop */ }
 }
 
+// Sincroniza dispensa de alertas com o banco (persistente entre dispositivos).
+// localStorage segue como cache otimista local.
+async function fetchDismissedFromDB(uid: string): Promise<string[]> {
+  try {
+    const { data } = await (supabase as any)
+      .from("student_dismissed_alerts")
+      .select("alert_id")
+      .eq("user_id", uid);
+    return (data ?? []).map((r: { alert_id: string }) => r.alert_id);
+  } catch {
+    return [];
+  }
+}
+async function persistDismissedToDB(uid: string, alertId: string) {
+  try {
+    await (supabase as any)
+      .from("student_dismissed_alerts")
+      .upsert({ user_id: uid, alert_id: alertId }, { onConflict: "user_id,alert_id" });
+  } catch { /* cache local ainda mantém */ }
+}
+
 // ─── Saudação dinâmica ──────────────────────────────────────────────────────
 function greeting(name: string): string {
   const h = new Date().getHours();
@@ -115,6 +136,15 @@ export default function StudentArea() {
         const uid = data.session.user.id;
         setUserId(uid);
         setDismissedAlerts(loadDismissed(uid));
+        // Mescla com fonte autoritativa no banco
+        fetchDismissedFromDB(uid).then((remote) => {
+          if (!remote.length) return;
+          setDismissedAlerts((prev) => {
+            const merged = Array.from(new Set([...prev, ...remote]));
+            saveDismissed(uid, merged);
+            return merged;
+          });
+        });
       } else {
         navigate("/auth");
       }
@@ -260,6 +290,7 @@ export default function StudentArea() {
     const updated = [...dismissedAlerts, id];
     setDismissedAlerts(updated);
     saveDismissed(userId, updated);
+    void persistDismissedToDB(userId, id);
   };
 
   const dismissBillingAlert = async () => {
@@ -279,11 +310,13 @@ export default function StudentArea() {
       const updated = [...dismissedAlerts, billingAlert.id];
       setDismissedAlerts(updated);
       saveDismissed(userId, updated);
+      void persistDismissedToDB(userId, billingAlert.id);
       toast.success("Aviso ocultado. Seu treinador foi notificado.");
     } catch {
       const updated = [...dismissedAlerts, billingAlert.id];
       setDismissedAlerts(updated);
       saveDismissed(userId, updated);
+      void persistDismissedToDB(userId, billingAlert.id);
       toast.success("Aviso ocultado.");
     } finally {
       setNotifyingCoach(false);
