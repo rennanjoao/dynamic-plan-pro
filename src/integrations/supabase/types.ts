@@ -704,6 +704,48 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_billing_charges: {
+        Row: {
+          amount: number
+          coach_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          paid_at: string | null
+          period: string
+          status: string
+          student_count: number
+          unit_price: number
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          coach_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          paid_at?: string | null
+          period: string
+          status?: string
+          student_count?: number
+          unit_price?: number
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          coach_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          paid_at?: string | null
+          period?: string
+          status?: string
+          student_count?: number
+          unit_price?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           billing_alert_days: number | null
