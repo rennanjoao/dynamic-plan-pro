@@ -1,0 +1,10 @@
+CREATE INDEX IF NOT EXISTS idx_coach_students_coach_status ON public.coach_students(coach_id, status);
+CREATE INDEX IF NOT EXISTS idx_coach_students_student ON public.coach_students(student_id);
+CREATE INDEX IF NOT EXISTS idx_check_ins_student_submitted ON public.check_ins(student_id, submitted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_anamnesis_student_updated ON public.anamnesis(student_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_coach_plans_coach_student ON public.coach_plans(coach_id, student_id);
+CREATE INDEX IF NOT EXISTS idx_daily_alerts_student_active ON public.daily_alerts(student_id, is_active, target_date DESC);
+CREATE INDEX IF NOT EXISTS idx_coach_notifications_coach_read ON public.coach_notifications(coach_id, is_read, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_performance_logs_user_date ON public.performance_logs(user_id, date DESC);
+CREATE INDEX IF NOT EXISTS idx_workout_progress_user ON public.workout_progress(user_id, completed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_platform_billing_coach_period ON public.platform_billing_charges(coach_id, period);

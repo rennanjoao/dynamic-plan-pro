@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import WorkoutShareCard from "./WorkoutShareCard";
 import { supabase } from "@/integrations/supabase/client";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 interface Exercise {
   name: string;
@@ -116,6 +117,7 @@ export default function WorkoutMode({
   periodization,
   onClose,
 }: Props) {
+  const confirm = useConfirm();
   const storageKey = `workout_session_${userId}_${todayKey()}`;
   const isPeriodizationOn = periodization?.enabled ?? false;
   const weeks =
@@ -286,8 +288,8 @@ export default function WorkoutMode({
   const todasFeitas    = currentDoneSets.length >= currentExSetsMax;
   const weekLabel      = isPeriodizationOn ? weeks[activeWeek]?.label : undefined;
 
-  const handleClose = () => {
-    if (hasAnyDone && !confirm("Sair do modo treino? Seu progresso fica salvo.")) return;
+  const handleClose = async () => {
+    if (hasAnyDone && !(await confirm({ title: "Sair do treino", description: "Sair do modo treino? Seu progresso fica salvo.", confirmLabel: "Sair" }))) return;
     onClose();
   };
   const handleSharedDone = async () => {

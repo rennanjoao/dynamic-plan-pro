@@ -11,6 +11,7 @@ import { NavigationControls } from "@/components/NavigationControls";
 import { GlobalAIAssistant } from "@/components/GlobalAIAssistant";
 import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ConfirmProvider } from "@/components/ConfirmProvider";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
 const Index        = lazyWithRetry(() => import("./pages/Index"));
@@ -55,10 +56,11 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Sonner />
+        <ConfirmProvider>
+          <Toaster />
+          <Sonner />
 
-        <BrowserRouter>
+          <BrowserRouter>
           <NavigationControls />
           <Suspense fallback={<PageLoader />}>
             <Routes>
@@ -102,7 +104,8 @@ const App = () => {
 
           {/* Banner de instalação PWA */}
           <PWAInstallPrompt />
-        </BrowserRouter>
+          </BrowserRouter>
+        </ConfirmProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
