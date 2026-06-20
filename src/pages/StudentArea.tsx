@@ -28,6 +28,8 @@ import { toast } from "sonner";
 import FeedbackCountdownAlert from "@/components/student/FeedbackCountdownAlert";
 import { TrainerAlert } from "@/components/student/TrainerAlert";
 import { useWakeLock } from "@/hooks/useWakeLock";
+import { buildPixBrCode } from "@/lib/pixBrCode";
+import QRCode from "qrcode";
 
 // ─── localStorage helpers ───────────────────────────────────────────────────
 const DISMISSED_KEY = (uid: string) => `dismissed_alerts_${uid}`;
@@ -197,7 +199,7 @@ export default function StudentArea() {
       if (!link?.coach_id) return null;
       const { data: coach } = await supabase
         .from("profiles")
-        .select("full_name, pix_key, billing_alert_days")
+        .select("full_name, pix_key, pix_holder_name, pix_city, billing_alert_days")
         .eq("user_id", link.coach_id)
         .maybeSingle();
       return coach ? { ...coach, coachId: link.coach_id } : null;
@@ -252,6 +254,9 @@ export default function StudentArea() {
           dueDate: finance.due_date,
           diffDays,
           pixKey: coachLink.pix_key || "Chave PIX não informada pelo treinador.",
+          pixHolderName: (coachLink as any).pix_holder_name || coachLink.full_name || "RECEBEDOR",
+          pixCity: (coachLink as any).pix_city || "BRASIL",
+          hasPix: !!coachLink.pix_key,
         };
       }
       return null;
@@ -327,6 +332,38 @@ export default function StudentArea() {
     navigator.clipboard.writeText(key);
     setCopiedPix(true);
     setTimeout(() => setCopiedPix(false), 2000);
+  };
+
+  // ─── QR Code PIX (BR Code) ───
+  const [pixQrDataUrl, setPixQrDataUrl] = useState<string | null>(null);
+  const [copiedBrcode, setCopiedBrcode] = useState(false);
+  useEffect(() => {
+    if (!billingAlert || !billingAlert.hasPix) { setPixQrDataUrl(null); return; }
+    try {
+      const brcode = buildPixBrCode({
+        pixKey: billingAlert.pixKey,
+        amount: Number(billingAlert.amount) > 0 ? Number(billingAlert.amount) : undefined,
+        merchantName: billingAlert.pixHolderName,
+        merchantCity: billingAlert.pixCity,
+        txId: String(billingAlert.financeId).slice(0, 25),
+      });
+      QRCode.toDataURL(brcode, { margin: 1, width: 220, errorCorrectionLevel: "M" })
+        .then((url) => setPixQrDataUrl(url))
+        .catch(() => setPixQrDataUrl(null));
+    } catch { setPixQrDataUrl(null); }
+  }, [billingAlert]);
+  const copyBrcode = () => {
+    if (!billingAlert?.hasPix) return;
+    const brcode = buildPixBrCode({
+      pixKey: billingAlert.pixKey,
+      amount: Number(billingAlert.amount) > 0 ? Number(billingAlert.amount) : undefined,
+      merchantName: billingAlert.pixHolderName,
+      merchantCity: billingAlert.pixCity,
+      txId: String(billingAlert.financeId).slice(0, 25),
+    });
+    navigator.clipboard.writeText(brcode);
+    setCopiedBrcode(true);
+    setTimeout(() => setCopiedBrcode(false), 2000);
   };
 
   const handleLogout = async () => {
