@@ -1049,6 +1049,7 @@ export default function CoachDashboard() {
   const [settingsStudent, setSettingsStudent] = useState<StudentStatus | null>(null);
   const [studentPage, setStudentPage] = useState(0);
   const STUDENTS_PER_PAGE = 20;
+  const [activeTab, setActiveTab] = useState<"students" | "finances">("students");
   const qc = useQueryClient();
 
   const { data: coachProfile } = useQuery({
@@ -1062,31 +1063,29 @@ export default function CoachDashboard() {
 
   const feedbackIntervalDays: number = (coachProfile as any)?.feedback_interval_days ?? 7;
 
-  const { data: students = [], isLoading } = useCoachStudents(coachId, feedbackIntervalDays);
+  // Paginated hook for the Students list — Phase A (light, all) + Phase B (heavy, page only).
+  const {
+    students: pagedStudents,
+    filteredCount,
+    stats,
+    isLoading,
+  } = useCoachStudentsPaged(coachId, feedbackIntervalDays, {
+    page: studentPage,
+    pageSize: STUDENTS_PER_PAGE,
+    search,
+    filter,
+  });
 
-  const filtered = useMemo(() => {
-    return students.filter((s) => {
-      const matchSearch = (s.name || "").toLowerCase().includes(search.toLowerCase());
-      const matchFilter = filter === "all" || s.alertLevel === filter;
-      return matchSearch && matchFilter;
-    });
-  }, [students, search, filter]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / STUDENTS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(filteredCount / STUDENTS_PER_PAGE));
   const safePage = Math.min(studentPage, totalPages - 1);
-  const pagedStudents = useMemo(
-    () => filtered.slice(safePage * STUDENTS_PER_PAGE, safePage * STUDENTS_PER_PAGE + STUDENTS_PER_PAGE),
-    [filtered, safePage]
-  );
 
   useEffect(() => { setStudentPage(0); }, [search, filter]);
 
-  const stats = useMemo(() => ({
-    total:    students.length,
-    critical: students.filter((s) => s.alertLevel === "critical").length,
-    warning:  students.filter((s) => s.alertLevel === "warning").length,
-    ok:       students.filter((s) => s.alertLevel === "ok").length,
-  }), [students]);
+  // Full students list only when the Finances tab is active (used by the dropdown there).
+  const { data: allStudents = [] } = useCoachStudents(
+    activeTab === "finances" ? coachId : null,
+    feedbackIntervalDays
+  );
 
   const goBack = () => { setView("list"); setSelectedStudent(null); };
 
