@@ -14,7 +14,7 @@
 import { useState, useMemo, lazy, Suspense, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useCoachStudents, type StudentStatus, type AlertLevel } from "@/hooks/useCoachStudents";
+import { useCoachStudents, useCoachStudentsPaged, type StudentStatus, type AlertLevel } from "@/hooks/useCoachStudents";
 import { useCoachFinances } from "@/hooks/useCoachFinances";
 import {
   AlertTriangle, CheckCircle2, Search, Filter, Users,
@@ -46,6 +46,7 @@ import { toast } from "sonner";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ChangePasswordButton } from "@/components/ChangePasswordButton";
 import { useConfirm } from "@/components/ConfirmProvider";
+import { exportCheckinPDF } from "@/lib/coachPdfExport";
 
 const ProtocolBuilder = lazy(() => import("@/components/coach/ProtocolBuilder"));
 const EvolutionComparisonLazy = lazy(() => import("@/components/coach/EvolutionComparison"));
