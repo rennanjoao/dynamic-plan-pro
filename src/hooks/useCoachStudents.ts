@@ -68,7 +68,6 @@ export function useCoachStudents(coachId: string | null, feedbackIntervalDays = 
         { data: allAna },
         { data: allCi },
         { data: allPlans },
-        { data: allBm },
       ] = await Promise.all([
         supabase
           .from("student_profiles")
@@ -85,7 +84,7 @@ export function useCoachStudents(coachId: string | null, feedbackIntervalDays = 
           .order("updated_at", { ascending: false }),
         supabase
           .from("check_ins")
-          .select("student_id, submitted_at")
+          .select("student_id, submitted_at, current_metrics")
           .in("student_id", studentIds)
           .order("submitted_at", { ascending: false }),
         supabase
@@ -93,11 +92,6 @@ export function useCoachStudents(coachId: string | null, feedbackIntervalDays = 
           .select("student_id, goal")
           .in("student_id", studentIds)
           .eq("coach_id", coachId),
-        supabase
-          .from("body_measurements")
-          .select("user_id, weight, measurement_date")
-          .in("user_id", studentIds)
-          .order("measurement_date", { ascending: false }),
       ]);
 
       // Índices em memória para lookup O(1)
@@ -110,20 +104,34 @@ export function useCoachStudents(coachId: string | null, feedbackIntervalDays = 
       const planByStudent = new Map<string, typeof allPlans extends (infer T)[] | null ? T : never>();
       allPlans?.forEach((p) => { if (!planByStudent.has(p.student_id)) planByStudent.set(p.student_id, p); });
 
-      const bmByStudent = new Map<string, typeof allBm extends (infer T)[] | null ? T : never>();
-      allBm?.forEach((b) => { if (!bmByStudent.has(b.user_id)) bmByStudent.set(b.user_id, b); });
-
       const students: StudentStatus[] = studentIds.map((sid) => {
         const sp = sProfiles?.find((p) => p.user_id === sid);
         const pp = profiles?.find((p) => p.user_id === sid);
         const ana = anaByStudent.get(sid);
         const ci = ciByStudent.get(sid);
         const plan = planByStudent.get(sid);
-        const bm = bmByStudent.get(sid);
 
         const lastAnamnesis = ana?.submitted_at || ana?.updated_at || null;
         const lastFeedback = ci?.submitted_at || null;
         const anaName = (ana?.payload as Record<string, unknown> | undefined)?.nome as string | undefined;
+
+        // [FIX 0.2] Fonte unificada de peso: último check-in confirmado pelo aluno.
+        // Fallback para baseline da anamnese se ainda não há check-in.
+        const ciMetrics = (ci as { current_metrics?: Record<string, unknown> } | undefined)?.current_metrics || {};
+        const ciPesoRaw = ciMetrics.peso ?? (ciMetrics as Record<string, unknown>).weight;
+        const anaPesoRaw = (ana as { payload?: Record<string, unknown> } | undefined)?.payload
+          ? undefined
+          : undefined;
+        const baselinePeso = ((ana as { baseline_metrics?: Record<string, unknown> } | undefined)?.baseline_metrics || {} as Record<string, unknown>).peso;
+        const pesoNum = (() => {
+          const v = ciPesoRaw ?? anaPesoRaw ?? baselinePeso;
+          if (typeof v === "number" && isFinite(v)) return v;
+          if (typeof v === "string") {
+            const n = parseFloat(v.replace(",", "."));
+            return isFinite(n) ? n : null;
+          }
+          return null;
+        })();
 
         const name =
           sp?.full_name ||
@@ -145,7 +153,7 @@ export function useCoachStudents(coachId: string | null, feedbackIntervalDays = 
           daysInactive: Math.min(daysSince(lastAnamnesis), daysSince(lastFeedback)),
           daysSinceLastFeedback: daysSince(lastFeedback),
           goal: plan?.goal || "—",
-          currentWeight: bm?.weight ? Number(bm.weight) : null,
+          currentWeight: pesoNum,
           targetWeight: null,
           feedbackIntervalDays: cfg.interval,
           warningDays: cfg.warning,
