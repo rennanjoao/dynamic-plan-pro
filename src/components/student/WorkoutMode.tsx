@@ -37,6 +37,7 @@ interface Props {
   workouts: WorkoutDay[];
   userId: string;
   coachName?: string;
+  teamName?: string;
   initialDay?: string;
   periodization?: Periodization;
   onClose: () => void;
@@ -113,6 +114,7 @@ export default function WorkoutMode({
   workouts,
   userId,
   coachName,
+  teamName,
   initialDay,
   periodization,
   onClose,
@@ -655,6 +657,7 @@ export default function WorkoutMode({
           completedExercises={completedExCnt}
           totalExercises={exercises.length}
           coachName={coachName}
+          teamName={teamName}
           weekLabel={weekLabel}
           onClose={handleSharedDone}
         />
