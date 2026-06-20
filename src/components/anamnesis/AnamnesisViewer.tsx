@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { FileDown, Loader2, ImageIcon, Pencil, Save, X, UploadCloud } from "lucide-react";
 import MeasurementsEditor from "@/components/coach/MeasurementsEditor";
 import CheckinFullEditor from "@/components/coach/CheckinFullEditor";
+import { exportAnamnesisPDF } from "@/lib/coachPdfExport";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -113,38 +114,24 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
     setLoadingCheckin(false);
   }
 
-  function exportPDF() {
+  async function exportPDF() {
     if (!data) return;
-    const w = window.open("", "_blank");
-    if (!w) { toast.error("Permita popups para exportar"); return; }
     const name = (data.nome as string) || studentName || "Aluno";
-    
-    // Proteção na extração de campos
-    const sections = ANAMNESIS_SECTIONS.map((s) => `
-      <h2>${s.title}</h2>
-      ${(s.fields || []).map((f) => `
-        <div class="row"><span class="lbl">${f.label}</span><span class="val">${fmt(data[f.key])}</span></div>
-      `).join("")}
-    `).join("");
-    
-    w.document.write(`
-      <!doctype html><html><head><meta charset="utf-8"><title>Anamnese — ${name}</title>
-      <style>
-        body{font-family:Arial,sans-serif;padding:24px;max-width:780px;margin:auto;color:#111}
-        h1{font-size:20px;border-bottom:2px solid #B11226;padding-bottom:8px}
-        h2{font-size:14px;color:#B11226;margin-top:22px;text-transform:uppercase;letter-spacing:.05em}
-        .row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee;font-size:13px}
-        .lbl{color:#555;font-weight:600}
-        .val{max-width:55%;text-align:right}
-        @media print{body{padding:0}}
-      </style></head><body>
-      <h1>Anamnese — ${name}</h1>
-      <p style="color:#888;font-size:11px">Gerado em ${new Date().toLocaleDateString("pt-BR")}</p>
-      ${sections}
-      <script>window.onload=()=>setTimeout(()=>window.print(),300);</script>
-      </body></html>
-    `);
-    w.document.close();
+    const { data: row } = await sb
+      .from("anamnesis")
+      .select("submitted_at, baseline_metrics")
+      .eq("student_id", studentId)
+      .maybeSingle();
+    exportAnamnesisPDF({
+      studentName: name,
+      submittedAt: (row?.submitted_at as string) || updatedAt,
+      baselineMetrics: (row?.baseline_metrics as Record<string, unknown>) || null,
+      payload: data,
+      sections: ANAMNESIS_SECTIONS.map((s) => ({
+        title: s.title,
+        fields: (s.fields || []).map((f) => ({ key: f.key, label: f.label })),
+      })),
+    });
   }
 
   // --- LÓGICA DE EDIÇÃO E UPLOAD ---

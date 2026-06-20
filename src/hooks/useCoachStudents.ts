@@ -22,6 +22,13 @@ export interface StudentStatus {
   criticalDays: number;
 }
 
+export interface PagedStudentsResult {
+  students: StudentStatus[];
+  totalCount: number;
+  filteredCount: number;
+  stats: { total: number; critical: number; warning: number; ok: number };
+}
+
 function daysSince(dateStr: string | null): number {
   if (!dateStr) return 999;
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86_400_000);
@@ -166,4 +173,194 @@ export function useCoachStudents(coachId: string | null, feedbackIntervalDays = 
     },
     enabled: !!coachId,
   });
+}
+
+// ─── Paginated variant ───────────────────────────────────────────────────────
+// Two-phase fetch:
+//   Phase A (light, all students): links + last check_in submitted_at + names/email
+//     → enables global stats, sorting by alertLevel, search, filter.
+//   Phase B (heavy, page slice only): full check_ins.current_metrics +
+//     anamnesis.baseline_metrics + coach_plans.goal for the visible page.
+export function useCoachStudentsPaged(
+  coachId: string | null,
+  feedbackIntervalDays: number,
+  opts: { page: number; pageSize: number; search?: string; filter?: "all" | AlertLevel } = {
+    page: 0,
+    pageSize: 20,
+    search: "",
+    filter: "all",
+  }
+) {
+  const { page, pageSize, search = "", filter = "all" } = opts;
+
+  // PHASE A — lightweight summary of every student linked to this coach.
+  const summaryQuery = useQuery({
+    queryKey: ["coach-students-summary", coachId, feedbackIntervalDays],
+    enabled: !!coachId,
+    queryFn: async () => {
+      if (!coachId) return [] as StudentStatus[];
+
+      const { data: links } = await supabase
+        .from("coach_students")
+        .select("student_id, feedback_interval_days, warning_days, critical_days")
+        .eq("coach_id", coachId)
+        .eq("status", "active");
+
+      if (!links || links.length === 0) return [] as StudentStatus[];
+      const ids = links.map((l) => l.student_id);
+
+      const [{ data: sProfiles }, { data: profiles }, { data: lastCi }] = await Promise.all([
+        supabase.from("student_profiles").select("user_id, full_name").in("user_id", ids),
+        supabase.from("profiles").select("user_id, full_name, email").in("user_id", ids),
+        supabase
+          .from("check_ins")
+          .select("student_id, submitted_at")
+          .in("student_id", ids)
+          .order("submitted_at", { ascending: false }),
+      ]);
+
+      const lastCiByStudent = new Map<string, string>();
+      lastCi?.forEach((c) => {
+        if (!lastCiByStudent.has(c.student_id)) lastCiByStudent.set(c.student_id, c.submitted_at);
+      });
+
+      const summaries: StudentStatus[] = ids.map((sid) => {
+        const sp = sProfiles?.find((p) => p.user_id === sid);
+        const pp = profiles?.find((p) => p.user_id === sid);
+        const link = links.find((l) => l.student_id === sid)!;
+        const warning = link.warning_days ?? 14;
+        const critical = link.critical_days ?? 16;
+        const interval = link.feedback_interval_days ?? feedbackIntervalDays ?? 14;
+        const lastFeedback = lastCiByStudent.get(sid) ?? null;
+        const name =
+          sp?.full_name ||
+          pp?.full_name ||
+          (pp?.email ? pp.email.split("@")[0] : "") ||
+          `Aluno ${sid.slice(0, 6)}`;
+        return {
+          id: sid,
+          name,
+          email: pp?.email || "",
+          lastAnamnesis: null,
+          lastFeedback,
+          lastWorkout: null,
+          lastMeal: null,
+          alertLevel: getAlertLevel(lastFeedback, warning, critical),
+          daysInactive: daysSince(lastFeedback),
+          daysSinceLastFeedback: daysSince(lastFeedback),
+          goal: "—",
+          currentWeight: null,
+          targetWeight: null,
+          feedbackIntervalDays: interval,
+          warningDays: warning,
+          criticalDays: critical,
+        };
+      });
+
+      return summaries.sort((a, b) => {
+        const order: Record<AlertLevel, number> = { critical: 0, warning: 1, ok: 2 };
+        return order[a.alertLevel] - order[b.alertLevel];
+      });
+    },
+  });
+
+  const allSummaries = summaryQuery.data ?? [];
+  const stats = {
+    total: allSummaries.length,
+    critical: allSummaries.filter((s) => s.alertLevel === "critical").length,
+    warning: allSummaries.filter((s) => s.alertLevel === "warning").length,
+    ok: allSummaries.filter((s) => s.alertLevel === "ok").length,
+  };
+
+  const filtered = allSummaries.filter((s) => {
+    const matchSearch = (s.name || "").toLowerCase().includes(search.toLowerCase());
+    const matchFilter = filter === "all" || s.alertLevel === filter;
+    return matchSearch && matchFilter;
+  });
+
+  const pageSlice = filtered.slice(page * pageSize, page * pageSize + pageSize);
+  const pageIds = pageSlice.map((s) => s.id);
+
+  // PHASE B — heavy enrichment, page only.
+  const detailQuery = useQuery({
+    queryKey: ["coach-students-detail", coachId, pageIds.join(",")],
+    enabled: !!coachId && pageIds.length > 0,
+    queryFn: async () => {
+      const [{ data: ana }, { data: ci }, { data: plans }] = await Promise.all([
+        supabase
+          .from("anamnesis")
+          .select("student_id, submitted_at, updated_at, baseline_metrics")
+          .in("student_id", pageIds)
+          .order("updated_at", { ascending: false }),
+        supabase
+          .from("check_ins")
+          .select("student_id, submitted_at, current_metrics")
+          .in("student_id", pageIds)
+          .order("submitted_at", { ascending: false }),
+        supabase
+          .from("coach_plans")
+          .select("student_id, goal")
+          .in("student_id", pageIds)
+          .eq("coach_id", coachId!),
+      ]);
+
+      const anaBy = new Map<string, { submitted_at: string | null; updated_at: string | null; baseline_metrics: Record<string, unknown> | null }>();
+      ana?.forEach((a) => {
+        if (!anaBy.has(a.student_id)) {
+          anaBy.set(a.student_id, {
+            submitted_at: a.submitted_at,
+            updated_at: a.updated_at,
+            baseline_metrics: (a.baseline_metrics as Record<string, unknown>) || null,
+          });
+        }
+      });
+      const ciBy = new Map<string, { submitted_at: string; current_metrics: Record<string, unknown> | null }>();
+      ci?.forEach((c) => {
+        if (!ciBy.has(c.student_id)) {
+          ciBy.set(c.student_id, {
+            submitted_at: c.submitted_at,
+            current_metrics: (c.current_metrics as Record<string, unknown>) || null,
+          });
+        }
+      });
+      const planBy = new Map<string, string>();
+      plans?.forEach((p) => {
+        if (!planBy.has(p.student_id)) planBy.set(p.student_id, p.goal || "—");
+      });
+
+      return { anaBy, ciBy, planBy };
+    },
+  });
+
+  const enrichedPage: StudentStatus[] = pageSlice.map((s) => {
+    const d = detailQuery.data;
+    if (!d) return s;
+    const a = d.anaBy.get(s.id);
+    const c = d.ciBy.get(s.id);
+    const goal = d.planBy.get(s.id) || "—";
+    const ciM = (c?.current_metrics as Record<string, unknown>) || {};
+    const baseM = (a?.baseline_metrics as Record<string, unknown>) || {};
+    const v = ciM.peso ?? ciM.weight ?? baseM.peso;
+    let currentWeight: number | null = null;
+    if (typeof v === "number" && isFinite(v)) currentWeight = v;
+    else if (typeof v === "string") {
+      const n = parseFloat(v.replace(",", "."));
+      currentWeight = isFinite(n) ? n : null;
+    }
+    return {
+      ...s,
+      lastAnamnesis: a?.submitted_at || a?.updated_at || null,
+      goal,
+      currentWeight,
+    };
+  });
+
+  return {
+    students: enrichedPage,
+    totalCount: allSummaries.length,
+    filteredCount: filtered.length,
+    stats,
+    isLoading: summaryQuery.isLoading,
+    isFetchingDetail: detailQuery.isFetching,
+  };
 }

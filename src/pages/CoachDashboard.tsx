@@ -14,7 +14,7 @@
 import { useState, useMemo, lazy, Suspense, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useCoachStudents, type StudentStatus, type AlertLevel } from "@/hooks/useCoachStudents";
+import { useCoachStudents, useCoachStudentsPaged, type StudentStatus, type AlertLevel } from "@/hooks/useCoachStudents";
 import { useCoachFinances } from "@/hooks/useCoachFinances";
 import {
   AlertTriangle, CheckCircle2, Search, Filter, Users,
@@ -46,6 +46,7 @@ import { toast } from "sonner";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ChangePasswordButton } from "@/components/ChangePasswordButton";
 import { useConfirm } from "@/components/ConfirmProvider";
+import { exportCheckinPDF } from "@/lib/coachPdfExport";
 
 const ProtocolBuilder = lazy(() => import("@/components/coach/ProtocolBuilder"));
 const EvolutionComparisonLazy = lazy(() => import("@/components/coach/EvolutionComparison"));
@@ -138,7 +139,27 @@ function LatestFeedbackDialog({
           <p className="text-sm text-muted-foreground italic text-center py-10">Sem check-in registrado ainda.</p>
         ) : (
           <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">{fmtDate(ci.submitted_at)}</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">{fmtDate(ci.submitted_at)}</p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1.5 text-xs"
+                onClick={() => {
+                  if (!student || !ci) return;
+                  exportCheckinPDF({
+                    studentName: student.name,
+                    submittedAt: ci.submitted_at,
+                    currentMetrics: ci.current_metrics as Record<string, unknown> | null,
+                    payload: ci.payload as Record<string, unknown> | null,
+                    coachFeedback: ci.coach_feedback ?? null,
+                    sections: CHECKIN_SECTIONS,
+                  });
+                }}
+              >
+                <FileDown className="w-3 h-3" /> PDF
+              </Button>
+            </div>
 
             {Object.keys(fotos).length > 0 && (
               <div className="grid grid-cols-4 gap-2">
@@ -1028,6 +1049,7 @@ export default function CoachDashboard() {
   const [settingsStudent, setSettingsStudent] = useState<StudentStatus | null>(null);
   const [studentPage, setStudentPage] = useState(0);
   const STUDENTS_PER_PAGE = 20;
+  const [activeTab, setActiveTab] = useState<"students" | "finances">("students");
   const qc = useQueryClient();
 
   const { data: coachProfile } = useQuery({
@@ -1041,31 +1063,29 @@ export default function CoachDashboard() {
 
   const feedbackIntervalDays: number = (coachProfile as any)?.feedback_interval_days ?? 7;
 
-  const { data: students = [], isLoading } = useCoachStudents(coachId, feedbackIntervalDays);
+  // Paginated hook for the Students list — Phase A (light, all) + Phase B (heavy, page only).
+  const {
+    students: pagedStudents,
+    filteredCount,
+    stats,
+    isLoading,
+  } = useCoachStudentsPaged(coachId, feedbackIntervalDays, {
+    page: studentPage,
+    pageSize: STUDENTS_PER_PAGE,
+    search,
+    filter,
+  });
 
-  const filtered = useMemo(() => {
-    return students.filter((s) => {
-      const matchSearch = (s.name || "").toLowerCase().includes(search.toLowerCase());
-      const matchFilter = filter === "all" || s.alertLevel === filter;
-      return matchSearch && matchFilter;
-    });
-  }, [students, search, filter]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / STUDENTS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(filteredCount / STUDENTS_PER_PAGE));
   const safePage = Math.min(studentPage, totalPages - 1);
-  const pagedStudents = useMemo(
-    () => filtered.slice(safePage * STUDENTS_PER_PAGE, safePage * STUDENTS_PER_PAGE + STUDENTS_PER_PAGE),
-    [filtered, safePage]
-  );
 
   useEffect(() => { setStudentPage(0); }, [search, filter]);
 
-  const stats = useMemo(() => ({
-    total:    students.length,
-    critical: students.filter((s) => s.alertLevel === "critical").length,
-    warning:  students.filter((s) => s.alertLevel === "warning").length,
-    ok:       students.filter((s) => s.alertLevel === "ok").length,
-  }), [students]);
+  // Full students list only when the Finances tab is active (used by the dropdown there).
+  const { data: allStudents = [] } = useCoachStudents(
+    activeTab === "finances" ? coachId : null,
+    feedbackIntervalDays
+  );
 
   const goBack = () => { setView("list"); setSelectedStudent(null); };
 
@@ -1131,7 +1151,7 @@ export default function CoachDashboard() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        <Tabs defaultValue="students" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "students" | "finances")} className="space-y-4">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="students" className="gap-1.5 text-xs sm:text-sm"><Users className="w-3.5 h-3.5" /> Alunos</TabsTrigger>
             <TabsTrigger value="finances" className="gap-1.5 text-xs sm:text-sm"><DollarSign className="w-3.5 h-3.5" /> Financeiro</TabsTrigger>
@@ -1178,11 +1198,11 @@ export default function CoachDashboard() {
 
             {isLoading ? (
               <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-            ) : filtered.length === 0 ? (
+            ) : filteredCount === 0 ? (
               <div className="text-center py-12">
                 <Users className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
                 <p className="text-sm text-muted-foreground">
-                  {students.length === 0 ? "Nenhum aluno vinculado ainda. Compartilhe seu código de convite." : "Nenhum aluno encontrado com os filtros atuais."}
+                  {stats.total === 0 ? "Nenhum aluno vinculado ainda. Compartilhe seu código de convite." : "Nenhum aluno encontrado com os filtros atuais."}
                 </p>
               </div>
             ) : (
@@ -1225,7 +1245,7 @@ export default function CoachDashboard() {
           </TabsContent>
 
           <TabsContent value="finances">
-            {coachId && <FinancesTab coachId={coachId} students={students} />}
+            {coachId && <FinancesTab coachId={coachId} students={allStudents} />}
           </TabsContent>
         </Tabs>
 
