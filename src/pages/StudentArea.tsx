@@ -475,6 +475,17 @@ export default function StudentArea() {
                       {copiedPix ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                     </Button>
                   </div>
+                  {pixQrDataUrl && (
+                    <div className="mt-3 flex flex-col items-center gap-2">
+                      <div className="bg-white p-2 rounded-md">
+                        <img src={pixQrDataUrl} alt="QR Code PIX" width={180} height={180} />
+                      </div>
+                      <p className="text-[10px] text-amber-700/70 text-center">Escaneie no app do seu banco</p>
+                      <Button size="sm" variant="outline" className="h-7 bg-background text-[11px]" onClick={copyBrcode}>
+                        {copiedBrcode ? <><Check className="w-3 h-3 text-emerald-500 mr-1" />Código copiado</> : <><Copy className="w-3 h-3 mr-1" />Copiar PIX Copia e Cola</>}
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <div className="pt-2">
                   <Button size="sm" onClick={dismissBillingAlert} disabled={notifyingCoach} className="bg-amber-600 hover:bg-amber-700 text-white text-xs h-8">
