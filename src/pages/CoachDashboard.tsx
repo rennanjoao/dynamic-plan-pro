@@ -161,6 +161,8 @@ function LatestFeedbackDialog({
               ))}
             </div>
 
+            <CheckinPayloadAnswers payload={ci.payload as Record<string, unknown> | null} />
+
             {ci.coach_feedback && (
               <div className="border-t border-border pt-3">
                 <p className="text-xs font-semibold text-primary mb-1">Feedback do Coach</p>
@@ -609,6 +611,7 @@ function CheckinHistoryDialog({
                           </span>
                         </div>
                       ))}
+                      <CheckinPayloadAnswers payload={c.payload as Record<string, unknown> | null} />
                       {c.coach_feedback && (
                         <div className="mt-2 pt-2 border-t border-border">
                           <p className="text-xs font-semibold text-primary mb-1">Feedback do Coach</p>
