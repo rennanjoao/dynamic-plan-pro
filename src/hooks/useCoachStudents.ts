@@ -117,14 +117,12 @@ export function useCoachStudents(coachId: string | null, feedbackIntervalDays = 
 
         // [FIX 0.2] Fonte unificada de peso: último check-in confirmado pelo aluno.
         // Fallback para baseline da anamnese se ainda não há check-in.
-        const ciMetrics = (ci as { current_metrics?: Record<string, unknown> } | undefined)?.current_metrics || {};
-        const ciPesoRaw = ciMetrics.peso ?? (ciMetrics as Record<string, unknown>).weight;
-        const anaPesoRaw = (ana as { payload?: Record<string, unknown> } | undefined)?.payload
-          ? undefined
-          : undefined;
-        const baselinePeso = ((ana as { baseline_metrics?: Record<string, unknown> } | undefined)?.baseline_metrics || {} as Record<string, unknown>).peso;
+        const ciMetrics = ((ci as { current_metrics?: Record<string, unknown> } | undefined)?.current_metrics) || {};
+        const baselineMetrics = ((ana as { baseline_metrics?: Record<string, unknown> } | undefined)?.baseline_metrics) || {};
         const pesoNum = (() => {
-          const v = ciPesoRaw ?? anaPesoRaw ?? baselinePeso;
+          const v = (ciMetrics as Record<string, unknown>).peso
+            ?? (ciMetrics as Record<string, unknown>).weight
+            ?? (baselineMetrics as Record<string, unknown>).peso;
           if (typeof v === "number" && isFinite(v)) return v;
           if (typeof v === "string") {
             const n = parseFloat(v.replace(",", "."));
