@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, LogOut, Users, Link2, Bell, DollarSign, Activity } from "lucide-react";
+import { ArrowLeft, LogOut, Users, Link2, Bell, DollarSign, Activity, KeyRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -11,6 +11,8 @@ import { AlertManager } from "@/components/admin/AlertManager";
 import { PlansSettings } from "@/components/admin/PlansSettings";
 import { AccessLogPanel } from "@/components/admin/AccessLogPanel";
 import CoachBillingPanel from "@/components/admin/CoachBillingPanel";
+import { AdminPasswordManager } from "@/components/admin/AdminPasswordManager";
+import { ChangePasswordButton } from "@/components/ChangePasswordButton";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -33,6 +35,7 @@ const Admin = () => {
 
         <div className="absolute right-6 top-6 flex items-center gap-1">
           <ThemeToggle className="text-white/90 hover:text-white hover:bg-white/10" />
+          <ChangePasswordButton variant="ghost" className="text-white/90 hover:text-white hover:bg-white/10" />
           <Button
             variant="ghost"
             onClick={handleLogout}
@@ -59,6 +62,7 @@ const Admin = () => {
             <TabsTrigger value="alerts" className="gap-1.5"><Bell className="w-4 h-4" /> Alertas</TabsTrigger>
             <TabsTrigger value="billing" className="gap-1.5"><DollarSign className="w-4 h-4" /> Cobrança em Massa</TabsTrigger>
             <TabsTrigger value="access" className="gap-1.5"><Activity className="w-4 h-4" /> Acessos</TabsTrigger>
+            <TabsTrigger value="passwords" className="gap-1.5"><KeyRound className="w-4 h-4" /> Senhas</TabsTrigger>
           </TabsList>
 
           <TabsContent value="trainers">
@@ -85,6 +89,10 @@ const Admin = () => {
               <h2 className="text-lg font-semibold mb-4">Monitoramento de Acesso</h2>
               <AccessLogPanel />
             </div>
+          </TabsContent>
+
+          <TabsContent value="passwords">
+            <AdminPasswordManager />
           </TabsContent>
         </Tabs>
       </div>
