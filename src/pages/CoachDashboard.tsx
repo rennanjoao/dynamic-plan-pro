@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ChangePasswordButton } from "@/components/ChangePasswordButton";
 
 const ProtocolBuilder = lazy(() => import("@/components/coach/ProtocolBuilder"));
 const EvolutionComparisonLazy = lazy(() => import("@/components/coach/EvolutionComparison"));
@@ -1110,6 +1111,7 @@ export default function CoachDashboard() {
           <div className="flex items-center gap-2">
             <CoachNotificationBell />
             <ThemeToggle />
+            <ChangePasswordButton compact />
             <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-destructive h-9">
               <LogOut className="w-4 h-4 mr-1.5" /> Sair
             </Button>

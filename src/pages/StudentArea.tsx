@@ -23,6 +23,7 @@ import {
   ShoppingCart, FileEdit, Flame,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ChangePasswordButton } from "@/components/ChangePasswordButton";
 import { toast } from "sonner";
 import FeedbackCountdownAlert from "@/components/student/FeedbackCountdownAlert";
 import { TrainerAlert } from "@/components/student/TrainerAlert";
@@ -340,6 +341,7 @@ export default function StudentArea() {
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <ThemeToggle />
+            <ChangePasswordButton compact />
             <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-destructive h-9">
               <LogOut className="w-4 h-4 sm:mr-1.5" />
               <span className="hidden sm:inline">Sair</span>
