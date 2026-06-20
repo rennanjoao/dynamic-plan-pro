@@ -1,9 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-
-const cors = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { buildCorsHeaders } from "../_shared/cors.ts";
 
 interface SeedUser {
   email: string;
@@ -12,6 +8,7 @@ interface SeedUser {
 }
 
 Deno.serve(async (req: Request) => {
+  const cors = buildCorsHeaders(req.headers.get("origin"));
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
