@@ -340,6 +340,7 @@ export default function StudentArea() {
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <ThemeToggle />
+            <ChangePasswordButton compact />
             <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-destructive h-9">
               <LogOut className="w-4 h-4 sm:mr-1.5" />
               <span className="hidden sm:inline">Sair</span>
