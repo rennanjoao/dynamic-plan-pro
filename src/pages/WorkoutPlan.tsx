@@ -80,7 +80,7 @@ export default function WorkoutPlan() {
     queryFn: async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("full_name")
+        .select("full_name, team_name")
         .eq("id", (planData as any).coach_id)
         .maybeSingle();
       return data ?? null;
