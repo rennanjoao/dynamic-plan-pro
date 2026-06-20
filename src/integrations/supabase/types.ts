@@ -934,6 +934,27 @@ export type Database = {
         }
         Relationships: []
       }
+      student_dismissed_alerts: {
+        Row: {
+          alert_id: string
+          dismissed_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          alert_id: string
+          dismissed_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          alert_id?: string
+          dismissed_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       student_profiles: {
         Row: {
           avatar_url: string | null
