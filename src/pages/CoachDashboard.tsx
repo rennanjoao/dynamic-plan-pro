@@ -1151,7 +1151,7 @@ export default function CoachDashboard() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        <Tabs defaultValue="students" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "students" | "finances")} className="space-y-4">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="students" className="gap-1.5 text-xs sm:text-sm"><Users className="w-3.5 h-3.5" /> Alunos</TabsTrigger>
             <TabsTrigger value="finances" className="gap-1.5 text-xs sm:text-sm"><DollarSign className="w-3.5 h-3.5" /> Financeiro</TabsTrigger>
