@@ -23,6 +23,7 @@ import WeekPreviewDialog from "./WeekPreviewDialog";
 import TemplateHistoryDialog from "./TemplateHistoryDialog";
 import { SYSTEM_TEMPLATES } from "@/data/workoutSystemTemplates";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 // ─── Validação de recuperação muscular entre dias ────────────────────────────
 // Mapeia palavras-chave do campo `focus` para grupos musculares
