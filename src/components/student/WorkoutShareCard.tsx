@@ -11,6 +11,7 @@ interface Props {
   completedExercises: number;
   totalExercises: number;
   coachName?: string;
+  teamName?: string;
   weekLabel?: string;
   onClose: () => void;
 }
@@ -71,6 +72,7 @@ export default function WorkoutShareCard({
   completedExercises,
   totalExercises,
   coachName,
+  teamName,
   weekLabel,
   onClose,
 }: Props) {
@@ -103,15 +105,21 @@ export default function WorkoutShareCard({
       setBusy(true);
       const blob = await generateBlob();
       if (!blob) throw new Error("falha");
-      const file = new File([blob], "elite-prime-treino.png", { type: "image/png" });
+      const fileSlug = (teamName || "Elite Prime Hub")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "treino";
+      const file = new File([blob], `${fileSlug}-treino.png`, { type: "image/png" });
       const nav = navigator as any;
       if (nav.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: "Treino concluído — Elite Prime Hub" } as any);
+        await navigator.share({ files: [file], title: `Treino concluído — ${teamName || "Elite Prime Hub"}` } as any);
       } else {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = "elite-prime-treino.png";
+        a.download = `${fileSlug}-treino.png`;
         a.click();
         URL.revokeObjectURL(url);
         toast.info("Compartilhamento não suportado neste navegador. Imagem salva.");
@@ -131,7 +139,13 @@ export default function WorkoutShareCard({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "elite-prime-treino.png";
+      const slug = (teamName || "Elite Prime Hub")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "treino";
+      a.download = `${slug}-treino.png`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success("Imagem salva!");
@@ -188,7 +202,7 @@ export default function WorkoutShareCard({
                   marginTop: "4px",
                 }}
               >
-                ELITE PRIME HUB
+                {(teamName || "ELITE PRIME HUB").toUpperCase()}
               </p>
               {coachName && (
                 <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "10px", marginTop: "2px" }}>

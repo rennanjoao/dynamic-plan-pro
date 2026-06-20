@@ -80,7 +80,7 @@ export default function WorkoutPlan() {
     queryFn: async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("full_name")
+        .select("full_name, team_name")
         .eq("id", (planData as any).coach_id)
         .maybeSingle();
       return data ?? null;
@@ -273,6 +273,7 @@ export default function WorkoutPlan() {
           workouts={workouts as any}
           userId={userId}
           coachName={(coachProfile as any)?.full_name ?? undefined}
+          teamName={(coachProfile as any)?.team_name ?? undefined}
           initialDay={workoutModeDay}
           periodization={safePayload?.periodization}
           onClose={() => { setShowWorkoutMode(false); setWorkoutModeDay(undefined); }}

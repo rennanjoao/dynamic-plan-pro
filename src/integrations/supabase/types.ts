@@ -758,6 +758,8 @@ export type Database = {
           id: string
           invite_code: string | null
           notification_email: string | null
+          pix_city: string | null
+          pix_holder_name: string | null
           pix_key: string | null
           team_name: string | null
           trial_ends_at: string | null
@@ -775,6 +777,8 @@ export type Database = {
           id?: string
           invite_code?: string | null
           notification_email?: string | null
+          pix_city?: string | null
+          pix_holder_name?: string | null
           pix_key?: string | null
           team_name?: string | null
           trial_ends_at?: string | null
@@ -792,6 +796,8 @@ export type Database = {
           id?: string
           invite_code?: string | null
           notification_email?: string | null
+          pix_city?: string | null
+          pix_holder_name?: string | null
           pix_key?: string | null
           team_name?: string | null
           trial_ends_at?: string | null

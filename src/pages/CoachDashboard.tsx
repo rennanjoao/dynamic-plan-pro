@@ -907,6 +907,8 @@ function ProfileDialog({ coachId, open, onClose }: { coachId: string; open: bool
   const [teamName, setTeamName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [pixKey, setPixKey] = useState("");
+  const [pixHolderName, setPixHolderName] = useState("");
+  const [pixCity, setPixCity] = useState("");
   const [billingAlertDays, setBillingAlertDays] = useState<number>(7);
   const [feedbackIntervalDays, setFeedbackIntervalDays] = useState<number>(7);
   const [loading, setLoading] = useState(false);
@@ -916,7 +918,7 @@ function ProfileDialog({ coachId, open, onClose }: { coachId: string; open: bool
     if (!open || !coachId) return;
     supabase
       .from("profiles")
-      .select("full_name, team_name, invite_code, pix_key, billing_alert_days, feedback_interval_days")
+      .select("full_name, team_name, invite_code, pix_key, pix_holder_name, pix_city, billing_alert_days, feedback_interval_days")
       .eq("user_id", coachId)
       .maybeSingle()
       .then(({ data }) => {
@@ -924,6 +926,8 @@ function ProfileDialog({ coachId, open, onClose }: { coachId: string; open: bool
         setTeamName((data as any)?.team_name || "");
         setInviteCode((data as any)?.invite_code || "");
         setPixKey((data as any)?.pix_key || "");
+        setPixHolderName((data as any)?.pix_holder_name || "");
+        setPixCity((data as any)?.pix_city || "");
         setBillingAlertDays((data as any)?.billing_alert_days ?? 7);
         setFeedbackIntervalDays((data as any)?.feedback_interval_days ?? 7);
       });
@@ -962,6 +966,8 @@ function ProfileDialog({ coachId, open, onClose }: { coachId: string; open: bool
         team_name: teamName,
         invite_code: code,
         pix_key: pixKey,
+        pix_holder_name: pixHolderName || null,
+        pix_city: pixCity || null,
         billing_alert_days: billingAlertDays,
         feedback_interval_days: feedbackIntervalDays,
       }).eq("user_id", coachId);
@@ -1000,6 +1006,19 @@ function ProfileDialog({ coachId, open, onClose }: { coachId: string; open: bool
                   className="h-9 text-sm w-16 text-center" />
                 <span className="text-xs text-muted-foreground">dias antes</span>
               </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Nome do recebedor (PIX)</Label>
+              <Input value={pixHolderName} onChange={(e) => setPixHolderName(e.target.value.slice(0, 25))} placeholder="Como aparece no banco" maxLength={25} className="mt-1 h-9 text-sm" />
+              <p className="text-[10px] text-muted-foreground mt-1">Até 25 caracteres. Usado no QR Code.</p>
+            </div>
+            <div>
+              <Label className="text-xs">Cidade (PIX)</Label>
+              <Input value={pixCity} onChange={(e) => setPixCity(e.target.value.slice(0, 15))} placeholder="Ex: SAO PAULO" maxLength={15} className="mt-1 h-9 text-sm" />
+              <p className="text-[10px] text-muted-foreground mt-1">Até 15 caracteres.</p>
             </div>
           </div>
 
