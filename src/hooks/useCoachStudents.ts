@@ -22,6 +22,13 @@ export interface StudentStatus {
   criticalDays: number;
 }
 
+export interface PagedStudentsResult {
+  students: StudentStatus[];
+  totalCount: number;
+  filteredCount: number;
+  stats: { total: number; critical: number; warning: number; ok: number };
+}
+
 function daysSince(dateStr: string | null): number {
   if (!dateStr) return 999;
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86_400_000);
