@@ -139,7 +139,27 @@ function LatestFeedbackDialog({
           <p className="text-sm text-muted-foreground italic text-center py-10">Sem check-in registrado ainda.</p>
         ) : (
           <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">{fmtDate(ci.submitted_at)}</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">{fmtDate(ci.submitted_at)}</p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1.5 text-xs"
+                onClick={() => {
+                  if (!student || !ci) return;
+                  exportCheckinPDF({
+                    studentName: student.name,
+                    submittedAt: ci.submitted_at,
+                    currentMetrics: ci.current_metrics as Record<string, unknown> | null,
+                    payload: ci.payload as Record<string, unknown> | null,
+                    coachFeedback: ci.coach_feedback ?? null,
+                    sections: CHECKIN_SECTIONS,
+                  });
+                }}
+              >
+                <FileDown className="w-3 h-3" /> PDF
+              </Button>
+            </div>
 
             {Object.keys(fotos).length > 0 && (
               <div className="grid grid-cols-4 gap-2">
