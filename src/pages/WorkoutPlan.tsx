@@ -273,6 +273,7 @@ export default function WorkoutPlan() {
           workouts={workouts as any}
           userId={userId}
           coachName={(coachProfile as any)?.full_name ?? undefined}
+          teamName={(coachProfile as any)?.team_name ?? undefined}
           initialDay={workoutModeDay}
           periodization={safePayload?.periodization}
           onClose={() => { setShowWorkoutMode(false); setWorkoutModeDay(undefined); }}
