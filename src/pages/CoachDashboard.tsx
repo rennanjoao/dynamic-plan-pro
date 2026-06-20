@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ChangePasswordButton } from "@/components/ChangePasswordButton";
 
 const ProtocolBuilder = lazy(() => import("@/components/coach/ProtocolBuilder"));
 const EvolutionComparisonLazy = lazy(() => import("@/components/coach/EvolutionComparison"));
