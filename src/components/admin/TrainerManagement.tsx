@@ -67,6 +67,7 @@ function isBlocked(blocked_until?: string | null): boolean {
 }
 
 export const TrainerManagement = () => {
+  const confirm = useConfirm();
   const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [showDialog, setShowDialog] = useState(false);
   const [showInvites, setShowInvites] = useState(false);
@@ -271,7 +272,7 @@ export const TrainerManagement = () => {
   };
 
   const handleDeleteTrainer = async (trainerId: string) => {
-    if (!confirm("Tem certeza que deseja remover este profissional?")) return;
+    if (!(await confirm({ title: "Remover profissional", description: "Tem certeza que deseja remover este profissional?", destructive: true, confirmLabel: "Remover" }))) return;
     try {
       const { data, error } = await supabase.functions.invoke("manage-trainers", {
         body: { action: "delete", trainerId },

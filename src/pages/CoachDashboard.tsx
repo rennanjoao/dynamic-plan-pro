@@ -45,6 +45,7 @@ import {
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ChangePasswordButton } from "@/components/ChangePasswordButton";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 const ProtocolBuilder = lazy(() => import("@/components/coach/ProtocolBuilder"));
 const EvolutionComparisonLazy = lazy(() => import("@/components/coach/EvolutionComparison"));
@@ -636,6 +637,7 @@ function CheckinHistoryDialog({
 function FinancesTab({ coachId, students }: { coachId: string; students: StudentStatus[] }) {
   const { data: finances = [], isLoading } = useCoachFinances(coachId);
   const qc = useQueryClient();
+  const confirm = useConfirm();
 
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ student_id: "", description: "", amount: "", due_date: "" });
@@ -675,7 +677,7 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
   };
 
   const deleteFinance = async (id: string) => {
-    if (!confirm("Remover registro financeiro?")) return;
+    if (!(await confirm({ title: "Remover registro", description: "Remover registro financeiro?", destructive: true, confirmLabel: "Remover" }))) return;
     await supabase.from("coach_finances").delete().eq("id", id);
     qc.invalidateQueries({ queryKey: ["coach-finances"] });
   };
