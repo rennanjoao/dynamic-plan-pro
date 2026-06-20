@@ -1198,11 +1198,11 @@ export default function CoachDashboard() {
 
             {isLoading ? (
               <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-            ) : filtered.length === 0 ? (
+            ) : filteredCount === 0 ? (
               <div className="text-center py-12">
                 <Users className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
                 <p className="text-sm text-muted-foreground">
-                  {students.length === 0 ? "Nenhum aluno vinculado ainda. Compartilhe seu código de convite." : "Nenhum aluno encontrado com os filtros atuais."}
+                  {stats.total === 0 ? "Nenhum aluno vinculado ainda. Compartilhe seu código de convite." : "Nenhum aluno encontrado com os filtros atuais."}
                 </p>
               </div>
             ) : (
@@ -1245,7 +1245,7 @@ export default function CoachDashboard() {
           </TabsContent>
 
           <TabsContent value="finances">
-            {coachId && <FinancesTab coachId={coachId} students={students} />}
+            {coachId && <FinancesTab coachId={coachId} students={allStudents} />}
           </TabsContent>
         </Tabs>
 
