@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Plus, Save, Trash2, FileText } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -69,6 +70,7 @@ const DEFAULT_TEMPLATE = `<!doctype html>
 
 export default function ProtocolEditor({ studentId, studentName }: Props) {
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const [coachId, setCoachId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
@@ -163,7 +165,7 @@ export default function ProtocolEditor({ studentId, studentName }: Props) {
   }
 
   async function remove(id: string) {
-    if (!confirm("Excluir este protocolo?")) return;
+    if (!(await confirm({ title: "Excluir protocolo", description: "Excluir este protocolo?", destructive: true, confirmLabel: "Excluir" }))) return;
     const { error } = await sb.from("protocols").delete().eq("id", id);
     if (error) { toast.error(error.message); return; }
     if (selectedId === id) { setSelectedId(null); setTitle(""); setHtml(""); }

@@ -94,6 +94,7 @@ function exId(dayKey: string, idx: number) {
 
 export default function WorkoutPeriodizationEditor({ payload, setPayload, coachId }: Props) {
   const p = payload.periodization;
+  const confirm = useConfirm();
   const [saveOpen, setSaveOpen] = useState(false);
   const [tplName, setTplName] = useState("");
   const [tplScope, setTplScope] = useState<"full" | "periodization">("full");
@@ -162,8 +163,8 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
     toast.success(`Semana ${i + 1} restaurada ao padrão`);
   }
 
-  function resetAllToDefault() {
-    if (!confirm("Resetar todas as 4 semanas e overrides para o padrão?")) return;
+  async function resetAllToDefault() {
+    if (!(await confirm({ title: "Resetar periodização", description: "Resetar todas as 4 semanas e overrides para o padrão?", destructive: true, confirmLabel: "Resetar" }))) return;
     const fresh = PeriodizationSchema.parse({ enabled: p.enabled });
     setPayload({ ...payload, periodization: fresh });
     toast.success("Periodização restaurada ao padrão");
@@ -257,7 +258,7 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
   }
 
   async function deleteTemplate(id: string) {
-    if (!confirm("Excluir este template?")) return;
+    if (!(await confirm({ title: "Excluir template", description: "Excluir este template?", destructive: true, confirmLabel: "Excluir" }))) return;
     const { error } = await sb.from("workout_templates").delete().eq("id", id);
     if (error) { toast.error(error.message); return; }
     setTemplates((prev) => prev.filter((t) => t.id !== id));

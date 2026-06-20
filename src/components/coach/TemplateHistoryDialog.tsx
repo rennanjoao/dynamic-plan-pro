@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, RotateCcw, History } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -31,6 +32,7 @@ interface Props {
 export default function TemplateHistoryDialog({ open, onOpenChange, templateId, templateName, onRestore }: Props) {
   const [versions, setVersions] = useState<Version[]>([]);
   const [loading, setLoading] = useState(false);
+  const confirm = useConfirm();
 
   useEffect(() => {
     if (!open || !templateId) return;
@@ -51,8 +53,8 @@ export default function TemplateHistoryDialog({ open, onOpenChange, templateId, 
     return () => { active = false; };
   }, [open, templateId]);
 
-  function handleRestore(v: Version) {
-    if (!confirm(`Restaurar versão ${v.version} de "${v.name}"? Isso substitui o conteúdo atual.`)) return;
+  async function handleRestore(v: Version) {
+    if (!(await confirm({ title: "Restaurar versão", description: `Restaurar versão ${v.version} de "${v.name}"? Isso substitui o conteúdo atual.`, confirmLabel: "Restaurar" }))) return;
     onRestore(v.treinos);
     onOpenChange(false);
   }

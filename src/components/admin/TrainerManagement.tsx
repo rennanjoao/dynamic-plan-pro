@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ConfirmProvider";
 import {
   UserPlus, Users, Trash2, Shield, Mail, Key, Dices, LockKeyhole,
   Ban, BanIcon, Clock, Copy, Link2, RefreshCw, CheckCircle2, Loader2,
