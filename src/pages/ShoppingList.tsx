@@ -88,7 +88,7 @@ export default function ShoppingList() {
   );
 
   const grouped: Record<string, AggItem[]> = useMemo(() => {
-    const g: Record<string, Item[]> = {};
+    const g: Record<string, AggItem[]> = {};
     aggregated.forEach((it) => { (g[it.kind] ||= []).push(it); });
     return g;
   }, [aggregated]);

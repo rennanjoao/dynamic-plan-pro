@@ -357,7 +357,9 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
 
           {/* Avisos de recuperação muscular */}
           {(() => {
-            const muscleWarnings = checkMuscleRecovery(payload.workouts || []);
+            const muscleWarnings = checkMuscleRecovery(
+              (payload.workouts || []).map((w) => ({ key: w.key || "", focus: w.focus || "" }))
+            );
             return muscleWarnings.length > 0 ? (
               <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 mb-3">
                 <div className="flex items-center gap-1.5 mb-1">
