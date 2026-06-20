@@ -22,13 +22,11 @@ const BILLING_KEY = "coach_billing_state";
 type BillingState = {
   price_per_student: number;
   overrides: Record<string, number>; // coach_id -> price
-  paid: Record<string, string>; // coach_id -> "YYYY-MM"
 };
 
 const DEFAULT_STATE: BillingState = {
   price_per_student: DEFAULT_PRICE_PER_STUDENT,
   overrides: {},
-  paid: {},
 };
 
 type CoachRow = {
@@ -89,7 +87,6 @@ const CoachBillingPanel = () => {
         ...((settings?.value as Partial<BillingState>) ?? {}),
       };
       loaded.overrides = loaded.overrides ?? {};
-      loaded.paid = loaded.paid ?? {};
       setState(loaded);
       setPriceInput(String(loaded.price_per_student));
 
@@ -127,10 +124,18 @@ const CoachBillingPanel = () => {
       });
 
       const mKey = currentMonthKey();
+
+      // Status de pagamento agora vem de platform_billing_charges (uma linha por coach/mês).
+      const { data: charges, error: chargesErr } = await supabase
+        .from("platform_billing_charges")
+        .select("coach_id, status")
+        .eq("period", mKey)
+        .in("coach_id", coachIds);
+      if (chargesErr) throw chargesErr;
       const paidSet = new Set(
-        Object.entries(loaded.paid ?? {})
-          .filter(([, v]) => v === mKey)
-          .map(([k]) => k),
+        (charges ?? [])
+          .filter((c: any) => c.status === "paid")
+          .map((c: any) => c.coach_id),
       );
 
       const result: CoachRow[] = (profiles ?? []).map((p: any) => {
@@ -173,11 +178,21 @@ const CoachBillingPanel = () => {
   const markPaid = async (coach: CoachRow) => {
     setBusy(coach.user_id);
     try {
-      const next: BillingState = {
-        ...state,
-        paid: { ...(state.paid ?? {}), [coach.user_id]: monthKey },
-      };
-      await persistState(next);
+      const { error } = await supabase
+        .from("platform_billing_charges")
+        .upsert(
+          {
+            coach_id: coach.user_id,
+            period: monthKey,
+            unit_price: coach.unit_price,
+            student_count: coach.active_students,
+            amount: coach.amount,
+            status: "paid",
+            paid_at: new Date().toISOString(),
+          },
+          { onConflict: "coach_id,period" },
+        );
+      if (error) throw error;
       toast.success(`Pagamento registrado para ${coach.full_name ?? "coach"}`);
       await load();
     } catch (e: any) {
@@ -190,9 +205,12 @@ const CoachBillingPanel = () => {
   const unmarkPaid = async (coach: CoachRow) => {
     setBusy(coach.user_id);
     try {
-      const nextPaid = { ...(state.paid ?? {}) };
-      delete nextPaid[coach.user_id];
-      await persistState({ ...state, paid: nextPaid });
+      const { error } = await supabase
+        .from("platform_billing_charges")
+        .update({ status: "pending", paid_at: null })
+        .eq("coach_id", coach.user_id)
+        .eq("period", monthKey);
+      if (error) throw error;
       toast.success("Pagamento revertido");
       await load();
     } catch (e: any) {
