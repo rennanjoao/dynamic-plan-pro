@@ -123,7 +123,9 @@ export default function MeasurementsEditor({ open, onOpenChange, studentId, targ
   }, [values]);
 
   const bf = useMemo(() => {
-    const genero = (origPayload.genero as string) || (origPayload.sexo as string) || "M";
+    // O campo salvo na anamnese é "gender" (en-US: "F"/"M"). Mantemos os
+    // fallbacks "genero"/"sexo" apenas por compatibilidade com payloads antigos.
+    const genero = (origPayload.gender as string) || (origPayload.genero as string) || (origPayload.sexo as string) || "M";
     return estimateBF({
       altura: values.altura,
       cintura: values.cintura,
