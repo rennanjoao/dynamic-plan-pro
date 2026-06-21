@@ -1,3 +1,4 @@
+// src/components/GlobalAIAssistant.tsx
 import { useState, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -6,36 +7,31 @@ import { supabase } from "@/integrations/supabase/client";
 
 const HIDDEN_ROUTES = new Set(["/", "/auth", "/admin-login", "/student", "/anamnesis"]);
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
-
 async function fetchAthleteContext() {
   const { data: sess } = await supabase.auth.getSession();
   const uid = sess.session?.user?.id;
   if (!uid) return undefined;
 
-  const [profile, roleReq] = await Promise.all([
-    sb.from("profiles").select("full_name").eq("user_id", uid).maybeSingle(),
-    sb.from("user_roles").select("role").eq("user_id", uid).maybeSingle(),
+  const [profileRes, roleRes] = await Promise.all([
+    supabase.from("profiles").select("full_name").eq("user_id", uid).maybeSingle(),
+    supabase.from("user_roles").select("role").eq("user_id", uid).maybeSingle(),
   ]);
 
-  const userRole = roleReq?.data?.role;
+  const userRole = roleRes.data?.role;
   const isCoach = userRole === "coach" || userRole === "admin";
 
   if (isCoach) {
-    // Caps reduzidos: 8 alunos / 5 check-ins / 3 templates — protege custo de
-    // tokens de IA por mensagem sem perder contexto útil para o coach.
-    const [students, recentCheckins, templates] = await Promise.all([
-      sb.from("coach_student_links")
-        .select("student_id, profiles!inner(full_name), coach_plans(goal, calories)")
+    // Tabela correta: coach_students (não coach_student_links, que não existe
+    // no schema — causava contexto de IA do coach sempre vazio).
+    const [linksRes, templatesRes] = await Promise.all([
+      supabase
+        .from("coach_students")
+        .select("student_id")
         .eq("coach_id", uid)
-        .eq("active", true)
+        .eq("status", "active")
         .limit(8),
-      sb.from("check_ins")
-        .select("student_id, submitted_at, coach_feedback, profiles!inner(full_name)")
-        .order("submitted_at", { ascending: false })
-        .limit(5),
-      sb.from("protocols")
+      supabase
+        .from("protocols")
         .select("name, updated_at")
         .eq("coach_id", uid)
         .eq("is_template", true)
@@ -43,22 +39,47 @@ async function fetchAthleteContext() {
         .limit(3),
     ]);
 
+    if (linksRes.error) console.error("[AI context] coach_students:", linksRes.error.message);
+    if (templatesRes.error) console.error("[AI context] protocols:", templatesRes.error.message);
+
+    const studentIds = (linksRes.data ?? []).map((l) => l.student_id);
+
+    const [profilesRes, plansRes, checkinsRes] = await Promise.all([
+      studentIds.length
+        ? supabase.from("profiles").select("user_id, full_name").in("user_id", studentIds)
+        : Promise.resolve({ data: [], error: null }),
+      studentIds.length
+        ? supabase.from("coach_plans").select("student_id, goal, calories").in("student_id", studentIds)
+        : Promise.resolve({ data: [], error: null }),
+      studentIds.length
+        ? supabase
+            .from("check_ins")
+            .select("student_id, submitted_at, coach_feedback")
+            .in("student_id", studentIds)
+            .order("submitted_at", { ascending: false })
+            .limit(5)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    const nameById = new Map((profilesRes.data ?? []).map((p) => [p.user_id, p.full_name]));
+    const planById = new Map((plansRes.data ?? []).map((p) => [p.student_id, p]));
+
     return {
-      name: profile?.data?.full_name,
+      name: profileRes.data?.full_name,
       isCoach: true,
       coachContext: {
-        totalStudents: students?.data?.length ?? 0,
-        students: (students?.data ?? []).map((s: any) => ({
-          name: s.profiles?.full_name,
-          goal: s.coach_plans?.[0]?.goal,
-          calories: s.coach_plans?.[0]?.calories,
+        totalStudents: studentIds.length,
+        students: studentIds.map((sid) => ({
+          name: nameById.get(sid),
+          goal: planById.get(sid)?.goal,
+          calories: planById.get(sid)?.calories,
         })),
-        recentCheckins: (recentCheckins?.data ?? []).map((c: any) => ({
-          studentName: c.profiles?.full_name,
+        recentCheckins: (checkinsRes.data ?? []).map((c) => ({
+          studentName: nameById.get(c.student_id),
           date: c.submitted_at,
           hasFeedback: !!c.coach_feedback,
         })),
-        savedTemplates: (templates?.data ?? []).map((t: any) => t.name),
+        savedTemplates: (templatesRes.data ?? []).map((t) => t.name),
         platformCapabilities: [
           "Construtor de protocolo com dieta por macros (carbo/proteína/gordura)",
           "Opções de substituição por refeição",
@@ -74,24 +95,24 @@ async function fetchAthleteContext() {
   }
 
   const [plan, anam, checkins, measure, skin, protocol] = await Promise.all([
-    sb.from("coach_plans").select("goal,calories,protein_g,carbs_g,fat_g,water_l,notes").eq("student_id", uid).maybeSingle(),
-    sb.from("anamnesis").select("baseline_metrics,payload,submitted_at").eq("student_id", uid).maybeSingle(),
-    sb.from("check_ins").select("current_metrics,coach_feedback,submitted_at").eq("student_id", uid).order("submitted_at", { ascending: false }).limit(3),
-    sb.from("body_measurements").select("weight,measurement_date").eq("user_id", uid).order("measurement_date", { ascending: false }).limit(1),
-    sb.from("skinfold_measurements").select("body_fat_percentage,measurement_date").eq("user_id", uid).order("measurement_date", { ascending: false }).limit(1),
-    sb.from("protocols").select("name,payload").eq("student_id", uid).eq("active", true).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+    supabase.from("coach_plans").select("goal,calories,protein_g,carbs_g,fat_g,water_l,notes").eq("student_id", uid).maybeSingle(),
+    supabase.from("anamnesis").select("baseline_metrics,payload,submitted_at").eq("student_id", uid).maybeSingle(),
+    supabase.from("check_ins").select("current_metrics,coach_feedback,submitted_at").eq("student_id", uid).order("submitted_at", { ascending: false }).limit(3),
+    supabase.from("body_measurements").select("weight,measurement_date").eq("user_id", uid).order("measurement_date", { ascending: false }).limit(1),
+    supabase.from("skinfold_measurements").select("body_fat_percentage,measurement_date").eq("user_id", uid).order("measurement_date", { ascending: false }).limit(1),
+    supabase.from("protocols").select("name,payload").eq("student_id", uid).eq("active", true).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
 
   return {
-    name: profile?.data?.full_name,
+    name: profileRes.data?.full_name,
     isCoach: false,
-    plan: plan?.data ?? null,
-    anamnesis: anam?.data?.payload ?? null,
-    baselineMetrics: anam?.data?.baseline_metrics ?? null,
-    recentCheckIns: checkins?.data ?? [],
-    latestMeasurements: measure?.data?.[0] ?? null,
-    latestSkinfolds: skin?.data?.[0] ?? null,
-    activeProtocol: protocol?.data ? { name: protocol.data.name, payload: protocol.data.payload } : null,
+    plan: plan.data ?? null,
+    anamnesis: anam.data?.payload ?? null,
+    baselineMetrics: anam.data?.baseline_metrics ?? null,
+    recentCheckIns: checkins.data ?? [],
+    latestMeasurements: measure.data?.[0] ?? null,
+    latestSkinfolds: skin.data?.[0] ?? null,
+    activeProtocol: protocol.data ? { name: protocol.data.name, payload: protocol.data.payload } : null,
   };
 }
 
@@ -99,13 +120,11 @@ export const GlobalAIAssistant = () => {
   const { pathname } = useLocation();
   const [chatOpened, setChatOpened] = useState(false);
 
-  // O contexto só é buscado quando o usuário efetivamente abre o chat —
-  // antes disso, nenhuma query Supabase é disparada por troca de rota.
   const { data: ctx } = useQuery({
     queryKey: ["ai-athlete-context"],
     queryFn: fetchAthleteContext,
     enabled: chatOpened,
-    staleTime: 2 * 60_000, // evita refetch a cada reabertura dentro de 2min
+    staleTime: 2 * 60_000,
   });
 
   const handleChatOpen = useCallback(() => setChatOpened(true), []);
