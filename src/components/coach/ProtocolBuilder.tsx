@@ -50,7 +50,7 @@ import {
 import {
   Loader2, Save, Plus, Trash2, FileText, Dumbbell, UtensilsCrossed,
   Calendar, Sparkles, BarChart3, Activity, Pill, TrendingUp, TrendingDown, Minus,
-  Check, CheckCircle2, ChevronsUpDown, ChevronDown, Copy, BookmarkPlus, Library, ArrowLeftRight, Pencil, ClipboardList,
+  CheckCircle2, ChevronDown, Copy, BookmarkPlus, Library, ClipboardList,
   ArrowUp, ArrowDown, Eye
 } from "lucide-react";
 import { toast } from "sonner";
@@ -62,8 +62,7 @@ import ProtocolImportExport from "./ProtocolImportExport";
 import ProtocolImportHistory from "./ProtocolImportHistory";
 import WorkoutPeriodizationEditor from "./WorkoutPeriodizationEditor";
 import StudentProtocolPreview from "./StudentProtocolPreview";
-import { calcMealMacros, calcDayMacros, suggestTacoSubstitutes, tacoGroupToKind, parseWeightString, optionMacros, compareOptions, type SubstitutionSeverity } from "@/lib/macroCalc";
-import { Progress } from "@/components/ui/progress";
+import { calcMealMacros, calcDayMacros, tacoGroupToKind, parseWeightString, optionMacros, compareOptions, type SubstitutionSeverity } from "@/lib/macroCalc";
 
 import { TACO_FOODS } from "@/data/tacoFoods";
 const TACO_DATA = TACO_FOODS.map((t, i) => ({ ...t, id: String(i), cookFactor: t.cookFactor ?? 1 }));
@@ -925,12 +924,6 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
     { label: "Carb", cur: dayMacros.carbs, goal: goals.carbs || 1, color: "bg-amber-500" },
     { label: "Gord", cur: dayMacros.fat, goal: goals.fat || 1, color: "bg-rose-500" },
   ];
-
-  const updMacro = (i: number, k: "carbs" | "protein" | "fat", v: number) => {
-    const next = [...payload.meals];
-    next[i] = { ...next[i], macros: { ...next[i].macros, [k]: v } };
-    setPayload({ ...payload, meals: next });
-  };
 
   function updMealField(mealIdx: number, patch: Partial<ProtocolPayload["meals"][number]>) {
     const next = [...payload.meals];
