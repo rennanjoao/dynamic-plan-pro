@@ -1,0 +1,1 @@
+DELETE FROM public.check_ins WHERE payload->>'_smoke_test' = 'true';
