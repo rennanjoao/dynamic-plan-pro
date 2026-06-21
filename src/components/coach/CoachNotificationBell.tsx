@@ -70,67 +70,88 @@ export default function CoachNotificationBell() {
 
   useEffect(() => {
     if (!coachId) return;
+    let cancelled = false;
 
-    const channel = supabase
-      .channel("coach-notifications-realtime")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "coach_notifications", filter: `coach_id=eq.${coachId}` },
-        (payload) => {
-          const n = payload.new as Notification;
-          setNotifications((prev) => [n, ...prev]);
-          toast(`Nova dúvida de ${n.student_name}`, {
-            description: `${n.context}: "${n.message.substring(0, 60)}${n.message.length > 60 ? "…" : ""}"`,
-            icon: <Bell className="w-4 h-4 text-primary" />,
-            duration: 6000,
-            action: { label: "Ver", onClick: () => setOpen(true) },
-          });
-        }
-      )
-      .subscribe();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let checkinsChannel: ReturnType<typeof supabase.channel> | null = null;
 
-    const checkinsChannel = supabase
-      .channel("coach-checkins-realtime")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "check_ins" },
-        async (payload) => {
-          const studentId = (payload.new as { student_id?: string })?.student_id;
-          if (!studentId) return;
-          // Verifica se esse aluno pertence a este coach
-          const { data: link } = await supabase
-            .from("coach_students")
-            .select("coach_id")
-            .eq("student_id", studentId)
-            .eq("coach_id", coachId)
-            .eq("status", "active")
-            .maybeSingle();
-          if (!link) return;
-          const { data: prof } = await supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("user_id", studentId)
-            .maybeSingle();
-          const nome = prof?.full_name ?? "Aluno";
-          // [FIX] contexto do módulo no toast de check-in
-          const payloadData = (payload.new as Record<string, unknown>)?.payload as Record<string, unknown> | null;
-          const modulo = payloadData?.modulo as string | undefined;
-          const contextoLabel = modulo
-            ? modulo.charAt(0).toUpperCase() + modulo.slice(1)
-            : "Check-in";
-          toast(`✅ ${nome} enviou um check-in!`, {
-            description: `${contextoLabel} · Recebido em ${new Date().toLocaleString("pt-BR")}`,
-            duration: 8000,
-            action: { label: "Ver", onClick: () => setOpen(true) },
-          });
-          setCheckinCount((prev) => prev + 1);
-        }
-      )
-      .subscribe();
+    (async () => {
+      // Carrega a carteira de alunos deste coach ANTES de assinar o canal —
+      // usamos isso para escopar o filtro do Realtime (in.(...)) e o nome do
+      // canal, evitando que o coach receba (e processe) INSERTs de check_ins
+      // de TODOS os alunos da plataforma, não só os seus.
+      const { data: links } = await supabase
+        .from("coach_students")
+        .select("student_id")
+        .eq("coach_id", coachId)
+        .eq("status", "active");
+      if (cancelled) return;
+
+      const myStudentIds = new Set((links ?? []).map((l) => l.student_id));
+      const idsList = (links ?? []).map((l) => l.student_id);
+      // Filtro Realtime via URL tem limite prático de tamanho — acima de ~150
+      // alunos, voltamos a escutar sem filtro de student_id e confiamos no
+      // checkinsChannel ainda no nome do canal e na conferência client-side.
+      const idsFilter = idsList.length > 0 && idsList.length <= 150 ? idsList.join(",") : null;
+      const hasStudents = idsList.length > 0;
+
+      channel = supabase
+        .channel(`coach-notifications-realtime-${coachId}`)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "coach_notifications", filter: `coach_id=eq.${coachId}` },
+          (payload) => {
+            const n = payload.new as Notification;
+            setNotifications((prev) => [n, ...prev]);
+            toast(`Nova dúvida de ${n.student_name}`, {
+              description: `${n.context}: "${n.message.substring(0, 60)}${n.message.length > 60 ? "…" : ""}"`,
+              icon: <Bell className="w-4 h-4 text-primary" />,
+              duration: 6000,
+              action: { label: "Ver", onClick: () => setOpen(true) },
+            });
+          }
+        )
+        .subscribe();
+
+      // Sem alunos vinculados: nada para escutar em check_ins.
+      if (hasStudents) {
+        checkinsChannel = supabase
+          .channel(`coach-checkins-realtime-${coachId}`)
+          .on(
+            "postgres_changes",
+            idsFilter
+              ? { event: "INSERT", schema: "public", table: "check_ins", filter: `student_id=in.(${idsFilter})` }
+              : { event: "INSERT", schema: "public", table: "check_ins" },
+            async (payload) => {
+              const studentId = (payload.new as { student_id?: string })?.student_id;
+              if (!studentId || !myStudentIds.has(studentId)) return; // defesa extra
+              const { data: prof } = await supabase
+                .from("profiles")
+                .select("full_name")
+                .eq("user_id", studentId)
+                .maybeSingle();
+              const nome = prof?.full_name ?? "Aluno";
+              const payloadData = (payload.new as Record<string, unknown>)?.payload as Record<string, unknown> | null;
+              const modulo = payloadData?.modulo as string | undefined;
+              const contextoLabel = modulo
+                ? modulo.charAt(0).toUpperCase() + modulo.slice(1)
+                : "Check-in";
+              toast(`✅ ${nome} enviou um check-in!`, {
+                description: `${contextoLabel} · Recebido em ${new Date().toLocaleString("pt-BR")}`,
+                duration: 8000,
+                action: { label: "Ver", onClick: () => setOpen(true) },
+              });
+              setCheckinCount((prev) => prev + 1);
+            }
+          )
+          .subscribe();
+      }
+    })();
 
     return () => {
-      supabase.removeChannel(channel);
-      supabase.removeChannel(checkinsChannel);
+      cancelled = true;
+      if (channel) supabase.removeChannel(channel);
+      if (checkinsChannel) supabase.removeChannel(checkinsChannel);
     };
   }, [coachId]);
 
