@@ -83,7 +83,7 @@ export function useCoachStudentsLite(coachId: string | null) {
           .select("student_id, submitted_at, updated_at")
           .in("student_id", ids)
           .order("updated_at", { ascending: false })
-          .limit(ids.length), // 1 registro mais recente por aluno é suficiente
+          .limit(ids.length * 3), // teto de segurança — ver nota equivalente em useCoachStudentsPaged
       ]);
 
       const anaByStudent = new Map<string, { submitted_at: string | null; updated_at: string | null }>();
@@ -255,7 +255,12 @@ export function useCoachStudentsPaged(
           .select("student_id, submitted_at, current_metrics")
           .in("student_id", pageIds)
           .order("submitted_at", { ascending: false })
-          .limit(pageIds.length), // 1 mais recente por aluno
+          .limit(pageIds.length * 3), // teto de segurança — limit(pageIds.length) sozinho NÃO garante
+          // 1 check-in por aluno: como a ordenação mistura check-ins de todos os
+          // alunos da página, um aluno com vários check-ins recentes pode "tomar"
+          // as vagas de outro aluno com check-ins mais espaçados, fazendo esse
+          // outro aluno cair no fallback do peso da Anamnese (baseline) em vez do
+          // peso do check-in mais recente dele.
         supabase
           .from("coach_plans")
           .select("student_id, goal")
