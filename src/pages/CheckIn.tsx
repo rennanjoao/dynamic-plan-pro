@@ -182,6 +182,7 @@ export default function CheckIn() {
             current_metrics,
             payload: { ...data, metrics_raw: metrics, fotos },
             edit_count: (lastCheckin.edit_count ?? 0) + 1,
+            submitted_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
           .eq("id", lastCheckin.id);
