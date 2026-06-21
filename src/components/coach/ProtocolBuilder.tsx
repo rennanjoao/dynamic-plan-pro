@@ -362,23 +362,16 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         </DialogContent>
       </Dialog>
 
-      <Sheet open={consultOpen} onOpenChange={setConsultOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-[640px] overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>Dados do Aluno — {studentName}</SheetTitle>
-            <SheetDescription className="text-xs">
-              Consulte a anamnese e feedbacks sem perder o progresso da edição do protocolo.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="mt-4">
-            {consultOpen && (
-              <Suspense fallback={<div className="py-12 text-center"><Loader2 className="w-5 h-5 animate-spin text-primary mx-auto" /></div>}>
-                <AnamnesisViewerLazy studentId={studentId} studentName={studentName} />
-              </Suspense>
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
+      {consultOpen && (
+        <Suspense fallback={null}>
+          <CheckinFeedbackPanel
+            studentId={studentId}
+            studentName={studentName}
+            open={consultOpen}
+            onClose={() => setConsultOpen(false)}
+          />
+        </Suspense>
+      )}
 
       {payload && (
         <StudentProtocolPreview
