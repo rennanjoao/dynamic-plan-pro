@@ -45,133 +45,66 @@ function getAlertLevel(
   return "ok";
 }
 
-export function useCoachStudents(coachId: string | null, feedbackIntervalDays = 7) {
+// NOTA: a antiga variante full-scan useCoachStudents() foi removida.
+// Use useCoachStudentsPaged() para a listagem principal (paginada) ou
+// useCoachStudentsLite() para telas que só precisam de id/name/lastAnamnesis.
+
+// ─── Lightweight variant ──────────────────────────────────────────────────
+// Usada por telas que só precisam de id/name/lastAnamnesis (ex: aba Finanças).
+// Evita o full-scan de check_ins/anamnesis/coach_plans sem .limit() que a
+// variante antiga useCoachStudents() fazia a cada carregamento.
+export interface StudentLite {
+  id: string;
+  name: string;
+  lastAnamnesis: string | null;
+}
+
+export function useCoachStudentsLite(coachId: string | null) {
   return useQuery({
-    queryKey: ["coach-students", coachId, feedbackIntervalDays],
-    queryFn: async (): Promise<StudentStatus[]> => {
+    queryKey: ["coach-students-lite", coachId],
+    enabled: !!coachId,
+    queryFn: async (): Promise<StudentLite[]> => {
       if (!coachId) return [];
 
       const { data: links } = await supabase
         .from("coach_students")
-        .select("student_id, feedback_interval_days, warning_days, critical_days")
+        .select("student_id")
         .eq("coach_id", coachId)
         .eq("status", "active");
 
       if (!links || links.length === 0) return [];
-      const studentIds = links.map((l) => l.student_id);
-      const cfgByStudent = new Map<string, { interval: number; warning: number; critical: number }>();
-      links.forEach((l: { student_id: string; feedback_interval_days: number | null; warning_days: number | null; critical_days: number | null }) => {
-        cfgByStudent.set(l.student_id, {
-          interval: l.feedback_interval_days ?? feedbackIntervalDays ?? 14,
-          warning: l.warning_days ?? 14,
-          critical: l.critical_days ?? 16,
-        });
-      });
+      const ids = links.map((l) => l.student_id);
 
-      // Todas as queries em paralelo — sem N+1
-      const [
-        { data: sProfiles },
-        { data: profiles },
-        { data: allAna },
-        { data: allCi },
-        { data: allPlans },
-      ] = await Promise.all([
-        supabase
-          .from("student_profiles")
-          .select("user_id, full_name")
-          .in("user_id", studentIds),
-        supabase
-          .from("profiles")
-          .select("user_id, full_name, email")
-          .in("user_id", studentIds),
+      const [{ data: sProfiles }, { data: profiles }, { data: ana }] = await Promise.all([
+        supabase.from("student_profiles").select("user_id, full_name").in("user_id", ids),
+        supabase.from("profiles").select("user_id, full_name, email").in("user_id", ids),
         supabase
           .from("anamnesis")
-          .select("student_id, submitted_at, updated_at, payload")
-          .in("student_id", studentIds)
-          .order("updated_at", { ascending: false }),
-        supabase
-          .from("check_ins")
-          .select("student_id, submitted_at, current_metrics")
-          .in("student_id", studentIds)
-          .order("submitted_at", { ascending: false }),
-        supabase
-          .from("coach_plans")
-          .select("student_id, goal")
-          .in("student_id", studentIds)
-          .eq("coach_id", coachId),
+          .select("student_id, submitted_at, updated_at")
+          .in("student_id", ids)
+          .order("updated_at", { ascending: false })
+          .limit(ids.length), // 1 registro mais recente por aluno é suficiente
       ]);
 
-      // Índices em memória para lookup O(1)
-      const anaByStudent = new Map<string, typeof allAna extends (infer T)[] | null ? T : never>();
-      allAna?.forEach((a) => { if (!anaByStudent.has(a.student_id)) anaByStudent.set(a.student_id, a); });
+      const anaByStudent = new Map<string, { submitted_at: string | null; updated_at: string | null }>();
+      ana?.forEach((a) => { if (!anaByStudent.has(a.student_id)) anaByStudent.set(a.student_id, a); });
 
-      const ciByStudent = new Map<string, typeof allCi extends (infer T)[] | null ? T : never>();
-      allCi?.forEach((c) => { if (!ciByStudent.has(c.student_id)) ciByStudent.set(c.student_id, c); });
-
-      const planByStudent = new Map<string, typeof allPlans extends (infer T)[] | null ? T : never>();
-      allPlans?.forEach((p) => { if (!planByStudent.has(p.student_id)) planByStudent.set(p.student_id, p); });
-
-      const students: StudentStatus[] = studentIds.map((sid) => {
+      return ids.map((sid) => {
         const sp = sProfiles?.find((p) => p.user_id === sid);
         const pp = profiles?.find((p) => p.user_id === sid);
-        const ana = anaByStudent.get(sid);
-        const ci = ciByStudent.get(sid);
-        const plan = planByStudent.get(sid);
-
-        const lastAnamnesis = ana?.submitted_at || ana?.updated_at || null;
-        const lastFeedback = ci?.submitted_at || null;
-        const anaName = (ana?.payload as Record<string, unknown> | undefined)?.nome as string | undefined;
-
-        // [FIX 0.2] Fonte unificada de peso: último check-in confirmado pelo aluno.
-        // Fallback para baseline da anamnese se ainda não há check-in.
-        const ciMetrics = ((ci as { current_metrics?: Record<string, unknown> } | undefined)?.current_metrics) || {};
-        const baselineMetrics = ((ana as { baseline_metrics?: Record<string, unknown> } | undefined)?.baseline_metrics) || {};
-        const pesoNum = (() => {
-          const v = (ciMetrics as Record<string, unknown>).peso
-            ?? (ciMetrics as Record<string, unknown>).weight
-            ?? (baselineMetrics as Record<string, unknown>).peso;
-          if (typeof v === "number" && isFinite(v)) return v;
-          if (typeof v === "string") {
-            const n = parseFloat(v.replace(",", "."));
-            return isFinite(n) ? n : null;
-          }
-          return null;
-        })();
-
+        const a = anaByStudent.get(sid);
         const name =
           sp?.full_name ||
           pp?.full_name ||
-          anaName ||
           (pp?.email ? pp.email.split("@")[0] : "") ||
           `Aluno ${sid.slice(0, 6)}`;
-
-        const cfg = cfgByStudent.get(sid) ?? { interval: feedbackIntervalDays ?? 14, warning: 14, critical: 16 };
         return {
           id: sid,
           name,
-          email: pp?.email || "",
-          lastAnamnesis,
-          lastFeedback,
-          lastWorkout: null,
-          lastMeal: null,
-          alertLevel: getAlertLevel(lastFeedback, cfg.warning, cfg.critical),
-          daysInactive: Math.min(daysSince(lastAnamnesis), daysSince(lastFeedback)),
-          daysSinceLastFeedback: daysSince(lastFeedback),
-          goal: plan?.goal || "—",
-          currentWeight: pesoNum,
-          targetWeight: null,
-          feedbackIntervalDays: cfg.interval,
-          warningDays: cfg.warning,
-          criticalDays: cfg.critical,
+          lastAnamnesis: a?.submitted_at || a?.updated_at || null,
         };
       });
-
-      return students.sort((a, b) => {
-        const order: Record<AlertLevel, number> = { critical: 0, warning: 1, ok: 2 };
-        return order[a.alertLevel] - order[b.alertLevel];
-      });
     },
-    enabled: !!coachId,
   });
 }
 
