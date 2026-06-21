@@ -42,7 +42,9 @@ export default function ComparisonBoard({ anamnesis, latestCheckIn }: Props) {
   const anamFront = anamFotos?.frente || anamFotos?.front || "";
   const checkFront = checkFotos?.frente || checkFotos?.front || latestCheckIn?.photo_url || "";
   const anamPayload = (anamnesis?.payload as any) || {};
-  const genero = (anamPayload.genero as string) || (anamPayload.sexo as string) || "M";
+  // O campo salvo na anamnese é "gender" (en-US: "F"/"M"). Mantemos os
+  // fallbacks "genero"/"sexo" apenas por compatibilidade com payloads antigos.
+  const genero = (anamPayload.gender as string) || (anamPayload.genero as string) || (anamPayload.sexo as string) || "M";
   const baseline = anamnesis?.baseline_metrics || {};
   const current = latestCheckIn?.current_metrics || {};
   const anamBF = estimateBF({
