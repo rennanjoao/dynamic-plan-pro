@@ -155,15 +155,27 @@ export function useCoachStudentsPaged(
         supabase.from("profiles").select("user_id, full_name, email").in("user_id", ids),
         supabase
           .from("check_ins")
-          .select("student_id, submitted_at")
+          .select("student_id, submitted_at, updated_at")
           .in("student_id", ids)
           .order("submitted_at", { ascending: false })
           .limit(ids.length * 3), // teto explícito, evita full-scan se aluno tiver muitos check-ins
       ]);
 
+      // Timestamp efetivo = maior entre submitted_at e updated_at. Um check-in
+      // editado (mode "update" em CheckIn.tsx) pode ter updated_at mais recente
+      // que submitted_at em registros salvos antes da correção desse fluxo.
+      const effectiveTime = (c: { submitted_at: string; updated_at?: string | null }) =>
+        Math.max(new Date(c.submitted_at).getTime(), new Date(c.updated_at || c.submitted_at).getTime());
+
       const lastCiByStudent = new Map<string, string>();
+      const lastCiTimeByStudent = new Map<string, number>();
       lastCi?.forEach((c) => {
-        if (!lastCiByStudent.has(c.student_id)) lastCiByStudent.set(c.student_id, c.submitted_at);
+        const t = effectiveTime(c);
+        const prevT = lastCiTimeByStudent.get(c.student_id);
+        if (prevT === undefined || t > prevT) {
+          lastCiTimeByStudent.set(c.student_id, t);
+          lastCiByStudent.set(c.student_id, c.submitted_at);
+        }
       });
 
       const rows: StudentStatus[] = ids.map((sid) => {
@@ -252,7 +264,7 @@ export function useCoachStudentsPaged(
           .order("updated_at", { ascending: false }),
         supabase
           .from("check_ins")
-          .select("student_id, submitted_at, current_metrics")
+          .select("student_id, submitted_at, updated_at, current_metrics")
           .in("student_id", pageIds)
           .order("submitted_at", { ascending: false })
           .limit(pageIds.length * 3), // teto de segurança — limit(pageIds.length) sozinho NÃO garante
@@ -279,8 +291,12 @@ export function useCoachStudentsPaged(
         }
       });
       const ciBy = new Map<string, { submitted_at: string; current_metrics: Record<string, unknown> | null }>();
+      const ciTimeBy = new Map<string, number>();
       ci?.forEach((c) => {
-        if (!ciBy.has(c.student_id)) {
+        const t = Math.max(new Date(c.submitted_at).getTime(), new Date(c.updated_at || c.submitted_at).getTime());
+        const prevT = ciTimeBy.get(c.student_id);
+        if (prevT === undefined || t > prevT) {
+          ciTimeBy.set(c.student_id, t);
           ciBy.set(c.student_id, {
             submitted_at: c.submitted_at,
             current_metrics: (c.current_metrics as Record<string, unknown>) || null,
