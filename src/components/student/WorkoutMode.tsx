@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { X, Pause, RotateCcw, Check, Image as ImageIcon, Flame } from "lucide-react";
+import { X, Pause, RotateCcw, Check, SkipForward, Flame, Share2 } from "lucide-react";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import WorkoutShareCard from "./WorkoutShareCard";
 import { supabase } from "@/integrations/supabase/client";
@@ -136,7 +136,9 @@ export default function WorkoutMode({
   const [startedAt, setStartedAt] = useState<number>(0);
   const [now, setNow] = useState(Date.now());
   const [showShare, setShowShare] = useState(false);
+  const [shareMode, setShareMode] = useState<"final" | "partial">("final");
   const [currentExIdx, setCurrentExIdx] = useState(0);
+  const GOLD = "#C9A84C";
 
   useEffect(() => {
     try {
@@ -235,6 +237,13 @@ export default function WorkoutMode({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restRunning]);
 
+  const skipRest = () => {
+    if (restRef.current) window.clearInterval(restRef.current);
+    setRestRunning(false);
+    setRestRemaining(0);
+    advanceSerieAuto();
+  };
+
   const handleFizASerie = () => {
     const nextIdx = currentDoneSets.length;
     if (nextIdx >= currentExSetsMax) {
@@ -326,7 +335,14 @@ export default function WorkoutMode({
     <div className="fixed inset-0 z-50 bg-background overflow-y-auto pb-32">
 
       {/* ── Header ── */}
-      <header className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-4 py-3 flex items-center gap-3">
+      <header className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-4 py-3 flex items-center gap-3 relative">
+        {/* Fio de progresso dourado — feedback contínuo sem precisar olhar pro anel */}
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-white/5">
+          <div
+            className="h-full"
+            style={{ width: `${progressPct}%`, background: GOLD, transition: "width 0.6s ease" }}
+          />
+        </div>
         <Button variant="ghost" size="icon" onClick={handleClose}>
           <X className="w-5 h-5" />
         </Button>
@@ -381,51 +397,108 @@ export default function WorkoutMode({
           </div>
         )}
 
-        {/* ── Timer hero ── */}
+        {/* ── Timer hero — anel de progresso circular fundindo tempo + progresso geral ── */}
         <div
-          className="rounded-2xl p-6 text-center"
+          className="rounded-2xl p-6 text-center relative overflow-hidden"
           style={{
             background: "linear-gradient(135deg, #1A1A1A, #0A0A0A)",
-            border: "1px solid rgba(255,255,255,0.08)",
+            border: `1px solid ${restRunning ? "rgba(201,168,76,0.35)" : "rgba(255,255,255,0.08)"}`,
+            transition: "border-color 0.4s ease",
           }}
         >
-          <p className="text-[10px] uppercase tracking-[0.18em] text-white/50 font-bold mb-2">
+          {/* Glow dourado sutil quando descansando — reforça identidade "elite" sem poluir */}
+          {restRunning && (
+            <div
+              className="absolute inset-0 pointer-events-none animate-pulse"
+              style={{ background: `radial-gradient(circle at 50% 30%, ${GOLD}14, transparent 70%)` }}
+            />
+          )}
+
+          <p className="text-[10px] uppercase tracking-[0.18em] text-white/50 font-bold mb-3 relative">
             {restRunning
               ? "descansando..."
               : todasFeitas
               ? "exercício completo!"
               : `série ${serieAtual} de ${currentExSetsMax}`}
           </p>
-          <p className="text-6xl font-black text-white tabular-nums leading-none my-3">
-            {fmtMMSS(restRemaining)}
-          </p>
-          <p className="text-sm text-white/60 mb-5 truncate px-4">{currentEx?.name ?? ""}</p>
-          <div className="flex items-center justify-center gap-2">
+
+          {/* Anel SVG: progresso geral do treino por fora, tempo de descanso no centro */}
+          <div className="relative mx-auto" style={{ width: 200, height: 200 }}>
+            <svg width="200" height="200" viewBox="0 0 200 200" className="-rotate-90">
+              {/* Trilho de fundo */}
+              <circle cx="100" cy="100" r="88" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="6" />
+              {/* Progresso geral do treino (dourado, fino, fixo) */}
+              <circle
+                cx="100" cy="100" r="88" fill="none"
+                stroke={GOLD} strokeWidth="3" strokeLinecap="round"
+                strokeDasharray={2 * Math.PI * 88}
+                strokeDashoffset={2 * Math.PI * 88 * (1 - progressPct / 100)}
+                style={{ transition: "stroke-dashoffset 0.6s ease" }}
+                opacity={0.55}
+              />
+              {/* Anel do descanso (vermelho, grosso, anima junto ao timer) */}
+              <circle
+                cx="100" cy="100" r="74" fill="none"
+                stroke="#CC0000" strokeWidth="8" strokeLinecap="round"
+                strokeDasharray={2 * Math.PI * 74}
+                strokeDashoffset={
+                  defaultRest > 0
+                    ? 2 * Math.PI * 74 * (1 - (defaultRest - restRemaining) / defaultRest)
+                    : 2 * Math.PI * 74
+                }
+                style={{ transition: "stroke-dashoffset 1s linear" }}
+                opacity={restRunning ? 1 : 0.25}
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <p className="text-5xl font-black text-white tabular-nums leading-none">
+                {fmtMMSS(restRemaining)}
+              </p>
+              <p className="text-[10px] text-white/40 font-bold mt-1">{progressPct}% do treino</p>
+            </div>
+          </div>
+
+          <p className="text-sm text-white/60 mb-5 mt-3 truncate px-4 relative">{currentEx?.name ?? ""}</p>
+
+          <div className="flex items-center justify-center gap-2 relative">
             {!restRunning ? (
-              <button
+              <motion.button
                 type="button"
                 disabled={todasFeitas}
                 onClick={handleFizASerie}
+                whileTap={{ scale: 0.94 }}
                 style={{ backgroundColor: todasFeitas ? "#374151" : "#CC0000" }}
                 className="flex items-center gap-2 px-6 py-2.5 rounded-full text-white font-bold text-sm disabled:opacity-50"
               >
                 <Check className="w-4 h-4" />
                 {todasFeitas ? "Séries concluídas" : "Fiz a série → descansar"}
-              </button>
+              </motion.button>
             ) : (
-              <button
-                type="button"
-                onClick={() => setRestRunning(false)}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-full text-white font-bold text-sm"
-                style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
-              >
-                <Pause className="w-4 h-4" /> Pausar
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setRestRunning(false)}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-full text-white font-bold text-sm"
+                  style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
+                >
+                  <Pause className="w-4 h-4" /> Pausar
+                </button>
+                {/* Pular descanso — sem fricção para quem já se sente pronto */}
+                <motion.button
+                  type="button"
+                  onClick={skipRest}
+                  whileTap={{ scale: 0.94 }}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm"
+                  style={{ backgroundColor: `${GOLD}22`, color: GOLD, border: `1px solid ${GOLD}55` }}
+                >
+                  <SkipForward className="w-4 h-4" /> Pular
+                </motion.button>
+              </>
             )}
             <button
               type="button"
               onClick={() => { setRestRunning(false); setRestRemaining(defaultRest); }}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm"
+              className="flex items-center gap-2 px-3 py-2.5 rounded-full text-sm"
               style={{ border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)" }}
             >
               <RotateCcw className="w-4 h-4" />
@@ -456,11 +529,13 @@ export default function WorkoutMode({
                 const done      = currentDoneSets.includes(i);
                 const isCurrent = !done && i === currentDoneSets.length;
                 return (
-                  <button
+                  <motion.button
                     key={i}
                     type="button"
                     onClick={() => toggleSetManual(i)}
                     title="Toque para corrigir"
+                    animate={done ? { scale: [1, 1.25, 1] } : { scale: 1 }}
+                    transition={{ duration: 0.35, ease: "easeOut" }}
                     style={
                       done
                         ? { background: "#22c55e", borderColor: "#22c55e", color: "#fff" }
@@ -468,12 +543,12 @@ export default function WorkoutMode({
                         ? { background: "rgba(204,0,0,0.15)", borderColor: "#CC0000", color: "#CC0000" }
                         : { background: "transparent", borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.35)" }
                     }
-                    className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-all ${
+                    className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm border-2 ${
                       isCurrent ? "animate-pulse" : ""
                     }`}
                   >
                     {done ? <Check className="w-4 h-4" /> : i + 1}
-                  </button>
+                  </motion.button>
                 );
               })}
             </div>
@@ -602,49 +677,45 @@ export default function WorkoutMode({
                     </span>
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toast.info("🚀 Em breve! Os GIFs dos movimentos estão chegando.");
-                  }}
-                  className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 shrink-0"
-                >
-                  <ImageIcon className="w-3.5 h-3.5" /> GIF
-                </button>
               </div>
             );
           })}
         </div>
 
-        {/* ── Progresso ── */}
-        <div className="bg-card border border-border rounded-xl p-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold flex items-center gap-1.5">
-              <Flame className="w-3.5 h-3.5 text-primary" /> Progresso
-            </p>
-            <p className="text-sm font-black text-primary">{progressPct}%</p>
-          </div>
-          <Progress value={progressPct} className="h-2" />
-          <p className="text-[11px] text-muted-foreground">
-            {doneSets}/{totalSets} séries · {completedExCnt}/{exercises.length} exercícios
+        {/* ── Resumo rápido (o anel acima já mostra o %) ── */}
+        <div className="bg-card border border-border rounded-xl p-3 flex items-center justify-between">
+          <p className="text-xs font-semibold flex items-center gap-1.5">
+            <Flame className="w-3.5 h-3.5 text-primary" /> {doneSets}/{totalSets} séries · {completedExCnt}/{exercises.length} exercícios
           </p>
+          <p className="text-sm font-black" style={{ color: GOLD }}>{progressPct}%</p>
         </div>
       </main>
 
-      {/* ── Botão concluir ── */}
+      {/* ── Botão concluir + compartilhamento parcial opcional ── */}
       {hasAnyDone && (
         <div className="fixed bottom-0 left-0 right-0 z-20 p-4 bg-gradient-to-t from-background via-background/95 to-transparent">
-          <div className="max-w-2xl mx-auto">
+          <div className="max-w-2xl mx-auto flex items-center gap-2">
             <Button
               type="button"
-              onClick={() => setShowShare(true)}
-              className="w-full h-12 text-base font-bold rounded-2xl"
+              onClick={() => { setShareMode("final"); setShowShare(true); }}
+              className="flex-1 h-12 text-base font-bold rounded-2xl"
               style={{ background: "linear-gradient(135deg, #CC0000, #8B0000)", color: "#fff" }}
             >
               🏆 Concluir treino
             </Button>
+            {/* Discreto — não pressiona, só some quem quer postar o progresso parcial */}
+            {completedExCnt >= 1 && !todasFeitas && (
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.9 }}
+                onClick={() => { setShareMode("partial"); setShowShare(true); }}
+                title="Compartilhar progresso parcial"
+                className="h-12 w-12 shrink-0 rounded-2xl flex items-center justify-center"
+                style={{ background: `${GOLD}1A`, border: `1px solid ${GOLD}55`, color: GOLD }}
+              >
+                <Share2 className="w-5 h-5" />
+              </motion.button>
+            )}
           </div>
         </div>
       )}
@@ -659,7 +730,8 @@ export default function WorkoutMode({
           coachName={coachName}
           teamName={teamName}
           weekLabel={weekLabel}
-          onClose={handleSharedDone}
+          isPartial={shareMode === "partial"}
+          onClose={shareMode === "final" ? handleSharedDone : () => setShowShare(false)}
         />
       )}
     </div>
