@@ -188,23 +188,25 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
     setSetupOpen(false);
   }
 
-  async function save() {
+  async function save(opts: { asDraft?: boolean } = {}) {
     if (!payload) return;
     if (!name.trim()) { toast.error("Dê um nome ao protocolo"); return; }
+    const publishActive = opts.asDraft ? false : active;
     setSaving(true);
     try {
       const parsed = ProtocolPayloadSchema.parse(payload);
       if (isEditMode && protocolId) {
-        const { error } = await sb.from("protocols").update({ name, payload: parsed, active, updated_at: new Date().toISOString() }).eq("id", protocolId);
+        const { error } = await sb.from("protocols").update({ name, payload: parsed, active: publishActive, updated_at: new Date().toISOString() }).eq("id", protocolId);
         if (error) throw error;
-        toast.success("Protocolo atualizado");
+        toast.success(opts.asDraft ? "Rascunho salvo — aluno ainda não vê esta versão" : "Protocolo atualizado");
       } else {
-        const { data, error } = await sb.from("protocols").insert({ student_id: studentId, coach_id: coachId, name, is_template: false, payload: parsed, active }).select().single();
+        const { data, error } = await sb.from("protocols").insert({ student_id: studentId, coach_id: coachId, name, is_template: false, payload: parsed, active: publishActive }).select().single();
         if (error) throw error;
         setProtocolId(data.id);
-        toast.success("Protocolo criado");
+        toast.success(opts.asDraft ? "Rascunho criado — aluno ainda não vê esta versão" : "Protocolo criado");
       }
-      if (coachId) {
+      if (!opts.asDraft) setActive(publishActive);
+      if (coachId && !opts.asDraft) {
         try {
           const goalMap: Record<string, string> = { hipertrofia: "hipertrofia", emagrecimento: "emagrecer", emagrecer: "emagrecer", recomposicao: "recomposicao", performance: "manter", manter: "manter" };
           const safeGoal = goalMap[(parsed.macros?.goal ?? "manter").toLowerCase()] ?? "manter";
@@ -276,6 +278,9 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
               <div className="flex items-center gap-2 pb-1">
                 <Switch checked={active} onCheckedChange={setActive} id="active" />
                 <Label htmlFor="active" className="text-xs cursor-pointer">Ativo</Label>
+                <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${active ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"}`}>
+                  {active ? "Publicado p/ aluno" : "Rascunho (oculto)"}
+                </span>
               </div>
             </div>
           </Card>
@@ -315,8 +320,12 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             <TabsContent value="cycle" className="mt-4"><WeekCycleTab payload={payload} setPayload={updatePayload} /></TabsContent>
           </Tabs>
 
-          <div className="flex justify-end sticky bottom-4 z-40">
-            <Button onClick={save} disabled={saving} size="lg" className="shadow-lg">
+          <div className="flex justify-end gap-2 sticky bottom-4 z-40">
+            <Button onClick={() => save({ asDraft: true })} disabled={saving} size="lg" variant="outline" className="shadow-lg bg-background">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
+              Salvar Rascunho
+            </Button>
+            <Button onClick={() => save()} disabled={saving} size="lg" className="shadow-lg">
               {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
               {isEditMode ? "Atualizar Protocolo" : "Criar Protocolo"}
             </Button>
@@ -578,6 +587,14 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
     n[di] = { ...n[di], exercises: exs };
     setPayload({ ...payload, workouts: n });
   };
+  // Reordena o CARD do dia inteiro (ex: mover "Perna" para cima de "Peito")
+  const moveDay = (di: number, direction: "up" | "down") => {
+    const n = [...payload.workouts];
+    const targetIdx = direction === "up" ? di - 1 : di + 1;
+    if (targetIdx < 0 || targetIdx >= n.length) return;
+    [n[di], n[targetIdx]] = [n[targetIdx], n[di]];
+    setPayload({ ...payload, workouts: n });
+  };
   const periodOn = !!payload.periodization?.enabled;
   const [overrideOpen, setOverrideOpen] = useState<Record<number, boolean>>({});
   return (
@@ -586,6 +603,26 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
       {payload.workouts.map((day, di) => (
         <Card key={day.key} className="bg-card/60 border-border p-4">
           <div className="flex items-center gap-3 mb-3">
+            <div className="flex flex-col -my-1">
+              <button
+                type="button"
+                onClick={() => moveDay(di, "up")}
+                disabled={di === 0}
+                className="text-muted-foreground hover:text-primary p-0.5 disabled:opacity-20"
+                title="Mover treino para cima"
+              >
+                <ArrowUp className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => moveDay(di, "down")}
+                disabled={di === payload.workouts.length - 1}
+                className="text-muted-foreground hover:text-primary p-0.5 disabled:opacity-20"
+                title="Mover treino para baixo"
+              >
+                <ArrowDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
             <div className="w-9 h-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold">{day.key}</div>
             <Input value={day.focus} onChange={(e) => updDay(di, { focus: e.target.value })} placeholder="Foco do treino" className="h-9 text-sm flex-1" />
           </div>
