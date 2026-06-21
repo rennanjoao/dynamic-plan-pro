@@ -369,7 +369,7 @@ export default function WorkoutMode({
               Semana atual
             </p>
             <div className="grid grid-cols-4 gap-1.5">
-              {weeks.map((w, i) => (
+              {weeks.map((_w, i) => (
                 <button
                   key={i}
                   type="button"
