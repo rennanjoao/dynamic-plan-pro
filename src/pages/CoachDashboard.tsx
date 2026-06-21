@@ -51,6 +51,7 @@ import { exportCheckinPDF } from "@/lib/coachPdfExport";
 const ProtocolBuilder = lazy(() => import("@/components/coach/ProtocolBuilder"));
 const EvolutionComparisonLazy = lazy(() => import("@/components/coach/EvolutionComparison"));
 const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
+const CheckinFeedbackPanel = lazy(() => import("@/components/coach/CheckinFeedbackPanel"));
 
 // ─── Renderiza respostas do payload do check-in (humor, dieta, treino, sono, etc) ──
 // [FIX 0.1] Sem isto, "Ver feedback completo" só mostrava fotos e medidas.
