@@ -1371,18 +1371,8 @@ function WeekCycleTab({ payload, setPayload }: { payload: ProtocolPayload; setPa
   );
 }
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <Label className="text-xs font-semibold">{label}</Label>
-      {hint && <p className="text-[10px] text-muted-foreground mb-1">{hint}</p>}
-      <div className="mt-1">{children}</div>
-    </div>
-  );
-}
-
 function FoodRow({
-  it, kind, onPickTaco, onChangeName, onChangeWeight, onRemove,
+  it, onPickTaco, onChangeName, onChangeWeight, onRemove,
 }: {
   it: any;
   kind: "carb" | "protein" | "fat";
