@@ -109,10 +109,16 @@ export function useCoachStudentsLite(coachId: string | null) {
 }
 
 // ─── Paginated variant ───────────────────────────────────────────────────────
-// [FIX] Fase A agora usa .range() no banco (paginação real) em vez de trazer
-// TODOS os alunos ativos do coach e paginar em memória. Em conjunto com o
-// teto projetado de ~50 alunos/coach, pageSize=60 cobre o roster inteiro de
-// um coach numa única página — sem N+1 e sem paginação artificial.
+// [FIX] Fase A usa .range() no banco (paginação real). pageSize=60 cobre o
+// teto projetado de ~50 alunos/coach numa única página — sem N+1.
+//
+// [FIX 2] Busca (search) e filtro de status (filter) agora são aplicados
+// ANTES da paginação, sobre o conjunto completo de alunos ativos do coach —
+// não apenas sobre os 60 já trazidos da página atual. Antes, search/filter
+// filtravam em memória os resultados de uma página já fatiada pelo banco,
+// o que podia mostrar lista vazia mesmo havendo alunos correspondentes
+// fora dessa fatia. Como o teto é ~50-60 alunos/coach, isso não é um
+// problema de performance — é só ordem de operações.
 export function useCoachStudentsPaged(
   coachId: string | null,
   feedbackIntervalDays: number,
@@ -125,22 +131,23 @@ export function useCoachStudentsPaged(
 ) {
   const { page, pageSize, search = "", filter = "all" } = opts;
 
-  // PHASE A — resumo leve, agora paginado de verdade no banco via .range().
+  // PHASE A — traz TODOS os alunos ativos do coach (teto ~50-60, então é
+  // barato), calcula alertLevel para cada um, aplica search + filter sobre
+  // o conjunto completo, e só então pagina o resultado já filtrado.
   const summaryQuery = useQuery({
-    queryKey: ["coach-students-summary", coachId, feedbackIntervalDays, page, pageSize],
+    queryKey: ["coach-students-summary", coachId, feedbackIntervalDays],
     enabled: !!coachId,
     queryFn: async () => {
-      if (!coachId) return { rows: [] as StudentStatus[], total: 0 };
+      if (!coachId) return { rows: [] as StudentStatus[] };
 
-      const { data: links, count, error: linksErr } = await supabase
+      const { data: links, error: linksErr } = await supabase
         .from("coach_students")
-        .select("student_id, feedback_interval_days, warning_days, critical_days", { count: "exact" })
+        .select("student_id, feedback_interval_days, warning_days, critical_days")
         .eq("coach_id", coachId)
-        .eq("status", "active")
-        .range(page * pageSize, page * pageSize + pageSize - 1);
+        .eq("status", "active");
 
       if (linksErr) throw linksErr;
-      if (!links || links.length === 0) return { rows: [] as StudentStatus[], total: count ?? 0 };
+      if (!links || links.length === 0) return { rows: [] as StudentStatus[] };
       const ids = links.map((l) => l.student_id);
 
       const [{ data: sProfiles }, { data: profiles }, { data: lastCi }] = await Promise.all([
@@ -197,29 +204,40 @@ export function useCoachStudentsPaged(
         return order[a.alertLevel] - order[b.alertLevel];
       });
 
-      return { rows, total: count ?? rows.length };
+      return { rows };
     },
   });
 
-  const pageRows = summaryQuery.data?.rows ?? [];
-  const totalCount = summaryQuery.data?.total ?? 0;
+  const allRows = summaryQuery.data?.rows ?? [];
 
-  // Stats globais: nesse volume (≤60 alunos cabendo numa página), bastam
-  // os dados já carregados — sem necessidade de count agregado à parte.
+  // Stats globais: sempre sobre o conjunto completo de alunos ativos do
+  // coach, não sobre a página filtrada — o card de resumo (críticos/
+  // atenção/ok) deve refletir o roster inteiro, independente do que o
+  // coach está buscando/filtrando no momento.
   const stats = {
-    total: totalCount,
-    critical: pageRows.filter((s) => s.alertLevel === "critical").length,
-    warning: pageRows.filter((s) => s.alertLevel === "warning").length,
-    ok: pageRows.filter((s) => s.alertLevel === "ok").length,
+    total: allRows.length,
+    critical: allRows.filter((s) => s.alertLevel === "critical").length,
+    warning: allRows.filter((s) => s.alertLevel === "warning").length,
+    ok: allRows.filter((s) => s.alertLevel === "ok").length,
   };
 
-  const filtered = pageRows.filter((s) => {
+  // [FIX] search + filter aplicados sobre o conjunto completo, ANTES da
+  // paginação — corrige o bug de lista vazia ao buscar/filtrar.
+  const filtered = allRows.filter((s) => {
     const matchSearch = (s.name || "").toLowerCase().includes(search.toLowerCase());
     const matchFilter = filter === "all" || s.alertLevel === filter;
     return matchSearch && matchFilter;
   });
 
-  const pageIds = filtered.map((s) => s.id);
+  const filteredCount = filtered.length;
+  const totalCount = allRows.length;
+
+  // Paginação em memória sobre o resultado já filtrado. Com o teto de
+  // ~50-60 alunos/coach isso é trivial; se o teto crescer muito no futuro,
+  // mover search/filter para .ilike()/.in() no Supabase antes do .range().
+  const pageStart = page * pageSize;
+  const pageRows = filtered.slice(pageStart, pageStart + pageSize);
+  const pageIds = pageRows.map((s) => s.id);
 
   // PHASE B — enriquecimento pesado, só dos alunos filtrados na página atual.
   const detailQuery = useQuery({
@@ -273,7 +291,7 @@ export function useCoachStudentsPaged(
     },
   });
 
-  const enrichedPage: StudentStatus[] = filtered.map((s) => {
+  const enrichedPage: StudentStatus[] = pageRows.map((s) => {
     const d = detailQuery.data;
     if (!d) return s;
     const a = d.anaBy.get(s.id);
@@ -299,7 +317,7 @@ export function useCoachStudentsPaged(
   return {
     students: enrichedPage,
     totalCount,
-    filteredCount: filtered.length,
+    filteredCount,
     stats,
     isLoading: summaryQuery.isLoading,
     isFetchingDetail: detailQuery.isFetching,
