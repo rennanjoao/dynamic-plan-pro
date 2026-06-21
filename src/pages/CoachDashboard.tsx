@@ -11,7 +11,7 @@
  * [REFACTOR] Botão de Anamnese agora abre o EvolutionDialog diretamente.
  */
 
-import { useState, useMemo, lazy, Suspense, useEffect } from "react";
+import { useState, lazy, Suspense, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoachStudentsPaged, useCoachStudentsLite, type StudentStatus, type AlertLevel, type StudentLite } from "@/hooks/useCoachStudents";
@@ -525,7 +525,7 @@ function CheckinHistoryDialog({
     return Object.values(fotos).some((v) => typeof v === "string" && v.length > 0);
   };
 
-  const renderCheckinHTML = (c: CheckinRow, studentName: string) => {
+  const renderCheckinHTML = (c: CheckinRow) => {
     const metrics = c.current_metrics || {};
     const rows = Object.entries(metrics)
       .map(([k, v]) => `<div class="row"><span class="lbl">${k}</span><span class="val">${typeof v === "object" ? JSON.stringify(v) : String(v ?? "—")}</span></div>`)
@@ -551,7 +551,7 @@ function CheckinHistoryDialog({
       .lbl{color:#555;font-weight:600;text-transform:capitalize}.val{max-width:55%;text-align:right}
       @media print{body{padding:0}}</style></head><body>
       <h1>Check-in — ${student.name}</h1>
-      ${renderCheckinHTML(c, student.name)}
+      ${renderCheckinHTML(c)}
       <script>window.onload=()=>setTimeout(()=>window.print(),300);</script>
       </body></html>`);
     w.document.close();
@@ -572,7 +572,7 @@ function CheckinHistoryDialog({
       .checkin{page-break-after:always;margin-bottom:30px}
       @media print{body{padding:0}}</style></head><body>
       <h1>Histórico de Check-ins — ${student.name}</h1>
-      ${items.map((c) => `<div class="checkin">${renderCheckinHTML(c, student.name)}</div>`).join("")}
+      ${items.map((c) => `<div class="checkin">${renderCheckinHTML(c)}</div>`).join("")}
       <script>window.onload=()=>setTimeout(()=>window.print(),300);</script>
       </body></html>`);
     w.document.close();
