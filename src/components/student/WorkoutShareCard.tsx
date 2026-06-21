@@ -13,6 +13,7 @@ interface Props {
   coachName?: string;
   teamName?: string;
   weekLabel?: string;
+  isPartial?: boolean;
   onClose: () => void;
 }
 
@@ -74,6 +75,7 @@ export default function WorkoutShareCard({
   coachName,
   teamName,
   weekLabel,
+  isPartial = false,
   onClose,
 }: Props) {
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -160,7 +162,7 @@ export default function WorkoutShareCard({
     <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
       <div className="w-full max-w-md space-y-4 my-auto">
         <div className="flex items-center justify-between">
-          <h3 className="text-white font-bold text-lg">Treino concluído</h3>
+          <h3 className="text-white font-bold text-lg">{isPartial ? "Compartilhar progresso" : "Treino concluído"}</h3>
           <button
             type="button"
             onClick={onClose}
@@ -227,12 +229,22 @@ export default function WorkoutShareCard({
           >
             <TrophyRing />
             <p style={{ color: "#fff", fontSize: "22px", fontWeight: 900, lineHeight: 1.1 }}>
-              Treino {workoutName.split("·")[0]?.trim() ?? ""}
-              <br />
-              <span style={{ color: "#fff" }}>concluído.</span>
+              {isPartial ? (
+                <>
+                  Treino {workoutName.split("·")[0]?.trim() ?? ""}
+                  <br />
+                  <span style={{ color: "#fff" }}>em progresso.</span>
+                </>
+              ) : (
+                <>
+                  Treino {workoutName.split("·")[0]?.trim() ?? ""}
+                  <br />
+                  <span style={{ color: "#fff" }}>concluído.</span>
+                </>
+              )}
             </p>
             <p style={{ color: gold, fontSize: "13px", fontStyle: "italic", fontWeight: 600 }}>
-              Consistência é o único atalho.
+              {isPartial ? "Cada série conta." : "Consistência é o único atalho."}
             </p>
             {weekLabel && (
               <div
