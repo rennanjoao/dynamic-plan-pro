@@ -496,11 +496,16 @@ function CheckinHistoryDialog({
     if (!open || !student) return;
     (async () => {
       setLoading(true);
-      const { data } = await sb
+      const { data, error } = await sb
         .from("check_ins")
         .select("id, submitted_at, current_metrics, payload, coach_feedback, photo_url, feedback_read_at")
         .eq("student_id", student.id)
-        .order("submitted_at", { ascending: false });
+        .order("submitted_at", { ascending: false })
+        .limit(50); // teto de segurança — histórico ilimitado travava a UI
+      if (error) {
+        console.error("[CheckinHistoryDialog]", error.message);
+        toast.error("Erro ao carregar histórico de check-ins");
+      }
       setItems((data || []) as CheckinRow[]);
       setLoading(false);
       setExpanded({});
