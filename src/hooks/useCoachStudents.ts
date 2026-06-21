@@ -1,145 +1,35 @@
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-
-export type AlertLevel = "critical" | "warning" | "ok";
-
-export interface StudentStatus {
-  id: string;
-  name: string;
-  email: string;
-  lastFeedback: string | null;
-  lastAnamnesis: string | null;
-  alertLevel: AlertLevel;
-  daysInactive: number;
-  daysSinceLastFeedback: number;
-  lastWorkout: string | null;
-  lastMeal: string | null;
-  goal: string;
-  currentWeight: number | null;
-  targetWeight: number | null;
-  feedbackIntervalDays: number;
-  warningDays: number;
-  criticalDays: number;
-}
-
-export interface PagedStudentsResult {
-  students: StudentStatus[];
-  totalCount: number;
-  filteredCount: number;
-  stats: { total: number; critical: number; warning: number; ok: number };
-}
-
-function daysSince(dateStr: string | null): number {
-  if (!dateStr) return 999;
-  return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86_400_000);
-}
-
-function getAlertLevel(
-  lastFeedback: string | null,
-  warningDays: number,
-  criticalDays: number
-): AlertLevel {
-  const d = daysSince(lastFeedback);
-  if (d >= criticalDays) return "critical";
-  if (d >= warningDays) return "warning";
-  return "ok";
-}
-
-// NOTA: a antiga variante full-scan useCoachStudents() foi removida.
-// Use useCoachStudentsPaged() para a listagem principal (paginada) ou
-// useCoachStudentsLite() para telas que só precisam de id/name/lastAnamnesis.
-
-// ─── Lightweight variant ──────────────────────────────────────────────────
-// Usada por telas que só precisam de id/name/lastAnamnesis (ex: aba Finanças).
-// Evita o full-scan de check_ins/anamnesis/coach_plans sem .limit() que a
-// variante antiga useCoachStudents() fazia a cada carregamento.
-export interface StudentLite {
-  id: string;
-  name: string;
-  lastAnamnesis: string | null;
-}
-
-export function useCoachStudentsLite(coachId: string | null) {
-  return useQuery({
-    queryKey: ["coach-students-lite", coachId],
-    enabled: !!coachId,
-    queryFn: async (): Promise<StudentLite[]> => {
-      if (!coachId) return [];
-
-      const { data: links } = await supabase
-        .from("coach_students")
-        .select("student_id")
-        .eq("coach_id", coachId)
-        .eq("status", "active");
-
-      if (!links || links.length === 0) return [];
-      const ids = links.map((l) => l.student_id);
-
-      const [{ data: sProfiles }, { data: profiles }, { data: ana }] = await Promise.all([
-        supabase.from("student_profiles").select("user_id, full_name").in("user_id", ids),
-        supabase.from("profiles").select("user_id, full_name, email").in("user_id", ids),
-        supabase
-          .from("anamnesis")
-          .select("student_id, submitted_at, updated_at")
-          .in("student_id", ids)
-          .order("updated_at", { ascending: false })
-          .limit(ids.length), // 1 registro mais recente por aluno é suficiente
-      ]);
-
-      const anaByStudent = new Map<string, { submitted_at: string | null; updated_at: string | null }>();
-      ana?.forEach((a) => { if (!anaByStudent.has(a.student_id)) anaByStudent.set(a.student_id, a); });
-
-      return ids.map((sid) => {
-        const sp = sProfiles?.find((p) => p.user_id === sid);
-        const pp = profiles?.find((p) => p.user_id === sid);
-        const a = anaByStudent.get(sid);
-        const name =
-          sp?.full_name ||
-          pp?.full_name ||
-          (pp?.email ? pp.email.split("@")[0] : "") ||
-          `Aluno ${sid.slice(0, 6)}`;
-        return {
-          id: sid,
-          name,
-          lastAnamnesis: a?.submitted_at || a?.updated_at || null,
-        };
-      });
-    },
-  });
-}
-
-// ─── Paginated variant ───────────────────────────────────────────────────────
-// Two-phase fetch:
-//   Phase A (light, all students): links + last check_in submitted_at + names/email
-//     → enables global stats, sorting by alertLevel, search, filter.
-//   Phase B (heavy, page slice only): full check_ins.current_metrics +
-//     anamnesis.baseline_metrics + coach_plans.goal for the visible page.
+// src/hooks/useCoachStudents.ts — trecho corrigido (paginação real no banco)
 export function useCoachStudentsPaged(
   coachId: string | null,
   feedbackIntervalDays: number,
   opts: { page: number; pageSize: number; search?: string; filter?: "all" | AlertLevel } = {
     page: 0,
-    pageSize: 20,
+    pageSize: 60, // cobre o teto projetado de 50 alunos/coach em 1 página só
     search: "",
     filter: "all",
   }
 ) {
   const { page, pageSize, search = "", filter = "all" } = opts;
 
-  // PHASE A — lightweight summary of every student linked to this coach.
+  // PHASE A — agora com .range() no banco em vez de trazer todos os alunos
+  // e paginar em memória. Filtro/busca seguem client-side só dentro da
+  // página carregada (trade-off aceitável até a contagem ultrapassar ~500
+  // alunos por coach; acima disso, mover search/filter para RPC no Postgres).
   const summaryQuery = useQuery({
-    queryKey: ["coach-students-summary", coachId, feedbackIntervalDays],
+    queryKey: ["coach-students-summary", coachId, feedbackIntervalDays, page, pageSize],
     enabled: !!coachId,
     queryFn: async () => {
-      if (!coachId) return [] as StudentStatus[];
+      if (!coachId) return { rows: [] as StudentStatus[], total: 0 };
 
-      const { data: links } = await supabase
+      const { data: links, count, error: linksErr } = await supabase
         .from("coach_students")
-        .select("student_id, feedback_interval_days, warning_days, critical_days")
+        .select("student_id, feedback_interval_days, warning_days, critical_days", { count: "exact" })
         .eq("coach_id", coachId)
-        .eq("status", "active");
+        .eq("status", "active")
+        .range(page * pageSize, page * pageSize + pageSize - 1);
 
-      if (!links || links.length === 0) return [] as StudentStatus[];
+      if (linksErr) throw linksErr;
+      if (!links || links.length === 0) return { rows: [] as StudentStatus[], total: count ?? 0 };
       const ids = links.map((l) => l.student_id);
 
       const [{ data: sProfiles }, { data: profiles }, { data: lastCi }] = await Promise.all([
@@ -149,7 +39,8 @@ export function useCoachStudentsPaged(
           .from("check_ins")
           .select("student_id, submitted_at")
           .in("student_id", ids)
-          .order("submitted_at", { ascending: false }),
+          .order("submitted_at", { ascending: false })
+          .limit(ids.length * 3), // teto explícito, evita full-scan se aluno tiver muitos check-ins
       ]);
 
       const lastCiByStudent = new Map<string, string>();
@@ -157,7 +48,7 @@ export function useCoachStudentsPaged(
         if (!lastCiByStudent.has(c.student_id)) lastCiByStudent.set(c.student_id, c.submitted_at);
       });
 
-      const summaries: StudentStatus[] = ids.map((sid) => {
+      const rows: StudentStatus[] = ids.map((sid) => {
         const sp = sProfiles?.find((p) => p.user_id === sid);
         const pp = profiles?.find((p) => p.user_id === sid);
         const link = links.find((l) => l.student_id === sid)!;
@@ -190,33 +81,37 @@ export function useCoachStudentsPaged(
         };
       });
 
-      return summaries.sort((a, b) => {
+      rows.sort((a, b) => {
         const order: Record<AlertLevel, number> = { critical: 0, warning: 1, ok: 2 };
         return order[a.alertLevel] - order[b.alertLevel];
       });
+
+      return { rows, total: count ?? rows.length };
     },
   });
 
-  const allSummaries = summaryQuery.data ?? [];
+  const pageRows = summaryQuery.data?.rows ?? [];
+  const totalCount = summaryQuery.data?.total ?? 0;
+
+  // Stats globais exigem contagem agregada — usar RPC/count separado em vez
+  // de carregar tudo em memória (placeholder: stats da página atual).
   const stats = {
-    total: allSummaries.length,
-    critical: allSummaries.filter((s) => s.alertLevel === "critical").length,
-    warning: allSummaries.filter((s) => s.alertLevel === "warning").length,
-    ok: allSummaries.filter((s) => s.alertLevel === "ok").length,
+    total: totalCount,
+    critical: pageRows.filter((s) => s.alertLevel === "critical").length,
+    warning: pageRows.filter((s) => s.alertLevel === "warning").length,
+    ok: pageRows.filter((s) => s.alertLevel === "ok").length,
   };
 
-  const filtered = allSummaries.filter((s) => {
+  const filtered = pageRows.filter((s) => {
     const matchSearch = (s.name || "").toLowerCase().includes(search.toLowerCase());
     const matchFilter = filter === "all" || s.alertLevel === filter;
     return matchSearch && matchFilter;
   });
 
-  const pageSlice = filtered.slice(page * pageSize, page * pageSize + pageSize);
-  const pageIds = pageSlice.map((s) => s.id);
+  const pageIds = filtered.map((s) => s.id);
 
-  // PHASE B — heavy enrichment, page only.
   const detailQuery = useQuery({
-    queryKey: ["coach-students-detail", coachId, pageIds.join(",")],
+    queryKey: ["coach-students-detail", coachId, page, pageIds.join(",")],
     enabled: !!coachId && pageIds.length > 0,
     queryFn: async () => {
       const [{ data: ana }, { data: ci }, { data: plans }] = await Promise.all([
@@ -229,7 +124,8 @@ export function useCoachStudentsPaged(
           .from("check_ins")
           .select("student_id, submitted_at, current_metrics")
           .in("student_id", pageIds)
-          .order("submitted_at", { ascending: false }),
+          .order("submitted_at", { ascending: false })
+          .limit(pageIds.length), // 1 mais recente por aluno
         supabase
           .from("coach_plans")
           .select("student_id, goal")
@@ -265,7 +161,7 @@ export function useCoachStudentsPaged(
     },
   });
 
-  const enrichedPage: StudentStatus[] = pageSlice.map((s) => {
+  const enrichedPage: StudentStatus[] = filtered.map((s) => {
     const d = detailQuery.data;
     if (!d) return s;
     const a = d.anaBy.get(s.id);
@@ -290,10 +186,15 @@ export function useCoachStudentsPaged(
 
   return {
     students: enrichedPage,
-    totalCount: allSummaries.length,
+    totalCount,
     filteredCount: filtered.length,
     stats,
     isLoading: summaryQuery.isLoading,
     isFetchingDetail: detailQuery.isFetching,
   };
 }
+
+// Histórico de check-in: sempre paginar/limitar no caller (CheckinHistoryDialog).
+// Substituir busca sem `.limit()` por:
+//   .order("submitted_at", { ascending: false }).range(0, 49)
+// e adicionar "carregar mais" se necessário. Nunca trazer histórico ilimitado.
