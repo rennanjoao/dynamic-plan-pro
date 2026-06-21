@@ -19,7 +19,9 @@ export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
   
   // Parâmetros estáticos da Anamnese para cálculo de composição
   const altura = Number(baseline.altura || 0);
-  const genero = payloadAna.genero || "M";
+  // O campo salvo na anamnese é "gender" (en-US: "F"/"M"). Mantemos os
+  // fallbacks "genero"/"sexo" apenas por compatibilidade com payloads antigos.
+  const genero = payloadAna.gender || payloadAna.genero || payloadAna.sexo || "M";
 
   const rawData: Array<{ date: string; peso: number; gordura: number | null; timestamp: number }> = [];
 
