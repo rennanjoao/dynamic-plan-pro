@@ -57,11 +57,19 @@ export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
           genero,
         }).value;
 
+        // Usa o timestamp mais recente entre submitted_at e updated_at: um
+        // check-in editado deve aparecer na linha do tempo na data da edição,
+        // não na data de criação original do registro.
+        const updatedAt = (chk as unknown as { updated_at?: string }).updated_at;
+        const effectiveDate = updatedAt && new Date(updatedAt) > new Date(chk.submitted_at)
+          ? updatedAt
+          : chk.submitted_at;
+
         rawData.push({
-          date: new Date(chk.submitted_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+          date: new Date(effectiveDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
           peso: pesoAtual,
           gordura: bfAtual,
-          timestamp: new Date(chk.submitted_at).getTime(),
+          timestamp: new Date(effectiveDate).getTime(),
         });
       }
     });
