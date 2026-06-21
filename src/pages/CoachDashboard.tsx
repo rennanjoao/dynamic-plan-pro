@@ -1187,11 +1187,14 @@ export default function CoachDashboard() {
           onClose={() => setEvoStudent(null)}
         />
 
-        <LatestFeedbackDialog
-          student={latestFbStudent}
-          open={!!latestFbStudent}
-          onClose={() => setLatestFbStudent(null)}
-        />
+        <Suspense fallback={null}>
+          <CheckinFeedbackPanel
+            studentId={latestFbStudent?.id ?? null}
+            studentName={latestFbStudent?.name ?? "Aluno"}
+            open={!!latestFbStudent}
+            onClose={() => setLatestFbStudent(null)}
+          />
+        </Suspense>
 
         <StudentFeedbackConfigDialog
           student={settingsStudent}
