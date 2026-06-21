@@ -24,6 +24,7 @@ interface AthleteContext {
 
 interface FitnessChatBotProps {
   athleteContext?: AthleteContext;
+  onOpen?: () => void;
 }
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fitness-chat`;
@@ -49,7 +50,7 @@ const INITIAL_MESSAGE: Message = {
   content: DEFAULT_WELCOME,
 };
 
-export const FitnessChatBot = ({ athleteContext }: FitnessChatBotProps) => {
+export const FitnessChatBot = ({ athleteContext, onOpen }: FitnessChatBotProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
   const [input, setInput] = useState("");
@@ -166,6 +167,7 @@ export const FitnessChatBot = ({ athleteContext }: FitnessChatBotProps) => {
   const handleOpen = () => {
     setShowBubble(false);
     setIsOpen(true);
+    onOpen?.(); // dispara o fetch do contexto (perfil/alunos/check-ins) só agora
   };
 
   return (
