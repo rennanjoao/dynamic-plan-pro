@@ -39,7 +39,6 @@ const PERIODS = [
 
 export default function ShoppingList() {
   const navigate = useNavigate();
-  const [userId, setUserId] = useState<string | null>(null);
   const [protocol, setProtocol] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(7);
@@ -49,7 +48,6 @@ export default function ShoppingList() {
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session?.user) { navigate("/auth"); return; }
-      setUserId(data.session.user.id);
       const { data: p } = await supabase
         .from("protocols")
         .select("payload, name")
