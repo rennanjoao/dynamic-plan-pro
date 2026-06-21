@@ -40,9 +40,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
-} from "@/components/ui/sheet";
 import { lazy, Suspense } from "react";
 import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
@@ -76,7 +73,7 @@ interface Props {
   studentName: string;
 }
 
-const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
+const CheckinFeedbackPanel = lazy(() => import("./CheckinFeedbackPanel"));
 
 interface ProtocolRow {
   id: string;
