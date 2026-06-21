@@ -72,7 +72,9 @@ export default function EvolutionComparison({
       const list: Timepoint[] = [];
 
       const anamPayload = (anam?.payload || {}) as Record<string, unknown>;
-      const genero = ((anamPayload.genero as string) || (anamPayload.sexo as string) || "M");
+      // O campo salvo na anamnese é "gender" (en-US: "F"/"M"). Mantemos os
+      // fallbacks "genero"/"sexo" apenas por compatibilidade com payloads antigos.
+      const genero = ((anamPayload.gender as string) || (anamPayload.genero as string) || (anamPayload.sexo as string) || "M");
       const baselineAltura = (anam?.baseline_metrics?.altura as number | undefined) ?? (anamPayload.altura as number | undefined);
 
       if (anam) {
