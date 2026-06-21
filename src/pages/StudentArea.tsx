@@ -216,6 +216,7 @@ export default function StudentArea() {
         .select("id, name, updated_at")
         .eq("student_id", userId)
         .eq("is_template", false)
+        .eq("active", true)
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
