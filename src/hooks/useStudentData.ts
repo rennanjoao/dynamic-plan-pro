@@ -52,9 +52,9 @@ export function useStudentData(explicitStudentId?: string) {
   const anamnesisQ = useQuery({
     queryKey: ["anamnesis", studentId],
     enabled: !!studentId,
-    staleTime: 0,
-    refetchOnMount: "always",
-    refetchOnWindowFocus: true,
+    // Realtime (abaixo) já invalida esta query quando a linha muda no banco —
+    // não precisamos forçar refetch a cada montagem/foco de janela.
+    staleTime: 60_000,
     queryFn: async () => {
       const { data, error } = await sb
         .from("anamnesis")
@@ -69,9 +69,7 @@ export function useStudentData(explicitStudentId?: string) {
   const checkInsQ = useQuery({
     queryKey: ["check-ins", studentId],
     enabled: !!studentId,
-    staleTime: 0,
-    refetchOnMount: "always",
-    refetchOnWindowFocus: true,
+    staleTime: 60_000,
     queryFn: async () => {
       const { data, error } = await sb
         .from("check_ins")
@@ -86,9 +84,7 @@ export function useStudentData(explicitStudentId?: string) {
   const protocolQ = useQuery({
     queryKey: ["protocol", studentId],
     enabled: !!studentId,
-    staleTime: 0,
-    refetchOnMount: "always",
-    refetchOnWindowFocus: true,
+    staleTime: 60_000,
     queryFn: async () => {
       const { data, error } = await sb
         .from("protocols")
