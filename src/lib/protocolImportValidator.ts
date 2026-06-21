@@ -53,8 +53,6 @@ export interface ValidationResult {
   cycleActivated: boolean;
 }
 
-const VALID_KINDS = new Set(["carb", "protein", "fat"]);
-
 function normalizeKind(raw: any): "carb" | "protein" | "fat" | null {
   if (typeof raw !== "string") return null;
   const s = raw.toLowerCase().trim();

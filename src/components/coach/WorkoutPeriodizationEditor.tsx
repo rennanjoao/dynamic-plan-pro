@@ -265,11 +265,6 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
     setTemplates((prev) => prev.filter((t) => t.id !== id));
   }
 
-  async function applyTemplateAsNewVersion(tpl: any) {
-    // aplica o template e cria nova versão refletindo o estado atual após aplicar
-    applyTemplate(tpl);
-  }
-
   function restoreFromVersion(treinos: any) {
     const next = { ...payload };
     if (treinos?.workouts) next.workouts = treinos.workouts;
@@ -710,7 +705,7 @@ function TemplateLibrary({ userTemplates, onApply, onHistory, onDelete, onPrevie
 
       {/* Lista compacta: seletor + botão de preview */}
       <div className="border border-border rounded-lg overflow-hidden divide-y divide-border/50">
-        {filtered.map((tpl: any, idx: number) => (
+        {filtered.map((tpl: any) => (
           <div
             key={tpl.id}
             className="flex items-center gap-2 px-3 py-2 hover:bg-muted/30 transition-colors"

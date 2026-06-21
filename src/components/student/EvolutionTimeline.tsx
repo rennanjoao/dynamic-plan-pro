@@ -7,7 +7,7 @@ import { useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { CHECKIN_METRICS, CHECKIN_SECTIONS } from "@/lib/checkInSchema";
+import { CHECKIN_METRICS } from "@/lib/checkInSchema";
 import type { CheckIn } from "@/hooks/useStudentData";
 import { MessageSquare, TrendingDown } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
@@ -43,8 +43,6 @@ return [...checkIns].sort((a, b) => new Date(a.submitted_at).getTime() - new Dat
       </Card>
     );
   }
-
-  const prevOfSelected = selectedIndex >= 0 ? checkIns[selectedIndex + 1] ?? null : null;
 
   return (
     <div className="space-y-6">
