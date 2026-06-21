@@ -14,7 +14,7 @@
 import { useState, useMemo, lazy, Suspense, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useCoachStudents, useCoachStudentsPaged, type StudentStatus, type AlertLevel } from "@/hooks/useCoachStudents";
+import { useCoachStudentsPaged, useCoachStudentsLite, type StudentStatus, type AlertLevel, type StudentLite } from "@/hooks/useCoachStudents";
 import { useCoachFinances } from "@/hooks/useCoachFinances";
 import {
   AlertTriangle, CheckCircle2, Search, Filter, Users,
@@ -655,7 +655,7 @@ function CheckinHistoryDialog({
 
 // ─── Finances Tab ────────────────────────────────────────────────────────────
 
-function FinancesTab({ coachId, students }: { coachId: string; students: StudentStatus[] }) {
+function FinancesTab({ coachId, students }: { coachId: string; students: StudentLite[] }) {
   const { data: finances = [], isLoading } = useCoachFinances(coachId);
   const qc = useQueryClient();
   const confirm = useConfirm();
@@ -1100,10 +1100,9 @@ export default function CoachDashboard() {
 
   useEffect(() => { setStudentPage(0); }, [search, filter]);
 
-  // Full students list only when the Finances tab is active (used by the dropdown there).
-  const { data: allStudents = [] } = useCoachStudents(
-    activeTab === "finances" ? coachId : null,
-    feedbackIntervalDays
+  // Lista leve (id/name/lastAnamnesis) só quando a aba Finanças está ativa.
+  const { data: allStudents = [] } = useCoachStudentsLite(
+    activeTab === "finances" ? coachId : null
   );
 
   const goBack = () => { setView("list"); setSelectedStudent(null); };
