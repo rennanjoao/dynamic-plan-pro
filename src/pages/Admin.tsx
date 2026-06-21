@@ -1,5 +1,6 @@
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, LogOut, Users, Link2, Bell, DollarSign, Activity, KeyRound } from "lucide-react";
+import { ArrowLeft, LogOut, Users, Link2, DollarSign, Activity, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -7,15 +8,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { TrainerManagement } from "@/components/admin/TrainerManagement";
 import { StudentLinksManagement } from "@/components/admin/StudentLinksManagement";
-import { AlertManager } from "@/components/admin/AlertManager";
 import { PlansSettings } from "@/components/admin/PlansSettings";
 import { AccessLogPanel } from "@/components/admin/AccessLogPanel";
 import CoachBillingPanel from "@/components/admin/CoachBillingPanel";
 import { AdminPasswordManager } from "@/components/admin/AdminPasswordManager";
-import { ChangePasswordButton } from "@/components/ChangePasswordButton";
+import { SimpleProfileDialog } from "@/components/SimpleProfileDialog";
 
 const Admin = () => {
   const navigate = useNavigate();
+  const [userId, setUserId] = useState<string | null>(null);
+  const [showProfile, setShowProfile] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id || null));
+  }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -35,7 +41,14 @@ const Admin = () => {
 
         <div className="absolute right-6 top-6 flex items-center gap-1">
           <ThemeToggle className="text-white/90 hover:text-white hover:bg-white/10" />
-          <ChangePasswordButton variant="ghost" className="text-white/90 hover:text-white hover:bg-white/10" />
+          <Button
+            variant="ghost"
+            onClick={() => setShowProfile(true)}
+            className="flex items-center gap-2 text-white/90 hover:text-white hover:bg-white/10"
+          >
+            <User className="w-5 h-5" />
+            <span className="hidden sm:inline">Perfil</span>
+          </Button>
           <Button
             variant="ghost"
             onClick={handleLogout}
@@ -59,10 +72,8 @@ const Admin = () => {
           <TabsList className="flex flex-wrap h-auto gap-2 justify-start mb-6">
             <TabsTrigger value="trainers" className="gap-1.5"><Users className="w-4 h-4" /> Profissionais</TabsTrigger>
             <TabsTrigger value="links" className="gap-1.5"><Link2 className="w-4 h-4" /> Vínculos</TabsTrigger>
-            <TabsTrigger value="alerts" className="gap-1.5"><Bell className="w-4 h-4" /> Alertas</TabsTrigger>
-            <TabsTrigger value="billing" className="gap-1.5"><DollarSign className="w-4 h-4" /> Cobrança em Massa</TabsTrigger>
-            <TabsTrigger value="access" className="gap-1.5"><Activity className="w-4 h-4" /> Acessos</TabsTrigger>
-            <TabsTrigger value="passwords" className="gap-1.5"><KeyRound className="w-4 h-4" /> Senhas</TabsTrigger>
+            <TabsTrigger value="billing" className="gap-1.5"><DollarSign className="w-4 h-4" /> Cobrança</TabsTrigger>
+            <TabsTrigger value="access" className="gap-1.5"><Activity className="w-4 h-4" /> Acessos e Senhas</TabsTrigger>
           </TabsList>
 
           <TabsContent value="trainers">
@@ -73,29 +84,26 @@ const Admin = () => {
             <StudentLinksManagement />
           </TabsContent>
 
-          <TabsContent value="alerts">
-            <AlertManager />
-          </TabsContent>
-
           <TabsContent value="billing" className="space-y-6">
-            {/* O novo painel de disparo para o WhatsApp entra aqui */}
+            {/* Painel de disparo para o WhatsApp */}
             <CoachBillingPanel />
-            {/* O painel antigo de configurações de preço */}
+            {/* Configurações de preço dos planos */}
             <PlansSettings />
           </TabsContent>
 
-          <TabsContent value="access">
+          <TabsContent value="access" className="space-y-6">
             <div className="rounded-xl border border-border bg-card p-6">
               <h2 className="text-lg font-semibold mb-4">Monitoramento de Acesso</h2>
               <AccessLogPanel />
             </div>
-          </TabsContent>
-
-          <TabsContent value="passwords">
             <AdminPasswordManager />
           </TabsContent>
         </Tabs>
       </div>
+
+      {userId && (
+        <SimpleProfileDialog userId={userId} open={showProfile} onClose={() => setShowProfile(false)} />
+      )}
     </div>
   );
 };

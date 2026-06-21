@@ -19,7 +19,7 @@ import { useCoachFinances } from "@/hooks/useCoachFinances";
 import {
   AlertTriangle, CheckCircle2, Search, Filter, Users,
   Dumbbell, ClipboardList, ArrowLeft,
-  Loader2, Plus, Trash2, DollarSign, UserPlus, Calendar, X, User, LogOut,
+  Loader2, Plus, Trash2, DollarSign, Calendar, X, User, LogOut,
   MessageSquare, History, FileDown, Settings2
 } from "lucide-react";
 import CoachNotificationBell from "@/components/coach/CoachNotificationBell";
@@ -799,6 +799,7 @@ function ProfileDialog({ coachId, open, onClose }: { coachId: string; open: bool
   const [fullName, setFullName] = useState("");
   const [teamName, setTeamName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
+  const [notificationEmail, setNotificationEmail] = useState("");
   const [pixKey, setPixKey] = useState("");
   const [pixHolderName, setPixHolderName] = useState("");
   const [pixCity, setPixCity] = useState("");
@@ -811,13 +812,14 @@ function ProfileDialog({ coachId, open, onClose }: { coachId: string; open: bool
     if (!open || !coachId) return;
     supabase
       .from("profiles")
-      .select("full_name, team_name, invite_code, pix_key, pix_holder_name, pix_city, billing_alert_days, feedback_interval_days")
+      .select("full_name, team_name, invite_code, notification_email, pix_key, pix_holder_name, pix_city, billing_alert_days, feedback_interval_days")
       .eq("user_id", coachId)
       .maybeSingle()
       .then(({ data }) => {
         setFullName(data?.full_name || "");
         setTeamName((data as any)?.team_name || "");
         setInviteCode((data as any)?.invite_code || "");
+        setNotificationEmail((data as any)?.notification_email || "");
         setPixKey((data as any)?.pix_key || "");
         setPixHolderName((data as any)?.pix_holder_name || "");
         setPixCity((data as any)?.pix_city || "");
@@ -858,6 +860,7 @@ function ProfileDialog({ coachId, open, onClose }: { coachId: string; open: bool
         full_name: fullName,
         team_name: teamName,
         invite_code: code,
+        notification_email: notificationEmail.trim() || null,
         pix_key: pixKey,
         pix_holder_name: pixHolderName || null,
         pix_city: pixCity || null,
@@ -884,6 +887,11 @@ function ProfileDialog({ coachId, open, onClose }: { coachId: string; open: bool
           <div>
             <Label className="text-xs">Nome da equipe / empresa</Label>
             <Input value={teamName} onChange={(e) => setTeamName(e.target.value)} placeholder="Ex: Equipe Performance" className="mt-1 h-9 text-sm" />
+          </div>
+          <div>
+            <Label className="text-xs">E-mail de notificação</Label>
+            <Input type="email" value={notificationEmail} onChange={(e) => setNotificationEmail(e.target.value)} placeholder="Para onde os alunos te contatam" className="mt-1 h-9 text-sm" />
+            <p className="text-[10px] text-muted-foreground mt-1">Visível para os alunos como seu contato.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -939,6 +947,13 @@ function ProfileDialog({ coachId, open, onClose }: { coachId: string; open: bool
           <Button onClick={save} disabled={loading} className="w-full">
             {loading ? "Salvando..." : "Salvar Perfil"}
           </Button>
+
+          <div className="border-t border-border pt-3">
+            <ChangePasswordButton variant="outline" className="w-full" />
+            <p className="text-[11px] text-muted-foreground mt-1.5 text-center">
+              Enviaremos um link de redefinição para seu e-mail.
+            </p>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -1044,7 +1059,6 @@ export default function CoachDashboard() {
           <div className="flex items-center gap-2">
             <CoachNotificationBell />
             <ThemeToggle />
-            <ChangePasswordButton compact />
             <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-destructive h-9">
               <LogOut className="w-4 h-4 mr-1.5" /> Sair
             </Button>
@@ -1093,9 +1107,6 @@ export default function CoachDashboard() {
                   <SelectItem value="ok">Em dia</SelectItem>
                 </SelectContent>
               </Select>
-              <Button size="sm" variant="outline" onClick={() => setShowProfile(true)} className="h-9 gap-1.5">
-                <UserPlus className="w-3.5 h-3.5" /> Meu código de convite
-              </Button>
               <Button
                 size="sm"
                 variant="outline"

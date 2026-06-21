@@ -20,10 +20,10 @@ import { Button } from "@/components/ui/button";
 import {
   Apple, Dumbbell, Pill, TrendingUp, CheckCircle2,
   Loader2, AlertCircle, Copy, Check, X, LogOut, Sparkles,
-  ShoppingCart, FileEdit, Flame,
+  ShoppingCart, FileEdit, Flame, User,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { ChangePasswordButton } from "@/components/ChangePasswordButton";
+import { SimpleProfileDialog } from "@/components/SimpleProfileDialog";
 import { toast } from "sonner";
 import FeedbackCountdownAlert from "@/components/student/FeedbackCountdownAlert";
 import { TrainerAlert } from "@/components/student/TrainerAlert";
@@ -130,6 +130,7 @@ export default function StudentArea() {
   const [copiedPix, setCopiedPix] = useState(false);
   const [dismissedAlerts, setDismissedAlerts] = useState<string[]>([]);
   const [notifyingCoach, setNotifyingCoach] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
 
   // ─── Auth ───
   useEffect(() => {
@@ -412,7 +413,10 @@ export default function StudentArea() {
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <ThemeToggle />
-            <ChangePasswordButton compact />
+            <Button variant="ghost" size="sm" onClick={() => setShowProfile(true)} className="h-9">
+              <User className="w-4 h-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Perfil</span>
+            </Button>
             <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-destructive h-9">
               <LogOut className="w-4 h-4 sm:mr-1.5" />
               <span className="hidden sm:inline">Sair</span>
@@ -420,6 +424,10 @@ export default function StudentArea() {
           </div>
         </div>
       </header>
+
+      {userId && (
+        <SimpleProfileDialog userId={userId} open={showProfile} onClose={() => setShowProfile(false)} />
+      )}
 
       <main className="max-w-4xl mx-auto px-4 py-5 space-y-4">
 
