@@ -77,7 +77,18 @@ export function useStudentData(explicitStudentId?: string) {
         .eq("student_id", studentId!)
         .order("submitted_at", { ascending: false });
       if (error) throw error;
-      return (data as unknown as CheckIn[]) ?? [];
+      const rows = (data as unknown as Array<CheckIn & { updated_at?: string | null }>) ?? [];
+      // Reordena pelo maior entre submitted_at e updated_at. Necessário porque
+      // check-ins editados (mode "update") podem ter updated_at mais recente
+      // que submitted_at em registros salvos antes da correção desse fluxo —
+      // sem isso, um check-in editado recentemente pode ser tratado como
+      // desatualizado em relação a outros registros mais antigos.
+      rows.sort((a, b) => {
+        const ta = Math.max(new Date(a.submitted_at).getTime(), new Date(a.updated_at || a.submitted_at).getTime());
+        const tb = Math.max(new Date(b.submitted_at).getTime(), new Date(b.updated_at || b.submitted_at).getTime());
+        return tb - ta;
+      });
+      return rows as unknown as CheckIn[];
     },
   });
 
