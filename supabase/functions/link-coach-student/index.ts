@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { buildCorsHeaders } from "../_shared/cors.ts";
+
 Deno.serve(async (req: Request) => {
   const corsHeaders = buildCorsHeaders(req.headers.get("origin"));
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -37,6 +38,23 @@ Deno.serve(async (req: Request) => {
     const studentId = userData.user.id;
 
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+
+    // ── [FIX MÉDIO] Verificar se o coachId fornecido pertence a um usuário
+    // com papel 'coach' antes de criar o vínculo. Sem esta verificação, qualquer
+    // UUID poderia ser aceito como coach, criando dados inconsistentes no banco. ──
+    const { data: coachRole, error: roleErr } = await admin
+      .from("user_roles")
+      .select("user_id")
+      .eq("user_id", coachId)
+      .eq("role", "coach")
+      .maybeSingle();
+
+    if (roleErr || !coachRole) {
+      return new Response(JSON.stringify({ error: "coach_not_found: o ID fornecido não corresponde a um coach válido" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    // ── fim do fix ──
 
     await admin
       .from("coach_students")
