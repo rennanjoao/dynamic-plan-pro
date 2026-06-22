@@ -2,8 +2,12 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { buildCorsHeaders } from "../_shared/cors.ts";
+
 interface NotifyBody {
-  coachEmail: string;
+  // [FIX ALTO] coachEmail removido da interface — o destino agora é sempre
+  // determinado pelo banco de dados (coach vinculado ao aluno autenticado),
+  // nunca pelo valor enviado pelo cliente. Isso impede que um aluno logado
+  // envie e-mails para qualquer destinatário externo usando nosso remetente.
   studentName?: string;
   studentEmail?: string;
   kind: "anamnesis" | "checkin" | "question";
@@ -97,11 +101,9 @@ serve(async (req) => {
 
   try {
     // ── Exige usuário autenticado (aluno ou coach logado) ──
-    // Isso bloqueia chamadas anônimas vindas de fora do site, sem mudar
-    // nada para quem já usa o app normalmente (o app sempre chama isso
-    // com o usuário já logado).
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const authHeader = req.headers.get("Authorization") || "";
 
     const userClient = createClient(supabaseUrl, anonKey, {
@@ -115,11 +117,38 @@ serve(async (req) => {
     }
 
     const body = (await req.json()) as NotifyBody;
-    if (!body?.coachEmail || !body?.kind) {
+    if (!body?.kind) {
       return new Response(JSON.stringify({ error: "missing fields" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // ── [FIX ALTO] Buscar o e-mail do coach pelo banco, ignorando qualquer
+    // valor que o cliente tenha tentado enviar. O destino do e-mail é sempre
+    // determinado pelo vínculo coach_students → profiles do banco de dados. ──
+    const adminClient = createClient(supabaseUrl, serviceKey);
+    const { data: coachLink, error: linkErr } = await adminClient
+      .from("coach_students")
+      .select("coach_id, profiles!coach_students_coach_id_fkey(notification_email, email)")
+      .eq("student_id", user.id)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (linkErr || !coachLink) {
+      return new Response(JSON.stringify({ error: "coach_not_found" }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Preferência: notification_email; fallback: email do perfil
+    const coachProfile = coachLink.profiles as { notification_email?: string; email?: string } | null;
+    const coachEmail = coachProfile?.notification_email || coachProfile?.email;
+    if (!coachEmail) {
+      return new Response(JSON.stringify({ error: "coach_email_not_found" }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    // ── fim do fix ──
 
     const RESEND_KEY = Deno.env.get("RESEND_API_KEY");
     if (!RESEND_KEY) {
@@ -142,7 +171,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         from: "Elite Prime Hub <noreply@eliteprimehub.com.br>",
-        to: [body.coachEmail],
+        to: [coachEmail],
         reply_to: body.studentEmail || undefined,
         subject,
         html: renderHtml(body),
