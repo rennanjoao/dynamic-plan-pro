@@ -1,86 +1,319 @@
--- ============================================================
--- MIGRATION DE CORREÇÕES DE SEGURANÇA — Junho 2026
--- Referência: Auditoria Técnica dynamic-plan-pro (Junho 2026)
--- ============================================================
+import { useState, useRef, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { MessageCircle, X, Send, Sparkles, Zap } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "@/integrations/supabase/client";
+import ReactMarkdown from "react-markdown";
+import { toast } from "sonner";
 
--- ── [FIX CRÍTICO] Remover senha em texto semi-legível do histórico SQL
--- A migration 20260607213424 criou a conta admin com a senha '010909' via
--- crypt(). Este bloco documenta que a conta foi criada manualmente e a senha
--- foi alterada. A conta admin deve ter sua senha trocada via painel do Supabase
--- ou via interface do sistema imediatamente após o deploy desta migration.
--- AÇÃO MANUAL NECESSÁRIA: trocar a senha no painel do Supabase Auth ou pelo
--- botão "Alterar Senha" no painel admin do sistema.
--- NÃO criar novas contas com senha via SQL — usar sempre o painel de admin.
-COMMENT ON TABLE public.profiles IS
-  'Perfis de usuários. Conta admin rennanjoao@rjelitelab.com.br criada via migration 20260607213424 — senha deve ser alterada manualmente pelo painel (nunca via SQL).';
+interface Message {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+}
 
--- ── [FIX ALTO] Versionar ENABLE ROW LEVEL SECURITY das 12 tabelas críticas
--- Estas tabelas tinham RLS ativo apenas via Supabase Studio (não versionado).
--- Se o banco for recriado a partir das migrations, estas tabelas ficariam sem
--- proteção. Este bloco garante que o RLS esteja versionado no histórico.
-ALTER TABLE public.anamnesis ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.check_ins ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.coach_finances ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.coach_invites ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.coach_leads ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.coach_notifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.coach_plans ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.coach_students ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.daily_alerts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.daily_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.protocols ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.access_logs ENABLE ROW LEVEL SECURITY;
+interface AthleteContext {
+  name?: string;
+  isCoach?: boolean;
+  goal?: string;
+  weight?: number;
+  bodyFat?: number;
+  protocol?: string;
+  trainingVolume?: string;
+}
 
--- ── [FIX ALTO] Corrigir política de UPDATE da tabela subscriptions
--- A política original "System can update subscriptions" usava USING (true),
--- permitindo que qualquer usuário autenticado atualizasse assinaturas de outros.
--- Isso possibilitava fraude: ativar assinatura sem pagar ou desativar a de outros.
--- A nova política restringe UPDATE apenas ao service_role (servidor).
-DROP POLICY IF EXISTS "System can update subscriptions" ON public.subscriptions;
+interface FitnessChatBotProps {
+  athleteContext?: AthleteContext;
+  onOpen?: () => void;
+}
 
-CREATE POLICY "Service role can update subscriptions"
-  ON public.subscriptions
-  FOR UPDATE
-  TO service_role
-  USING (true)
-  WITH CHECK (true);
+const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fitness-chat`;
+const BUBBLE_DURATION = 6000;
 
--- ── [FIX MÉDIO] Restringir acesso a workout_template_versions por coach
--- A política original "Authenticated can view template versions" usava USING (true),
--- expondo templates de qualquer coach para qualquer outro usuário autenticado
--- (incluindo coaches concorrentes), vazando propriedade intelectual.
-DROP POLICY IF EXISTS "Authenticated can view template versions" ON public.workout_template_versions;
+const STUDENT_QUICK_ACTIONS = [
+  { label: "Ajustar Macros", prompt: "Me ajude a ajustar meus macronutrientes com base no meu perfil e objetivo atual." },
+  { label: "Minha Evolução", prompt: "Gere um resumo da minha evolução com base nas minhas medidas e check-ins." },
+  { label: "Técnica Agachamento", prompt: "Explique a técnica correta do agachamento com barra, incluindo cadência e RPE ideal." },
+];
 
--- Coaches veem apenas versões dos próprios templates
-CREATE POLICY "Coaches can view own template versions"
-  ON public.workout_template_versions
-  FOR SELECT
-  TO authenticated
-  USING (
-    -- Coach vê apenas versões dos templates que criou
-    EXISTS (
-      SELECT 1 FROM public.workout_templates t
-      WHERE t.id = template_id
-        AND t.created_by = auth.uid()
-    )
-    OR
-    -- Admins veem tudo
-    public.has_role(auth.uid(), 'admin'::public.app_role)
+const COACH_QUICK_ACTIONS = [
+  { label: "Como usar o Builder", prompt: "Me explique como construir um protocolo de dieta completo para um aluno na plataforma, do zero." },
+  { label: "Analisar Check-in", prompt: "Com base nos check-ins recentes dos meus alunos, quem tem feedback pendente e o que devo priorizar?" },
+  { label: "Sugerir Substituições", prompt: "Quais são boas substituições proteicas para um aluno com intolerância a lactose e que não gosta de atum?" },
+];
+
+const DEFAULT_WELCOME = "Olá, sou o agente virtual da Elite Hub. Como posso ajudar?";
+
+const INITIAL_MESSAGE: Message = {
+  id: "welcome",
+  role: "assistant",
+  content: DEFAULT_WELCOME,
+};
+
+export const FitnessChatBot = ({ athleteContext, onOpen }: FitnessChatBotProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [showBubble, setShowBubble] = useState(false);
+  const [bubbleText, setBubbleText] = useState(DEFAULT_WELCOME);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (messages.length === 1 && messages[0].id === "welcome") {
+      const text = athleteContext?.name
+        ? `Olá ${athleteContext.name.split(" ")[0]}, sou o agente virtual da Elite Hub. Estou aqui para te ajudar com a plataforma!`
+        : DEFAULT_WELCOME;
+      setBubbleText(text);
+      setMessages([{ id: "welcome", role: "assistant", content: text }]);
+      setShowBubble(true);
+      const timer = setTimeout(() => setShowBubble(false), BUBBLE_DURATION);
+      return () => clearTimeout(timer);
+    }
+  }, [athleteContext?.name]);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const streamChat = async (allMessages: { role: string; content: string }[]) => {
+    const resp = await fetch(CHAT_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token ?? import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      },
+      body: JSON.stringify({ messages: allMessages, athleteContext }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: "Erro de conexão" }));
+      if (resp.status === 429) toast.error("Limite de requisições excedido. Aguarde.");
+      else if (resp.status === 402) toast.error("Créditos de IA esgotados.");
+      else toast.error(err.error || "Erro ao conectar com IA");
+      throw new Error(err.error);
+    }
+
+    if (!resp.body) throw new Error("No stream body");
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let textBuffer = "";
+    let assistantSoFar = "";
+    let streamDone = false;
+
+    while (!streamDone) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      textBuffer += decoder.decode(value, { stream: true });
+
+      let newlineIndex: number;
+      while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
+        let line = textBuffer.slice(0, newlineIndex);
+        textBuffer = textBuffer.slice(newlineIndex + 1);
+
+        if (line.endsWith("\r")) line = line.slice(0, -1);
+        if (line.startsWith(":") || line.trim() === "") continue;
+        if (!line.startsWith("data: ")) continue;
+
+        const jsonStr = line.slice(6).trim();
+        if (jsonStr === "[DONE]") { streamDone = true; break; }
+
+        try {
+          const parsed = JSON.parse(jsonStr);
+          const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+          if (content) {
+            assistantSoFar += content;
+            setMessages(prev => {
+              const last = prev[prev.length - 1];
+              if (last?.role === "assistant" && last.id !== "welcome") {
+                return prev.map((m, i) => i === prev.length - 1 ? { ...m, content: assistantSoFar } : m);
+              }
+              return [...prev, { id: Date.now().toString(), role: "assistant", content: assistantSoFar }];
+            });
+          }
+        } catch {
+          textBuffer = line + "\n" + textBuffer;
+          break;
+        }
+      }
+    }
+  };
+
+  const handleSend = async (text?: string) => {
+    const msg = text || input.trim();
+    if (!msg) return;
+
+    const userMsg: Message = { id: Date.now().toString(), role: "user", content: msg };
+    setMessages(prev => [...prev, userMsg]);
+    setInput("");
+    setIsLoading(true);
+
+    const history = [...messages.filter(m => m.id !== "welcome"), userMsg].map(m => ({
+      role: m.role, content: m.content,
+    }));
+
+    try {
+      await streamChat(history);
+    } catch {
+      // error already toasted
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOpen = () => {
+    setShowBubble(false);
+    setIsOpen(true);
+    onOpen?.(); // dispara o fetch do contexto (perfil/alunos/check-ins) só agora
+  };
+
+  return (
+    <>
+      {/* Bubble flutuante de boas-vindas */}
+      <AnimatePresence>
+        {showBubble && !isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            transition={{ duration: 0.25 }}
+            className="fixed bottom-24 right-6 z-50 max-w-[260px] bg-card border border-border/30 rounded-2xl rounded-br-sm px-4 py-3 shadow-2xl cursor-pointer"
+            onClick={handleOpen}
+          >
+            <p className="text-sm text-foreground leading-relaxed">{bubbleText}</p>
+            <div className="absolute -bottom-2 right-5 w-3 h-3 bg-card border-r border-b border-border/30 rotate-45" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Botão flutuante */}
+      <AnimatePresence>
+        {!isOpen && (
+          <motion.div
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            className="fixed bottom-6 right-6 z-50"
+          >
+            <Button
+              onClick={handleOpen}
+              className="w-14 h-14 rounded-full glow-primary shadow-2xl animate-glow-pulse"
+              size="icon"
+            >
+              <MessageCircle className="w-6 h-6" />
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Chat */}
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            className="fixed bottom-3 right-3 left-3 sm:left-auto sm:bottom-6 sm:right-6 z-50 sm:w-[400px] max-w-[calc(100vw-1.5rem)] sm:max-w-[calc(100vw-3rem)] h-[min(560px,calc(100vh-1.5rem))] flex flex-col glass-strong rounded-2xl overflow-hidden shadow-2xl border border-border/20"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border/20 bg-card/80">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center glow-primary">
+                  <Sparkles className="w-5 h-5 text-primary-foreground" />
+                </div>
+                <div>
+                  <p className="font-bold text-sm text-foreground">Agente Elite Hub</p>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Online • IA Ativa
+                  </p>
+                </div>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)} className="rounded-xl w-8 h-8">
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {/* Messages */}
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+              {messages.map((msg) => (
+                <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div
+                    className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
+                      msg.role === "user"
+                        ? "gradient-primary text-primary-foreground rounded-br-md"
+                        : "bg-secondary/60 text-foreground rounded-bl-md"
+                    }`}
+                  >
+                    {msg.role === "assistant" ? (
+                      <div className="prose prose-sm dark:prose-invert prose-p:my-1 prose-ul:my-1 prose-li:my-0 max-w-none">
+                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      </div>
+                    ) : (
+                      msg.content
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {isLoading && messages[messages.length - 1]?.role === "user" && (
+                <div className="flex justify-start">
+                  <div className="bg-secondary/60 px-4 py-3 rounded-2xl rounded-bl-md flex gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <span className="w-2 h-2 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <span className="w-2 h-2 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: "300ms" }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Quick Actions */}
+              {messages.length <= 1 && (
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {(athleteContext?.isCoach ? COACH_QUICK_ACTIONS : STUDENT_QUICK_ACTIONS).map((action) => (
+                    <button
+                      key={action.label}
+                      onClick={() => handleSend(action.prompt)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors border border-primary/20"
+                    >
+                      <Zap className="w-3 h-3" />
+                      {action.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Input */}
+            <div className="p-3 border-t border-border/20">
+              <form
+                onSubmit={(e) => { e.preventDefault(); handleSend(); }}
+                className="flex gap-2"
+              >
+                <Input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Pergunte ao Coach..."
+                  className="rounded-xl bg-secondary/30 border-border/20 text-sm"
+                  disabled={isLoading}
+                />
+                <Button
+                  type="submit"
+                  size="icon"
+                  className="rounded-xl shrink-0 glow-primary"
+                  disabled={!input.trim() || isLoading}
+                >
+                  <Send className="w-4 h-4" />
+                </Button>
+              </form>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
-
--- Alunos veem apenas versões vinculadas ao seu protocolo ativo
--- (política separada para clareza)
-CREATE POLICY "Students can view template versions of active protocol"
-  ON public.workout_template_versions
-  FOR SELECT
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1
-      FROM public.protocols p
-      JOIN public.coach_students cs ON cs.student_id = auth.uid() AND cs.status = 'active'
-      WHERE p.coach_id = cs.coach_id
-        AND p.student_id = auth.uid()
-        AND (p.data->>'templateId')::uuid = template_id
-    )
-  );
+};
