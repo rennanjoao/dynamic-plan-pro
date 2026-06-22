@@ -154,7 +154,7 @@ serve(async (req) => {
       for (const id of userIds) {
         const { data: { user: trainerUser } } = await adminClient.auth.admin.getUserById(id);
         if (trainerUser) {
-          const { data: profile } = await adminClient.from("profiles").select("full_name, team_name, notification_email, invite_code, trial_ends_at, blocked_until").eq("user_id", id).single();
+          const { data: profile } = await adminClient.from("profiles").select("full_name, team_name, notification_email, invite_code, trial_ends_at, blocked_until").eq("user_id", id).maybeSingle();
           const role = roleRows.find((r) => r.user_id === id)?.role || "user";
           trainers.push({
             id: trainerUser.id,
@@ -329,7 +329,7 @@ serve(async (req) => {
       const { data: coachRoles } = await adminClient.from("user_roles").select("user_id").eq("role", "coach");
       const coaches = [];
       for (const r of coachRoles || []) {
-        const { data: profile } = await adminClient.from("profiles").select("full_name, team_name").eq("user_id", r.user_id).single();
+        const { data: profile } = await adminClient.from("profiles").select("full_name, team_name").eq("user_id", r.user_id).maybeSingle();
         coaches.push({ id: r.user_id, full_name: profile?.full_name || "Coach", team_name: profile?.team_name || null });
       }
       return new Response(JSON.stringify({ coaches }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
