@@ -3,7 +3,7 @@
 // Importante: nunca cachear módulos de desenvolvimento do Vite, pois isso pode
 // misturar chunks antigos/novos e causar "Invalid hook call" no React.
 
-const CACHE_NAME = "elite-lab-v2";
+const CACHE_NAME = "elite-lab-v3-20260622";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
