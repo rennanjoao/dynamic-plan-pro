@@ -1,89 +1,58 @@
-# Alimentos Industrializados + Cálculo Nutricional Coach/Aluno
+## Estado atual confirmado (antes de mexer em código)
 
-## 1. Base de dados de industrializados (novo arquivo `src/data/industrialFoods.ts`)
+Já investiguei o que está deployado agora:
 
-Cria uma nova lista separada da TACO, mantendo a TACO como fonte primária. Cada item segue o mesmo formato (g/100g) para reaproveitar `calcMacros`:
+1. **Edge functions de chat respondem 200**
+   - `POST /info-chat` → 200, resposta OK do Gemini.
+   - `POST /fitness-chat` → 200, stream SSE chega com `gemini-2.5-flash`.
+   - Logs das funções: só `booted` / `shutdown`, sem erros.
 
-```ts
-export interface IndustrialFood extends TacoFood {
-  brand: string;             // "Tirolez", "Itambé", "Betânia", "Genérico"
-  source: "industrial";
-  servingG?: number;         // porção referência do rótulo (ex: 30)
-  saturatedFat?: number;     // g/100g
-  sodium?: number;           // mg/100g
-  lactoseFree?: boolean;
-}
-```
+2. **RLS pós-migrations 2026-06-21 está correta para admin**
+   - `profiles_admin_all` (FOR ALL) e `cs_admin_all` continuam ativas.
+   - `user_roles` mantém `Admins can manage all roles`.
+   - Banco tem 1 admin (`rennanjoao@rjelitelab.com.br`), 3 coaches, 3 users.
 
-Itens cadastrados (valores convertidos da porção informada para por 100g):
+3. **`manage-trainers` (que alimenta o painel) usa service_role**
+   - Não é bloqueada por RLS. Listaria os 6 não-admins normalmente.
 
-| Nome | kcal | P | C | G | Sat | Na | Lactose-free |
-|---|---|---|---|---|---|---|---|
-| Requeijão Light Tirolez | 187 | 8.7 | 2.3 | 16.0 | 11.0 | 490 | — |
-| Requeijão Light Itambé | 153 | 13.0 | 1.3 | 10.7 | 7.0 | 520 | — |
-| Requeijão Tradicional Tirolez | 253 | 5.7 | 1.7 | 25.0 | 17.0 | 453 | — |
-| Requeijão Zero Lactose Tirolez | 273 | 7.0 | 0.3 | 27.0 | 17.0 | 490 | ✓ |
-| Requeijão Zero Lactose Light Betânia | 193 | 10.7 | 2.0 | 16.0 | — | — | ✓ |
-| Creme de Arroz (genérico) | 370 | 7.0 | 82.0 | 0.5 | — | — | — |
+4. **Auth logs mostram logout às 14:31** do próprio admin
+   - Provavelmente o painel hoje está mostrando tela de login, não "vazio".
 
-`group` = `dairy` para requeijões; `carb` para creme de arroz.
+Ou seja: **não há evidência de regressão no banco nem nas funções**. Antes de mudar código, preciso isolar onde está o sintoma real.
 
-## 2. Busca unificada com prioridade TACO
+## Etapa 1 – Confirmar o sintoma real com você (sem código)
 
-Em `src/data/tacoFoods.ts` (ou novo `src/lib/foodSearch.ts`):
-- `searchFood(query)` retorna `{ taco: TacoFood[]; industrial: IndustrialFood[] }`.
-- Resultados TACO aparecem primeiro; industrializados só aparecem quando o nome é explicitamente buscado (ex: "requeijão", "tirolez") ou quando não há TACO equivalente.
-- Os pickers existentes (`TacoCalculatorDialog`, `ProtocolBuilder` item picker) passam a usar esta busca unificada, mostrando uma etiqueta `Industrializado · <marca>` quando aplicável.
+Preciso de 3 informações para não chutar:
 
-## 3. Cálculo automático de kcal e macros
+- **A.** No `app.eliteprimehub.com.br/admin`, depois de logar de novo com `rennanjoao@rjelitelab.com.br`, a aba "Profissionais" aparece vazia? E a aba "Vínculos"? Print/contagem do que aparece.
+- **B.** No DevTools (F12 → Network) ao abrir a aba "Profissionais", qual o status e o body da chamada `manage-trainers` (action=list)? E da chamada `/profiles` (rest)?
+- **C.** No chatbot: qual tela exatamente? (`/` landing → InfoChatBot, ou área logada → FitnessChatBot). Mensagem de erro/toast exato? Print do Network da chamada `info-chat` ou `fitness-chat`.
 
-`src/lib/macroCalc.ts` já tem `calcItemMacros`, `calcMealMacros`, `calcDayMacros`. Ajustes:
-- `calcItemMacros` passa a aceitar tanto `TacoFood` quanto `IndustrialFood` (busca em ambas as listas).
-- Adiciona helper `optionMacros(option)` que soma os itens daquela opção (principal ou substituição) e retorna `{ kcal, p, c, g }`.
-- Adiciona `compareOptions(main, alt)` retornando deltas absolutos e percentuais.
+Sem isso eu não distingo: "logado-out", "cache antigo do bundle", "CORS rejeitando origem", ou "regressão real".
 
-Tolerâncias para alertar coach (configuráveis em uma constante no topo do arquivo):
-- ±10% kcal **ou** ±15% em qualquer macro → badge âmbar "Atenção".
-- ±20% kcal **ou** ±30% em qualquer macro → badge vermelho "Desbalanceada".
+## Etapa 2 – Hipóteses ordenadas por probabilidade
 
-## 4. Visão do Coach — `ProtocolBuilder`
+Vou seguir nesta ordem só depois das respostas:
 
-No bloco de cada opção dentro de `MacroOptionsList` (linha ~1214) e no resumo da refeição (linha ~1135):
-- Mostrar abaixo de cada **opção** (principal e substituições) uma linha compacta: `XX kcal · Pp · Cc · Gg`.
-- Em substituições, anexar badge de delta vs. opção principal usando `compareOptions`. Cor segue a tolerância acima.
-- O cabeçalho da refeição (já existe `mm.protein` etc.) ganha `kcal` total ao lado dos macros.
+1. **Sessão expirada / logout**: explica os dois sintomas (admin redireciona para `/admin-login`, chatbot perde token se a rota exige auth). Fix: relogar; nenhuma mudança de código.
+2. **Service Worker servindo bundle antigo** (já tivemos isso na correção de evolução): hard reload + bump de versão do `public/sw.js`.
+3. **CORS bloqueando origem que mudou** (`_shared/cors.ts` só libera `*.lovable.app` + `app.eliteprimehub.com.br`). Se o domínio do produto ou um preview novo passou a usar outro host, ajustar `ALLOWED_ORIGINS`.
+4. **Regressão nas RLS** (improvável — checado acima). Se Network mostrar 401/403 em `/rest/v1/profiles?...`, revisar políticas pontuais.
+5. **GEMINI_API_KEY com quota/erro 4xx** mascarado: adicionar log do `response.status` e do body de erro nas duas edge functions; redeploy só dessas duas.
 
-Nenhuma mudança nos campos manuais de macros da refeição — eles continuam editáveis pelo coach como meta; o cálculo automático aparece como leitura adicional.
+## Etapa 3 – Ações de código (somente as hipóteses confirmadas)
 
-## 5. Visão do Aluno — `StructuredMealsViewer`
+- Se hipótese 2: incrementar versão do cache em `public/sw.js` para forçar update.
+- Se hipótese 3: adicionar o(s) origin(s) faltante(s) em `supabase/functions/_shared/cors.ts` e redeployar todas as edge functions afetadas.
+- Se hipótese 4: ajustar policy específica via nova migration (com `GRANT` revisado).
+- Se hipótese 5: melhorar o log de erro em `fitness-chat/index.ts` e `info-chat/index.ts`; relatório com o erro real do Gemini.
 
-Mantém exatamente como está: somente nome do alimento, peso e observações. **Não** exibir kcal/macros por opção nem por refeição. O `NutritionStrategyHeader` (totais do dia) continua igual — ele já é informação macro de alto nível, não detalhe por opção.
+## Etapa 4 – Verificação
 
-Garantir que campos de macro/kcal que possam ter sido adicionados ao item (`calcKcal`, etc.) **não vazem** no render do aluno. Auditar `MacroSection` para confirmar.
+- Painel admin: contar linhas em "Profissionais" e "Vínculos" e comparar com banco (6 não-admins, N vínculos coach↔aluno).
+- Chatbot: enviar "oi" e mostrar a resposta + status Network 200.
+- Só então: nova publicação.
 
-## 6. Onde o cálculo é disparado
+## O que preciso de você agora
 
-- **Tempo real no `ProtocolBuilder`**: ao editar `weight`/`baseName`/trocar food, recalcular via `useMemo` sobre `option.items`.
-- **Persistência**: NÃO armazenar kcal/macros calculados no `diet_strategy_json` (são derivados; ficam só em memória). Isso evita migração de dados.
-- **Substituições**: as marcações de desbalanceamento são puramente client-side no painel do coach.
-
-## 7. Arquivos a tocar
-
-- `src/data/industrialFoods.ts` (novo)
-- `src/lib/foodSearch.ts` (novo) — ou estender `tacoFoods.ts`
-- `src/lib/macroCalc.ts` (adicionar `optionMacros`, `compareOptions`, suportar industrial)
-- `src/components/coach/ProtocolBuilder.tsx` (kcal/macros por opção + badge de delta na substituição + kcal no cabeçalho)
-- `src/components/student/tools/TacoCalculatorDialog.tsx` (Picker passa a usar `searchFood`)
-- `src/components/student/StructuredMealsViewer.tsx` (auditoria — sem mudança visível ao aluno)
-
-## 8. Fora de escopo
-
-- Sem alterações de schema/DB.
-- Sem mudanças no aluno além da auditoria (zero vazamento de kcal).
-- Sem importação de planilha de industrializados — cadastro é via código.
-- Sem alterações em billing, daily_alerts, RLS, anamnese ou check-in.
-
-## 9. Verificação
-
-- `bunx tsc --noEmit` limpo.
-- Manualmente: criar refeição com requeijão + creme de arroz, conferir kcal/macros no painel do coach, abrir painel do aluno e confirmar que não aparecem números kcal/macros por opção.
+Responda A, B, C da Etapa 1 (de preferência com prints do Network) antes de eu tocar em qualquer arquivo. Se preferir, posso começar pela hipótese 2 (cache/SW) sem risco — mas o ideal é ver o erro real primeiro para não ficarmos em loop de "tenta fixar".
