@@ -3,7 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { buildCorsHeaders } from "../_shared/cors.ts";
 const SYSTEM_PROMPT = `Você é o assistente oficial da plataforma Elite Hub.
 Responda de forma direta, objetiva e em no máximo 3 frases, salvo pedido de detalhe.
-Para orçamento ou dúvidas sem resposta indique o e-mail rennanjoao@rjelitelab.com.br.
+Para orçamento ou dúvidas sem resposta indique o e-mail contato@eliteprimehub.com.br ou Instagram @Rennan_Eliteprime.
 Responsável técnico: CREF 206788-G/SP.`;
 
 serve(async (req: Request) => {
