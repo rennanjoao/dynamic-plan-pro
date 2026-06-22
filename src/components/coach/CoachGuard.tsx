@@ -4,6 +4,10 @@
  *  2. O admin bloqueou manualmente (blocked_until no futuro)
  *
  * Admins passam direto. Coaches com trial_ends_at no futuro e sem blocked_until também passam.
+ *
+ * [FIX BAIXO] Quando bloqueado, o conteúdo filho NÃO é renderizado — evita
+ * que usuários com inspetor do navegador vejam dados do dashboard por trás do blur.
+ * A segurança real dos dados continua dependendo das políticas RLS no banco.
  */
 
 import { useEffect, useState } from "react";
@@ -89,58 +93,36 @@ export const CoachGuard = ({ children }: Props) => {
     );
   }
 
-  if (!blocked) {
-    return (
-      <>
-        {daysLeft !== null && daysLeft <= 7 && daysLeft > 0 && (
-          <div className="bg-primary/10 border-b border-primary/30 px-4 py-2 text-center text-sm">
-            <Sparkles className="inline w-4 h-4 mr-1 text-primary" />
-            Seu trial termina em <strong className="text-primary">{daysLeft} {daysLeft === 1 ? "dia" : "dias"}</strong>.{" "}
-            <Link to="/planos" className="underline text-primary">Ver planos</Link>
-          </div>
-        )}
-        {children}
-      </>
-    );
-  }
-
-  // Bloqueio manual
-  if (blockReason === "manual") {
+  // [FIX] Bloqueo manual: NÃO renderiza children — apenas a tela de bloqueio.
+  // Versão anterior renderizava children com blur CSS, expondo dados no DOM.
+  if (blocked && blockReason === "manual") {
     const formattedDate = blockedUntil
       ? blockedUntil.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
       : "data indefinida";
 
     return (
-      <div className="relative min-h-screen">
-        <div className="absolute inset-0 blur-sm pointer-events-none select-none opacity-40">
-          {children}
-        </div>
-        <div className="relative z-10 min-h-screen flex items-center justify-center px-4">
-          <div className="max-w-md w-full bg-card border border-border rounded-2xl p-8 text-center shadow-2xl">
-            <div className="w-14 h-14 mx-auto rounded-full bg-destructive/15 flex items-center justify-center mb-4">
-              <Ban className="w-7 h-7 text-destructive" />
-            </div>
-            <h1 className="text-2xl font-bold mb-2">Acesso Suspenso</h1>
-            <p className="text-muted-foreground mb-2">
-              Seu acesso foi suspenso pelo administrador até:
-            </p>
-            <p className="text-lg font-bold text-destructive mb-6">{formattedDate}</p>
-            <p className="text-sm text-muted-foreground">
-              Entre em contato com o suporte para mais informações.
-            </p>
+      <div className="min-h-screen flex items-center justify-center px-4 bg-background">
+        <div className="max-w-md w-full bg-card border border-border rounded-2xl p-8 text-center shadow-2xl">
+          <div className="w-14 h-14 mx-auto rounded-full bg-destructive/15 flex items-center justify-center mb-4">
+            <Ban className="w-7 h-7 text-destructive" />
           </div>
+          <h1 className="text-2xl font-bold mb-2">Acesso Suspenso</h1>
+          <p className="text-muted-foreground mb-2">
+            Seu acesso foi suspenso pelo administrador até:
+          </p>
+          <p className="text-lg font-bold text-destructive mb-6">{formattedDate}</p>
+          <p className="text-sm text-muted-foreground">
+            Entre em contato com o suporte para mais informações.
+          </p>
         </div>
       </div>
     );
   }
 
-  // Trial expirado
-  return (
-    <div className="relative min-h-screen">
-      <div className="absolute inset-0 blur-sm pointer-events-none select-none opacity-40">
-        {children}
-      </div>
-      <div className="relative z-10 min-h-screen flex items-center justify-center px-4">
+  // [FIX] Trial expirado: NÃO renderiza children — apenas a tela de bloqueio.
+  if (blocked && blockReason === "trial") {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 bg-background">
         <div className="max-w-md w-full bg-card border border-border rounded-2xl p-8 text-center shadow-2xl">
           <div className="w-14 h-14 mx-auto rounded-full bg-primary/15 flex items-center justify-center mb-4">
             <Lock className="w-7 h-7 text-primary" />
@@ -155,6 +137,20 @@ export const CoachGuard = ({ children }: Props) => {
           </Button>
         </div>
       </div>
-    </div>
+    );
+  }
+
+  // Acesso liberado
+  return (
+    <>
+      {daysLeft !== null && daysLeft <= 7 && daysLeft > 0 && (
+        <div className="bg-primary/10 border-b border-primary/30 px-4 py-2 text-center text-sm">
+          <Sparkles className="inline w-4 h-4 mr-1 text-primary" />
+          Seu trial termina em <strong className="text-primary">{daysLeft} {daysLeft === 1 ? "dia" : "dias"}</strong>.{" "}
+          <Link to="/planos" className="underline text-primary">Ver planos</Link>
+        </div>
+      )}
+      {children}
+    </>
   );
 };
