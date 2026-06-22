@@ -109,9 +109,10 @@ export default function CheckIn() {
     setMode("update");
   }
 
-  const baseline = anamnesis?.baseline_metrics ?? {};
-
+  // [FIX MÉDIO] baseline movido para dentro do useEffect para evitar dependência
+  // instável no array de deps (objeto recriado a cada render causava loop).
   useEffect(() => {
+    const baseline = anamnesis?.baseline_metrics ?? {};
     if (mode === "new" && Object.keys(metrics).length === 0 && baseline) {
       const init: Record<string, string> = {};
       CHECKIN_METRICS.forEach((m) => {
@@ -119,7 +120,8 @@ export default function CheckIn() {
       });
       setMetrics(init);
     }
-  }, [baseline, metrics, mode]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anamnesis, mode]);
 
   const progress = useMemo(() => {
     const all = CHECKIN_SECTIONS.flatMap((s) => s.fields);
