@@ -29,21 +29,65 @@ export default function ProtocolQuestionButton({ context, itemRef, studentName, 
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [coachData, setCoachData] = useState<{ id: string; email: string | null } | null>(null);
+  // [FIX] Estado para guardar o nome e e-mail real do aluno logado,
+  // evitando depender de props opcionais que os pais frequentemente esquecem de passar.
+  const [resolvedStudent, setResolvedStudent] = useState<{ name: string; email: string | null }>({
+    name: studentName || "Aluno",
+    email: studentEmail || null,
+  });
 
   useEffect(() => {
     if (!open || coachData) return;
     (async () => {
       try {
-        const { data: session } = await supabase.auth.getSession();
-        const uid = session?.session?.user?.id;
-        if (!uid) return;
-        const { data: link } = await supabase.from("coach_students").select("coach_id").eq("student_id", uid).eq("status", "active").maybeSingle();
+        // [FIX] Busca o usuário autenticado para obter o e-mail real
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // [FIX] Busca o perfil do aluno para obter o nome completo
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name, email")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        // Monta o nome: prefere full_name do perfil, depois prop recebida, depois e-mail, depois "Aluno"
+        const resolvedName =
+          profile?.full_name?.trim() ||
+          studentName?.trim() ||
+          user.email?.split("@")[0] ||
+          "Aluno";
+
+        // Monta o e-mail: prefere auth.email (confiável), depois perfil, depois prop
+        const resolvedEmail =
+          user.email ||
+          profile?.email ||
+          studentEmail ||
+          null;
+
+        setResolvedStudent({ name: resolvedName, email: resolvedEmail });
+
+        // Busca o coach vinculado ao aluno
+        const { data: link } = await supabase
+          .from("coach_students")
+          .select("coach_id")
+          .eq("student_id", user.id)
+          .eq("status", "active")
+          .maybeSingle();
+
         if (link?.coach_id) {
-          const { data: profile } = await supabase.from("profiles").select("notification_email, email").eq("user_id", link.coach_id).maybeSingle();
-          setCoachData({ id: link.coach_id, email: profile?.notification_email || profile?.email || null });
+          const { data: coachProfile } = await supabase
+            .from("profiles")
+            .select("notification_email, email")
+            .eq("user_id", link.coach_id)
+            .maybeSingle();
+          setCoachData({
+            id: link.coach_id,
+            email: coachProfile?.notification_email || coachProfile?.email || null,
+          });
         }
       } catch (e) {
-        console.warn("Aviso: Coach lookup falhou.", e);
+        console.warn("Aviso: lookup de aluno/coach falhou.", e);
       }
     })();
   }, [open, coachData]);
@@ -52,17 +96,18 @@ export default function ProtocolQuestionButton({ context, itemRef, studentName, 
     if (!text.trim()) { toast.error("Escreva sua dúvida"); return; }
     setSending(true);
     try {
-      const { data: session } = await supabase.auth.getSession();
-      const uid = session?.session?.user?.id;
+      const { data: { user } } = await supabase.auth.getUser();
+      const uid = user?.id;
 
       if (coachData?.id) {
-        // 1. INSERE NO BANCO (Isso faz o painel do Coach apitar em tempo real)
+        // 1. INSERE NO BANCO (faz o painel do Coach apitar em tempo real)
         const { error: dbError } = await supabase.from("coach_notifications").insert({
           coach_id: coachData.id,
           student_id: uid,
-          student_name: studentName || "Aluno",
+          // [FIX] Usa o nome real resolvido, não mais o fallback genérico "Aluno"
+          student_name: resolvedStudent.name,
           context: contextLabels[context],
-          message: text.trim()
+          message: text.trim(),
         });
         if (dbError) throw dbError;
 
@@ -70,18 +115,19 @@ export default function ProtocolQuestionButton({ context, itemRef, studentName, 
         if (coachData.email) {
           await notifyCoach({
             coachEmail: coachData.email,
-            studentName,
-            studentEmail,
+            // [FIX] Passa nome e e-mail reais do aluno para o e-mail do coach
+            studentName: resolvedStudent.name,
+            studentEmail: resolvedStudent.email ?? undefined,
             kind: "question",
-            subject: `Dúvida sobre ${contextLabels[context]} — ${studentName ?? "Aluno"}`,
+            subject: `Dúvida sobre ${contextLabels[context]} — ${resolvedStudent.name}`,
             summary: text.trim(),
             data: { contexto: contextLabels[context], item: itemRef || "—" },
           });
         }
       }
-      
+
       toast.success("Dúvida enviada ao seu treinador!");
-      
+
       // Aviso da IA
       setTimeout(() => {
         toast("A IA também pode te ajudar!", {
