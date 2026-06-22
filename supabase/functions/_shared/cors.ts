@@ -3,8 +3,13 @@ const ALLOWED_ORIGINS = new Set<string>([
   "https://app.eliteprimehub.com.br",
   "https://dynamic-plan-pro.lovable.app",
 ]);
-// Lovable preview subdomains (e.g. id-preview--<id>.lovable.app, <slug>.lovable.app)
-const LOVABLE_PREVIEW_RE = /^https:\/\/[a-z0-9-]+\.lovable\.app$/i;
+// Lovable preview subdomains:
+//   *.lovable.app                (ex: <slug>.lovable.app)
+//   id-preview--<id>.lovable.app
+//   *.lovableproject.com         (preview/sandbox da Lovable)
+//   *.lovableproject-dev.com
+const LOVABLE_PREVIEW_RE =
+  /^https:\/\/[a-z0-9-]+\.(lovable\.app|lovableproject\.com|lovableproject-dev\.com|beta\.lovable\.dev)$/i;
 
 export function buildCorsHeaders(origin: string | null): Record<string, string> {
   const allow =
