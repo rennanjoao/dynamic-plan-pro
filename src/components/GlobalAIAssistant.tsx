@@ -130,18 +130,39 @@ export const GlobalAIAssistant = () => {
 
   const handleChatOpen = useCallback(() => setChatOpened(true), []);
 
+  // Query leve para detectar feedback novo do coach, mesmo com o chat fechado.
+  // Não roda em rotas ocultas e dispara só uma vez por sessão (guarda no effect).
+  const hidden = HIDDEN_ROUTES.has(pathname);
+  const { data: proactiveCheck } = useQuery({
+    queryKey: ["ai-proactive-feedback"],
+    enabled: !hidden && !sessionStorage.getItem("ai-proactive-seen"),
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data: sess } = await supabase.auth.getSession();
+      const uid = sess.session?.user?.id;
+      if (!uid) return null;
+      const { data: role } = await supabase.from("user_roles").select("role").eq("user_id", uid).maybeSingle();
+      if (role?.role === "coach" || role?.role === "admin") return null;
+      const { data } = await supabase
+        .from("check_ins")
+        .select("coach_feedback, submitted_at")
+        .eq("student_id", uid)
+        .order("submitted_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data ?? null;
+    },
+  });
+
   useEffect(() => {
-    if (!ctx || (ctx as any).isCoach) return;
-    const checkins = ((ctx as any).recentCheckIns ?? []) as Array<{ submitted_at?: string; coach_feedback?: string | null }>;
-    const latest = checkins[0];
-    if (!latest) return;
+    if (!proactiveCheck) return;
     const seenKey = "ai-proactive-seen";
     if (sessionStorage.getItem(seenKey)) return;
-    if (latest.coach_feedback) {
+    if (proactiveCheck.coach_feedback) {
       sessionStorage.setItem(seenKey, "1");
       setProactiveMessage("Seu coach deixou um feedback no seu último check-in! Quer que eu faça um resumo pra você?");
     }
-  }, [ctx]);
+  }, [proactiveCheck]);
 
   if (HIDDEN_ROUTES.has(pathname)) return null;
   return <FitnessChatBot athleteContext={ctx} onOpen={handleChatOpen} proactiveMessage={proactiveMessage} />;
