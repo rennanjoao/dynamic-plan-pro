@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, CheckCircle2, Loader2, TrendingDown, TrendingUp, Minus, FilePlus2, FileEdit } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, TrendingDown, TrendingUp, Minus, FilePlus2, FileEdit } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +58,11 @@ export default function CheckIn() {
     payload: Record<string, unknown>; current_metrics: Record<string, number>;
   } | null>(null);
   const [loadingLast, setLoadingLast] = useState(true);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+
+  useEffect(() => {
+    if (mode !== "choose") setStep(1);
+  }, [mode]);
 
   // Carrega último check-in para decidir o que oferecer
   useEffect(() => {
@@ -350,6 +355,50 @@ export default function CheckIn() {
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-5">
 
+        {/* Stepper */}
+        <div>
+          <div className="flex gap-2">
+            {[1, 2, 3].map((s) => (
+              <div
+                key={s}
+                className={cn(
+                  "h-1.5 flex-1 rounded-full transition-colors",
+                  step >= s ? "bg-primary" : "bg-muted"
+                )}
+              />
+            ))}
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-1.5">Etapa {step} de 3</p>
+        </div>
+
+        {step === 1 && (
+          <>
+            {CHECKIN_SECTIONS.filter((s) => ["identificacao", "dieta", "treino_sono"].includes(s.id)).map((sec) => (
+              <Card key={sec.id} className="bg-card/60 border-border p-5">
+                <h2 className="text-sm font-bold text-primary uppercase tracking-wider mb-4">
+                  {sec.title}
+                </h2>
+                <div className="grid grid-cols-2 gap-4">
+                  {sec.fields.map((f) => (
+                    <div key={f.key} className={f.half ? "col-span-1" : "col-span-2"}>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">
+                        {f.label}
+                      </Label>
+                      <FormField
+                        field={f}
+                        value={data[f.key]}
+                        onChange={(v) => setData((p) => ({ ...p, [f.key]: v }))}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            ))}
+          </>
+        )}
+
+        {step === 2 && (
+          <>
         {/* Métricas com delta */}
         <Card className="bg-card/60 border-border p-5">
           <h2 className="text-sm font-bold text-primary uppercase tracking-wider mb-4">
@@ -394,7 +443,7 @@ export default function CheckIn() {
           </div>
         </Card>
 
-        {CHECKIN_SECTIONS.map((sec) => (
+        {CHECKIN_SECTIONS.filter((s) => !["identificacao", "dieta", "treino_sono"].includes(s.id)).map((sec) => (
           <Card key={sec.id} className="bg-card/60 border-border p-5">
             <h2 className="text-sm font-bold text-primary uppercase tracking-wider mb-4">
               {sec.title}
@@ -445,14 +494,58 @@ export default function CheckIn() {
             ))}
           </div>
         </Card>
+          </>
+        )}
+
+        {step === 3 && (
+          <Card className="bg-card/60 border-border p-5">
+            <h2 className="text-sm font-bold text-primary uppercase tracking-wider mb-4">
+              Revisar & Enviar
+            </h2>
+            <ul className="space-y-2 text-sm text-foreground">
+              <li>
+                <span className="text-muted-foreground">Fotos anexadas:</span>{" "}
+                <span className="font-semibold">
+                  {FOTO_KEYS.filter((k) => fotoPreviews[k]).length} de {FOTO_KEYS.length}
+                </span>
+              </li>
+              <li>
+                <span className="text-muted-foreground">Peso atual:</span>{" "}
+                <span className="font-semibold">
+                  {metrics["cur_peso"] ? `${metrics["cur_peso"]} kg` : "—"}
+                </span>
+              </li>
+              <li>
+                <span className="text-muted-foreground">Progresso do formulário:</span>{" "}
+                <span className="font-semibold">{progress}%</span>
+              </li>
+            </ul>
+            <p className="text-xs text-muted-foreground mt-4">
+              Revise os dados acima. Ao enviar, seu coach será notificado automaticamente.
+            </p>
+          </Card>
+        )}
       </main>
 
       <footer className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t border-border z-20">
         <div className="max-w-3xl mx-auto px-4 py-3 flex gap-2">
-          <Button className="flex-1" onClick={submit} disabled={saving || progress < 25}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-            Enviar check-in
-          </Button>
+          {step > 1 && (
+            <Button variant="outline" onClick={() => setStep((s) => (s - 1) as 1 | 2 | 3)}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Voltar
+            </Button>
+          )}
+          {step < 3 ? (
+            <Button className="flex-1" onClick={() => setStep((s) => (s + 1) as 1 | 2 | 3)}>
+              Continuar
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          ) : (
+            <Button className="flex-1" onClick={submit} disabled={saving || progress < 25}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+              Enviar check-in
+            </Button>
+          )}
         </div>
       </footer>
     </div>

@@ -1,5 +1,5 @@
 // src/components/GlobalAIAssistant.tsx
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { FitnessChatBot } from "@/components/fitness/FitnessChatBot";
@@ -119,6 +119,7 @@ async function fetchAthleteContext() {
 export const GlobalAIAssistant = () => {
   const { pathname } = useLocation();
   const [chatOpened, setChatOpened] = useState(false);
+  const [proactiveMessage, setProactiveMessage] = useState<string | undefined>(undefined);
 
   const { data: ctx } = useQuery({
     queryKey: ["ai-athlete-context"],
@@ -129,6 +130,19 @@ export const GlobalAIAssistant = () => {
 
   const handleChatOpen = useCallback(() => setChatOpened(true), []);
 
+  useEffect(() => {
+    if (!ctx || (ctx as any).isCoach) return;
+    const checkins = ((ctx as any).recentCheckIns ?? []) as Array<{ submitted_at?: string; coach_feedback?: string | null }>;
+    const latest = checkins[0];
+    if (!latest) return;
+    const seenKey = "ai-proactive-seen";
+    if (sessionStorage.getItem(seenKey)) return;
+    if (latest.coach_feedback) {
+      sessionStorage.setItem(seenKey, "1");
+      setProactiveMessage("Seu coach deixou um feedback no seu último check-in! Quer que eu faça um resumo pra você?");
+    }
+  }, [ctx]);
+
   if (HIDDEN_ROUTES.has(pathname)) return null;
-  return <FitnessChatBot athleteContext={ctx} onOpen={handleChatOpen} />;
+  return <FitnessChatBot athleteContext={ctx} onOpen={handleChatOpen} proactiveMessage={proactiveMessage} />;
 };

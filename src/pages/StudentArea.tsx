@@ -228,6 +228,24 @@ export default function StudentArea() {
     },
   });
 
+  // ─── Existência do protocolo ativo (para empty states) ───
+  const { data: hasProtocol } = useQuery({
+    queryKey: ["student-has-protocol", userId],
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 5,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("protocols")
+        .select("id")
+        .eq("student_id", userId)
+        .eq("is_template", false)
+        .eq("active", true)
+        .limit(1)
+        .maybeSingle();
+      return !!data;
+    },
+  });
+
   // ─── ALERTA 2: Cobrança ───
   const { data: billingAlert } = useQuery({
     queryKey: ["student-billing-alert", userId],
@@ -523,6 +541,9 @@ export default function StudentArea() {
                 <div className="flex-1 min-w-0">
                   <h3 className="font-bold text-foreground">Dieta</h3>
                   <p className="text-xs text-muted-foreground mt-0.5">Plano alimentar, substituições e macros.</p>
+                  {hasProtocol === false && (
+                    <p className="text-[11px] text-muted-foreground/80 italic mt-1">Aguardando protocolo do seu coach.</p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -552,6 +573,9 @@ export default function StudentArea() {
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">Séries, cadência e diretrizes biomecânicas.</p>
+                  {hasProtocol === false && (
+                    <p className="text-[11px] text-muted-foreground/80 italic mt-1">Aguardando protocolo do seu coach.</p>
+                  )}
                 </div>
               </div>
             </CardContent>

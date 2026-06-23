@@ -26,12 +26,15 @@ interface AthleteContext {
 interface FitnessChatBotProps {
   athleteContext?: AthleteContext;
   onOpen?: () => void;
+  proactiveMessage?: string;
 }
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fitness-chat`;
 const BUBBLE_DURATION = 6000;
+const SESSION_KEY = "fitness-chat-session";
 
 const STUDENT_QUICK_ACTIONS = [
+  { label: "Check-in pendente?", prompt: "Verifique no meu histórico se tenho check-in pendente ou atrasado e me diga o que está faltando." },
   { label: "Ajustar Macros", prompt: "Me ajude a ajustar meus macronutrientes com base no meu perfil e objetivo atual." },
   { label: "Minha Evolução", prompt: "Gere um resumo da minha evolução com base nas minhas medidas e check-ins." },
   { label: "Técnica Agachamento", prompt: "Explique a técnica correta do agachamento com barra, incluindo cadência e RPE ideal." },
@@ -51,14 +54,45 @@ const INITIAL_MESSAGE: Message = {
   content: DEFAULT_WELCOME,
 };
 
-export const FitnessChatBot = ({ athleteContext, onOpen }: FitnessChatBotProps) => {
+export const FitnessChatBot = ({ athleteContext, onOpen, proactiveMessage }: FitnessChatBotProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showBubble, setShowBubble] = useState(false);
   const [bubbleText, setBubbleText] = useState(DEFAULT_WELCOME);
+  const [minimized, setMinimized] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Restaura mensagens da sessão (uma vez)
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(SESSION_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Message[];
+      if (Array.isArray(parsed) && parsed.length > 1) {
+        setMessages(parsed);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  // Persiste mensagens na sessão
+  useEffect(() => {
+    if (messages.length > 1) {
+      try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(messages)); } catch { /* ignore */ }
+    }
+  }, [messages]);
+
+  // Mensagem proativa vinda do contexto global
+  useEffect(() => {
+    if (!proactiveMessage) return;
+    if (isOpen || showBubble) return;
+    setBubbleText(proactiveMessage);
+    setShowBubble(true);
+    const t = setTimeout(() => setShowBubble(false), BUBBLE_DURATION);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proactiveMessage]);
 
   useEffect(() => {
     if (messages.length === 1 && messages[0].id === "welcome") {
@@ -175,7 +209,7 @@ export const FitnessChatBot = ({ athleteContext, onOpen }: FitnessChatBotProps) 
     <>
       {/* Bubble flutuante de boas-vindas */}
       <AnimatePresence>
-        {showBubble && !isOpen && (
+        {showBubble && !isOpen && !minimized && (
           <motion.div
             initial={{ opacity: 0, y: 10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -184,7 +218,15 @@ export const FitnessChatBot = ({ athleteContext, onOpen }: FitnessChatBotProps) 
             className="fixed bottom-24 right-6 z-50 max-w-[260px] bg-card border border-border/30 rounded-2xl rounded-br-sm px-4 py-3 shadow-2xl cursor-pointer"
             onClick={handleOpen}
           >
-            <p className="text-sm text-foreground leading-relaxed">{bubbleText}</p>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setShowBubble(false); }}
+              className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              aria-label="Fechar balão"
+            >
+              <X className="w-3 h-3" />
+            </button>
+            <p className="text-sm text-foreground leading-relaxed pr-4">{bubbleText}</p>
             <div className="absolute -bottom-2 right-5 w-3 h-3 bg-card border-r border-b border-border/30 rotate-45" />
           </motion.div>
         )}
@@ -192,13 +234,21 @@ export const FitnessChatBot = ({ athleteContext, onOpen }: FitnessChatBotProps) 
 
       {/* Botão flutuante */}
       <AnimatePresence>
-        {!isOpen && (
+        {!isOpen && !minimized && (
           <motion.div
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             className="fixed bottom-6 right-6 z-50"
           >
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setMinimized(true); setShowBubble(false); }}
+              className="absolute -top-1 -left-1 z-10 w-4 h-4 rounded-full bg-muted text-muted-foreground border border-border/40 text-[10px] leading-none flex items-center justify-center hover:bg-muted/80"
+              aria-label="Minimizar"
+            >
+              −
+            </button>
             <Button
               onClick={handleOpen}
               className="w-14 h-14 rounded-full glow-primary shadow-2xl animate-glow-pulse"
@@ -209,6 +259,16 @@ export const FitnessChatBot = ({ athleteContext, onOpen }: FitnessChatBotProps) 
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Modo minimizado: ponto discreto */}
+      {!isOpen && minimized && (
+        <button
+          type="button"
+          onClick={() => setMinimized(false)}
+          className="fixed bottom-6 right-6 z-50 w-2.5 h-2.5 rounded-full bg-primary opacity-60 cursor-pointer hover:opacity-100 transition-opacity"
+          aria-label="Restaurar chat"
+        />
+      )}
 
       {/* Chat */}
       <AnimatePresence>
