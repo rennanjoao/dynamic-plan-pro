@@ -18,6 +18,14 @@ import { buildWeekStrip, CARB_LABEL, CARB_COLOR, todayKey, tomorrowKey } from "@
 import { cn } from "@/lib/utils";
 
 // ─── Math engine ──────────────────────────────────────────────────────────────
+/** Retorna saudação de acordo com o horário local do dispositivo */
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return "Bom dia";
+  if (h >= 12 && h < 18) return "Boa tarde";
+  return "Boa noite";
+}
+
 function getCookedMultiplier(name: string): number {
   const s = name.toLowerCase();
   if (/\barroz(?!\s+integral)/.test(s)) return 2.5;
