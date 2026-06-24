@@ -264,6 +264,17 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Aluno</p>
               <p className="text-sm font-semibold text-foreground truncate">{studentName}</p>
             </div>
+            {payload && (
+              <div className="flex items-center gap-2 pl-3 ml-1 border-l border-border/40">
+                <Switch checked={active} onCheckedChange={setActive} id="active-top" />
+                <Label htmlFor="active-top" className="text-xs cursor-pointer select-none">
+                  {active ? "Ativo" : "Inativo"}
+                </Label>
+                <span className={`text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-full ${active ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"}`}>
+                  {active ? "Publicado" : "Oculto"}
+                </span>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded-full ${isEditMode ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"}`}>
