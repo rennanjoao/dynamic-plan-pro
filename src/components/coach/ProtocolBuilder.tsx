@@ -306,20 +306,19 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       ) : (
         <>
           <Card className="bg-card/60 border-border p-4">
-            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-end">
-              <div>
-                <Label className="text-xs">Nome do protocolo</Label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 h-9 text-sm" />
-              </div>
-              <div className="flex items-center gap-2 pb-1">
-                <Switch checked={active} onCheckedChange={setActive} id="active" />
-                <Label htmlFor="active" className="text-xs cursor-pointer">Ativo</Label>
-                <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${active ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"}`}>
-                  {active ? "Publicado p/ aluno" : "Rascunho (oculto)"}
+            <Label className="text-xs">Nome do protocolo</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 h-9 text-sm" />
+          </Card>
+
+          <div className={cn("relative", !active && "pointer-events-none")}>
+            {!active && (
+              <div className="absolute inset-0 z-30 bg-background/55 backdrop-blur-[1px] rounded-lg flex items-start justify-center pt-8 pointer-events-none">
+                <span className="text-[11px] uppercase tracking-wider font-bold px-3 py-1.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/40 shadow">
+                  Protocolo inativo — invisível para o aluno
                 </span>
               </div>
-            </div>
-          </Card>
+            )}
+            <div className={cn(!active && "opacity-60 saturate-50")}>
 
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
             {(() => {
