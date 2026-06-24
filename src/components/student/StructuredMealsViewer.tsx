@@ -447,8 +447,17 @@ export default function StructuredMealsViewer({ payload }: { payload: any }) {
   const safeData = payload || {};
   const meals: any[] = Array.isArray(safeData.meals) ? safeData.meals : [];
 
+  // ── Contexto do dia ─────────────────────────────────────────────────────
+  const strip = buildWeekStrip(safeData);
+  const todayInfo = strip.find((d) => d.isToday)!;
+  const tomorrowInfo = strip.find((d) => d.key === tomorrowKey())!;
+  const workouts: any[] = Array.isArray(safeData.workouts) ? safeData.workouts : [];
+  const findWorkout = (k: string) => workouts.find((w) => w.key === k);
+  const todayWorkout = todayInfo.workoutKey ? findWorkout(todayInfo.workoutKey) : null;
+  const tomorrowWorkout = tomorrowInfo.workoutKey ? findWorkout(tomorrowInfo.workoutKey) : null;
+
   // ── Estado global — único para todas as refeições ──
-  const [carbMode, setCarbMode] = useState<CarbMode>("base");
+  const [carbMode, setCarbMode] = useState<CarbMode>(todayInfo.carb as CarbMode);
   const [isCooked, setIsCooked] = useState(false);
 
   const highPct: number = safeData.carbCycleHighPct ?? 15;
@@ -465,8 +474,52 @@ export default function StructuredMealsViewer({ payload }: { payload: any }) {
 
   if (meals.length === 0) return null;
 
+  const carbCfg = CARB_COLOR[todayInfo.carb];
+  const carbCfgT = CARB_COLOR[tomorrowInfo.carb];
+
   return (
     <div className="w-full max-w-full overflow-x-hidden">
+      {/* ── Card de contexto do dia (carbo + treino linkado) ── */}
+      <div className={cn(
+        "rounded-2xl border p-4 mb-3 flex flex-col gap-1",
+        carbCfg.border, carbCfg.bg
+      )}>
+        <div className="flex items-baseline justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <p className={cn("text-[10px] uppercase tracking-[0.2em] font-bold", carbCfg.text)}>Hoje · Carbo</p>
+            <p className={cn("text-3xl font-black leading-none mt-0.5", carbCfg.text)}>{CARB_LABEL[todayInfo.carb]}</p>
+            <p className="text-[12px] text-muted-foreground mt-1">
+              {todayWorkout
+                ? <>dia de treino <span className="text-foreground font-semibold">{todayWorkout.key}</span>{todayWorkout.focus ? <> · {todayWorkout.focus}</> : null}</>
+                : <span className="italic">dia de descanso</span>}
+            </p>
+          </div>
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{todayInfo.label}</span>
+        </div>
+      </div>
+
+      {/* ── Week strip (read-only) ── */}
+      <div className="grid grid-cols-7 gap-1 mb-4">
+        {strip.map((d) => {
+          const cc = CARB_COLOR[d.carb];
+          return (
+            <div
+              key={d.key}
+              className={cn(
+                "rounded-lg border bg-background/50 px-1 py-1 flex flex-col items-center gap-0.5",
+                d.isToday ? "border-[#CC0000]" : "border-border/40"
+              )}
+            >
+              <span className="text-[9px] uppercase text-muted-foreground tracking-wider">{d.abbr}</span>
+              <span className="text-[12px] font-bold text-foreground leading-none">{d.workoutKey || "—"}</span>
+              <span className={cn("text-[8px] font-bold uppercase px-1 py-px rounded border leading-none mt-0.5", cc.pill)}>
+                {CARB_LABEL[d.carb]}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
       {/* Macros — estático, não precisa de sticky */}
       <NutritionStrategyHeader
         payload={safeData}
@@ -499,6 +552,24 @@ export default function StructuredMealsViewer({ payload }: { payload: any }) {
             supplements={safeData.supplements}
           />
         ))}
+      </div>
+
+      {/* ── Preview de amanhã ── */}
+      <div className={cn(
+        "mt-4 rounded-xl border px-4 py-3 flex items-center justify-between gap-3",
+        carbCfgT.border, carbCfgT.bg
+      )}>
+        <div className="min-w-0">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-bold">Amanhã</p>
+          <p className="text-sm text-foreground/90 mt-0.5 truncate">
+            {tomorrowWorkout
+              ? <>Treino <span className="font-bold">{tomorrowWorkout.key}</span>{tomorrowWorkout.focus ? <> · {tomorrowWorkout.focus}</> : null}</>
+              : <span className="italic text-muted-foreground">Descanso</span>}
+          </p>
+        </div>
+        <span className={cn("text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border", carbCfgT.pill)}>
+          {CARB_LABEL[tomorrowInfo.carb]}
+        </span>
       </div>
     </div>
   );
