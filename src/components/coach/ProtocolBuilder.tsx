@@ -258,7 +258,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
     <div className="space-y-4">
       <Card className="bg-card/60 border-border p-3 sm:p-4">
         <div className="flex flex-col gap-3">
-          {/* Top row: controls left, student chip right */}
+          {/* Top row: Ativo + Modo Avançado left, student chip right */}
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
               {payload && (
@@ -267,37 +267,6 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                   <Label htmlFor="active-top" className="text-xs cursor-pointer select-none">
                     {active ? "Ativo" : "Inativo"}
                   </Label>
-                </div>
-              )}
-              {payload && (
-                <>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs"
-                    onClick={() => setPreviewOpen(true)}
-                  >
-                    <Eye className="w-3.5 h-3.5 mr-1.5" />
-                    <span className="hidden sm:inline">Ver como aluno</span>
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs"
-                    onClick={() => setConsultOpen(true)}
-                  >
-                    <ClipboardList className="w-3.5 h-3.5 mr-1.5" />
-                    <span className="hidden sm:inline">Anamnese</span>
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs"
-                    onClick={() => setSetupOpen(true)}
-                  >
-                    <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                    <span className="hidden sm:inline">Recriar base</span>
-                  </Button>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
@@ -314,7 +283,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                       </div>
                     </PopoverContent>
                   </Popover>
-                </>
+                </div>
               )}
             </div>
 
@@ -328,6 +297,39 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
               </div>
             </div>
           </div>
+
+          {/* Second row: action buttons */}
+          {payload && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                onClick={() => setPreviewOpen(true)}
+              >
+                <Eye className="w-3.5 h-3.5 mr-1.5" />
+                <span className="hidden sm:inline">Ver como aluno</span>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                onClick={() => setConsultOpen(true)}
+              >
+                <ClipboardList className="w-3.5 h-3.5 mr-1.5" />
+                <span className="hidden sm:inline">Anamnese</span>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                onClick={() => setSetupOpen(true)}
+              >
+                <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                <span className="hidden sm:inline">Recriar base</span>
+              </Button>
+            </div>
+          )}
 
           {/* Name input inline (only when there is a payload) */}
           {payload && (
