@@ -124,14 +124,13 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [setupCarbCycle, setSetupCarbCycle] = useState(false);
   const [consultOpen, setConsultOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"macros" | "guidelines" | "workouts" | "diet" | "cycle">("macros");
+  const [activeTab, setActiveTab] = useState<"macros" | "guidelines" | "workouts" | "diet">("macros");
 
   const tabLabel: Record<typeof activeTab, string> = {
     macros: "Macros",
     guidelines: "Diretrizes",
     workouts: "Treino",
     diet: "Dieta",
-    cycle: "Semana",
   } as const;
 
   useEffect(() => {
