@@ -345,11 +345,6 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         </>
       ) : (
         <>
-          <Card className="bg-card/60 border-border p-4">
-            <Label className="text-xs">Nome do protocolo</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 h-9 text-sm" />
-          </Card>
-
           <div className={cn("relative", !active && "pointer-events-none")}>
             {!active && (
               <div className="absolute inset-0 z-30 bg-background/55 backdrop-blur-[1px] rounded-lg flex items-start justify-center pt-8 pointer-events-none">
