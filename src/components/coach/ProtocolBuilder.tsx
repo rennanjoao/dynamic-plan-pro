@@ -318,27 +318,27 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                 </span>
               </div>
             )}
-            <div className={cn(!active && "opacity-60 saturate-50")}>
+            <div className={cn("space-y-4", !active && "opacity-60 saturate-50")}>
 
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
             {(() => {
               const completion = computeCompletion(payload);
-              const doneCount = Object.values(completion).filter(Boolean).length;
-              return doneCount < 5 ? (
+              const flags = [completion.macros, completion.guidelines, completion.workouts, completion.diet];
+              const doneCount = flags.filter(Boolean).length;
+              return doneCount < 4 ? (
                 <div className="mb-2 px-1 text-[11px] text-muted-foreground">
-                  {doneCount} de 5 seções preenchidas
+                  {doneCount} de 4 seções preenchidas
                 </div>
               ) : null;
             })()}
             <TabsList className="flex w-full overflow-x-auto gap-0 h-auto p-1">
               {(() => {
                 const c = computeCompletion(payload);
-                const tabs: Array<{ v: "macros"|"guidelines"|"workouts"|"diet"|"cycle"; label: string; icon: JSX.Element; done: boolean }> = [
+                const tabs: Array<{ v: "macros"|"guidelines"|"workouts"|"diet"; label: string; icon: JSX.Element; done: boolean }> = [
                   { v: "macros",     label: "Macros",     icon: <BarChart3 className="w-3.5 h-3.5 mr-1" />,        done: c.macros },
                   { v: "guidelines", label: "Diretrizes", icon: <FileText className="w-3.5 h-3.5 mr-1" />,         done: c.guidelines },
                   { v: "workouts",   label: "Treino",     icon: <Dumbbell className="w-3.5 h-3.5 mr-1" />,         done: c.workouts },
                   { v: "diet",       label: "Dieta",      icon: <UtensilsCrossed className="w-3.5 h-3.5 mr-1" />,  done: c.diet },
-                  { v: "cycle",      label: "Semana",     icon: <Calendar className="w-3.5 h-3.5 mr-1" />,         done: c.cycle },
                 ];
                 return tabs.map((t) => (
                   <TabsTrigger key={t.v} value={t.v} className="shrink-0">
@@ -352,17 +352,23 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             <TabsContent value="guidelines" className="mt-4"><GuidelinesTab payload={payload} setPayload={updatePayload} /></TabsContent>
             <TabsContent value="workouts" className="mt-4"><WorkoutsTab payload={payload} setPayload={updatePayload} coachId={coachId} /></TabsContent>
             <TabsContent value="diet" className="mt-4"><DietTab payload={payload} setPayload={updatePayload} /></TabsContent>
-            <TabsContent value="cycle" className="mt-4"><WeekCycleTab payload={payload} setPayload={updatePayload} /></TabsContent>
           </Tabs>
 
-          <div className="flex justify-end gap-2 sticky bottom-4 z-40">
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 sticky bottom-4 z-40">
+            <Button onClick={saveAsTemplate} disabled={saving} size="lg" variant="ghost" className="shadow-lg mr-auto">
+              <BookmarkPlus className="w-4 h-4 mr-2" />
+              Salvar template
+            </Button>
             <Button onClick={() => save({ asDraft: true })} disabled={saving} size="lg" variant="outline" className="shadow-lg bg-background">
               {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
-              Salvar Rascunho
+              Salvar rascunho
             </Button>
-            <Button onClick={() => save()} disabled={saving} size="lg" className="shadow-lg">
+            <Button onClick={() => save()} disabled={saving || !active} size="lg" className="shadow-lg">
               {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-              {isEditMode ? "Atualizar Protocolo" : "Criar Protocolo"}
+              {isEditMode ? "Atualizar protocolo" : "Criar protocolo"}
             </Button>
           </div>
         </>
