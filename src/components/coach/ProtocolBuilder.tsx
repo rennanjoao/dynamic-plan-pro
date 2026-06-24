@@ -190,6 +190,10 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   async function save(opts: { asDraft?: boolean } = {}) {
     if (!payload) return;
     if (!name.trim()) { toast.error("Dê um nome ao protocolo"); return; }
+    if (!opts.asDraft && !active) {
+      toast.error("Protocolo está Inativo — ative no topo antes de publicar.");
+      return;
+    }
     const publishActive = opts.asDraft ? false : active;
     setSaving(true);
     try {
@@ -223,6 +227,28 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       setIsDirty(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao salvar");
+    } finally { setSaving(false); }
+  }
+
+  async function saveAsTemplate() {
+    if (!payload) { toast.error("Sem protocolo para salvar"); return; }
+    const tplName = window.prompt("Nome do template", name || "Template");
+    if (!tplName?.trim()) return;
+    setSaving(true);
+    try {
+      const parsed = ProtocolPayloadSchema.parse(payload);
+      const { error } = await sb.from("protocols").insert({
+        student_id: studentId,
+        coach_id: coachId,
+        name: tplName.trim(),
+        is_template: true,
+        payload: parsed,
+        active: false,
+      });
+      if (error) throw error;
+      toast.success("Template salvo na sua biblioteca");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao salvar template");
     } finally { setSaving(false); }
   }
 
