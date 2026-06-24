@@ -133,6 +133,18 @@ export default function WorkoutPlan() {
           </div>
         )}
 
+        {/* Diretriz fixa de falta — sempre visível, independente do coach */}
+        <div className="bg-blue-500/10 border border-blue-500/30 p-4 rounded-xl shadow-sm">
+          <h3 className="text-blue-600 font-bold flex items-center gap-2 mb-2 text-sm">
+            <AlertTriangle className="w-4 h-4" /> O que fazer se precisar faltar ao treino?
+          </h3>
+          <p className="text-sm text-foreground/90 leading-relaxed">
+            Marque o dia como <strong>descanso</strong> no seu calendário e empurre o treino que faltou para o
+            dia seguinte — a dieta continua normalmente junto com o treino reprogramado.{" "}
+            <strong>Nunca pule sem reprogramar.</strong> Consistência ao longo das semanas é o que gera resultado.
+          </p>
+        </div>
+
         {/* WorkoutPeriodizationView agora recebe onStartWorkout e injeta o botão Iniciar dentro dos cards */}
         <WorkoutPeriodizationView
           workouts={workouts as any}
