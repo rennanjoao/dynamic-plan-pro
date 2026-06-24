@@ -451,7 +451,7 @@ function MealCard({
 }
 
 // ─── Root ─────────────────────────────────────────────────────────────────────
-export default function StructuredMealsViewer({ payload }: { payload: any }) {
+export default function StructuredMealsViewer({ payload, studentName }: { payload: any; studentName?: string }) {
   const safeData = payload || {};
   const meals: any[] = Array.isArray(safeData.meals) ? safeData.meals : [];
 
