@@ -14,6 +14,8 @@ import { Clock, Flame, Dna, Wheat, Droplets, Salad } from "lucide-react";
 import { type CarbMode } from "@/components/student/CarbCycleSelector";
 import StickyDietBar from "@/components/student/StickyDietBar";
 import { calcItemMacros } from "@/lib/macroCalc";
+import { buildWeekStrip, CARB_LABEL, CARB_COLOR, todayKey, tomorrowKey } from "@/lib/weekCycle";
+import { cn } from "@/lib/utils";
 
 // ─── Math engine ──────────────────────────────────────────────────────────────
 function getCookedMultiplier(name: string): number {
