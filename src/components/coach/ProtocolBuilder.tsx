@@ -55,6 +55,10 @@ import {
   ProtocolPayloadSchema, ProtocolPayload, SPLIT_OPTIONS, WEEKDAYS,
   buildBasePayload, makeEmptyExercise, makeEmptyMeal, type SplitValue, MEAL_NAME_PRESETS,
 } from "@/lib/protocolSchema";
+import {
+  buildWeekStrip, cycleCarb, normalizeCarb, CARB_LABEL, CARB_COLOR,
+  DAY_KEYS, type CarbLevel,
+} from "@/lib/weekCycle";
 import ProtocolImportExport from "./ProtocolImportExport";
 import ProtocolImportHistory from "./ProtocolImportHistory";
 import WorkoutPeriodizationEditor from "./WorkoutPeriodizationEditor";
