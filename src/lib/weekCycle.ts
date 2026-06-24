@@ -85,5 +85,3 @@ export function buildWeekStrip(payload: any, today = todayKey()): DayInfo[] {
     isToday: k === today,
   }));
 }
-
-import { WEEKDAYS } from "@/lib/protocolSchema";
