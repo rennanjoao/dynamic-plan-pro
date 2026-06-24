@@ -585,20 +585,36 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
 
       {/* ── Preview de amanhã ── */}
       <div className={cn(
-        "mt-4 rounded-xl border px-4 py-3 flex items-center justify-between gap-3",
+        "mt-4 rounded-xl border px-4 py-3 flex flex-col gap-1",
         carbCfgT.border, carbCfgT.bg
       )}>
-        <div className="min-w-0">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-bold">Amanhã</p>
-          <p className="text-sm text-foreground/90 mt-0.5 truncate">
-            {tomorrowWorkout
-              ? <>Treino <span className="font-bold">{tomorrowWorkout.key}</span>{tomorrowWorkout.focus ? <> · {tomorrowWorkout.focus}</> : null}</>
-              : <span className="italic text-muted-foreground">Descanso</span>}
+        <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-bold">
+          Amanhã — prepare-se
+        </p>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-sm text-foreground/90">
+            {tomorrowWorkout ? (
+              <>
+                Treino{" "}
+                <span className="font-bold">{tomorrowWorkout.key}</span>
+                {tomorrowWorkout.focus ? <> · {tomorrowWorkout.focus}</> : null}
+              </>
+            ) : (
+              <span className="italic text-muted-foreground">Descanso</span>
+            )}
           </p>
+          <span className={cn(
+            "text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border shrink-0",
+            carbCfgT.pill
+          )}>
+            Carbo {CARB_LABEL[tomorrowInfo.carb]}
+          </span>
         </div>
-        <span className={cn("text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border", carbCfgT.pill)}>
-          {CARB_LABEL[tomorrowInfo.carb]}
-        </span>
+        <p className="text-[11px] text-muted-foreground mt-0.5">
+          {tomorrowWorkout
+            ? "Organize suas refeições com antecedência para garantir energia no treino."
+            : "Aproveite para descansar e repor as energias para os próximos dias."}
+        </p>
       </div>
     </div>
   );
