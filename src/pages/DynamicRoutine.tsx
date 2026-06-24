@@ -47,6 +47,20 @@ export default function DynamicRoutine() {
     staleTime: 60_000,
   });
 
+  const { data: profile } = useQuery({
+    queryKey: ["student-profile", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name, name")
+        .eq("id", userId)
+        .maybeSingle();
+      return data ?? null;
+    },
+    staleTime: 300_000,
+  });
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
