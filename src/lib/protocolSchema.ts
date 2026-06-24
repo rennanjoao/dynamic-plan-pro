@@ -284,6 +284,8 @@ export const ProtocolPayloadSchema = z.object({
   cardio: z.array(CardioSchema).default([]),
   supplements: z.array(SupplementSchema).default([]),
   periodization: PeriodizationSchema.default({} as any),
+  // Map weekday key → workout key ("" or "rest" = sem treino)
+  weekDays: z.record(z.string()).default({}),
 });
 
 export type ProtocolPayload = z.infer<typeof ProtocolPayloadSchema>;

@@ -55,6 +55,10 @@ import {
   ProtocolPayloadSchema, ProtocolPayload, SPLIT_OPTIONS, WEEKDAYS,
   buildBasePayload, makeEmptyExercise, makeEmptyMeal, type SplitValue, MEAL_NAME_PRESETS,
 } from "@/lib/protocolSchema";
+import {
+  buildWeekStrip, cycleCarb, normalizeCarb, CARB_LABEL, CARB_COLOR,
+  DAY_KEYS, type CarbLevel,
+} from "@/lib/weekCycle";
 import ProtocolImportExport from "./ProtocolImportExport";
 import ProtocolImportHistory from "./ProtocolImportHistory";
 import WorkoutPeriodizationEditor from "./WorkoutPeriodizationEditor";
@@ -120,14 +124,13 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [setupCarbCycle, setSetupCarbCycle] = useState(false);
   const [consultOpen, setConsultOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"macros" | "guidelines" | "workouts" | "diet" | "cycle">("macros");
+  const [activeTab, setActiveTab] = useState<"macros" | "guidelines" | "workouts" | "diet">("macros");
 
   const tabLabel: Record<typeof activeTab, string> = {
     macros: "Macros",
     guidelines: "Diretrizes",
     workouts: "Treino",
     diet: "Dieta",
-    cycle: "Semana",
   } as const;
 
   useEffect(() => {
@@ -187,6 +190,10 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   async function save(opts: { asDraft?: boolean } = {}) {
     if (!payload) return;
     if (!name.trim()) { toast.error("Dê um nome ao protocolo"); return; }
+    if (!opts.asDraft && !active) {
+      toast.error("Protocolo está Inativo — ative no topo antes de publicar.");
+      return;
+    }
     const publishActive = opts.asDraft ? false : active;
     setSaving(true);
     try {
@@ -223,6 +230,28 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
     } finally { setSaving(false); }
   }
 
+  async function saveAsTemplate() {
+    if (!payload) { toast.error("Sem protocolo para salvar"); return; }
+    const tplName = window.prompt("Nome do template", name || "Template");
+    if (!tplName?.trim()) return;
+    setSaving(true);
+    try {
+      const parsed = ProtocolPayloadSchema.parse(payload);
+      const { error } = await sb.from("protocols").insert({
+        student_id: studentId,
+        coach_id: coachId,
+        name: tplName.trim(),
+        is_template: true,
+        payload: parsed,
+        active: false,
+      });
+      if (error) throw error;
+      toast.success("Template salvo na sua biblioteca");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao salvar template");
+    } finally { setSaving(false); }
+  }
+
   if (isLoading) return <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
 
   return (
@@ -235,6 +264,17 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Aluno</p>
               <p className="text-sm font-semibold text-foreground truncate">{studentName}</p>
             </div>
+            {payload && (
+              <div className="flex items-center gap-2 pl-3 ml-1 border-l border-border/40">
+                <Switch checked={active} onCheckedChange={setActive} id="active-top" />
+                <Label htmlFor="active-top" className="text-xs cursor-pointer select-none">
+                  {active ? "Ativo" : "Inativo"}
+                </Label>
+                <span className={`text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-full ${active ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"}`}>
+                  {active ? "Publicado" : "Oculto"}
+                </span>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded-full ${isEditMode ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"}`}>
@@ -266,40 +306,39 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       ) : (
         <>
           <Card className="bg-card/60 border-border p-4">
-            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-end">
-              <div>
-                <Label className="text-xs">Nome do protocolo</Label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 h-9 text-sm" />
-              </div>
-              <div className="flex items-center gap-2 pb-1">
-                <Switch checked={active} onCheckedChange={setActive} id="active" />
-                <Label htmlFor="active" className="text-xs cursor-pointer">Ativo</Label>
-                <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${active ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"}`}>
-                  {active ? "Publicado p/ aluno" : "Rascunho (oculto)"}
+            <Label className="text-xs">Nome do protocolo</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 h-9 text-sm" />
+          </Card>
+
+          <div className={cn("relative", !active && "pointer-events-none")}>
+            {!active && (
+              <div className="absolute inset-0 z-30 bg-background/55 backdrop-blur-[1px] rounded-lg flex items-start justify-center pt-8 pointer-events-none">
+                <span className="text-[11px] uppercase tracking-wider font-bold px-3 py-1.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/40 shadow">
+                  Protocolo inativo — invisível para o aluno
                 </span>
               </div>
-            </div>
-          </Card>
+            )}
+            <div className={cn("space-y-4", !active && "opacity-60 saturate-50")}>
 
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
             {(() => {
               const completion = computeCompletion(payload);
-              const doneCount = Object.values(completion).filter(Boolean).length;
-              return doneCount < 5 ? (
+              const flags = [completion.macros, completion.guidelines, completion.workouts, completion.diet];
+              const doneCount = flags.filter(Boolean).length;
+              return doneCount < 4 ? (
                 <div className="mb-2 px-1 text-[11px] text-muted-foreground">
-                  {doneCount} de 5 seções preenchidas
+                  {doneCount} de 4 seções preenchidas
                 </div>
               ) : null;
             })()}
             <TabsList className="flex w-full overflow-x-auto gap-0 h-auto p-1">
               {(() => {
                 const c = computeCompletion(payload);
-                const tabs: Array<{ v: "macros"|"guidelines"|"workouts"|"diet"|"cycle"; label: string; icon: JSX.Element; done: boolean }> = [
+                const tabs: Array<{ v: "macros"|"guidelines"|"workouts"|"diet"; label: string; icon: JSX.Element; done: boolean }> = [
                   { v: "macros",     label: "Macros",     icon: <BarChart3 className="w-3.5 h-3.5 mr-1" />,        done: c.macros },
                   { v: "guidelines", label: "Diretrizes", icon: <FileText className="w-3.5 h-3.5 mr-1" />,         done: c.guidelines },
                   { v: "workouts",   label: "Treino",     icon: <Dumbbell className="w-3.5 h-3.5 mr-1" />,         done: c.workouts },
                   { v: "diet",       label: "Dieta",      icon: <UtensilsCrossed className="w-3.5 h-3.5 mr-1" />,  done: c.diet },
-                  { v: "cycle",      label: "Semana",     icon: <Calendar className="w-3.5 h-3.5 mr-1" />,         done: c.cycle },
                 ];
                 return tabs.map((t) => (
                   <TabsTrigger key={t.v} value={t.v} className="shrink-0">
@@ -313,17 +352,23 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             <TabsContent value="guidelines" className="mt-4"><GuidelinesTab payload={payload} setPayload={updatePayload} /></TabsContent>
             <TabsContent value="workouts" className="mt-4"><WorkoutsTab payload={payload} setPayload={updatePayload} coachId={coachId} /></TabsContent>
             <TabsContent value="diet" className="mt-4"><DietTab payload={payload} setPayload={updatePayload} /></TabsContent>
-            <TabsContent value="cycle" className="mt-4"><WeekCycleTab payload={payload} setPayload={updatePayload} /></TabsContent>
           </Tabs>
 
-          <div className="flex justify-end gap-2 sticky bottom-4 z-40">
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 sticky bottom-4 z-40">
+            <Button onClick={saveAsTemplate} disabled={saving} size="lg" variant="ghost" className="shadow-lg mr-auto">
+              <BookmarkPlus className="w-4 h-4 mr-2" />
+              Salvar template
+            </Button>
             <Button onClick={() => save({ asDraft: true })} disabled={saving} size="lg" variant="outline" className="shadow-lg bg-background">
               {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
-              Salvar Rascunho
+              Salvar rascunho
             </Button>
-            <Button onClick={() => save()} disabled={saving} size="lg" className="shadow-lg">
+            <Button onClick={() => save()} disabled={saving || !active} size="lg" className="shadow-lg">
               {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-              {isEditMode ? "Atualizar Protocolo" : "Criar Protocolo"}
+              {isEditMode ? "Atualizar protocolo" : "Criar protocolo"}
             </Button>
           </div>
         </>
@@ -586,9 +631,74 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
   };
   const periodOn = !!payload.periodization?.enabled;
   const [overrideOpen, setOverrideOpen] = useState<Record<number, boolean>>({});
+
+  // ── Map auxiliar e helpers de week strip ───────────────────────────────────
+  const weekDays: Record<string, string> = (payload as any).weekDays ?? {};
+  const ABBR: Record<string, string> = { seg: "Seg", ter: "Ter", qua: "Qua", qui: "Qui", sex: "Sex", sab: "Sáb", dom: "Dom" };
+  const today = (["dom","seg","ter","qua","qui","sex","sab"] as const)[new Date().getDay()];
+
+  const setWeekday = (weekdayKey: string, workoutKey: string) => {
+    const next: Record<string, string> = { ...weekDays };
+    if (workoutKey === "" || next[weekdayKey] === workoutKey) delete next[weekdayKey];
+    else next[weekdayKey] = workoutKey;
+    setPayload({ ...payload, weekDays: next } as any);
+  };
+
+  const cyclePillCarb = (k: string) => {
+    const cur = normalizeCarb((payload.carbCycle as any)?.[k]);
+    setPayload({
+      ...payload,
+      carbCycle: { ...(payload.carbCycle ?? {}), [k]: cycleCarb(cur) } as any,
+    });
+  };
+
+  const dayChipText = (workoutKey: string) => {
+    const linked = DAY_KEYS.filter((k) => weekDays[k] === workoutKey);
+    return linked.length === 0 ? "Sem dia" : linked.map((k) => ABBR[k]).join(", ");
+  };
+
   return (
     <div className="space-y-3">
       <WorkoutPeriodizationEditor payload={payload} setPayload={setPayload} coachId={coachId} />
+
+      {/* ── Week strip: pílulas Seg→Dom ── */}
+      <Card className="bg-card/40 border-border p-2.5">
+        <div className="flex items-center justify-between mb-1.5 px-1">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Semana</p>
+          <p className="text-[9px] text-muted-foreground">Clique no carbo p/ alternar Alto · Base · Off</p>
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {DAY_KEYS.map((k) => {
+            const carb = normalizeCarb((payload.carbCycle as any)?.[k]);
+            const wk = weekDays[k] ?? "";
+            const isToday = k === today;
+            return (
+              <div
+                key={k}
+                className={cn(
+                  "rounded-lg border bg-background/60 px-1 py-1 flex flex-col items-center gap-0.5",
+                  isToday ? "border-[#CC0000]" : "border-border/40"
+                )}
+              >
+                <span className="text-[9px] uppercase text-muted-foreground tracking-wider">{ABBR[k]}</span>
+                <span className="text-[12px] font-bold text-foreground leading-none">{wk || "—"}</span>
+                <button
+                  type="button"
+                  onClick={() => cyclePillCarb(k)}
+                  title={`Carbo ${CARB_LABEL[carb]} — clique para alternar`}
+                  className={cn(
+                    "text-[8px] font-bold uppercase tracking-wider px-1 py-px rounded border leading-none mt-0.5",
+                    CARB_COLOR[carb].pill
+                  )}
+                >
+                  {CARB_LABEL[carb]}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
       {payload.workouts.map((day, di) => (
         <Card key={day.key} className="bg-card/60 border-border p-4">
           <div className="flex items-center gap-3 mb-3">
@@ -612,8 +722,47 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
                 <ArrowDown className="w-3.5 h-3.5" />
               </button>
             </div>
-            <div className="w-9 h-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold">{day.key}</div>
-            <Input value={day.focus} onChange={(e) => updDay(di, { focus: e.target.value })} placeholder="Foco do treino" className="h-9 text-sm flex-1" />
+            <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-black text-base shrink-0">{day.key}</div>
+            <Input
+              value={day.focus}
+              onChange={(e) => updDay(di, { focus: e.target.value })}
+              placeholder="Nome do treino (ex: Dorsal · Peito · Inferiores)"
+              className="h-10 text-base font-bold flex-1 border-0 bg-transparent focus-visible:ring-1 focus-visible:ring-primary/40 px-2"
+            />
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="shrink-0 inline-flex items-center gap-1 text-[11px] text-muted-foreground bg-muted/40 hover:bg-muted/60 border border-border/40 rounded-full px-2.5 py-1"
+                  title="Dias da semana deste treino"
+                >
+                  {dayChipText(day.key)} <ChevronDown className="w-3 h-3" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-44 p-2">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 px-1">Aparece em</p>
+                <div className="space-y-0.5">
+                  {DAY_KEYS.map((k) => {
+                    const checked = weekDays[k] === day.key;
+                    const takenBy = weekDays[k];
+                    return (
+                      <button
+                        key={k}
+                        type="button"
+                        onClick={() => setWeekday(k, day.key)}
+                        className={cn(
+                          "w-full flex items-center justify-between gap-2 px-2 py-1 rounded text-xs hover:bg-muted/60",
+                          checked && "bg-primary/10 text-primary font-semibold"
+                        )}
+                      >
+                        <span>{ABBR[k]}</span>
+                        {checked ? <CheckCircle2 className="w-3.5 h-3.5" /> : takenBy ? <span className="text-[9px] text-muted-foreground">→ {takenBy}</span> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
           {periodOn && (
             <div className="mb-2 flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
