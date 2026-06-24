@@ -487,23 +487,44 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
 
   return (
     <div className="w-full max-w-full overflow-x-hidden">
-      {/* ── Card de contexto do dia (carbo + treino linkado) ── */}
+      {/* ── Card de contexto do dia — saudação + carbo + treino ── */}
       <div className={cn(
-        "rounded-2xl border p-4 mb-3 flex flex-col gap-1",
+        "rounded-2xl border p-4 mb-3 flex flex-col gap-2",
         carbCfg.border, carbCfg.bg
       )}>
+        {/* Linha 1 — Saudação */}
+        <p className="text-sm font-semibold text-foreground leading-tight">
+          {getGreeting()}{studentName ? `, ${studentName}` : ""}! 👋
+        </p>
+
+        {/* Linha 2 — Tipo de carbo do dia */}
         <div className="flex items-baseline justify-between gap-3 flex-wrap">
           <div className="min-w-0">
-            <p className={cn("text-[10px] uppercase tracking-[0.2em] font-bold", carbCfg.text)}>Hoje · Carbo</p>
-            <p className={cn("text-3xl font-black leading-none mt-0.5", carbCfg.text)}>{CARB_LABEL[todayInfo.carb]}</p>
-            <p className="text-[12px] text-muted-foreground mt-1">
-              {todayWorkout
-                ? <>dia de treino <span className="text-foreground font-semibold">{todayWorkout.key}</span>{todayWorkout.focus ? <> · {todayWorkout.focus}</> : null}</>
-                : <span className="italic">dia de descanso</span>}
+            <p className={cn("text-[10px] uppercase tracking-[0.2em] font-bold", carbCfg.text)}>
+              Hoje · Carbo
+            </p>
+            <p className={cn("text-3xl font-black leading-none mt-0.5", carbCfg.text)}>
+              {CARB_LABEL[todayInfo.carb]}
             </p>
           </div>
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{todayInfo.label}</span>
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            {todayInfo.label}
+          </span>
         </div>
+
+        {/* Linha 3 — Treino ou mensagem de descanso */}
+        {todayWorkout ? (
+          <p className="text-[12px] text-muted-foreground">
+            Dia de treino{" "}
+            <span className="text-foreground font-semibold">{todayWorkout.key}</span>
+            {todayWorkout.focus ? <> · {todayWorkout.focus}</> : null}
+            {" "}— foco total na execução 💪
+          </p>
+        ) : (
+          <p className="text-[12px] text-muted-foreground italic">
+            Dia de descanso — recuperação é parte do processo. Hidrate-se bem e durma cedo 🌙
+          </p>
+        )}
       </div>
 
       {/* ── Week strip (read-only) ── */}
