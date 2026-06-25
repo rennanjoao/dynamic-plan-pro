@@ -13,9 +13,9 @@ serve(async (req: Request) => {
   }
 
   try {
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    if (!GEMINI_API_KEY) {
-      return new Response(JSON.stringify({ error: "GEMINI_API_KEY ausente" }), {
+    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+    if (!GROQ_API_KEY) {
+      return new Response(JSON.stringify({ error: "GROQ_API_KEY ausente" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -44,36 +44,40 @@ serve(async (req: Request) => {
     ];
 
     const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+      "https://api.groq.com/openai/v1/chat/completions",
       {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${GEMINI_API_KEY}`,
+          "Authorization": `Bearer ${GROQ_API_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gemini-2.5-flash",
+          model: "openai/gpt-oss-120b",
           messages: chatMessages,
         }),
       }
     );
 
     if (!response.ok) {
+      // Lê o corpo uma única vez como texto — para log e para extrair mensagem de erro
+      const errBody = await response.text().catch(() => "(sem corpo)");
+      console.error(`[info-chat] Groq error ${response.status}:`, errBody);
+
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em instantes." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "Créditos de IA esgotados. Contate o administrador." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
-      }
-      const err = await response.json().catch(() => ({}));
+
+      let errMessage = "Erro na IA";
+      try {
+        const parsed = JSON.parse(errBody);
+        errMessage = parsed?.error?.message ?? errMessage;
+      } catch { /* ignora parse error */ }
+
       return new Response(
-        JSON.stringify({ error: err?.error?.message ?? "Erro na IA" }),
+        JSON.stringify({ error: errMessage }),
         { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
