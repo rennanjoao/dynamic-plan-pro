@@ -7,6 +7,17 @@ import { supabase } from "@/integrations/supabase/client";
 
 const HIDDEN_ROUTES = new Set(["/", "/auth", "/admin-login", "/student", "/anamnesis"]);
 
+/** Retorna data/hora atual do browser do usuário — nunca do servidor */
+function getCurrentDateContext() {
+  const now = new Date();
+  const diasSemana = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
+  return {
+    dataAtual: now.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }),
+    diaSemana: diasSemana[now.getDay()],
+    horaAtual: now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+  };
+}
+
 async function fetchAthleteContext() {
   const { data: sess } = await supabase.auth.getSession();
   const uid = sess.session?.user?.id;
@@ -67,6 +78,7 @@ async function fetchAthleteContext() {
     return {
       name: profileRes.data?.full_name,
       isCoach: true,
+      ...getCurrentDateContext(),
       coachContext: {
         totalStudents: studentIds.length,
         students: studentIds.map((sid) => ({
@@ -106,6 +118,7 @@ async function fetchAthleteContext() {
   return {
     name: profileRes.data?.full_name,
     isCoach: false,
+    ...getCurrentDateContext(),
     plan: plan.data ?? null,
     anamnesis: anam.data?.payload ?? null,
     baselineMetrics: anam.data?.baseline_metrics ?? null,
