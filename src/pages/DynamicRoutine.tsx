@@ -47,6 +47,20 @@ export default function DynamicRoutine() {
     staleTime: 60_000,
   });
 
+  const { data: profile } = useQuery({
+    queryKey: ["student-profile", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", userId)
+        .maybeSingle();
+      return data ?? null;
+    },
+    staleTime: 300_000,
+  });
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -115,7 +129,7 @@ export default function DynamicRoutine() {
         </div>
 
         {/* O COMPONENTE MÁGICO (Abas e Refeições) */}
-        <StructuredMealsViewer payload={safePayload} />
+        <StructuredMealsViewer payload={safePayload} studentName={profile?.full_name ?? undefined} />
 
         <ProtocolQuestionButton context="meal" variant="full" />
 

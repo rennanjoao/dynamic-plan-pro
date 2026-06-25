@@ -34,7 +34,7 @@ export function cycleCarb(v: CarbLevel): CarbLevel {
 export const CARB_LABEL: Record<CarbLevel, string> = {
   high: "Alto",
   base: "Base",
-  off: "Off",
+  off: "Baixo",
 };
 
 /** Classes Tailwind por nível, padronizadas no projeto. */

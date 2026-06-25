@@ -18,6 +18,14 @@ import { buildWeekStrip, CARB_LABEL, CARB_COLOR, todayKey, tomorrowKey } from "@
 import { cn } from "@/lib/utils";
 
 // ─── Math engine ──────────────────────────────────────────────────────────────
+/** Retorna saudação de acordo com o horário local do dispositivo */
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return "Bom dia";
+  if (h >= 12 && h < 18) return "Boa tarde";
+  return "Boa noite";
+}
+
 function getCookedMultiplier(name: string): number {
   const s = name.toLowerCase();
   if (/\barroz(?!\s+integral)/.test(s)) return 2.5;
@@ -443,7 +451,7 @@ function MealCard({
 }
 
 // ─── Root ─────────────────────────────────────────────────────────────────────
-export default function StructuredMealsViewer({ payload }: { payload: any }) {
+export default function StructuredMealsViewer({ payload, studentName }: { payload: any; studentName?: string }) {
   const safeData = payload || {};
   const meals: any[] = Array.isArray(safeData.meals) ? safeData.meals : [];
 
@@ -479,23 +487,44 @@ export default function StructuredMealsViewer({ payload }: { payload: any }) {
 
   return (
     <div className="w-full max-w-full overflow-x-hidden">
-      {/* ── Card de contexto do dia (carbo + treino linkado) ── */}
+      {/* ── Card de contexto do dia — saudação + carbo + treino ── */}
       <div className={cn(
-        "rounded-2xl border p-4 mb-3 flex flex-col gap-1",
+        "rounded-2xl border p-4 mb-3 flex flex-col gap-2",
         carbCfg.border, carbCfg.bg
       )}>
+        {/* Linha 1 — Saudação */}
+        <p className="text-sm font-semibold text-foreground leading-tight">
+          {getGreeting()}{studentName ? `, ${studentName}` : ""}! 👋
+        </p>
+
+        {/* Linha 2 — Tipo de carbo do dia */}
         <div className="flex items-baseline justify-between gap-3 flex-wrap">
           <div className="min-w-0">
-            <p className={cn("text-[10px] uppercase tracking-[0.2em] font-bold", carbCfg.text)}>Hoje · Carbo</p>
-            <p className={cn("text-3xl font-black leading-none mt-0.5", carbCfg.text)}>{CARB_LABEL[todayInfo.carb]}</p>
-            <p className="text-[12px] text-muted-foreground mt-1">
-              {todayWorkout
-                ? <>dia de treino <span className="text-foreground font-semibold">{todayWorkout.key}</span>{todayWorkout.focus ? <> · {todayWorkout.focus}</> : null}</>
-                : <span className="italic">dia de descanso</span>}
+            <p className={cn("text-[10px] uppercase tracking-[0.2em] font-bold", carbCfg.text)}>
+              Hoje · Carbo
+            </p>
+            <p className={cn("text-3xl font-black leading-none mt-0.5", carbCfg.text)}>
+              {CARB_LABEL[todayInfo.carb]}
             </p>
           </div>
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{todayInfo.label}</span>
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            {todayInfo.label}
+          </span>
         </div>
+
+        {/* Linha 3 — Treino ou mensagem de descanso */}
+        {todayWorkout ? (
+          <p className="text-[12px] text-muted-foreground">
+            Dia de treino{" "}
+            <span className="text-foreground font-semibold">{todayWorkout.key}</span>
+            {todayWorkout.focus ? <> · {todayWorkout.focus}</> : null}
+            {" "}— foco total na execução 💪
+          </p>
+        ) : (
+          <p className="text-[12px] text-muted-foreground italic">
+            Dia de descanso — recuperação é parte do processo. Hidrate-se bem e durma cedo 🌙
+          </p>
+        )}
       </div>
 
       {/* ── Week strip (read-only) ── */}
@@ -556,20 +585,36 @@ export default function StructuredMealsViewer({ payload }: { payload: any }) {
 
       {/* ── Preview de amanhã ── */}
       <div className={cn(
-        "mt-4 rounded-xl border px-4 py-3 flex items-center justify-between gap-3",
+        "mt-4 rounded-xl border px-4 py-3 flex flex-col gap-1",
         carbCfgT.border, carbCfgT.bg
       )}>
-        <div className="min-w-0">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-bold">Amanhã</p>
-          <p className="text-sm text-foreground/90 mt-0.5 truncate">
-            {tomorrowWorkout
-              ? <>Treino <span className="font-bold">{tomorrowWorkout.key}</span>{tomorrowWorkout.focus ? <> · {tomorrowWorkout.focus}</> : null}</>
-              : <span className="italic text-muted-foreground">Descanso</span>}
+        <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-bold">
+          Amanhã — prepare-se
+        </p>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-sm text-foreground/90">
+            {tomorrowWorkout ? (
+              <>
+                Treino{" "}
+                <span className="font-bold">{tomorrowWorkout.key}</span>
+                {tomorrowWorkout.focus ? <> · {tomorrowWorkout.focus}</> : null}
+              </>
+            ) : (
+              <span className="italic text-muted-foreground">Descanso</span>
+            )}
           </p>
+          <span className={cn(
+            "text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border shrink-0",
+            carbCfgT.pill
+          )}>
+            Carbo {CARB_LABEL[tomorrowInfo.carb]}
+          </span>
         </div>
-        <span className={cn("text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border", carbCfgT.pill)}>
-          {CARB_LABEL[tomorrowInfo.carb]}
-        </span>
+        <p className="text-[11px] text-muted-foreground mt-0.5">
+          {tomorrowWorkout
+            ? "Organize suas refeições com antecedência para garantir energia no treino."
+            : "Aproveite para descansar e repor as energias para os próximos dias."}
+        </p>
       </div>
     </div>
   );
