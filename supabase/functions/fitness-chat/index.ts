@@ -38,8 +38,8 @@ serve(async (req) => {
   try {
     const { messages, athleteContext } = await req.json();
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+    if (!GROQ_API_KEY) throw new Error("GROQ_API_KEY is not configured");
 
     let systemContent = SYSTEM_PROMPT;
     if (athleteContext) {
@@ -55,15 +55,15 @@ serve(async (req) => {
     ];
 
     const response = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
+      "https://api.groq.com/openai/v1/chat/completions",
       {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+          "Authorization": `Bearer ${GROQ_API_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: "openai/gpt-oss-120b",
           messages: chatMessages,
           stream: true,
         }),
@@ -71,18 +71,15 @@ serve(async (req) => {
     );
 
     if (!response.ok) {
-      const errText = await response.text().catch(() => "");
-      console.error("AI gateway error", response.status, errText);
+      const errText = await response.text().catch(() => "(sem corpo)");
+      console.error("[fitness-chat] Groq error", response.status, errText);
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Limite excedido. Tente novamente em instantes." }), { status: 429, headers: corsHeaders });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos de IA esgotados. Contate o administrador." }), { status: 402, headers: corsHeaders });
-      }
-      return new Response(JSON.stringify({ error: "Erro no gateway de IA" }), { status: 500, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: `Erro no gateway de IA (${response.status})` }), { status: 500, headers: corsHeaders });
     }
 
-    // Gemini OpenAI-compatible endpoint returns OpenAI-compatible SSE — proxy directly.
+    // Groq retorna SSE OpenAI-compatível — proxy direto para o cliente.
     return new Response(response.body, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
     });
