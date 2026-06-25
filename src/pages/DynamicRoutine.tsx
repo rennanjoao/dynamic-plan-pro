@@ -53,7 +53,7 @@ export default function DynamicRoutine() {
     queryFn: async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("full_name, name")
+        .select("full_name")
         .eq("id", userId)
         .maybeSingle();
       return data ?? null;
