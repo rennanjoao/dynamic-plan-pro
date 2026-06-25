@@ -1,6 +1,40 @@
 <!doctype html>
 <html lang="pt-BR" translate="no">
   <head>
+    <head>
+
+<script>
+(function () {
+  const style = document.createElement("style");
+  style.innerHTML = `
+    #lovable-badge,
+    [id*="lovable"],
+    [class*="lovable"],
+    a[href*="lovable"]{
+      display:none !important;
+      visibility:hidden !important;
+      opacity:0 !important;
+      pointer-events:none !important;
+    }
+  `;
+  document.head.prepend(style);
+
+  const remove = () => {
+    document.querySelectorAll(
+      '#lovable-badge,[id*="lovable"],[class*="lovable"],a[href*="lovable"]'
+    ).forEach(el => el.remove());
+  };
+
+  remove();
+
+  new MutationObserver(remove).observe(document.documentElement, {
+    childList: true,
+    subtree: true
+  });
+})();
+</script>
+
+<meta charset="UTF-8" />
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Elite Prime Hub – Rennan João</title>
