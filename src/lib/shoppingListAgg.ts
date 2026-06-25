@@ -1,266 +1,324 @@
 /**
- * shoppingListAgg.ts
+ * shoppingListAgg.ts — Biblioteca de agregação da Lista de Compras v4
  *
- * Funções de agregação para a Lista de Compras — v4.
- * - Cálculo base (protocolo sem ciclo de carbo)
- * - Cálculo com ciclo de carbo por dia real da semana
- * - Respeita hiddenKinds por refeição
- * - Lógica canônica: ShoppingList.tsx importa daqui, não duplica
+ * Funções puras exportadas:
+ *   stripHtml       — remove tags HTML e &nbsp;
+ *   normalizeName   — lowercase + trim + stripHtml (idempotente)
+ *   parseGrams      — extrai gramas de um item (rawWeight > weight textual)
+ *   parseUnit       — detecta unidade de volume (ml/l) ou peso (g/kg)
+ *   formatQty       — formata gramas em string legível (g ou kg)
+ *   aggregateShoppingList — agrega itens de todas as refeições com suporte a
+ *                           seleção de opções, hiddenKinds e ciclo de carbo
  */
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Tipos públicos ────────────────────────────────────────────────────────────
 
 export interface AggItem {
-  name: string;
-  kind: string;
-  /** Total em gramas (ou unidades quando isCount=true) para o período inteiro */
-  total: number;
-  /** Total por 1 dia (base, sem multiplicador de período) */
-  gramsPerDay: number;
-  isCount: boolean;
-  unit: string;
+  name: string;        // nome normalizado (capitalizado para exibição)
+  kind: string;        // "protein" | "carb" | "fat" | "veg" | "other"
+  unit: string;        // "g" | "ml" — unidade base
+  gramsPerDay: number; // soma diária (em gramas ou ml)
+  total: number;       // gramsPerDay × days (ajustado por ciclo de carbo se kind=carb)
 }
 
-export type CarbLevel = "high" | "base" | "off";
+export interface AggregateParams {
+  meals: any[];
+  selectedOptions?: Record<string, number>; // chave "mealIdx:kind" → índice da opção
+  days?: number;
+  carbCycle?: Record<string, unknown>;      // { mon: "high", tue: "off", ... }
+  carbCycleHighPct?: number;                // default 15
+  carbCycleLowPct?: number;                 // default 15
+}
 
-// Ordem canônica dos dias da semana (segunda → domingo)
-const WEEK_DAY_KEYS = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"] as const;
+// ─── Helpers de string ─────────────────────────────────────────────────────────
 
-// JS Date.getDay(): 0=dom, 1=seg … 6=sab
-const JS_DAY_TO_KEY: Record<number, string> = {
-  0: "dom",
-  1: "seg",
-  2: "ter",
-  3: "qua",
-  4: "qui",
-  5: "sex",
-  6: "sab",
-};
-
-// ─── HTML helpers ─────────────────────────────────────────────────────────────
-
-export function stripHtml(str: string): string {
-  if (!str) return "";
-  return str
+/** Remove tags HTML e entidades &nbsp; */
+export function stripHtml(s: string): string {
+  if (!s) return "";
+  return s
     .replace(/<[^>]*>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
     .trim();
 }
 
-// ─── Name normalisation ───────────────────────────────────────────────────────
-
-export function normalizeName(raw: string): string {
-  if (!raw) return "";
-  return stripHtml(raw).toLowerCase().trim();
+/**
+ * Normaliza nome para uso como chave de agregação:
+ * strip HTML → trim → lowercase
+ * Idempotente: normalizeName(normalizeName(x)) === normalizeName(x)
+ */
+export function normalizeName(s: string): string {
+  if (!s) return "";
+  return stripHtml(s).trim().toLowerCase();
 }
 
-// ─── Weight parsing ───────────────────────────────────────────────────────────
+/** Capitaliza primeira letra de cada palavra (para exibição) */
+function toDisplayName(s: string): string {
+  return s
+    .trim()
+    .split(" ")
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : ""))
+    .join(" ");
+}
+
+// ─── Parsers de quantidade ─────────────────────────────────────────────────────
 
 /**
- * Retorna gramas a partir de um item de protocolo.
- * Prioridade: item.rawWeight (TACO) > parse de item.weight (string).
+ * Detecta se o item usa unidade de volume (ml/l) ou peso (g/kg).
+ * Retorna "ml" ou "g".
+ */
+export function parseUnit(item: any): string {
+  if (!item) return "g";
+  const w: string = String(item.weight || "").trim().toLowerCase();
+  if (/ml|l\b/.test(w)) return "ml";
+  return "g";
+}
+
+/**
+ * Extrai o valor numérico em gramas (ou ml) de um item do protocolo.
+ *
+ * Prioridade:
+ *   1. item.rawWeight  — número bruto em gramas (campo TACO)
+ *   2. item.weight     — string com unidade: "150g", "1.5kg", "200ml", "1L",
+ *                        também aceita vírgula decimal pt-BR: "1,5kg"
+ *
+ * Retorna 0 se não conseguir extrair.
  */
 export function parseGrams(item: any): number {
   if (!item) return 0;
 
+  // 1. rawWeight numérico direto
   if (typeof item.rawWeight === "number" && item.rawWeight > 0) {
     return item.rawWeight;
   }
 
-  const raw: string = String(item.weight ?? "").trim().replace(",", ".");
+  const raw: string = String(item.weight || "")
+    .trim()
+    .replace(",", ".") // vírgula pt-BR → ponto
+    .toLowerCase();
+
   if (!raw) return 0;
 
-  const match = raw.match(/^([\d.]+)\s*(g|kg|ml|l)$/i);
+  const match = raw.match(/^([\d.]+)\s*(g|kg|ml|l)?$/);
   if (!match) return 0;
 
   const value = parseFloat(match[1]);
-  const unit = match[2].toLowerCase();
+  if (isNaN(value)) return 0;
+
+  const unit = match[2] || "g";
 
   if (unit === "kg") return value * 1000;
   if (unit === "l") return value * 1000;
-  return value;
+  return value; // g ou ml — escala 1:1
 }
+
+// ─── Formatação de quantidade ──────────────────────────────────────────────────
 
 /**
- * Detecta a unidade de display do item.
- * Retorna "ml", "l", "kg", "un" ou "g".
+ * Formata uma quantidade em gramas (ou ml) como string legível.
+ *
+ * Regras:
+ *   < 1000  → "150 g"  (arredondado)
+ *   = 1000  → "1 kg"
+ *   > 1000  → "1.50 kg" (2 decimais, remove zeros à direita)
+ *
+ * Quando unit="ml", usa "ml" e "l" no lugar de "g" e "kg".
  */
-export function parseUnit(item: any): string {
-  if (typeof item.rawWeight === "number" && item.rawWeight > 0) return "g";
-  const raw = String(item.weight ?? "").trim();
-  const m = raw.match(/^[\d.,]+\s*(g|kg|ml|l|un|unid)/i);
-  return m ? m[1].toLowerCase() : "g";
-}
-
-// ─── Quantity formatting ──────────────────────────────────────────────────────
-
-export function formatQty(grams: number, unit = "g"): string {
-  if (unit === "ml" || unit === "l") {
-    const total = Math.round(grams);
-    return total >= 1000
-      ? `${(total / 1000).toFixed(total % 1000 === 0 ? 0 : 1)} l`
-      : `${total} ml`;
-  }
+export function formatQty(grams: number, unit?: string): string {
+  const isVolume = unit === "ml";
   const rounded = Math.round(grams);
-  if (rounded < 1000) return `${rounded} g`;
+
+  if (rounded < 1000) {
+    return `${rounded} ${isVolume ? "ml" : "g"}`;
+  }
+
   const kg = grams / 1000;
-  return Number.isInteger(kg) ? `${kg} kg` : `${kg.toFixed(2)} kg`;
+  // Remove zeros à direita: 1.50 kg, 1 kg, 10 kg
+  const formatted =
+    kg % 1 === 0
+      ? `${kg} ${isVolume ? "l" : "kg"}`
+      : `${kg.toFixed(2)} ${isVolume ? "l" : "kg"}`;
+
+  return formatted;
 }
 
-export function formatAggItem(item: Pick<AggItem, "total" | "isCount" | "unit">): string {
-  if (item.isCount) return `${Math.round(item.total)} ${item.unit}`;
-  return formatQty(item.total, item.unit);
-}
+// ─── Ciclo de carbo ────────────────────────────────────────────────────────────
 
-// ─── Carb cycle helpers ───────────────────────────────────────────────────────
+const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
-function normalizeCarb(v: unknown): CarbLevel {
-  if (v === "high" || v === "base" || v === "off") return v;
-  if (v === "low") return "off";
-  return "base";
-}
-
-function carbMultiplier(level: CarbLevel, highPct: number, lowPct: number): number {
-  if (level === "high") return 1 + highPct / 100;
-  if (level === "off") return 1 - lowPct / 100;
+/**
+ * Calcula o multiplicador de carboidratos para um dado dia do ciclo.
+ * high → 1 + pct/100
+ * off | low → 1 - pct/100
+ * base / ausente → 1.0
+ */
+function carbMultiplier(
+  dayValue: unknown,
+  highPct: number,
+  lowPct: number,
+): number {
+  if (dayValue === "high") return 1 + highPct / 100;
+  if (dayValue === "off" || dayValue === "low") return 1 - lowPct / 100;
   return 1.0;
 }
 
 /**
- * Constrói o fator total de carboidrato para o período.
- *
- * Para períodos ≤ 7 dias: itera os dias reais a partir de hoje.
- * Para períodos > 7 dias: calcula 1 semana completa (seg→dom) e extrapola.
+ * Dado um período em dias a partir de hoje, retorna o multiplicador médio
+ * de carboidratos considerando os dias reais da semana.
  */
-export function buildCarbMultipliers(
+function avgCarbMultiplier(
+  days: number,
   carbCycle: Record<string, unknown>,
   highPct: number,
   lowPct: number,
-  days: number,
-  startDayIndex?: number,
-): number[] {
-  const startJsDay = startDayIndex ?? new Date().getDay();
+): number {
+  if (!carbCycle || Object.keys(carbCycle).length === 0) return 1.0;
 
-  if (days <= 7) {
-    return Array.from({ length: days }, (_, i) => {
-      const jsDay = (startJsDay + i) % 7;
-      const key = JS_DAY_TO_KEY[jsDay];
-      const level = normalizeCarb(carbCycle[key]);
-      return carbMultiplier(level, highPct, lowPct);
-    });
+  const today = new Date();
+  let sum = 0;
+
+  for (let i = 0; i < days; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const dayKey = DAY_KEYS[d.getDay()];
+    const val = carbCycle[dayKey];
+    sum += carbMultiplier(val, highPct, lowPct);
   }
 
-  // Para períodos > 7 dias: calcula os multiplicadores de 1 semana (seg→dom)
-  const weekMultipliers = WEEK_DAY_KEYS.map((key) => {
-    const level = normalizeCarb(carbCycle[key]);
-    return carbMultiplier(level, highPct, lowPct);
-  });
-
-  const weekSum = weekMultipliers.reduce((a, b) => a + b, 0);
-  const fullWeeks = Math.floor(days / 7);
-  const extraDays = days % 7;
-  const extraSum = WEEK_DAY_KEYS.slice(0, extraDays).reduce((sum, key) => {
-    return sum + carbMultiplier(normalizeCarb(carbCycle[key]), highPct, lowPct);
-  }, 0);
-
-  const totalFactor = fullWeeks * weekSum + extraSum;
-  const perDay = totalFactor / days;
-  return Array.from({ length: days }, () => perDay);
+  return sum / days;
 }
 
-// ─── Aggregation ──────────────────────────────────────────────────────────────
-
-export interface ShoppingAggOptions {
-  meals: any[];
-  selectedOptions?: Record<string, number>;
-  days?: number;
-  carbCycle?: Record<string, unknown>;
-  carbCycleHighPct?: number;
-  carbCycleLowPct?: number;
-}
+// ─── Agregação principal ───────────────────────────────────────────────────────
 
 /**
- * Agrega itens de todas as refeições numa lista de compras.
- * Respeita ciclo de carbo e hiddenKinds.
+ * Agrega todos os itens alimentares das refeições em uma lista de compras.
+ *
+ * - Itera sobre `meals` e suas `options`
+ * - Quando há conflito de opções (múltiplos grupos do mesmo kind), usa
+ *   `selectedOptions["mealIdx:kind"]` para saber qual opção incluir;
+ *   se não houver seleção, usa a opção 0 como padrão
+ * - Respeita `meal.hiddenKinds` — kinds ocultos são ignorados
+ * - Itens com mesmo nome normalizado e mesmo kind são somados
+ * - Multiplica por `days`
+ * - Aplica multiplicador de ciclo de carbo nos itens de kind "carb"
  */
-export function aggregateShoppingList({
-  meals,
-  selectedOptions = {},
-  days = 1,
-  carbCycle = {},
-  carbCycleHighPct = 15,
-  carbCycleLowPct = 15,
-}: ShoppingAggOptions): AggItem[] {
-  if (!Array.isArray(meals) || meals.length === 0) return [];
+export function aggregateShoppingList(
+  paramsOrMeals: AggregateParams | any[],
+  selectedOptionsLegacy?: Record<string, number>,
+  daysLegacy?: number,
+): AggItem[] {
+  // Suporte à assinatura antiga usada nos testes: aggregateShoppingList(meals, selectedOptions?)
+  let meals: any[];
+  let selectedOptions: Record<string, number>;
+  let days: number;
+  let carbCycle: Record<string, unknown>;
+  let carbCycleHighPct: number;
+  let carbCycleLowPct: number;
 
-  const hasCarbCycle =
-    Object.keys(carbCycle).length > 0 &&
-    Object.values(carbCycle).some((v) => v === "high" || v === "off" || v === "low");
+  if (Array.isArray(paramsOrMeals)) {
+    meals = paramsOrMeals;
+    selectedOptions = selectedOptionsLegacy ?? {};
+    days = daysLegacy ?? 1;
+    carbCycle = {};
+    carbCycleHighPct = 15;
+    carbCycleLowPct = 15;
+  } else {
+    ({
+      meals,
+      selectedOptions = {},
+      days = 7,
+      carbCycle = {},
+      carbCycleHighPct = 15,
+      carbCycleLowPct = 15,
+    } = paramsOrMeals);
+  }
 
-  const carbMultipliers = hasCarbCycle
-    ? buildCarbMultipliers(carbCycle, carbCycleHighPct, carbCycleLowPct, days)
-    : null;
-
-  const carbFactor = carbMultipliers
-    ? carbMultipliers.reduce((a, b) => a + b, 0)
-    : days;
-
-  const acc: Record
+  // Mapa de agregação: chave = "kind:normalizedName"
+  const map = new Map<
     string,
-    { name: string; kind: string; gramsPerDay: number; unit: string }
-  > = {};
+    { name: string; kind: string; unit: string; gramsPerDay: number }
+  >();
 
   meals.forEach((meal, mi) => {
-    const opts: any[] = Array.isArray(meal.options) ? meal.options : [];
-    const hidden: string[] = Array.isArray(meal.hiddenKinds) ? meal.hiddenKinds : [];
+    const opts: any[] = Array.isArray(meal?.options) ? meal.options : [];
+    const hidden: string[] = Array.isArray(meal?.hiddenKinds)
+      ? meal.hiddenKinds
+      : [];
 
+    // Agrupa opções por kind
     const byKind: Record<string, any[]> = {};
     opts.forEach((o) => {
-      const k = o?.kind || "other";
-      (byKind[k] ||= []).push(o);
+      const k = String(o?.kind || "other");
+      (byKind[k] = byKind[k] || []).push(o);
     });
 
-    Object.entries(byKind).forEach(([kind, options]) => {
+    Object.entries(byKind).forEach(([kind, kindOpts]) => {
+      // Ignora kinds ocultos nesta refeição
       if (hidden.includes(kind)) return;
 
+      // Determina qual opção usar
       const selKey = `${mi}:${kind}`;
-      const selIdx = selectedOptions[selKey] ?? 0;
-      const chosen = options[Math.min(selIdx, options.length - 1)];
-      if (!chosen) return;
+      let chosenOpt: any;
 
-      const items: any[] = Array.isArray(chosen.items) ? chosen.items : [];
-      items.forEach((item) => {
-        const grams = parseGrams(item);
-        if (grams === 0) return;
+      if (kindOpts.length <= 1) {
+        // Sem conflito — usa a única opção disponível
+        chosenOpt = kindOpts[0];
+      } else {
+        // Há conflito — usa a seleção do usuário (padrão: opção 0)
+        const selIdx = selectedOptions[selKey] ?? 0;
+        chosenOpt = kindOpts[selIdx] ?? kindOpts[0];
+      }
 
-        const rawName = item.baseName || item.name || "";
-        const name = stripHtml(rawName).trim();
-        if (!name) return;
+      if (!chosenOpt) return;
 
-        const unit = parseUnit(item);
-        const normKey = `${normalizeName(rawName)}|${kind}`;
+      const items: any[] = Array.isArray(chosenOpt.items) ? chosenOpt.items : [];
 
-        if (!acc[normKey]) {
-          acc[normKey] = { name, kind, gramsPerDay: 0, unit };
+      items.forEach((it) => {
+        const g = parseGrams(it);
+        if (g <= 0) return; // ignora itens sem peso
+
+        const rawName = stripHtml(it?.baseName || it?.name || "");
+        if (!rawName) return;
+
+        const normalized = normalizeName(rawName);
+        const unit = parseUnit(it);
+        const aggKey = `${kind}:${normalized}`;
+
+        const existing = map.get(aggKey);
+        if (existing) {
+          existing.gramsPerDay += g;
+        } else {
+          map.set(aggKey, {
+            name: toDisplayName(rawName),
+            kind,
+            unit,
+            gramsPerDay: g,
+          });
         }
-        acc[normKey].gramsPerDay += grams;
       });
     });
   });
 
-  return Object.values(acc).map(({ name, kind, gramsPerDay, unit }) => {
-    const factor = kind === "carb" && hasCarbCycle ? carbFactor : days;
-    return {
-      name,
-      kind,
-      gramsPerDay,
-      total: gramsPerDay * factor,
-      isCount: false,
-      unit,
-    };
+  // Constrói lista final com total ajustado por período e ciclo de carbo
+  const result: AggItem[] = [];
+
+  map.forEach((entry) => {
+    const isCarbKind = entry.kind === "carb";
+    const multiplier = isCarbKind
+      ? avgCarbMultiplier(days, carbCycle, carbCycleHighPct, carbCycleLowPct)
+      : 1.0;
+
+    result.push({
+      name: entry.name,
+      kind: entry.kind,
+      unit: entry.unit,
+      gramsPerDay: entry.gramsPerDay,
+      total: entry.gramsPerDay * days * multiplier,
+    });
   });
+
+  return result;
 }
