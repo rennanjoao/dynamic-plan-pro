@@ -165,14 +165,19 @@ export default function WorkoutMode({
       ? periodization.weeks
       : DEFAULT_WEEKS;
 
+  // ── Lê estado persistido do localStorage (antes dos useState) ─────────────
+  const _saved = (() => {
+    try { return JSON.parse(localStorage.getItem(storageKey) ?? "null"); } catch { return null; }
+  })();
+
   // ── Estado core ────────────────────────────────────────────────────────────
   const [selectedDay] = useState<string>(initialDay ?? workouts[0]?.key ?? "");
-  const [activeWeek, setActiveWeek]     = useState(0);
+  const [activeWeek, setActiveWeek]     = useState<number>(_saved?.activeWeek ?? 0);
   const [currentExIdx, setCurrentExIdx] = useState(0);
   const [phase, setPhase]               = useState<Phase>("training");
 
   // mapa: exKey → array de SetData por série (indexed 0..N-1)
-  const [setDataMap, setSetDataMap] = useState<Record<string, SetData[]>>({});
+  const [setDataMap, setSetDataMap] = useState<Record<string, SetData[]>>(_saved?.setDataMap ?? {});
 
   // conclusão
   const [generalFeeling, setGeneralFeeling] = useState<1 | 2 | 3 | undefined>();
@@ -181,12 +186,19 @@ export default function WorkoutMode({
   const [shareMode, setShareMode]           = useState<"final" | "partial">("final");
 
   // controle legado (compatibilidade com WorkoutShareCard)
-  const [completed, setCompleted] = useState<Record<string, number[]>>({});
+  const [completed, setCompleted] = useState<Record<string, number[]>>(_saved?.completed ?? {});
   const [startedAt, setStartedAt] = useState(Date.now());
   const [now, setNow]             = useState(Date.now());
 
   // histórico do banco
   const [historyMap, setHistoryMap] = useState<Record<string, ExerciseHistory[]>>({});
+
+  // ── Persiste estado continuamente no localStorage ──────────────────────────
+  useEffect(() => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({ activeWeek, completed, setDataMap }));
+    } catch { /* quota exceeded — ignora */ }
+  }, [activeWeek, completed, setDataMap, storageKey]);
 
   // ── Timer global ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -412,7 +424,9 @@ export default function WorkoutMode({
     await session.finishSession({
       generalFeeling,
       sleepQuality,
+      periodizationWeek: isPeriodizationOn ? activeWeek + 1 : undefined,
     });
+    try { localStorage.removeItem(storageKey); } catch { /* ignora */ }
     setShowShare(false);
     onClose();
   };
