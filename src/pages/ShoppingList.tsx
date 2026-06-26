@@ -1,20 +1,15 @@
 /**
- * ShoppingList.tsx — Lista de Compras v4
+ * ShoppingList.tsx — Lista de Compras v5
  *
- * Melhorias v4:
- * - Lógica de agregação centralizada em shoppingListAgg.ts (sem duplicação)
- * - Persistência de estado em localStorage (itens riscados + opções + período)
- * - Cálculo correto com ciclo de carbo por dia real da semana
- * - Respeita hiddenKinds por refeição
- * - Tela de opções com contexto (horário + quantidade por alimento)
- * - Pré-seleção das opções da sessão anterior
- * - Barra de progresso com contador X/N
- * - Seção "Já no carrinho" colapsável
- * - Tela de conclusão com streak de semanas
- * - PDF colorido por categoria
- * - Aviso honesto quando ciclo de carbo afeta o cálculo
- * - Modo mercado: tela de foco com itens grandes
- * - Botões de exportação desabilitados quando lista vazia
+ * Melhorias v5 (foco na experiência real do aluno no mercado):
+ * - Divisão de opções por dias: "4 dias frango, 3 dias patinho"
+ * - "Já tenho em casa": desconta quantidade por item antes de comprar
+ * - Multiplicador de pessoas (1x / 2x / 3x)
+ * - Quantidades em linguagem de mercado (embalagens reais)
+ * - Organização por setor do mercado (além de por macronutriente)
+ * - Persistência dos riscados durante toda a semana (até domingo)
+ * - Substituto rápido no item (tap longo)
+ * - Aviso de embalagem mínima
  */
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
@@ -31,6 +26,9 @@ import {
   ChevronDown,
   ChevronUp,
   ShoppingBag,
+  Users,
+  Home,
+  Info,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import {
@@ -45,12 +43,15 @@ import {
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 type MacroKind = "protein" | "carb" | "fat" | "veg" | "other";
+type MarketSector = "acougue" | "hortifruti" | "laticinios" | "secos" | "freezer" | "outros";
 type Phase = "choosing" | "list" | "market" | "done";
+type ViewMode = "macro" | "sector";
 
 interface ChoiceNeeded {
   label: string;
-  sublabel: string; // horário da refeição
+  sublabel: string;
   key: string;
+  totalDays: number; // total de dias do período — para o split
   options: {
     idx: number;
     name: string;
@@ -58,19 +59,26 @@ interface ChoiceNeeded {
   }[];
 }
 
+// Split de opções por dias: chave "mealIdx:kind" → mapa { optIdx → nDias }
+type DaySplit = Record<string, Record<number, number>>;
+
 interface ShoppingState {
   struck: Record<string, boolean>;
+  haveAtHome: Record<string, number>; // gramas que já tem em casa
   selectedOptions: Record<string, number>;
+  daySplit: DaySplit;
   period: number;
+  persons: number;
   protocolUpdatedAt: string;
   generatedAt: number;
   streak: number;
   lastCompletedAt: string | null;
+  weekId: string; // ISO da semana (ex: "2026-W25") — para persistência semanal
 }
 
 // ─── Configuração visual ──────────────────────────────────────────────────────
 
-const KIND_CFG: Record
+const KIND_CFG: Record<
   MacroKind,
   { label: string; color: string; border: string; bg: string; iconClass: string }
 > = {
@@ -113,24 +121,86 @@ const KIND_CFG: Record
 
 const KIND_ORDER: MacroKind[] = ["protein", "carb", "fat", "veg", "other"];
 
+// Setores do mercado e mapeamento de kinds
+const SECTOR_CFG: Record<MarketSector, { label: string; emoji: string; kinds: MacroKind[] }> = {
+  acougue:    { label: "Açougue & Peixaria", emoji: "🥩", kinds: ["protein"] },
+  hortifruti: { label: "Hortifruti",          emoji: "🥦", kinds: ["veg"] },
+  laticinios: { label: "Laticínios & Ovos",   emoji: "🥚", kinds: [] }, // detectado por nome
+  secos:      { label: "Secos & Grãos",       emoji: "🌾", kinds: ["carb"] },
+  freezer:    { label: "Freezer",             emoji: "🧊", kinds: [] }, // detectado por nome
+  outros:     { label: "Óleos & Outros",      emoji: "🫙", kinds: ["fat", "other"] },
+};
+
+const SECTOR_ORDER: MarketSector[] = ["acougue", "laticinios", "hortifruti", "secos", "outros", "freezer"];
+
+// Palavras-chave para detectar setor por nome do item
+const LATICINIOS_KEYWORDS = /leite|queijo|iogurte|requeijão|manteiga|coalhada|whey|caseína|ovo|clara/i;
+const FREEZER_KEYWORDS = /congelad|frozen|tilápia congelada|salmão congelado/i;
+
+function kindToSector(item: AggItem): MarketSector {
+  const name = item.name.toLowerCase();
+  if (FREEZER_KEYWORDS.test(name)) return "freezer";
+  if (LATICINIOS_KEYWORDS.test(name)) return "laticinios";
+  const kind = kindFromStr(item.kind);
+  for (const [sector, cfg] of Object.entries(SECTOR_CFG) as [MarketSector, typeof SECTOR_CFG[MarketSector]][]) {
+    if (cfg.kinds.includes(kind)) return sector;
+  }
+  return "outros";
+}
+
 const PERIODS = [
-  { label: "1 dia", days: 1 },
-  { label: "3 dias", days: 3 },
-  { label: "1 sem", days: 7 },
-  { label: "2 sem", days: 14 },
-  { label: "1 mês", days: 30 },
+  { label: "1 dia",  days: 1  },
+  { label: "3 dias", days: 3  },
+  { label: "1 sem",  days: 7  },
+  { label: "2 sem",  days: 14 },
+  { label: "1 mês",  days: 30 },
 ];
+
+// Embalagens típicas de mercado (g) para aviso de embalagem mínima
+const PACKAGE_HINTS: { pattern: RegExp; unit: string; size: number }[] = [
+  { pattern: /arroz|feijão|aveia|lentilha|quinoa|grão/i,   unit: "pacote", size: 1000 },
+  { pattern: /macarrão|massa|espaguete/i,                   unit: "pacote", size: 500  },
+  { pattern: /frango|peito|coxinha|sobrecoxa/i,             unit: "bandeja", size: 1000 },
+  { pattern: /patinho|alcatra|carne|picanha|contrafilé/i,   unit: "bandeja", size: 500  },
+  { pattern: /azeite|óleo/i,                                unit: "garrafa", size: 500  },
+  { pattern: /atum/i,                                       unit: "lata", size: 170    },
+  { pattern: /leite/i,                                      unit: "caixa", size: 1000  },
+  { pattern: /whey/i,                                       unit: "dose",  size: 30    },
+];
+
+function getPackageHint(name: string, totalGrams: number): string | null {
+  const match = PACKAGE_HINTS.find((h) => h.pattern.test(name));
+  if (!match) return null;
+  if (totalGrams >= match.size) return null; // compra pelo menos 1 embalagem
+  const qty = Math.ceil(totalGrams / match.size);
+  return `Mínimo: ${qty} ${match.unit} (${match.size >= 1000 ? `${match.size / 1000}kg` : `${match.size}g`})`;
+}
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
 
+function currentWeekId(): string {
+  const now = new Date();
+  const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+}
+
 function stateKey(userId: string, protocolId: string) {
-  return `shopping_state_${userId}_${protocolId}`;
+  return `shopping_state_v5_${userId}_${protocolId}`;
 }
 
 function loadState(userId: string, protocolId: string): ShoppingState | null {
   try {
     const raw = localStorage.getItem(stateKey(userId, protocolId));
-    return raw ? (JSON.parse(raw) as ShoppingState) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ShoppingState;
+    // Riscados persistem apenas durante a semana atual
+    if (parsed.weekId !== currentWeekId()) {
+      return { ...parsed, struck: {}, haveAtHome: {}, weekId: currentWeekId() };
+    }
+    return parsed;
   } catch {
     return null;
   }
@@ -139,9 +209,7 @@ function loadState(userId: string, protocolId: string): ShoppingState | null {
 function saveState(userId: string, protocolId: string, state: ShoppingState) {
   try {
     localStorage.setItem(stateKey(userId, protocolId), JSON.stringify(state));
-  } catch {
-    /* noop */
-  }
+  } catch { /* noop */ }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -154,7 +222,7 @@ function kindFromStr(k: string): MacroKind {
   return "other";
 }
 
-function detectChoices(meals: any[]): ChoiceNeeded[] {
+function detectChoices(meals: any[], days: number): ChoiceNeeded[] {
   const choices: ChoiceNeeded[] = [];
 
   meals.forEach((meal, mi) => {
@@ -177,9 +245,7 @@ function detectChoices(meals: any[]): ChoiceNeeded[] {
       const hasDiff = kindOpts.slice(1).some((o) =>
         (o?.items || []).some(
           (it: any) =>
-            !firstNames.includes(
-              stripHtml(it?.baseName || it?.name || "").toLowerCase(),
-            ),
+            !firstNames.includes(stripHtml(it?.baseName || it?.name || "").toLowerCase()),
         ),
       );
       if (!hasDiff) return;
@@ -201,6 +267,7 @@ function detectChoices(meals: any[]): ChoiceNeeded[] {
         label: `${meal.name || `Refeição ${mi + 1}`} · ${KIND_CFG[kindFromStr(kind)]?.label || kind}`,
         sublabel: meal.time || "",
         key: `${mi}:${kind}`,
+        totalDays: days,
         options,
       });
     });
@@ -212,22 +279,113 @@ function detectChoices(meals: any[]): ChoiceNeeded[] {
 function hasCarbCycleActive(carbCycle: Record<string, unknown>): boolean {
   return (
     Object.keys(carbCycle).length > 0 &&
-    Object.values(carbCycle).some(
-      (v) => v === "high" || v === "off" || v === "low",
-    )
+    Object.values(carbCycle).some((v) => v === "high" || v === "off" || v === "low")
   );
 }
 
 function calcStreak(lastCompletedAt: string | null, prevStreak: number): number {
   if (!lastCompletedAt) return 0;
-  const last = new Date(lastCompletedAt);
-  const now = new Date();
   const diffDays = Math.floor(
-    (now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24),
+    (Date.now() - new Date(lastCompletedAt).getTime()) / (1000 * 60 * 60 * 24),
   );
-  // Concluiu esta semana (até 8 dias atrás = tolerância de 1 semana)
-  if (diffDays <= 8) return prevStreak + 1;
-  return 1;
+  return diffDays <= 8 ? prevStreak + 1 : 1;
+}
+
+// Agrega com suporte a day-split: cada opção contribui proporcionalmente aos dias escolhidos
+function aggregateWithSplit(params: {
+  meals: any[];
+  selectedOptions: Record<string, number>;
+  daySplit: DaySplit;
+  days: number;
+  persons: number;
+  carbCycle: Record<string, unknown>;
+  carbCycleHighPct: number;
+  carbCycleLowPct: number;
+}): AggItem[] {
+  const { meals, selectedOptions, daySplit, days, persons, ...rest } = params;
+
+  // Verifica se há algum split ativo
+  const hasSplit = Object.keys(daySplit).length > 0;
+
+  if (!hasSplit) {
+    // Sem split: comportamento original
+    const items = aggregateShoppingList({ meals, selectedOptions, days, ...rest });
+    return items.map((it) => ({
+      ...it,
+      total: it.total * persons,
+      gramsPerDay: it.gramsPerDay * persons,
+    }));
+  }
+
+  // Com split: chama aggregateShoppingList múltiplas vezes, uma por opção de cada split
+  // e combina os resultados proporcionalmente aos dias
+  const combined = new Map<string, AggItem>();
+
+  // Processa opções COM split
+  Object.entries(daySplit).forEach(([choiceKey, splitMap]) => {
+    Object.entries(splitMap).forEach(([optIdxStr, daysForOpt]) => {
+      if (!daysForOpt || daysForOpt <= 0) return;
+      const optIdx = Number(optIdxStr);
+      const sel = { ...selectedOptions, [choiceKey]: optIdx };
+      const subItems = aggregateShoppingList({
+        meals,
+        selectedOptions: sel,
+        days: daysForOpt,
+        ...rest,
+      });
+      subItems.forEach((it) => {
+        const k = `${it.kind}:${it.name}`;
+        const existing = combined.get(k);
+        if (existing) {
+          existing.total += it.total;
+          existing.gramsPerDay = existing.total / days;
+        } else {
+          combined.set(k, { ...it });
+        }
+      });
+    });
+  });
+
+  // Processa opções SEM split (usa selectedOptions normal)
+  const splitKeys = new Set(Object.keys(daySplit));
+  const mealsWithoutSplit = meals.map((meal, mi) => {
+    const opts: any[] = Array.isArray(meal.options) ? meal.options : [];
+    const byKind: Record<string, any[]> = {};
+    opts.forEach((o) => {
+      const k = o?.kind || "other";
+      (byKind[k] ||= []).push(o);
+    });
+    const filteredOpts = opts.filter((o) => {
+      const k = o?.kind || "other";
+      const choiceKey = `${mi}:${k}`;
+      return !splitKeys.has(choiceKey) || (byKind[k] || []).length <= 1;
+    });
+    return { ...meal, options: filteredOpts };
+  });
+
+  const baseItems = aggregateShoppingList({
+    meals: mealsWithoutSplit,
+    selectedOptions,
+    days,
+    ...rest,
+  });
+
+  baseItems.forEach((it) => {
+    const k = `${it.kind}:${it.name}`;
+    const existing = combined.get(k);
+    if (existing) {
+      existing.total += it.total;
+      existing.gramsPerDay = existing.total / days;
+    } else {
+      combined.set(k, { ...it });
+    }
+  });
+
+  return Array.from(combined.values()).map((it) => ({
+    ...it,
+    total: it.total * persons,
+    gramsPerDay: it.gramsPerDay * persons,
+  }));
 }
 
 // ─── Estilos compartilhados ───────────────────────────────────────────────────
@@ -270,6 +428,258 @@ const cardStyle: React.CSSProperties = {
   textAlign: "center",
 };
 
+// ─── Sub-componente: DaySplitPicker ──────────────────────────────────────────
+
+interface DaySplitPickerProps {
+  choice: ChoiceNeeded;
+  split: Record<number, number>;
+  onChange: (split: Record<number, number>) => void;
+}
+
+function DaySplitPicker({ choice, split, onChange }: DaySplitPickerProps) {
+  const total = choice.totalDays;
+  const usedDays = Object.values(split).reduce((a, b) => a + b, 0);
+  const remaining = total - usedDays;
+
+  const handleChange = (optIdx: number, val: number) => {
+    const newSplit = { ...split };
+    const others = Object.entries(newSplit)
+      .filter(([k]) => Number(k) !== optIdx)
+      .reduce((sum, [, v]) => sum + v, 0);
+    const clamped = Math.max(0, Math.min(val, total - others));
+    newSplit[optIdx] = clamped;
+    onChange(newSplit);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {/* Indicador visual dos dias */}
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 4 }}>
+        {Array.from({ length: total }).map((_, i) => {
+          // Determina qual opção "dono" deste dia
+          let dayOwner = -1;
+          let count = 0;
+          for (const [k, v] of Object.entries(split)) {
+            count += v;
+            if (i < count) { dayOwner = Number(k); break; }
+          }
+          const cfg = dayOwner >= 0 ? KIND_CFG[kindFromStr(choice.key.split(":")[1] || "other")] : null;
+          return (
+            <div
+              key={i}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 6,
+                background: cfg ? cfg.color + "33" : "var(--color-background-secondary)",
+                border: `1px solid ${cfg ? cfg.color + "66" : "var(--color-border-tertiary)"}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 10,
+                color: cfg ? cfg.color : "var(--color-text-tertiary)",
+                fontWeight: 500,
+              }}
+            >
+              {i + 1}
+            </div>
+          );
+        })}
+      </div>
+
+      {remaining > 0 && (
+        <p style={{ fontSize: 11, color: "#fbbf24", marginBottom: 4 }}>
+          ⚠️ {remaining} {remaining === 1 ? "dia sem opção definida" : "dias sem opção definida"}
+        </p>
+      )}
+
+      {choice.options.map((opt) => (
+        <div
+          key={opt.idx}
+          style={{
+            background: "var(--color-background-primary)",
+            border: `0.5px solid ${(split[opt.idx] || 0) > 0 ? "#CC0000" : "var(--color-border-secondary)"}`,
+            borderRadius: 12,
+            padding: "12px 14px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 500, color: "var(--color-text-primary)" }}>
+              {opt.name}
+            </span>
+            <span style={{ fontSize: 12, color: "#CC0000", fontWeight: 600 }}>
+              {split[opt.idx] || 0}d
+            </span>
+          </div>
+
+          {/* Stepper de dias */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button
+              onClick={() => handleChange(opt.idx, (split[opt.idx] || 0) - 1)}
+              disabled={(split[opt.idx] || 0) <= 0}
+              style={{
+                width: 36, height: 36, borderRadius: 8,
+                border: "0.5px solid var(--color-border-secondary)",
+                background: "var(--color-background-secondary)",
+                color: "var(--color-text-primary)",
+                fontSize: 18, cursor: "pointer",
+                opacity: (split[opt.idx] || 0) <= 0 ? 0.3 : 1,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}
+            >−</button>
+
+            <div style={{
+              flex: 1, height: 6, borderRadius: 3,
+              background: "var(--color-background-secondary)", overflow: "hidden",
+            }}>
+              <div style={{
+                height: "100%", borderRadius: 3, background: "#CC0000",
+                width: `${((split[opt.idx] || 0) / total) * 100}%`,
+                transition: "width 0.2s",
+              }} />
+            </div>
+
+            <button
+              onClick={() => handleChange(opt.idx, (split[opt.idx] || 0) + 1)}
+              disabled={remaining <= 0 && (split[opt.idx] || 0) === (split[opt.idx] || 0)}
+              style={{
+                width: 36, height: 36, borderRadius: 8,
+                border: "0.5px solid var(--color-border-secondary)",
+                background: "var(--color-background-secondary)",
+                color: "var(--color-text-primary)",
+                fontSize: 18, cursor: "pointer",
+                opacity: remaining <= 0 ? 0.3 : 1,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}
+            >+</button>
+          </div>
+
+          {opt.items.length > 0 && (
+            <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 2 }}>
+              {opt.items.map((item, ii) => (
+                <div key={ii} style={{
+                  display: "flex", justifyContent: "space-between",
+                  fontSize: 11, color: "var(--color-text-secondary)",
+                }}>
+                  <span>{item.name}</span>
+                  {item.qty && <span style={{ fontWeight: 500 }}>{item.qty}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Sub-componente: HaveAtHomeSlider ────────────────────────────────────────
+
+interface HaveAtHomeSliderProps {
+  item: AggItem;
+  value: number; // gramas que já tem em casa
+  onChange: (g: number) => void;
+  onClose: () => void;
+}
+
+function HaveAtHomeSlider({ item, value, onChange, onClose }: HaveAtHomeSliderProps) {
+  const max = item.total;
+  const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
+      zIndex: 50, display: "flex", alignItems: "flex-end",
+    }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "100%", maxWidth: 480, margin: "0 auto",
+          background: "var(--color-background-primary)",
+          borderRadius: "16px 16px 0 0",
+          padding: "20px 20px 32px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Home size={16} color="#34d399" />
+            <span style={{ fontSize: 14, fontWeight: 500, color: "var(--color-text-primary)" }}>
+              Já tenho em casa
+            </span>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "var(--color-text-tertiary)" }}>×</button>
+        </div>
+
+        <p style={{ fontSize: 16, fontWeight: 600, color: "var(--color-text-primary)", marginBottom: 4 }}>
+          {item.name}
+        </p>
+        <p style={{ fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 20 }}>
+          Protocolo pede: <strong>{formatQty(item.total, item.unit)}</strong>
+        </p>
+
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+          <span style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>Quanto você já tem?</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#34d399" }}>
+            {formatQty(value, item.unit)} ({pct}%)
+          </span>
+        </div>
+
+        <input
+          type="range"
+          min={0}
+          max={max}
+          step={Math.max(1, Math.round(max / 20))}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          style={{ width: "100%", accentColor: "#34d399", marginBottom: 12 }}
+        />
+
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--color-text-tertiary)", marginBottom: 20 }}>
+          <span>0</span>
+          <span>{formatQty(max, item.unit)}</span>
+        </div>
+
+        {value > 0 && (
+          <div style={{
+            background: "rgba(52,211,153,0.08)", border: "0.5px solid rgba(52,211,153,0.25)",
+            borderRadius: 8, padding: "10px 14px", marginBottom: 16,
+          }}>
+            <p style={{ fontSize: 13, color: "#34d399" }}>
+              Você vai comprar: <strong>{formatQty(Math.max(0, item.total - value), item.unit)}</strong>
+            </p>
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            onClick={() => { onChange(0); onClose(); }}
+            style={{
+              flex: 1, padding: "12px", borderRadius: 10,
+              border: "0.5px solid var(--color-border-secondary)",
+              background: "transparent", color: "var(--color-text-secondary)",
+              fontSize: 13, cursor: "pointer",
+            }}
+          >
+            Limpar
+          </button>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 2, padding: "12px", borderRadius: 10,
+              border: "none", background: "#34d399",
+              color: "#fff", fontSize: 13, fontWeight: 500, cursor: "pointer",
+            }}
+          >
+            Salvar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function ShoppingList() {
@@ -281,25 +691,27 @@ export default function ShoppingList() {
   const [loading, setLoading] = useState(true);
 
   const [days, setDays] = useState(7);
+  const [persons, setPersons] = useState(1);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, number>>({});
+  const [daySplit, setDaySplit] = useState<DaySplit>({});
   const [phase, setPhase] = useState<Phase>("choosing");
   const [struck, setStruck] = useState<Record<string, boolean>>({});
+  const [haveAtHome, setHaveAtHome] = useState<Record<string, number>>({});
   const [cartCollapsed, setCartCollapsed] = useState(true);
   const [streak, setStreak] = useState(0);
   const [lastCompletedAt, setLastCompletedAt] = useState<string | null>(null);
   const [choiceStep, setChoiceStep] = useState(0);
   const [protocolUpdatedWarning, setProtocolUpdatedWarning] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("macro");
+  const [haveAtHomeItem, setHaveAtHomeItem] = useState<AggItem | null>(null);
+  const [splitMode, setSplitMode] = useState(false); // se o choice atual está no modo split
 
-  // Ref para evitar re-save infinito
   const stateRef = useRef<ShoppingState | null>(null);
 
   // ── Carrega protocolo e estado salvo ────────────────────────────────────────
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
-      if (!data.session?.user) {
-        navigate("/auth");
-        return;
-      }
+      if (!data.session?.user) { navigate("/auth"); return; }
       const uid = data.session.user.id;
       setUserId(uid);
 
@@ -320,18 +732,15 @@ export default function ShoppingList() {
         const saved = loadState(uid, p.id);
 
         if (saved) {
-          // Verifica se protocolo foi atualizado após a geração da lista
-          if (
-            p.updated_at &&
-            saved.generatedAt &&
-            new Date(p.updated_at).getTime() > saved.generatedAt
-          ) {
+          if (p.updated_at && saved.generatedAt && new Date(p.updated_at).getTime() > saved.generatedAt) {
             setProtocolUpdatedWarning(true);
           }
-
           setSelectedOptions(saved.selectedOptions || {});
+          setDaySplit(saved.daySplit || {});
           setDays(saved.period || 7);
+          setPersons(saved.persons || 1);
           setStruck(saved.struck || {});
+          setHaveAtHome(saved.haveAtHome || {});
           setStreak(saved.streak || 0);
           setLastCompletedAt(saved.lastCompletedAt || null);
           stateRef.current = saved;
@@ -342,7 +751,7 @@ export default function ShoppingList() {
     });
   }, [navigate]);
 
-  // ── Extrai dados do payload ──────────────────────────────────────────────────
+  // ── Dados do protocolo ───────────────────────────────────────────────────────
   const meals: any[] = useMemo(() => {
     const m = (protocol?.payload as any)?.meals;
     return Array.isArray(m) ? m : [];
@@ -361,151 +770,131 @@ export default function ShoppingList() {
     [protocol],
   );
 
-  const choices = useMemo(() => detectChoices(meals), [meals]);
+  const choices = useMemo(() => detectChoices(meals, days), [meals, days]);
   const hasCycle = useMemo(() => hasCarbCycleActive(carbCycle), [carbCycle]);
 
-  // ── Se não há conflitos, vai direto para a lista ─────────────────────────────
   useEffect(() => {
-    if (!loading && meals.length > 0 && choices.length === 0) {
-      setPhase("list");
-    }
+    if (!loading && meals.length > 0 && choices.length === 0) setPhase("list");
   }, [loading, meals, choices]);
 
-  // ── Agrega itens usando a função canônica ────────────────────────────────────
-  const items: AggItem[] = useMemo(
+  // ── Agregação com split e "já tenho" ─────────────────────────────────────────
+  const rawItems: AggItem[] = useMemo(
     () =>
-      aggregateShoppingList({
+      aggregateWithSplit({
         meals,
         selectedOptions,
+        daySplit,
         days,
+        persons,
         carbCycle,
         carbCycleHighPct,
         carbCycleLowPct,
       }),
-    [meals, selectedOptions, days, carbCycle, carbCycleHighPct, carbCycleLowPct],
+    [meals, selectedOptions, daySplit, days, persons, carbCycle, carbCycleHighPct, carbCycleLowPct],
+  );
+
+  // Aplica "já tenho em casa"
+  const items: AggItem[] = useMemo(() =>
+    rawItems.map((it) => {
+      const k = `${it.kind}:${it.name}`;
+      const have = haveAtHome[k] || 0;
+      const netTotal = Math.max(0, it.total - have);
+      return { ...it, total: netTotal };
+    }),
+    [rawItems, haveAtHome],
   );
 
   const grouped = useMemo(() => {
-    const g: Record<MacroKind, AggItem[]> = {
-      protein: [],
-      carb: [],
-      fat: [],
-      veg: [],
-      other: [],
-    };
-    items.forEach((it) => {
-      const k = kindFromStr(it.kind);
-      g[k].push(it);
-    });
+    const g: Record<MacroKind, AggItem[]> = { protein: [], carb: [], fat: [], veg: [], other: [] };
+    items.forEach((it) => g[kindFromStr(it.kind)].push(it));
+    return g;
+  }, [items]);
+
+  const groupedBySector = useMemo(() => {
+    const g: Record<MarketSector, AggItem[]> = { acougue: [], hortifruti: [], laticinios: [], secos: [], freezer: [], outros: [] };
+    items.forEach((it) => g[kindToSector(it)].push(it));
     return g;
   }, [items]);
 
   const kindsWithItems = KIND_ORDER.filter((k) => grouped[k].length > 0);
+  const sectorsWithItems = SECTOR_ORDER.filter((s) => groupedBySector[s].length > 0);
 
-  // ── Contadores ───────────────────────────────────────────────────────────────
   const totalItems = items.length;
   const struckCount = items.filter((it) => struck[`${it.kind}:${it.name}`]).length;
   const visibleCount = totalItems - struckCount;
+  const haveAtHomeCount = Object.values(haveAtHome).filter((v) => v > 0).length;
 
-  // ── Persiste estado no localStorage ─────────────────────────────────────────
+  // ── Persiste estado ──────────────────────────────────────────────────────────
   const persistState = useCallback(() => {
     if (!userId || !protocolId) return;
     const state: ShoppingState = {
       struck,
+      haveAtHome,
       selectedOptions,
+      daySplit,
       period: days,
+      persons,
       protocolUpdatedAt: protocol?.updated_at || "",
       generatedAt: stateRef.current?.generatedAt || Date.now(),
       streak,
       lastCompletedAt,
+      weekId: currentWeekId(),
     };
     stateRef.current = state;
     saveState(userId, protocolId, state);
-  }, [userId, protocolId, struck, selectedOptions, days, protocol, streak, lastCompletedAt]);
+  }, [userId, protocolId, struck, haveAtHome, selectedOptions, daySplit, days, persons, protocol, streak, lastCompletedAt]);
 
   useEffect(() => {
-    if (phase === "list" || phase === "market") {
-      persistState();
-    }
-  }, [struck, selectedOptions, days, phase, persistState]);
+    if (phase === "list" || phase === "market") persistState();
+  }, [struck, haveAtHome, selectedOptions, daySplit, days, persons, phase, persistState]);
 
-  // ── Marcar / desmarcar item ──────────────────────────────────────────────────
-  const toggleStruck = useCallback(
-    (key: string) => {
-      setStruck((s) => ({ ...s, [key]: !s[key] }));
-      if (navigator.vibrate) navigator.vibrate(30);
-    },
-    [],
-  );
+  // ── Interações ───────────────────────────────────────────────────────────────
+  const toggleStruck = useCallback((key: string) => {
+    setStruck((s) => ({ ...s, [key]: !s[key] }));
+    if (navigator.vibrate) navigator.vibrate(30);
+  }, []);
 
-  // ── Concluir compras ─────────────────────────────────────────────────────────
   const handleComplete = useCallback(() => {
     const now = new Date().toISOString();
     const newStreak = calcStreak(lastCompletedAt, streak);
     setStreak(newStreak);
     setLastCompletedAt(now);
 
-    // Persiste imediatamente
     if (userId && protocolId) {
       const state: ShoppingState = {
-        struck,
-        selectedOptions,
-        period: days,
+        struck, haveAtHome, selectedOptions, daySplit, period: days, persons,
         protocolUpdatedAt: protocol?.updated_at || "",
         generatedAt: stateRef.current?.generatedAt || Date.now(),
-        streak: newStreak,
-        lastCompletedAt: now,
+        streak: newStreak, lastCompletedAt: now, weekId: currentWeekId(),
       };
       stateRef.current = state;
       saveState(userId, protocolId, state);
 
-      // Salva sessão no Supabase em background (sem bloquear)
       (async () => {
         try {
           await (supabase as any).from("shopping_sessions").insert({
-            user_id: userId,
-            protocol_id: protocolId,
-            period_days: days,
-            items_total: totalItems,
+            user_id: userId, protocol_id: protocolId,
+            period_days: days, items_total: totalItems,
             items_completed: struckCount,
-            completed: visibleCount === 0,
-            streak: newStreak,
+            completed: visibleCount === 0, streak: newStreak,
           });
-        } catch {
-          /* falha silenciosa */
-        }
+        } catch { /* falha silenciosa */ }
       })();
     }
 
     setPhase("done");
-  }, [
-    userId,
-    protocolId,
-    struck,
-    selectedOptions,
-    days,
-    protocol,
-    streak,
-    lastCompletedAt,
-    totalItems,
-    struckCount,
-    visibleCount,
-  ]);
+  }, [userId, protocolId, struck, haveAtHome, selectedOptions, daySplit, days, persons, protocol, streak, lastCompletedAt, totalItems, struckCount, visibleCount]);
 
-  // ── Gerar texto para exportação ──────────────────────────────────────────────
+  // ── Exportação ───────────────────────────────────────────────────────────────
   function buildText(): string {
-    const header =
-      days === 1 ? "🛒 Lista de Compras — 1 dia" : `🛒 Lista de Compras — ${days} dias`;
+    const personsSuffix = persons > 1 ? ` · ${persons} pessoas` : "";
+    const header = `🛒 Lista de Compras — ${days === 1 ? "1 dia" : `${days} dias`}${personsSuffix}`;
     const lines = [header, ""];
     kindsWithItems.forEach((kind) => {
-      const visibleItems = grouped[kind].filter(
-        (it) => !struck[`${it.kind}:${it.name}`],
-      );
+      const visibleItems = grouped[kind].filter((it) => !struck[`${it.kind}:${it.name}`]);
       if (!visibleItems.length) return;
       lines.push(`*${KIND_CFG[kind].label}*`);
-      visibleItems.forEach((it) =>
-        lines.push(`• ${it.name} — ${formatQty(it.total, it.unit)}`),
-      );
+      visibleItems.forEach((it) => lines.push(`• ${it.name} — ${formatQty(it.total, it.unit)}`));
       lines.push("");
     });
     lines.push("_Quantidades em peso cru · Elite Prime Hub_");
@@ -514,63 +903,36 @@ export default function ShoppingList() {
 
   const shareWhatsApp = () => {
     if (visibleCount === 0) return;
-    window.open(
-      `https://wa.me/?text=${encodeURIComponent(buildText())}`,
-      "_blank",
-      "noopener,noreferrer",
-    );
+    window.open(`https://wa.me/?text=${encodeURIComponent(buildText())}`, "_blank", "noopener,noreferrer");
   };
 
-  // ── PDF colorido por categoria ───────────────────────────────────────────────
   const exportPDF = () => {
     if (visibleCount === 0) return;
     const doc = new jsPDF();
     const pageW = doc.internal.pageSize.getWidth();
     let y = 18;
 
-    // Cabeçalho
     doc.setFillColor(204, 0, 0);
     doc.rect(0, 0, pageW, 12, "F");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
     doc.setTextColor(255, 255, 255);
-    doc.text(
-      `Lista de Compras — ${days === 1 ? "1 dia" : `${days} dias`}`,
-      14,
-      8.5,
-    );
+    doc.text(`Lista de Compras — ${days === 1 ? "1 dia" : `${days} dias`}${persons > 1 ? ` · ${persons}p` : ""}`, 14, 8.5);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    doc.text(
-      `Gerado em ${new Date().toLocaleDateString("pt-BR")} · ${protocol?.name || "Protocolo ativo"}`,
-      pageW - 14,
-      8.5,
-      { align: "right" },
-    );
+    doc.text(`${new Date().toLocaleDateString("pt-BR")} · ${protocol?.name || "Protocolo ativo"}`, pageW - 14, 8.5, { align: "right" });
     y = 22;
 
     const colorMap: Record<MacroKind, [number, number, number]> = {
-      protein: [59, 130, 246],
-      carb: [251, 191, 36],
-      fat: [248, 113, 113],
-      veg: [52, 211, 153],
-      other: [163, 163, 163],
+      protein: [59, 130, 246], carb: [251, 191, 36],
+      fat: [248, 113, 113], veg: [52, 211, 153], other: [163, 163, 163],
     };
 
     kindsWithItems.forEach((kind) => {
-      const visibleItems = grouped[kind].filter(
-        (it) => !struck[`${it.kind}:${it.name}`],
-      );
+      const visibleItems = grouped[kind].filter((it) => !struck[`${it.kind}:${it.name}`]);
       if (!visibleItems.length) return;
-
-      if (y > 265) {
-        doc.addPage();
-        y = 18;
-      }
-
+      if (y > 265) { doc.addPage(); y = 18; }
       const [r, g, b] = colorMap[kind];
-
-      // Cabeçalho da categoria
       doc.setFillColor(r, g, b);
       doc.roundedRect(12, y - 4, pageW - 24, 10, 2, 2, "F");
       doc.setFont("helvetica", "bold");
@@ -578,17 +940,11 @@ export default function ShoppingList() {
       doc.setTextColor(255, 255, 255);
       doc.text(KIND_CFG[kind].label.toUpperCase(), 16, y + 2.5);
       y += 12;
-
       doc.setFont("helvetica", "normal");
       doc.setFontSize(11);
       doc.setTextColor(40, 40, 40);
-
       visibleItems.forEach((it) => {
-        if (y > 280) {
-          doc.addPage();
-          y = 18;
-        }
-        // Checkbox
+        if (y > 280) { doc.addPage(); y = 18; }
         doc.setDrawColor(r, g, b);
         doc.rect(14, y - 3.5, 4.5, 4.5);
         doc.text(it.name, 22, y);
@@ -600,7 +956,6 @@ export default function ShoppingList() {
       y += 4;
     });
 
-    // Rodapé
     if (y < 275) {
       doc.setFontSize(8);
       doc.setTextColor(150, 150, 150);
@@ -610,129 +965,80 @@ export default function ShoppingList() {
     doc.save(`lista-${days}d-${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
-  // ── Avançar escolha de opções ────────────────────────────────────────────────
+  // ── Navegação de choices ──────────────────────────────────────────────────────
   const currentChoice = choices[choiceStep];
-  const allChosen = choices.every((c) => selectedOptions[c.key] !== undefined);
+  const currentSplit = currentChoice ? (daySplit[currentChoice.key] || {}) : {};
+  const splitDaysUsed = Object.values(currentSplit).reduce((a, b) => a + b, 0);
+
+  const choiceIsResolved = currentChoice
+    ? (splitMode
+      ? splitDaysUsed === days
+      : selectedOptions[currentChoice.key] !== undefined)
+    : false;
 
   const handleNextChoice = () => {
     if (choiceStep < choices.length - 1) {
       setChoiceStep((s) => s + 1);
+      setSplitMode(false);
     } else {
-      // Inicializa generatedAt quando o aluno confirma as opções
       if (!stateRef.current?.generatedAt) {
-        stateRef.current = { ...stateRef.current! } || {
-          struck: {},
-          selectedOptions,
-          period: days,
+        stateRef.current = {
+          struck: {}, haveAtHome: {}, selectedOptions, daySplit,
+          period: days, persons,
           protocolUpdatedAt: protocol?.updated_at || "",
-          generatedAt: Date.now(),
-          streak,
-          lastCompletedAt,
+          generatedAt: Date.now(), streak, lastCompletedAt, weekId: currentWeekId(),
         };
-        stateRef.current.generatedAt = Date.now();
       }
+      stateRef.current.generatedAt = Date.now();
       setPhase("list");
     }
   };
 
   const handlePrevChoice = () => {
-    if (choiceStep > 0) setChoiceStep((s) => s - 1);
+    if (choiceStep > 0) { setChoiceStep((s) => s - 1); setSplitMode(false); }
   };
 
-  // ── Mudar período com aviso de reset de riscados ──────────────────────────────
   const handleChangePeriod = (newDays: number) => {
     if (newDays === days) return;
-    if (struckCount > 0) {
-      // Reset dos riscados ao mudar período
-      setStruck({});
-    }
+    if (struckCount > 0) setStruck({});
     setDays(newDays);
+    setDaySplit({}); // reset splits ao mudar período
   };
 
-  // ── Regenerar lista (protocolo atualizado) ───────────────────────────────────
   const handleRegenerate = () => {
     setStruck({});
     setSelectedOptions({});
+    setDaySplit({});
     setChoiceStep(0);
+    setSplitMode(false);
     setProtocolUpdatedWarning(false);
-    if (stateRef.current) {
-      stateRef.current.generatedAt = Date.now();
-    }
-    if (choices.length === 0) {
-      setPhase("list");
-    } else {
-      setPhase("choosing");
-    }
+    if (stateRef.current) stateRef.current.generatedAt = Date.now();
+    setPhase(choices.length === 0 ? "list" : "choosing");
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────────────────────
 
-  // ── Loading ──────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "var(--color-background-tertiary)",
-        }}
-      >
-        <Loader2
-          style={{ width: 28, height: 28, color: "#CC0000" }}
-          className="animate-spin"
-        />
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-background-tertiary)" }}>
+        <Loader2 style={{ width: 28, height: 28, color: "#CC0000" }} className="animate-spin" />
       </div>
     );
   }
 
-  // ── Sem protocolo ────────────────────────────────────────────────────────────
   if (!meals.length) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "var(--color-background-tertiary)",
-          padding: "2rem 1rem",
-        }}
-      >
+      <div style={{ minHeight: "100vh", background: "var(--color-background-tertiary)", padding: "2rem 1rem" }}>
         <div style={{ maxWidth: 480, margin: "0 auto" }}>
-          <Link
-            to="/student-area"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              fontSize: 13,
-              color: "var(--color-text-secondary)",
-              marginBottom: 24,
-              textDecoration: "none",
-            }}
-          >
+          <Link to="/student-area" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--color-text-secondary)", marginBottom: 24, textDecoration: "none" }}>
             <ArrowLeft size={15} /> Voltar
           </Link>
           <div style={cardStyle}>
-            <ShoppingCart
-              size={36}
-              style={{ color: "var(--color-text-tertiary)", marginBottom: 12 }}
-            />
-            <p
-              style={{
-                fontSize: 16,
-                fontWeight: 500,
-                color: "var(--color-text-primary)",
-                marginBottom: 6,
-              }}
-            >
-              Nenhum protocolo ativo
-            </p>
-            <p style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>
-              Assim que seu coach publicar seu protocolo, sua lista aparece aqui
-              automaticamente.
-            </p>
+            <ShoppingCart size={36} style={{ color: "var(--color-text-tertiary)", marginBottom: 12 }} />
+            <p style={{ fontSize: 16, fontWeight: 500, color: "var(--color-text-primary)", marginBottom: 6 }}>Nenhum protocolo ativo</p>
+            <p style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>Assim que seu coach publicar seu protocolo, sua lista aparece aqui automaticamente.</p>
           </div>
         </div>
       </div>
@@ -742,160 +1048,34 @@ export default function ShoppingList() {
   // ── Tela de conclusão ────────────────────────────────────────────────────────
   if (phase === "done") {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "var(--color-background-tertiary)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "2rem 1rem",
-        }}
-      >
+      <div style={{ minHeight: "100vh", background: "var(--color-background-tertiary)", display: "flex", alignItems: "center", justifyContent: "center", padding: "2rem 1rem" }}>
         <div style={{ maxWidth: 400, width: "100%", textAlign: "center" }}>
-          <div
-            style={{
-              width: 72,
-              height: 72,
-              borderRadius: "50%",
-              background: "rgba(52,211,153,0.12)",
-              border: "0.5px solid rgba(52,211,153,0.3)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              margin: "0 auto 20px",
-            }}
-          >
+          <div style={{ width: 72, height: 72, borderRadius: "50%", background: "rgba(52,211,153,0.12)", border: "0.5px solid rgba(52,211,153,0.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
             <CheckCircle2 size={36} style={{ color: "#34d399" }} />
           </div>
-
-          <h2
-            style={{
-              fontSize: 20,
-              fontWeight: 600,
-              color: "var(--color-text-primary)",
-              marginBottom: 6,
-            }}
-          >
-            Compras da semana concluídas!
-          </h2>
-          <p
-            style={{
-              fontSize: 13,
-              color: "var(--color-text-secondary)",
-              marginBottom: 20,
-            }}
-          >
-            {new Date().toLocaleDateString("pt-BR", {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-            })}
+          <h2 style={{ fontSize: 20, fontWeight: 600, color: "var(--color-text-primary)", marginBottom: 6 }}>Compras concluídas!</h2>
+          <p style={{ fontSize: 13, color: "var(--color-text-secondary)", marginBottom: 20 }}>
+            {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
           </p>
-
           {streak >= 2 && (
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                background: "rgba(251,146,60,0.1)",
-                border: "0.5px solid rgba(251,146,60,0.3)",
-                borderRadius: 20,
-                padding: "6px 14px",
-                marginBottom: 20,
-              }}
-            >
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(251,146,60,0.1)", border: "0.5px solid rgba(251,146,60,0.3)", borderRadius: 20, padding: "6px 14px", marginBottom: 20 }}>
               <span style={{ fontSize: 16 }}>🔥</span>
-              <span
-                style={{ fontSize: 13, fontWeight: 500, color: "#f97316" }}
-              >
-                {streak} semanas de compras organizadas
-              </span>
+              <span style={{ fontSize: 13, fontWeight: 500, color: "#f97316" }}>{streak} semanas de compras organizadas</span>
             </div>
           )}
-
-          <div
-            style={{
-              background: "var(--color-background-primary)",
-              border: "0.5px solid var(--color-border-tertiary)",
-              borderRadius: 12,
-              padding: "14px 16px",
-              marginBottom: 24,
-              display: "flex",
-              justifyContent: "space-around",
-            }}
-          >
-            <div style={{ textAlign: "center" }}>
-              <p
-                style={{
-                  fontSize: 22,
-                  fontWeight: 600,
-                  color: "var(--color-text-primary)",
-                }}
-              >
-                {totalItems}
-              </p>
-              <p style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>
-                itens comprados
-              </p>
-            </div>
-            <div
-              style={{
-                width: 1,
-                background: "var(--color-border-tertiary)",
-              }}
-            />
-            <div style={{ textAlign: "center" }}>
-              <p
-                style={{
-                  fontSize: 22,
-                  fontWeight: 600,
-                  color: "var(--color-text-primary)",
-                }}
-              >
-                {days}d
-              </p>
-              <p style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>
-                de protocolo
-              </p>
-            </div>
-            <div
-              style={{
-                width: 1,
-                background: "var(--color-border-tertiary)",
-              }}
-            />
-            <div style={{ textAlign: "center" }}>
-              <p
-                style={{
-                  fontSize: 22,
-                  fontWeight: 600,
-                  color: "var(--color-text-primary)",
-                }}
-              >
-                {kindsWithItems.length}
-              </p>
-              <p style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>
-                categorias
-              </p>
-            </div>
+          <div style={{ background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-tertiary)", borderRadius: 12, padding: "14px 16px", marginBottom: 24, display: "flex", justifyContent: "space-around" }}>
+            {[
+              { val: totalItems, label: "itens comprados" },
+              { val: `${days}d`, label: "de protocolo" },
+              { val: persons > 1 ? `${persons}p` : kindsWithItems.length, label: persons > 1 ? "pessoas" : "categorias" },
+            ].map((stat, i) => (
+              <div key={i} style={{ textAlign: "center" }}>
+                <p style={{ fontSize: 22, fontWeight: 600, color: "var(--color-text-primary)" }}>{stat.val}</p>
+                <p style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>{stat.label}</p>
+              </div>
+            ))}
           </div>
-
-          <button
-            onClick={() => navigate("/student-area")}
-            style={{
-              width: "100%",
-              padding: "13px",
-              borderRadius: 10,
-              border: "none",
-              background: "#CC0000",
-              color: "#fff",
-              fontSize: 14,
-              fontWeight: 500,
-              cursor: "pointer",
-            }}
-          >
+          <button onClick={() => navigate("/student-area")} style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", background: "#CC0000", color: "#fff", fontSize: 14, fontWeight: 500, cursor: "pointer" }}>
             Voltar ao início
           </button>
         </div>
@@ -905,190 +1085,83 @@ export default function ShoppingList() {
 
   // ── Modo mercado ─────────────────────────────────────────────────────────────
   if (phase === "market") {
-    const pendingItems = items.filter(
-      (it) => !struck[`${it.kind}:${it.name}`],
-    );
+    const pendingItems = items.filter((it) => !struck[`${it.kind}:${it.name}`]);
     const doneItems = items.filter((it) => struck[`${it.kind}:${it.name}`]);
 
+    // No modo mercado, organiza por setor
+    const pendingBySector: Record<MarketSector, AggItem[]> = { acougue: [], hortifruti: [], laticinios: [], secos: [], freezer: [], outros: [] };
+    pendingItems.forEach((it) => pendingBySector[kindToSector(it)].push(it));
+    const activeSectors = SECTOR_ORDER.filter((s) => pendingBySector[s].length > 0);
+
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "var(--color-background-tertiary)",
-          paddingBottom: "2rem",
-        }}
-      >
+      <div style={{ minHeight: "100vh", background: "var(--color-background-tertiary)", paddingBottom: "2rem" }}>
         <header style={headerStyle}>
-          <button onClick={() => setPhase("list")} style={backBtnStyle}>
-            <ArrowLeft size={18} />
-          </button>
+          <button onClick={() => setPhase("list")} style={backBtnStyle}><ArrowLeft size={18} /></button>
           <div style={{ flex: 1 }}>
-            <p
-              style={{
-                fontSize: 15,
-                fontWeight: 500,
-                color: "var(--color-text-primary)",
-              }}
-            >
-              🛒 No mercado
-            </p>
+            <p style={{ fontSize: 15, fontWeight: 500, color: "var(--color-text-primary)" }}>🛒 No mercado</p>
             <p style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>
-              {pendingItems.length > 0
-                ? `${pendingItems.length} ${pendingItems.length === 1 ? "item" : "itens"} para pegar`
-                : "Tudo no carrinho!"}
+              {pendingItems.length > 0 ? `${pendingItems.length} ${pendingItems.length === 1 ? "item" : "itens"} para pegar` : "Tudo no carrinho!"}
             </p>
           </div>
           {pendingItems.length === 0 && (
-            <button
-              onClick={handleComplete}
-              style={{
-                background: "#34d399",
-                color: "#fff",
-                border: "none",
-                borderRadius: 8,
-                padding: "7px 12px",
-                fontSize: 12,
-                fontWeight: 500,
-                cursor: "pointer",
-              }}
-            >
+            <button onClick={handleComplete} style={{ background: "#34d399", color: "#fff", border: "none", borderRadius: 8, padding: "7px 12px", fontSize: 12, fontWeight: 500, cursor: "pointer" }}>
               Concluir
             </button>
           )}
         </header>
 
-        <div
-          style={{
-            maxWidth: 480,
-            margin: "0 auto",
-            padding: "1rem",
-            display: "flex",
-            flexDirection: "column",
-            gap: 10,
-          }}
-        >
-          {pendingItems.map((it) => {
-            const key = `${it.kind}:${it.name}`;
-            const cfg = KIND_CFG[kindFromStr(it.kind)];
+        <div style={{ maxWidth: 480, margin: "0 auto", padding: "1rem", display: "flex", flexDirection: "column", gap: 12 }}>
+          {activeSectors.map((sector) => {
+            const cfg = SECTOR_CFG[sector];
             return (
-              <button
-                key={key}
-                onClick={() => toggleStruck(key)}
-                style={{
-                  width: "100%",
-                  background: "var(--color-background-primary)",
-                  border: `0.5px solid ${cfg.border}`,
-                  borderRadius: 12,
-                  padding: "18px 20px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  cursor: "pointer",
-                  gap: 12,
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 16,
-                    fontWeight: 500,
-                    color: "var(--color-text-primary)",
-                    textAlign: "left",
-                  }}
-                >
-                  {it.name}
-                </span>
-                <span
-                  style={{
-                    fontSize: 15,
-                    fontWeight: 600,
-                    color: cfg.color,
-                    flexShrink: 0,
-                  }}
-                >
-                  {formatQty(it.total, it.unit)}
-                </span>
-              </button>
+              <div key={sector}>
+                <p style={{ fontSize: 11, fontWeight: 500, color: "var(--color-text-tertiary)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, paddingLeft: 4 }}>
+                  {cfg.emoji} {cfg.label}
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {pendingBySector[sector].map((it) => {
+                    const key = `${it.kind}:${it.name}`;
+                    const cfg2 = KIND_CFG[kindFromStr(it.kind)];
+                    const packageHint = getPackageHint(it.name, it.total);
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => toggleStruck(key)}
+                        style={{ width: "100%", background: "var(--color-background-primary)", border: `0.5px solid ${cfg2.border}`, borderRadius: 12, padding: "16px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", gap: 12, textAlign: "left" }}
+                      >
+                        <div>
+                          <span style={{ fontSize: 16, fontWeight: 500, color: "var(--color-text-primary)", display: "block" }}>{it.name}</span>
+                          {packageHint && <span style={{ fontSize: 11, color: "#fbbf24", display: "block", marginTop: 2 }}>📦 {packageHint}</span>}
+                        </div>
+                        <span style={{ fontSize: 15, fontWeight: 600, color: cfg2.color, flexShrink: 0 }}>
+                          {formatQty(it.total, it.unit)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
 
           {doneItems.length > 0 && (
-            <div
-              style={{
-                marginTop: 8,
-                background: "var(--color-background-secondary)",
-                border: "0.5px solid var(--color-border-tertiary)",
-                borderRadius: 12,
-                padding: "12px 16px",
-              }}
-            >
-              <p
-                style={{
-                  fontSize: 11,
-                  fontWeight: 500,
-                  color: "var(--color-text-tertiary)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                  marginBottom: 8,
-                }}
-              >
+            <div style={{ marginTop: 8, background: "var(--color-background-secondary)", border: "0.5px solid var(--color-border-tertiary)", borderRadius: 12, padding: "12px 16px" }}>
+              <p style={{ fontSize: 11, fontWeight: 500, color: "var(--color-text-tertiary)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
                 Já no carrinho ({doneItems.length})
               </p>
               {doneItems.map((it) => {
                 const key = `${it.kind}:${it.name}`;
                 return (
-                  <button
-                    key={key}
-                    onClick={() => toggleStruck(key)}
-                    style={{
-                      width: "100%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      background: "transparent",
-                      border: "none",
-                      padding: "6px 0",
-                      cursor: "pointer",
-                      opacity: 0.5,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 13,
-                        color: "var(--color-text-tertiary)",
-                        textDecoration: "line-through",
-                      }}
-                    >
-                      {it.name}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 12,
-                        color: "var(--color-text-tertiary)",
-                        textDecoration: "line-through",
-                      }}
-                    >
-                      {formatQty(it.total, it.unit)}
-                    </span>
+                  <button key={key} onClick={() => toggleStruck(key)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", background: "transparent", border: "none", padding: "6px 0", cursor: "pointer", opacity: 0.5 }}>
+                    <span style={{ fontSize: 13, color: "var(--color-text-tertiary)", textDecoration: "line-through" }}>{it.name}</span>
+                    <span style={{ fontSize: 12, color: "var(--color-text-tertiary)", textDecoration: "line-through" }}>{formatQty(it.total, it.unit)}</span>
                   </button>
                 );
               })}
             </div>
           )}
 
-          <button
-            onClick={() => setPhase("list")}
-            style={{
-              marginTop: 8,
-              width: "100%",
-              padding: "11px",
-              borderRadius: 10,
-              border: "0.5px solid var(--color-border-tertiary)",
-              background: "transparent",
-              color: "var(--color-text-secondary)",
-              fontSize: 13,
-              cursor: "pointer",
-            }}
-          >
+          <button onClick={() => setPhase("list")} style={{ marginTop: 8, width: "100%", padding: "11px", borderRadius: 10, border: "0.5px solid var(--color-border-tertiary)", background: "transparent", color: "var(--color-text-secondary)", fontSize: 13, cursor: "pointer" }}>
             Sair do modo mercado
           </button>
         </div>
@@ -1098,233 +1171,100 @@ export default function ShoppingList() {
 
   // ── Tela de escolha de opções ─────────────────────────────────────────────────
   if (phase === "choosing" && choices.length > 0) {
-    const choiceChosen = currentChoice
-      ? selectedOptions[currentChoice.key] !== undefined
-      : false;
-
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "var(--color-background-tertiary)",
-          padding: "0 0 2rem",
-        }}
-      >
+      <div style={{ minHeight: "100vh", background: "var(--color-background-tertiary)", padding: "0 0 2rem" }}>
         <header style={headerStyle}>
-          <button
-            onClick={() =>
-              choiceStep > 0 ? handlePrevChoice() : navigate(-1)
-            }
-            style={backBtnStyle}
-          >
+          <button onClick={() => choiceStep > 0 ? handlePrevChoice() : navigate(-1)} style={backBtnStyle}>
             <ArrowLeft size={18} />
           </button>
           <div style={{ flex: 1 }}>
-            <p
-              style={{
-                fontSize: 15,
-                fontWeight: 500,
-                color: "var(--color-text-primary)",
-              }}
-            >
-              O que você vai usar?
-            </p>
+            <p style={{ fontSize: 15, fontWeight: 500, color: "var(--color-text-primary)" }}>O que você vai usar?</p>
             <p style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>
-              {choiceStep + 1} de {choices.length}{" "}
-              {choices.length === 1 ? "escolha" : "escolhas"}
+              {choiceStep + 1} de {choices.length} {choices.length === 1 ? "escolha" : "escolhas"}
             </p>
           </div>
         </header>
 
-        {/* Barra de progresso das escolhas */}
-        <div
-          style={{
-            height: 3,
-            background: "var(--color-background-secondary)",
-            marginBottom: 0,
-          }}
-        >
-          <div
-            style={{
-              height: "100%",
-              width: `${((choiceStep + (choiceChosen ? 1 : 0)) / choices.length) * 100}%`,
-              background: "#CC0000",
-              transition: "width 0.3s ease",
-            }}
-          />
+        <div style={{ height: 3, background: "var(--color-background-secondary)" }}>
+          <div style={{ height: "100%", width: `${((choiceStep + (choiceIsResolved ? 1 : 0)) / choices.length) * 100}%`, background: "#CC0000", transition: "width 0.3s ease" }} />
         </div>
 
-        <div
-          style={{ maxWidth: 480, margin: "0 auto", padding: "1.5rem 1rem" }}
-        >
+        <div style={{ maxWidth: 480, margin: "0 auto", padding: "1.5rem 1rem" }}>
           {currentChoice && (
             <>
-              {/* Contexto da refeição */}
-              <div
-                style={{
-                  background: "rgba(204,0,0,0.06)",
-                  border: "0.5px solid rgba(204,0,0,0.2)",
-                  borderRadius: 10,
-                  padding: "10px 14px",
-                  marginBottom: 16,
-                }}
-              >
-                <p
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: "#CC0000",
-                    marginBottom: currentChoice.sublabel ? 2 : 0,
-                  }}
-                >
-                  {currentChoice.label}
-                </p>
-                {currentChoice.sublabel && (
-                  <p style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>
-                    🕐 {currentChoice.sublabel}
-                  </p>
-                )}
+              {/* Contexto */}
+              <div style={{ background: "rgba(204,0,0,0.06)", border: "0.5px solid rgba(204,0,0,0.2)", borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
+                <p style={{ fontSize: 13, fontWeight: 500, color: "#CC0000", marginBottom: currentChoice.sublabel ? 2 : 0 }}>{currentChoice.label}</p>
+                {currentChoice.sublabel && <p style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>🕐 {currentChoice.sublabel}</p>}
               </div>
 
-              <div
-                style={{ display: "flex", flexDirection: "column", gap: 10 }}
-              >
-                {currentChoice.options.map((opt) => {
-                  const chosen =
-                    selectedOptions[currentChoice.key] === opt.idx;
-                  return (
-                    <button
-                      key={opt.idx}
-                      onClick={() =>
-                        setSelectedOptions((s) => ({
-                          ...s,
-                          [currentChoice.key]: opt.idx,
-                        }))
-                      }
-                      style={{
-                        width: "100%",
-                        padding: "14px 16px",
-                        borderRadius: 12,
-                        border: chosen
-                          ? "2px solid #CC0000"
-                          : "0.5px solid var(--color-border-secondary)",
-                        background: chosen
-                          ? "rgba(204,0,0,0.07)"
-                          : "var(--color-background-primary)",
-                        cursor: "pointer",
-                        textAlign: "left",
-                        transition: "all 0.15s",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          marginBottom: opt.items.length > 0 ? 8 : 0,
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: 14,
-                            fontWeight: 500,
-                            color: chosen
-                              ? "#CC0000"
-                              : "var(--color-text-primary)",
-                          }}
-                        >
-                          {opt.name}
-                        </span>
-                        {chosen && (
-                          <span
-                            style={{
-                              width: 20,
-                              height: 20,
-                              borderRadius: "50%",
-                              background: "#CC0000",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              flexShrink: 0,
-                            }}
-                          >
-                            <i
-                              className="ti ti-check"
-                              style={{ fontSize: 11, color: "#fff" }}
-                              aria-hidden="true"
-                            />
-                          </span>
-                        )}
-                      </div>
-                      {opt.items.length > 0 && (
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 2,
-                          }}
-                        >
-                          {opt.items.map((item, ii) => (
-                            <div
-                              key={ii}
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                fontSize: 12,
-                                color: chosen
-                                  ? "rgba(204,0,0,0.7)"
-                                  : "var(--color-text-secondary)",
-                              }}
-                            >
-                              <span>{item.name}</span>
-                              {item.qty && (
-                                <span style={{ fontWeight: 500 }}>
-                                  {item.qty}
-                                </span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
+              {/* Toggle simples / split de dias */}
+              <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                <button
+                  onClick={() => setSplitMode(false)}
+                  style={{ flex: 1, padding: "8px", borderRadius: 8, border: !splitMode ? "1.5px solid #CC0000" : "0.5px solid var(--color-border-secondary)", background: !splitMode ? "rgba(204,0,0,0.08)" : "var(--color-background-primary)", color: !splitMode ? "#CC0000" : "var(--color-text-secondary)", fontSize: 12, fontWeight: 500, cursor: "pointer" }}
+                >
+                  Uma opção p/ semana
+                </button>
+                <button
+                  onClick={() => setSplitMode(true)}
+                  style={{ flex: 1, padding: "8px", borderRadius: 8, border: splitMode ? "1.5px solid #CC0000" : "0.5px solid var(--color-border-secondary)", background: splitMode ? "rgba(204,0,0,0.08)" : "var(--color-background-primary)", color: splitMode ? "#CC0000" : "var(--color-text-secondary)", fontSize: 12, fontWeight: 500, cursor: "pointer" }}
+                >
+                  Dividir por dias
+                </button>
               </div>
+
+              {splitMode ? (
+                <DaySplitPicker
+                  choice={currentChoice}
+                  split={currentSplit}
+                  onChange={(newSplit) => setDaySplit((d) => ({ ...d, [currentChoice.key]: newSplit }))}
+                />
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {currentChoice.options.map((opt) => {
+                    const chosen = selectedOptions[currentChoice.key] === opt.idx;
+                    return (
+                      <button
+                        key={opt.idx}
+                        onClick={() => setSelectedOptions((s) => ({ ...s, [currentChoice.key]: opt.idx }))}
+                        style={{ width: "100%", padding: "14px 16px", borderRadius: 12, border: chosen ? "2px solid #CC0000" : "0.5px solid var(--color-border-secondary)", background: chosen ? "rgba(204,0,0,0.07)" : "var(--color-background-primary)", cursor: "pointer", textAlign: "left", transition: "all 0.15s" }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: opt.items.length > 0 ? 8 : 0 }}>
+                          <span style={{ fontSize: 14, fontWeight: 500, color: chosen ? "#CC0000" : "var(--color-text-primary)" }}>{opt.name}</span>
+                          {chosen && (
+                            <span style={{ width: 20, height: 20, borderRadius: "50%", background: "#CC0000", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                              <i className="ti ti-check" style={{ fontSize: 11, color: "#fff" }} aria-hidden="true" />
+                            </span>
+                          )}
+                        </div>
+                        {opt.items.length > 0 && (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                            {opt.items.map((item, ii) => (
+                              <div key={ii} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: chosen ? "rgba(204,0,0,0.7)" : "var(--color-text-secondary)" }}>
+                                <span>{item.name}</span>
+                                {item.qty && <span style={{ fontWeight: 500 }}>{item.qty}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               <button
                 onClick={handleNextChoice}
-                disabled={!choiceChosen}
-                style={{
-                  width: "100%",
-                  marginTop: 20,
-                  padding: "14px",
-                  borderRadius: 10,
-                  border: "none",
-                  background: choiceChosen
-                    ? "#CC0000"
-                    : "var(--color-background-secondary)",
-                  color: choiceChosen ? "#fff" : "var(--color-text-tertiary)",
-                  fontSize: 14,
-                  fontWeight: 500,
-                  cursor: choiceChosen ? "pointer" : "not-allowed",
-                  transition: "all 0.2s",
-                }}
+                disabled={!choiceIsResolved}
+                style={{ width: "100%", marginTop: 20, padding: "14px", borderRadius: 10, border: "none", background: choiceIsResolved ? "#CC0000" : "var(--color-background-secondary)", color: choiceIsResolved ? "#fff" : "var(--color-text-tertiary)", fontSize: 14, fontWeight: 500, cursor: choiceIsResolved ? "pointer" : "not-allowed", transition: "all 0.2s" }}
               >
-                {choiceStep < choices.length - 1
-                  ? "Próxima →"
-                  : "Ver minha lista de compras"}
+                {choiceStep < choices.length - 1 ? "Próxima →" : "Ver minha lista de compras"}
               </button>
 
-              {!choiceChosen && (
-                <p
-                  style={{
-                    fontSize: 12,
-                    color: "var(--color-text-tertiary)",
-                    textAlign: "center",
-                    marginTop: 10,
-                  }}
-                >
-                  Selecione uma opção para continuar
+              {!choiceIsResolved && (
+                <p style={{ fontSize: 12, color: "var(--color-text-tertiary)", textAlign: "center", marginTop: 10 }}>
+                  {splitMode ? `Distribua os ${days} dias entre as opções` : "Selecione uma opção para continuar"}
                 </p>
               )}
             </>
@@ -1337,71 +1277,97 @@ export default function ShoppingList() {
   // ── Lista pronta ──────────────────────────────────────────────────────────────
   const progressPct = totalItems > 0 ? (struckCount / totalItems) * 100 : 0;
 
+  const renderItemRow = (it: AggItem, containerBorder: string, containerColor: string) => {
+    const key = `${it.kind}:${it.name}`;
+    const isStruck = !!struck[key];
+    const have = haveAtHome[key] || 0;
+    const rawTotal = rawItems.find((r) => `${r.kind}:${r.name}` === key)?.total || it.total;
+    const packageHint = getPackageHint(it.name, it.total);
+
+    return (
+      <div
+        key={key}
+        style={{ borderBottom: `0.5px solid ${containerBorder}`, opacity: isStruck ? 0.38 : 1, transition: "opacity 0.2s" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px" }}>
+          {/* Checkbox */}
+          <button
+            onClick={() => toggleStruck(key)}
+            aria-label={isStruck ? `Desmarcar ${it.name}` : `Marcar ${it.name}`}
+            style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, border: `0.5px solid ${isStruck ? containerColor : "rgba(255,255,255,0.15)"}`, background: isStruck ? `${containerColor}22` : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+          >
+            {isStruck && <i className="ti ti-check" style={{ fontSize: 12, color: containerColor }} aria-hidden="true" />}
+          </button>
+
+          {/* Nome + hint */}
+          <div style={{ flex: 1, textAlign: "left" }}>
+            <span style={{ fontSize: 13, color: isStruck ? "var(--color-text-tertiary)" : "var(--color-text-primary)", textDecoration: isStruck ? "line-through" : "none", transition: "all 0.2s", display: "block" }}>
+              {it.name}
+            </span>
+            {have > 0 && !isStruck && (
+              <span style={{ fontSize: 10, color: "#34d399", display: "block", marginTop: 1 }}>
+                🏠 Desconto: {formatQty(have, it.unit)} já em casa
+              </span>
+            )}
+            {packageHint && !isStruck && (
+              <span style={{ fontSize: 10, color: "#fbbf24", display: "block", marginTop: 1 }}>📦 {packageHint}</span>
+            )}
+          </div>
+
+          {/* Quantidade */}
+          <span style={{ fontSize: 13, fontWeight: 500, color: isStruck ? "var(--color-text-tertiary)" : containerColor, flexShrink: 0 }}>
+            {formatQty(it.total, it.unit)}
+          </span>
+
+          {/* Botão "já tenho em casa" */}
+          {!isStruck && (
+            <button
+              onClick={() => setHaveAtHomeItem(it)}
+              aria-label={`Já tenho ${it.name} em casa`}
+              style={{ width: 26, height: 26, borderRadius: 6, border: `0.5px solid ${have > 0 ? "#34d399" : "var(--color-border-tertiary)"}`, background: have > 0 ? "rgba(52,211,153,0.1)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+            >
+              <Home size={12} color={have > 0 ? "#34d399" : "var(--color-text-tertiary)"} />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "var(--color-background-tertiary)",
-        paddingBottom: "2rem",
-      }}
-    >
+    <div style={{ minHeight: "100vh", background: "var(--color-background-tertiary)", paddingBottom: "2rem" }}>
+      {/* Modal "já tenho em casa" */}
+      {haveAtHomeItem && (
+        <HaveAtHomeSlider
+          item={haveAtHomeItem}
+          value={haveAtHome[`${haveAtHomeItem.kind}:${haveAtHomeItem.name}`] || 0}
+          onChange={(g) => {
+            const k = `${haveAtHomeItem.kind}:${haveAtHomeItem.name}`;
+            setHaveAtHome((h) => ({ ...h, [k]: g }));
+          }}
+          onClose={() => setHaveAtHomeItem(null)}
+        />
+      )}
+
       <header style={headerStyle}>
         {choices.length > 0 ? (
-          <button
-            onClick={() => {
-              setChoiceStep(choices.length - 1);
-              setPhase("choosing");
-            }}
-            style={backBtnStyle}
-            aria-label="Voltar às escolhas"
-          >
+          <button onClick={() => { setChoiceStep(choices.length - 1); setPhase("choosing"); }} style={backBtnStyle} aria-label="Voltar às escolhas">
             <ArrowLeft size={18} />
           </button>
         ) : (
-          <Link
-            to="/student-area"
-            style={{
-              ...backBtnStyle,
-              textDecoration: "none",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-            aria-label="Voltar"
-          >
+          <Link to="/student-area" style={{ ...backBtnStyle, textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center" }} aria-label="Voltar">
             <ArrowLeft size={18} />
           </Link>
         )}
         <div style={{ flex: 1 }}>
-          <p
-            style={{
-              fontSize: 15,
-              fontWeight: 500,
-              color: "var(--color-text-primary)",
-            }}
-          >
-            Lista de compras
-          </p>
+          <p style={{ fontSize: 15, fontWeight: 500, color: "var(--color-text-primary)" }}>Lista de compras</p>
           <p style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>
-            {protocol?.name || "Protocolo ativo"} ·{" "}
-            {days === 1 ? "1 dia" : `${days} dias`}
+            {protocol?.name || "Protocolo ativo"} · {days === 1 ? "1 dia" : `${days} dias`}{persons > 1 ? ` · ${persons} pessoas` : ""}
           </p>
         </div>
         <button
           onClick={() => setPhase("market")}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 5,
-            background: "rgba(204,0,0,0.1)",
-            color: "#CC0000",
-            border: "0.5px solid rgba(204,0,0,0.3)",
-            borderRadius: 8,
-            padding: "7px 11px",
-            fontSize: 12,
-            fontWeight: 500,
-            cursor: "pointer",
-          }}
+          style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(204,0,0,0.1)", color: "#CC0000", border: "0.5px solid rgba(204,0,0,0.3)", borderRadius: 8, padding: "7px 11px", fontSize: 12, fontWeight: 500, cursor: "pointer" }}
           aria-label="Modo mercado"
         >
           <ShoppingBag size={13} /> Mercado
@@ -1412,588 +1378,183 @@ export default function ShoppingList() {
 
         {/* Aviso de protocolo atualizado */}
         {protocolUpdatedWarning && (
-          <div
-            style={{
-              background: "rgba(251,191,36,0.08)",
-              border: "0.5px solid rgba(251,191,36,0.35)",
-              borderRadius: 10,
-              padding: "10px 14px",
-              marginBottom: 14,
-              display: "flex",
-              alignItems: "flex-start",
-              gap: 10,
-            }}
-          >
+          <div style={{ background: "rgba(251,191,36,0.08)", border: "0.5px solid rgba(251,191,36,0.35)", borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "flex-start", gap: 10 }}>
             <span style={{ fontSize: 16, flexShrink: 0 }}>⚠️</span>
             <div style={{ flex: 1 }}>
-              <p
-                style={{
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: "var(--color-text-primary)",
-                  marginBottom: 4,
-                }}
-              >
-                Protocolo atualizado pelo coach
-              </p>
-              <p
-                style={{
-                  fontSize: 12,
-                  color: "var(--color-text-secondary)",
-                  marginBottom: 8,
-                }}
-              >
-                Algumas quantidades podem ter mudado desde sua última lista.
-              </p>
-              <button
-                onClick={handleRegenerate}
-                style={{
-                  fontSize: 12,
-                  fontWeight: 500,
-                  color: "#CC0000",
-                  background: "transparent",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: 0,
-                  textDecoration: "underline",
-                }}
-              >
+              <p style={{ fontSize: 13, fontWeight: 500, color: "var(--color-text-primary)", marginBottom: 4 }}>Protocolo atualizado pelo coach</p>
+              <p style={{ fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 8 }}>Algumas quantidades podem ter mudado desde sua última lista.</p>
+              <button onClick={handleRegenerate} style={{ fontSize: 12, fontWeight: 500, color: "#CC0000", background: "transparent", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>
                 Regenerar lista
               </button>
             </div>
-            <button
-              onClick={() => setProtocolUpdatedWarning(false)}
-              style={{
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                color: "var(--color-text-tertiary)",
-                padding: 0,
-                fontSize: 16,
-                lineHeight: 1,
-              }}
-              aria-label="Fechar aviso"
-            >
-              ×
-            </button>
+            <button onClick={() => setProtocolUpdatedWarning(false)} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--color-text-tertiary)", padding: 0, fontSize: 16, lineHeight: 1 }} aria-label="Fechar aviso">×</button>
           </div>
         )}
 
-        {/* Aviso de ciclo de carbo ativo */}
+        {/* Aviso de ciclo de carbo */}
         {hasCycle && (
-          <div
-            style={{
-              background: "rgba(251,191,36,0.06)",
-              border: "0.5px solid rgba(251,191,36,0.25)",
-              borderRadius: 10,
-              padding: "9px 13px",
-              marginBottom: 14,
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            <i
-              className="ti ti-wheat"
-              style={{ fontSize: 14, color: "#fbbf24", flexShrink: 0 }}
-              aria-hidden="true"
-            />
+          <div style={{ background: "rgba(251,191,36,0.06)", border: "0.5px solid rgba(251,191,36,0.25)", borderRadius: 10, padding: "9px 13px", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+            <i className="ti ti-wheat" style={{ fontSize: 14, color: "#fbbf24", flexShrink: 0 }} aria-hidden="true" />
             <p style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>
-              Ciclo de carbo aplicado — quantidades de carboidratos calculadas
-              por dia real da semana.
+              Ciclo de carbo aplicado — carboidratos calculados por dia real da semana.
             </p>
           </div>
         )}
 
-        {/* Seletor de período */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-          {PERIODS.map((p) => (
-            <button
-              key={p.days}
-              onClick={() => handleChangePeriod(p.days)}
-              style={{
-                flex: 1,
-                padding: "7px 2px",
-                borderRadius: 20,
-                border:
-                  days === p.days
-                    ? "1.5px solid #CC0000"
-                    : "0.5px solid var(--color-border-secondary)",
-                background:
-                  days === p.days
-                    ? "rgba(204,0,0,0.1)"
-                    : "var(--color-background-primary)",
-                color:
-                  days === p.days
-                    ? "#CC0000"
-                    : "var(--color-text-secondary)",
-                fontSize: 11,
-                fontWeight: 500,
-                cursor: "pointer",
-                transition: "all 0.15s",
-              }}
-            >
-              {p.label}
-            </button>
-          ))}
+        {/* Período + Pessoas */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 5, flex: 1 }}>
+            {PERIODS.map((p) => (
+              <button
+                key={p.days}
+                onClick={() => handleChangePeriod(p.days)}
+                style={{ flex: 1, padding: "7px 2px", borderRadius: 20, border: days === p.days ? "1.5px solid #CC0000" : "0.5px solid var(--color-border-secondary)", background: days === p.days ? "rgba(204,0,0,0.1)" : "var(--color-background-primary)", color: days === p.days ? "#CC0000" : "var(--color-text-secondary)", fontSize: 11, fontWeight: 500, cursor: "pointer", transition: "all 0.15s" }}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Multiplicador de pessoas */}
+          <div style={{ display: "flex", alignItems: "center", gap: 4, background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-secondary)", borderRadius: 20, padding: "4px 10px" }}>
+            <Users size={12} color="var(--color-text-tertiary)" />
+            {[1, 2, 3].map((n) => (
+              <button
+                key={n}
+                onClick={() => setPersons(n)}
+                style={{ width: 24, height: 24, borderRadius: "50%", border: "none", background: persons === n ? "#CC0000" : "transparent", color: persons === n ? "#fff" : "var(--color-text-secondary)", fontSize: 11, fontWeight: 600, cursor: "pointer", transition: "all 0.15s" }}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Barra de progresso */}
         {totalItems > 0 && (
-          <div
-            style={{
-              background: "var(--color-background-primary)",
-              border: "0.5px solid var(--color-border-tertiary)",
-              borderRadius: 10,
-              padding: "10px 14px",
-              marginBottom: 14,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 6,
-              }}
-            >
-              <span
-                style={{ fontSize: 12, color: "var(--color-text-secondary)" }}
-              >
-                {struckCount === totalItems
-                  ? "Tudo no carrinho! 🎉"
-                  : `${visibleCount} ${visibleCount === 1 ? "item" : "itens"} restantes`}
+          <div style={{ background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-tertiary)", borderRadius: 10, padding: "10px 14px", marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <span style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>
+                {struckCount === totalItems ? "Tudo no carrinho! 🎉" : `${visibleCount} ${visibleCount === 1 ? "item" : "itens"} restantes`}
+                {haveAtHomeCount > 0 && ` · ${haveAtHomeCount} já em casa`}
               </span>
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 500,
-                  color: "var(--color-text-primary)",
-                }}
-              >
-                {struckCount}/{totalItems}
-              </span>
+              <span style={{ fontSize: 12, fontWeight: 500, color: "var(--color-text-primary)" }}>{struckCount}/{totalItems}</span>
             </div>
-            <div
-              style={{
-                height: 6,
-                borderRadius: 3,
-                background: "var(--color-background-secondary)",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  height: "100%",
-                  width: `${progressPct}%`,
-                  background:
-                    progressPct === 100
-                      ? "#34d399"
-                      : "#CC0000",
-                  borderRadius: 3,
-                  transition: "width 0.3s ease, background 0.3s ease",
-                }}
-              />
+            <div style={{ height: 6, borderRadius: 3, background: "var(--color-background-secondary)", overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${progressPct}%`, background: progressPct === 100 ? "#34d399" : "#CC0000", borderRadius: 3, transition: "width 0.3s ease, background 0.3s ease" }} />
             </div>
           </div>
         )}
 
-        {/* Hint de risco (primeira vez) */}
-        {struckCount === 0 && totalItems > 0 && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              marginBottom: 14,
-              padding: "10px 12px",
-              borderRadius: 8,
-              background: "var(--color-background-secondary)",
-              border: "0.5px solid var(--color-border-tertiary)",
-            }}
+        {/* Toggle de visualização */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+          <button
+            onClick={() => setViewMode("macro")}
+            style={{ flex: 1, padding: "7px", borderRadius: 8, border: viewMode === "macro" ? "1.5px solid #CC0000" : "0.5px solid var(--color-border-secondary)", background: viewMode === "macro" ? "rgba(204,0,0,0.08)" : "var(--color-background-primary)", color: viewMode === "macro" ? "#CC0000" : "var(--color-text-secondary)", fontSize: 11, fontWeight: 500, cursor: "pointer" }}
           >
-            <i
-              className="ti ti-hand-click"
-              style={{ fontSize: 16, color: "var(--color-text-tertiary)" }}
-              aria-hidden="true"
-            />
-            <p
-              style={{
-                fontSize: 12,
-                color: "var(--color-text-secondary)",
-                lineHeight: 1.4,
-              }}
-            >
-              Toque nos itens que você{" "}
-              <strong
-                style={{
-                  fontWeight: 500,
-                  color: "var(--color-text-primary)",
-                }}
-              >
-                já tem em casa
-              </strong>{" "}
-              para riscá-los antes de enviar.
-            </p>
-          </div>
-        )}
-
-        {/* Grupos por macro */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {kindsWithItems.map((kind) => {
-            const cfg = KIND_CFG[kind];
-            const kindItems = grouped[kind];
-            const kindVisible = kindItems.filter(
-              (it) => !struck[`${it.kind}:${it.name}`],
-            );
-
-            return (
-              <div
-                key={kind}
-                style={{
-                  borderRadius: 12,
-                  border: `0.5px solid ${cfg.border}`,
-                  background: cfg.bg,
-                  overflow: "hidden",
-                }}
-              >
-                {/* Cabeçalho do grupo */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "10px 14px",
-                  }}
-                >
-                  <i
-                    className={`ti ${cfg.iconClass}`}
-                    style={{ fontSize: 16, color: cfg.color }}
-                    aria-hidden="true"
-                  />
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 500,
-                      letterSpacing: "0.09em",
-                      textTransform: "uppercase",
-                      color: cfg.color,
-                      flex: 1,
-                    }}
-                  >
-                    {cfg.label}
-                  </span>
-                  <span
-                    style={{ fontSize: 11, color: cfg.color, opacity: 0.7 }}
-                  >
-                    {kindVisible.length}/{kindItems.length}
-                  </span>
-                </div>
-
-                {/* Itens */}
-                <div style={{ borderTop: `0.5px solid ${cfg.border}` }}>
-                  {kindItems.map((it) => {
-                    const key = `${it.kind}:${it.name}`;
-                    const isStruck = !!struck[key];
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => toggleStruck(key)}
-                        aria-label={
-                          isStruck
-                            ? `Desmarcar ${it.name}`
-                            : `Marcar ${it.name} como comprado`
-                        }
-                        style={{
-                          width: "100%",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                          padding: "11px 14px",
-                          background: "transparent",
-                          border: "none",
-                          borderBottom: `0.5px solid ${cfg.border}`,
-                          cursor: "pointer",
-                          textAlign: "left",
-                          opacity: isStruck ? 0.38 : 1,
-                          transition: "opacity 0.2s",
-                        }}
-                      >
-                        <span
-                          style={{
-                            width: 22,
-                            height: 22,
-                            borderRadius: "50%",
-                            flexShrink: 0,
-                            border: `0.5px solid ${isStruck ? cfg.color : "rgba(255,255,255,0.15)"}`,
-                            background: isStruck ? `${cfg.color}22` : "transparent",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          {isStruck && (
-                            <i
-                              className="ti ti-check"
-                              style={{ fontSize: 12, color: cfg.color }}
-                              aria-hidden="true"
-                            />
-                          )}
-                        </span>
-                        <span
-                          style={{
-                            flex: 1,
-                            fontSize: 13,
-                            color: isStruck
-                              ? "var(--color-text-tertiary)"
-                              : "var(--color-text-primary)",
-                            textDecoration: isStruck ? "line-through" : "none",
-                            transition: "all 0.2s",
-                          }}
-                        >
-                          {it.name}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: 13,
-                            fontWeight: 500,
-                            color: isStruck
-                              ? "var(--color-text-tertiary)"
-                              : cfg.color,
-                            flexShrink: 0,
-                          }}
-                        >
-                          {formatQty(it.total, it.unit)}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+            Por nutriente
+          </button>
+          <button
+            onClick={() => setViewMode("sector")}
+            style={{ flex: 1, padding: "7px", borderRadius: 8, border: viewMode === "sector" ? "1.5px solid #CC0000" : "0.5px solid var(--color-border-secondary)", background: viewMode === "sector" ? "rgba(204,0,0,0.08)" : "var(--color-background-primary)", color: viewMode === "sector" ? "#CC0000" : "var(--color-text-secondary)", fontSize: 11, fontWeight: 500, cursor: "pointer" }}
+          >
+            Por setor do mercado
+          </button>
         </div>
 
-        {/* Seção "Já no carrinho" colapsável */}
-        {struckCount > 0 && (
-          <div
-            style={{
-              marginTop: 12,
-              borderRadius: 12,
-              border: "0.5px solid var(--color-border-tertiary)",
-              background: "var(--color-background-secondary)",
-              overflow: "hidden",
-            }}
-          >
-            <button
-              onClick={() => setCartCollapsed((c) => !c)}
-              style={{
-                width: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "10px 14px",
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 500,
-                  color: "var(--color-text-secondary)",
-                }}
-              >
-                Já no carrinho ({struckCount})
-              </span>
-              {cartCollapsed ? (
-                <ChevronDown size={15} color="var(--color-text-tertiary)" />
-              ) : (
-                <ChevronUp size={15} color="var(--color-text-tertiary)" />
-              )}
-            </button>
+        {/* Grupos */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {viewMode === "macro" ? (
+            kindsWithItems.map((kind) => {
+              const cfg = KIND_CFG[kind];
+              const kindItems = grouped[kind];
+              const kindVisible = kindItems.filter((it) => !struck[`${it.kind}:${it.name}`]);
+              return (
+                <div key={kind} style={{ borderRadius: 12, border: `0.5px solid ${cfg.border}`, background: cfg.bg, overflow: "hidden" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px" }}>
+                    <i className={`ti ${cfg.iconClass}`} style={{ fontSize: 16, color: cfg.color }} aria-hidden="true" />
+                    <span style={{ fontSize: 11, fontWeight: 500, letterSpacing: "0.09em", textTransform: "uppercase", color: cfg.color, flex: 1 }}>{cfg.label}</span>
+                    <span style={{ fontSize: 11, color: cfg.color, opacity: 0.7 }}>{kindVisible.length}/{kindItems.length}</span>
+                  </div>
+                  <div style={{ borderTop: `0.5px solid ${cfg.border}` }}>
+                    {kindItems.map((it) => renderItemRow(it, cfg.border, cfg.color))}
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            sectorsWithItems.map((sector) => {
+              const cfg = SECTOR_CFG[sector];
+              const sectorItems = groupedBySector[sector];
+              const sectorVisible = sectorItems.filter((it) => !struck[`${it.kind}:${it.name}`]);
+              return (
+                <div key={sector} style={{ borderRadius: 12, border: "0.5px solid var(--color-border-secondary)", background: "var(--color-background-primary)", overflow: "hidden" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px" }}>
+                    <span style={{ fontSize: 16 }}>{cfg.emoji}</span>
+                    <span style={{ fontSize: 11, fontWeight: 500, letterSpacing: "0.09em", textTransform: "uppercase", color: "var(--color-text-secondary)", flex: 1 }}>{cfg.label}</span>
+                    <span style={{ fontSize: 11, color: "var(--color-text-tertiary)" }}>{sectorVisible.length}/{sectorItems.length}</span>
+                  </div>
+                  <div style={{ borderTop: "0.5px solid var(--color-border-tertiary)" }}>
+                    {sectorItems.map((it) => {
+                      const kindCfg = KIND_CFG[kindFromStr(it.kind)];
+                      return renderItemRow(it, "var(--color-border-tertiary)", kindCfg.color);
+                    })}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
 
+        {/* Já no carrinho (colapsável) */}
+        {struckCount > 0 && (
+          <div style={{ marginTop: 12, borderRadius: 12, border: "0.5px solid var(--color-border-tertiary)", background: "var(--color-background-secondary)", overflow: "hidden" }}>
+            <button onClick={() => setCartCollapsed((c) => !c)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "transparent", border: "none", cursor: "pointer" }}>
+              <span style={{ fontSize: 12, fontWeight: 500, color: "var(--color-text-secondary)" }}>Já no carrinho ({struckCount})</span>
+              {cartCollapsed ? <ChevronDown size={15} color="var(--color-text-tertiary)" /> : <ChevronUp size={15} color="var(--color-text-tertiary)" />}
+            </button>
             {!cartCollapsed && (
-              <div
-                style={{
-                  borderTop: "0.5px solid var(--color-border-tertiary)",
-                }}
-              >
-                {items
-                  .filter((it) => struck[`${it.kind}:${it.name}`])
-                  .map((it) => {
-                    const key = `${it.kind}:${it.name}`;
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => toggleStruck(key)}
-                        style={{
-                          width: "100%",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: 10,
-                          padding: "9px 14px",
-                          background: "transparent",
-                          border: "none",
-                          borderBottom:
-                            "0.5px solid var(--color-border-tertiary)",
-                          cursor: "pointer",
-                          opacity: 0.5,
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: 13,
-                            color: "var(--color-text-tertiary)",
-                            textDecoration: "line-through",
-                            flex: 1,
-                            textAlign: "left",
-                          }}
-                        >
-                          {it.name}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: 12,
-                            color: "var(--color-text-tertiary)",
-                            textDecoration: "line-through",
-                          }}
-                        >
-                          {formatQty(it.total, it.unit)}
-                        </span>
-                      </button>
-                    );
-                  })}
+              <div style={{ borderTop: "0.5px solid var(--color-border-tertiary)" }}>
+                {items.filter((it) => struck[`${it.kind}:${it.name}`]).map((it) => {
+                  const key = `${it.kind}:${it.name}`;
+                  return (
+                    <button key={key} onClick={() => toggleStruck(key)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 14px", background: "transparent", border: "none", borderBottom: "0.5px solid var(--color-border-tertiary)", cursor: "pointer", opacity: 0.5 }}>
+                      <span style={{ fontSize: 13, color: "var(--color-text-tertiary)", textDecoration: "line-through", flex: 1, textAlign: "left" }}>{it.name}</span>
+                      <span style={{ fontSize: 12, color: "var(--color-text-tertiary)", textDecoration: "line-through" }}>{formatQty(it.total, it.unit)}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
         )}
 
-        {/* Nota de rodapé */}
-        <p
-          style={{
-            fontSize: 11,
-            color: "var(--color-text-tertiary)",
-            marginTop: 16,
-            textAlign: "center",
-            lineHeight: 1.5,
-          }}
-        >
+        <p style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginTop: 16, textAlign: "center", lineHeight: 1.5 }}>
           Quantidades em peso cru · Itens riscados não aparecem no envio.
         </p>
 
-        {/* Ações de exportação */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 10,
-            marginTop: 16,
-          }}
-        >
-          <button
-            onClick={exportPDF}
-            disabled={visibleCount === 0}
-            aria-label="Exportar PDF"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 7,
-              padding: "12px",
-              borderRadius: 10,
-              border: "0.5px solid var(--color-border-secondary)",
-              background: "var(--color-background-primary)",
-              color:
-                visibleCount > 0
-                  ? "var(--color-text-primary)"
-                  : "var(--color-text-tertiary)",
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: visibleCount > 0 ? "pointer" : "not-allowed",
-              opacity: visibleCount === 0 ? 0.5 : 1,
-            }}
-          >
+        {/* Exportação */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 16 }}>
+          <button onClick={exportPDF} disabled={visibleCount === 0} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "12px", borderRadius: 10, border: "0.5px solid var(--color-border-secondary)", background: "var(--color-background-primary)", color: visibleCount > 0 ? "var(--color-text-primary)" : "var(--color-text-tertiary)", fontSize: 13, fontWeight: 500, cursor: visibleCount > 0 ? "pointer" : "not-allowed", opacity: visibleCount === 0 ? 0.5 : 1 }}>
             <FileDown size={16} /> PDF
           </button>
-          <button
-            onClick={shareWhatsApp}
-            disabled={visibleCount === 0}
-            aria-label="Compartilhar no WhatsApp"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 7,
-              padding: "12px",
-              borderRadius: 10,
-              border: "none",
-              background:
-                visibleCount > 0
-                  ? "#25D366"
-                  : "var(--color-background-secondary)",
-              color: visibleCount > 0 ? "#fff" : "var(--color-text-tertiary)",
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: visibleCount > 0 ? "pointer" : "not-allowed",
-              opacity: visibleCount === 0 ? 0.5 : 1,
-            }}
-          >
+          <button onClick={shareWhatsApp} disabled={visibleCount === 0} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "12px", borderRadius: 10, border: "none", background: visibleCount > 0 ? "#25D366" : "var(--color-background-secondary)", color: visibleCount > 0 ? "#fff" : "var(--color-text-tertiary)", fontSize: 13, fontWeight: 500, cursor: visibleCount > 0 ? "pointer" : "not-allowed", opacity: visibleCount === 0 ? 0.5 : 1 }}>
             <Share2 size={16} /> WhatsApp
           </button>
         </div>
 
-        {/* Concluir compras */}
+        {/* Concluir */}
         <button
           onClick={handleComplete}
-          style={{
-            width: "100%",
-            marginTop: 10,
-            padding: "13px",
-            borderRadius: 10,
-            border: "none",
-            background:
-              struckCount === totalItems && totalItems > 0
-                ? "#34d399"
-                : "rgba(52,211,153,0.12)",
-            color:
-              struckCount === totalItems && totalItems > 0
-                ? "#fff"
-                : "#34d399",
-            fontSize: 14,
-            fontWeight: 500,
-            cursor: "pointer",
-            transition: "all 0.2s",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 7,
-          }}
+          style={{ width: "100%", marginTop: 10, padding: "13px", borderRadius: 10, border: "none", background: struckCount === totalItems && totalItems > 0 ? "#34d399" : "rgba(52,211,153,0.12)", color: struckCount === totalItems && totalItems > 0 ? "#fff" : "#34d399", fontSize: 14, fontWeight: 500, cursor: "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}
         >
           <CheckCircle2 size={16} />
           Concluir compras da semana
         </button>
 
-        {/* Restaurar riscados */}
         {struckCount > 0 && (
-          <button
-            onClick={() => setStruck({})}
-            style={{
-              width: "100%",
-              marginTop: 8,
-              padding: "10px",
-              borderRadius: 10,
-              border: "0.5px solid var(--color-border-tertiary)",
-              background: "transparent",
-              color: "var(--color-text-tertiary)",
-              fontSize: 12,
-              cursor: "pointer",
-            }}
-          >
-            Restaurar {struckCount}{" "}
-            {struckCount === 1 ? "item riscado" : "itens riscados"}
+          <button onClick={() => setStruck({})} style={{ width: "100%", marginTop: 8, padding: "10px", borderRadius: 10, border: "0.5px solid var(--color-border-tertiary)", background: "transparent", color: "var(--color-text-tertiary)", fontSize: 12, cursor: "pointer" }}>
+            Restaurar {struckCount} {struckCount === 1 ? "item riscado" : "itens riscados"}
           </button>
         )}
       </div>
