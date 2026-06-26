@@ -883,6 +883,50 @@ export type Database = {
           },
         ]
       }
+      shopping_sessions: {
+        Row: {
+          completed: boolean
+          created_at: string
+          id: string
+          items_completed: number
+          items_total: number
+          period_days: number
+          protocol_id: string | null
+          streak: number
+          user_id: string
+        }
+        Insert: {
+          completed?: boolean
+          created_at?: string
+          id?: string
+          items_completed?: number
+          items_total?: number
+          period_days?: number
+          protocol_id?: string | null
+          streak?: number
+          user_id: string
+        }
+        Update: {
+          completed?: boolean
+          created_at?: string
+          id?: string
+          items_completed?: number
+          items_total?: number
+          period_days?: number
+          protocol_id?: string | null
+          streak?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shopping_sessions_protocol_id_fkey"
+            columns: ["protocol_id"]
+            isOneToOne: false
+            referencedRelation: "protocols"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       skinfold_measurements: {
         Row: {
           abdominal: number | null
