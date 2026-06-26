@@ -37,6 +37,7 @@ interface FinishSessionParams {
   generalFeeling?: 1 | 2 | 3;
   sleepQuality?: 1 | 2 | 3;
   notes?: string;
+  periodizationWeek?: number;
 }
 
 /* ── Hook ────────────────────────────────────────────────────────────────────── */
