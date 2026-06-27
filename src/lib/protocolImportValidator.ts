@@ -24,11 +24,13 @@
  */
 
 import type { ProtocolPayload } from "./protocolSchema";
+import { isCompositeItem } from "./macroCalc";
 
 export type AnomalyKind =
   | "option-missing-kind"
   | "option-empty-items"
   | "item-broken"
+  | "item-composite"
   | "workout-broken";
 
 export interface ImportAnomaly {
@@ -108,6 +110,19 @@ export function validateAndMapImport(input: any): ValidationResult {
       }
 
       const items = (Array.isArray(opt?.items) ? opt.items : []).map((it: any, itemIndex: number) => {
+        // FIX: detectar item composto (A ou B, A+B) antes de tentar match TACO
+        const itemName = (it?.name ?? it?.baseName ?? "").toString().trim();
+        if (itemName && isCompositeItem(itemName)) {
+          anomalies.push({
+            id: `item-composite-${mealIndex}-${optionIndex}-${itemIndex}`,
+            kind: "item-composite",
+            reason: `Item "${itemName}" contém múltiplos alimentos. Separe em items[] individuais ou em options[] separadas do mesmo kind.`,
+            mealIndex,
+            optionIndex,
+            itemIndex,
+            rawValue: it,
+          });
+        }
         if (!hasName(it)) {
           anomalies.push({
             id: `item-${mealIndex}-${optionIndex}-${itemIndex}`,
