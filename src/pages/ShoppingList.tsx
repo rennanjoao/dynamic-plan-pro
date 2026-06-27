@@ -37,6 +37,7 @@ import {
   stripHtml,
   parseGrams,
   parseUnit,
+  BUY_BOTH,
   type AggItem,
 } from "@/lib/shoppingListAgg";
 
@@ -976,6 +977,10 @@ export default function ShoppingList() {
       : selectedOptions[currentChoice.key] !== undefined)
     : false;
 
+  const buyBothSelected = currentChoice
+    ? selectedOptions[currentChoice.key] === BUY_BOTH
+    : false;
+
   const handleNextChoice = () => {
     if (choiceStep < choices.length - 1) {
       setChoiceStep((s) => s + 1);
@@ -1223,7 +1228,9 @@ export default function ShoppingList() {
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {currentChoice.options.map((opt) => {
-                    const chosen = selectedOptions[currentChoice.key] === opt.idx;
+                    const chosen =
+                      !buyBothSelected &&
+                      selectedOptions[currentChoice.key] === opt.idx;
                     return (
                       <button
                         key={opt.idx}
@@ -1251,6 +1258,43 @@ export default function ShoppingList() {
                       </button>
                     );
                   })}
+
+                  {/* Comprar as duas opções (outline) */}
+                  {currentChoice.options.length >= 2 && (
+                    <button
+                      onClick={() =>
+                        setSelectedOptions((s) => ({
+                          ...s,
+                          [currentChoice.key]: BUY_BOTH,
+                        }))
+                      }
+                      aria-pressed={buyBothSelected}
+                      aria-label="Comprar as duas opções"
+                      style={{
+                        width: "100%",
+                        padding: "12px 16px",
+                        borderRadius: 12,
+                        border: buyBothSelected
+                          ? "2px solid #CC0000"
+                          : "1px dashed var(--color-border-secondary)",
+                        background: buyBothSelected
+                          ? "rgba(204,0,0,0.07)"
+                          : "transparent",
+                        color: buyBothSelected ? "#CC0000" : "var(--color-text-secondary)",
+                        fontSize: 13,
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 8,
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      <i className="ti ti-plus" style={{ fontSize: 13 }} aria-hidden="true" />
+                      Comprar as {currentChoice.options.length === 2 ? "duas" : `${currentChoice.options.length}`} opções
+                    </button>
+                  )}
                 </div>
               )}
 
