@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FormField } from "@/components/student/FormField";
 import { CHECKIN_METRICS, CHECKIN_SECTIONS } from "@/lib/checkInSchema";
 import { uploadToCloudinary } from "@/lib/anamnesisSchema";
@@ -38,6 +39,7 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
   const [saving, setSaving] = useState(false);
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
   const [rowId, setRowId] = useState<string | null>(null);
+  const [checkins, setCheckins] = useState<Array<{ id: string; submitted_at: string }>>([]);
   const [data, setData] = useState<Record<string, unknown>>({});
   const [metrics, setMetrics] = useState<Record<string, string>>({});
   const [fotos, setFotos] = useState<Record<string, string>>({});
@@ -47,20 +49,36 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
     if (!open) return;
     (async () => {
       setLoading(true);
-      const { data: row } = await sb
+      const { data: rows } = await sb
         .from("check_ins")
-        .select("id, payload, current_metrics, coach_feedback")
+        .select("id, submitted_at")
         .eq("student_id", studentId)
-        .order("submitted_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!row) {
+        .order("submitted_at", { ascending: false });
+      const list = (rows || []) as Array<{ id: string; submitted_at: string }>;
+      setCheckins(list);
+      if (list.length === 0) {
         toast.error("Nenhum check-in encontrado para este aluno.");
+        setLoading(false);
         onOpenChange(false);
         return;
       }
+      setRowId(list[0].id);
+    })();
+  }, [open, studentId, onOpenChange]);
+
+  // Load the selected check-in's full data whenever rowId changes
+  useEffect(() => {
+    if (!open || !rowId) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const { data: row } = await sb
+        .from("check_ins")
+        .select("id, payload, current_metrics, coach_feedback")
+        .eq("id", rowId)
+        .maybeSingle();
+      if (cancelled || !row) { setLoading(false); return; }
       const p = (row.payload || {}) as Record<string, unknown>;
-      setRowId(row.id);
       setData(p);
       const mraw = (p.metrics_raw as Record<string, string>) || {};
       const m: Record<string, string> = { ...mraw };
@@ -73,7 +91,8 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
       setFeedback((row.coach_feedback as string) || "");
       setLoading(false);
     })();
-  }, [open, studentId, onOpenChange]);
+    return () => { cancelled = true; };
+  }, [open, rowId]);
 
   async function handlePhoto(slot: string, file: File) {
     setUploadingKey(slot);
@@ -133,6 +152,26 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
           </div>
         ) : (
           <div className="space-y-5 mt-2">
+            {/* Seletor de check-in */}
+            {checkins.length > 0 && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Check-in a editar</Label>
+                <Select value={rowId ?? ""} onValueChange={(v) => setRowId(v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um check-in" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {checkins.map((c, i) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {new Date(c.submitted_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        {i === 0 ? " (mais recente)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Métricas atuais */}
             <section className="rounded-xl border border-border p-4">
               <h3 className="text-xs font-bold uppercase tracking-wider text-primary mb-3">Medidas atuais</h3>
