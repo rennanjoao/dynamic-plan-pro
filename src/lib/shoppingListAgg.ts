@@ -212,6 +212,9 @@ export function formatQty(
 
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
+/** Sentinel value para selectedOptions: somar TODAS as opções daquele kind/meal. */
+export const BUY_BOTH = -1;
+
 function carbMultiplier(
   dayValue: unknown,
   highPct: number,
@@ -222,6 +225,10 @@ function carbMultiplier(
   return 1.0;
 }
 
+// Cache simples para evitar recalcular o multiplicador médio para o mesmo
+// (days + ciclo + percentuais). O ciclo é serializado em uma chave estável.
+const _carbMultCache = new Map<string, number>();
+
 function avgCarbMultiplier(
   days: number,
   carbCycle: Record<string, unknown>,
@@ -230,7 +237,14 @@ function avgCarbMultiplier(
 ): number {
   if (!carbCycle || Object.keys(carbCycle).length === 0) return 1.0;
 
+  // Chave de cache: dia atual (para que mude ao virar o dia), days, pcts e ciclo.
   const today = new Date();
+  const todayKey = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
+  const cycleKey = DAY_KEYS.map((k) => String(carbCycle[k] ?? "")).join("|");
+  const cacheKey = `${todayKey}|${days}|${highPct}|${lowPct}|${cycleKey}`;
+  const cached = _carbMultCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
   let sum = 0;
   for (let i = 0; i < days; i++) {
     const d = new Date(today);
@@ -238,7 +252,11 @@ function avgCarbMultiplier(
     const dayKey = DAY_KEYS[d.getDay()];
     sum += carbMultiplier(carbCycle[dayKey], highPct, lowPct);
   }
-  return sum / days;
+  const result = sum / days;
+  // Mantém o cache pequeno
+  if (_carbMultCache.size > 64) _carbMultCache.clear();
+  _carbMultCache.set(cacheKey, result);
+  return result;
 }
 
 // ─── Agregação principal ───────────────────────────────────────────────────────
@@ -319,18 +337,19 @@ export function aggregateShoppingList(
 
       // Determina qual opção usar
       const selKey = `${mi}:${kind}`;
-      let chosenOpt: any;
+      const selIdx = selectedOptions[selKey];
 
-      if (kindOpts.length <= 1) {
-        chosenOpt = kindOpts[0];
-      } else {
-        const selIdx = selectedOptions[selKey] ?? 0;
-        chosenOpt = kindOpts[selIdx] ?? kindOpts[0];
-      }
+      // "Comprar as duas" → soma items de TODAS as opções desse kind/meal
+      const chosenOpts: any[] =
+        kindOpts.length > 1 && selIdx === BUY_BOTH
+          ? kindOpts
+          : kindOpts.length <= 1
+            ? [kindOpts[0]]
+            : [kindOpts[selIdx ?? 0] ?? kindOpts[0]];
 
-      if (!chosenOpt) return;
-
-      const items: any[] = Array.isArray(chosenOpt.items) ? chosenOpt.items : [];
+      const items: any[] = chosenOpts.flatMap((o) =>
+        Array.isArray(o?.items) ? o.items : [],
+      );
 
       items.forEach((it) => {
         const g = parseGrams(it);
