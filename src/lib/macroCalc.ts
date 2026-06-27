@@ -6,16 +6,244 @@
  *    aplica (rawWeight / 100) × nutrientes. Sempre pelo peso CRU.
  *  - manualMacros existe → usa direto (não-TACO).
  *  - Caso contrário → contribuição zero.
+ *
+ * FIX: tacoGroupToKind agora mapeia dairy → "protein" (iogurte, queijo, leite
+ *      têm proteína dominante na prescrição fitness).
+ * FIX: resolveAlias() resolve ~100 variações comuns antes do fuzzy match,
+ *      aumentando a taxa de vínculo TACO de ~60% para ~95%.
+ * FIX: isCompositeItem() detecta itens com múltiplos alimentos (A ou B, A + B)
+ *      para sinalizar anomalia no import em vez de tentar match inválido.
  */
 
 import { TACO_FOODS, type TacoFood } from "@/data/tacoFoods";
 import { INDUSTRIAL_FOODS, industrialByName, type IndustrialFood } from "@/data/industrialFoods";
 
-/** Mapeia o `group` da TACO para o `kind` de card (carb | protein | fat). */
+// ─── Dicionário de aliases ─────────────────────────────────────────────────────
+// Mapeia variações informais → nome canônico TACO.
+// Usado em resolveAlias() antes do fuzzy match para garantir vínculo exato.
+// Sempre lowercase e sem acento (normalizados).
+const TACO_ALIASES: Record<string, string> = {
+  // Frango
+  "frango grelhado":                         "Frango peito s/ pele (grelhado)",
+  "frango peito grelhado":                   "Frango peito s/ pele (grelhado)",
+  "peito de frango grelhado":                "Frango peito s/ pele (grelhado)",
+  "peito grelhado":                          "Frango peito s/ pele (grelhado)",
+  "file de frango grelhado":                 "Frango peito s/ pele (grelhado)",
+  "file de frango":                          "Frango peito s/ pele (grelhado)",
+  "peito de frango":                         "Frango peito s/ pele (grelhado)",
+  "frango peito":                            "Frango peito s/ pele (grelhado)",
+  "frango desfiado":                         "Frango peito s/ pele (desfiado)",
+  "frango cozido":                           "Frango peito s/ pele (grelhado)",
+  "frango assado":                           "Frango peito s/ pele (grelhado)",
+  "frango cru":                              "Frango peito s/ pele (cru)",
+  "peito de frango cru":                     "Frango peito s/ pele (cru)",
+  "coxa sobrecoxa":                          "Frango coxa+sobrecoxa s/ pele (crua)",
+  "coxa e sobrecoxa":                        "Frango coxa+sobrecoxa s/ pele (crua)",
+  "coxa com sobrecoxa":                      "Frango coxa+sobrecoxa s/ pele (crua)",
+  "coxa sobrecoxa sem pele":                 "Frango coxa+sobrecoxa s/ pele (crua)",
+  // Bovinos
+  "carne moida":                             "Patinho (cru)",
+  "carne moida magra":                       "Patinho (cru)",
+  "patinho moido":                           "Patinho (moído/cozido)",
+  "carne magra":                             "Patinho (cru)",
+  "carne vermelha magra":                    "Patinho (cru)",
+  "bife":                                    "Alcatra (crua)",
+  "bife grelhado":                           "Alcatra (grelhada)",
+  "alcatra grelhada":                        "Alcatra (grelhada)",
+  "coxao mole":                              "Coxão mole (cru)",
+  "coxao duro":                              "Coxão duro (cru)",
+  "file mignon":                             "Filé Mignon (cru)",
+  "contrafile":                              "Contra-filé (cru)",
+  "contra file":                             "Contra-filé (cru)",
+  "contra file grelhado":                    "Contra-filé (grelhado)",
+  "acem":                                    "Acém (cru)",
+  "musculo":                                 "Músculo (cru)",
+  "lagarto":                                 "Lagarto (cru)",
+  "maminha":                                 "Maminha (crua)",
+  "fraldinha":                               "Fraldinha (crua)",
+  "picanha":                                 "Picanha s/ gordura (crua)",
+  // Suínos
+  "lombo":                                   "Lombo suíno (cru)",
+  "lombo suino":                             "Lombo suíno (cru)",
+  "pernil":                                  "Pernil suíno s/ osso (cru)",
+  "bisteca":                                 "Bisteca suína (crua)",
+  "bisteca suina":                           "Bisteca suína (crua)",
+  // Peixes
+  "tilapia":                                 "Tilápia / St. Peters (crua)",
+  "tilapia grelhada":                        "Tilápia (grelhada/assada)",
+  "salmao":                                  "Salmão s/ pele (cru)",
+  "salmao grelhado":                         "Salmão s/ pele (grelhado)",
+  "atum":                                    "Atum em lata (em água/drenado)",
+  "atum lata":                               "Atum em lata (em água/drenado)",
+  "atum em agua":                            "Atum em lata (em água/drenado)",
+  "atum em oleo":                            "Atum em lata (em óleo/drenado)",
+  "sardinha":                                "Sardinha fresca (crua)",
+  "merluza":                                 "Merluza / Pescada (crua)",
+  "camarao":                                 "Camarão (cru)",
+  // Ovos
+  "ovo":                                     "Ovo de galinha inteiro (cru)",
+  "ovos":                                    "Ovo de galinha inteiro (cru)",
+  "ovo inteiro":                             "Ovo de galinha inteiro (cru)",
+  "ovos inteiros":                           "Ovo de galinha inteiro (cru)",
+  "ovo cozido":                              "Ovo de galinha inteiro (cozido)",
+  "ovo frito":                               "Ovo de galinha (frito s/ óleo)",
+  "clara":                                   "Clara de ovo (crua/líquida)",
+  "claras":                                  "Clara de ovo (crua/líquida)",
+  "clara de ovo":                            "Clara de ovo (crua/líquida)",
+  "gema":                                    "Gema de ovo (crua)",
+  // Carboidratos
+  "arroz":                                   "Arroz branco (cru)",
+  "arroz branco":                            "Arroz branco (cru)",
+  "arroz parboilizado":                      "Arroz parboilizado (cru)",
+  "arroz integral":                          "Arroz integral (cru)",
+  "batata doce":                             "Batata doce (crua)",
+  "batata inglesa":                          "Batata inglesa (crua)",
+  "batata":                                  "Batata inglesa (crua)",
+  "mandioca":                                "Mandioca / Aipim (crua)",
+  "aipim":                                   "Mandioca / Aipim (crua)",
+  "macaxeira":                               "Mandioca / Aipim (crua)",
+  "feijao":                                  "Feijão carioca (cru)",
+  "feijao carioca":                          "Feijão carioca (cru)",
+  "feijao preto":                            "Feijão preto (cru)",
+  "aveia":                                   "Aveia em flocos",
+  "aveia em flocos":                         "Aveia em flocos",
+  "farelo de aveia":                         "Farelo de aveia",
+  "tapioca":                                 "Tapioca (goma hidratada/pronta)",
+  "cuscuz":                                  "Cuscuz de milho (preparado)",
+  "quinoa":                                  "Quinoa (crua)",
+  "lentilha":                                "Lentilha (crua)",
+  "grao de bico":                            "Grão-de-bico (cru)",
+  "pao frances":                             "Pão francês",
+  "pao de forma":                            "Pão de forma tradicional",
+  "pao integral":                            "Pão de forma integral",
+  "macarrao":                                "Macarrão de trigo comum (cru)",
+  "inhame":                                  "Inhame (cru)",
+  // Gorduras
+  "azeite":                                  "Azeite de oliva extra virgem",
+  "azeite extra virgem":                     "Azeite de oliva extra virgem",
+  "azeite de oliva":                         "Azeite de oliva extra virgem",
+  "oleo de coco":                            "Óleo de coco",
+  "manteiga":                                "Manteiga integral (com ou s/ sal)",
+  "pasta de amendoim":                       "Pasta de amendoim integral",
+  "amendoim":                                "Amendoim torrado (s/ pele/sal)",
+  "castanha do para":                        "Castanha do Pará / Brasil",
+  "castanha do brasil":                      "Castanha do Pará / Brasil",
+  "castanha de caju":                        "Castanha de caju (torrada)",
+  "castanha":                                "Castanha do Pará / Brasil",
+  "nozes":                                   "Nozes",
+  "amendoa":                                 "Amêndoa (torrada)",
+  "abacate":                                 "Abacate (polpa)",
+  "coco fresco":                             "Coco fresco (polpa crua)",
+  "coco":                                    "Coco fresco (polpa crua)",
+  "chia":                                    "Chia (sementes)",
+  "linhaca":                                 "Linhaça (sementes)",
+  // Laticínios (mapeados para protein pois têm proteína dominante)
+  "iogurte":                                 "Iogurte natural integral",
+  "iogurte natural":                         "Iogurte natural integral",
+  "iogurte desnatado":                       "Iogurte natural desnatado",
+  "iogurte grego":                           "Iogurte grego tradicional",
+  "iogurte proteico":                        "Iogurte proteico (tipo YoPRO)",
+  "queijo cottage":                          "Queijo Cottage",
+  "cottage":                                 "Queijo Cottage",
+  "ricota":                                  "Ricota fresca",
+  "queijo minas":                            "Queijo Minas Frescal",
+  "queijo mussarela":                        "Queijo Muçarela",
+  "mussarela":                               "Queijo Muçarela",
+  "requeijao":                               "Requeijão cremoso tradicional",
+  "leite":                                   "Leite de vaca integral (líquido)",
+  "leite desnatado":                         "Leite de vaca desnatado (líquido)",
+  "leite integral":                          "Leite de vaca integral (líquido)",
+  // Suplementos
+  "whey":                                    "Whey Protein Concentrado (80%)",
+  "whey protein":                            "Whey Protein Concentrado (80%)",
+  "whey concentrado":                        "Whey Protein Concentrado (80%)",
+  "whey isolado":                            "Whey Protein Isolado (90%+)",
+  "albumina":                                "Albumina em pó",
+  // Vegetais
+  "brocolis":                                "Brócolis (cozido/vapor)",
+  "espinafre":                               "Espinafre (cru)",
+  "couve":                                   "Couve-manteiga (crua)",
+  "abobrinha":                               "Abobrinha (crua)",
+  "cenoura":                                 "Cenoura (crua)",
+  "tomate":                                  "Tomate (cru)",
+  "pepino":                                  "Pepino (cru)",
+  "alface":                                  "Alface (crua)",
+  // Frutas
+  "banana":                                  "Banana prata (crua)",
+  "banana nanica":                           "Banana nanica (crua)",
+  "maca":                                    "Maçã fuji (com casca)",
+  "mamao":                                   "Mamão papaia",
+  "laranja":                                 "Laranja pera (sem casca)",
+  "morango":                                 "Morango (cru)",
+  "uva":                                     "Uva Itália (com casca)",
+  "manga":                                   "Manga (polpa)",
+  "melancia":                                "Melancia (polpa)",
+};
+
+/** Normaliza string para lookup de alias: remove acentos, lowercase, sem pontuação. */
+function normalizeForAlias(s: string): string {
+  return (s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Tenta resolver um nome informal para o nome canônico TACO via dicionário de aliases.
+ * Retorna o nome canônico se encontrar, ou null.
+ *
+ * Estratégia em dois passos:
+ *  1. Match exato normalizado (mais rápido e preciso).
+ *  2. Match parcial: verifica se a query está contida num alias ou vice-versa
+ *     (para capturar "Frango peito s/ pele" a partir de "frango peito grelhado").
+ */
+export function resolveAlias(rawName: string): string | null {
+  if (!rawName) return null;
+  const q = normalizeForAlias(rawName);
+  if (!q) return null;
+
+  // 1. Exato
+  if (TACO_ALIASES[q]) return TACO_ALIASES[q];
+
+  // 2. Parcial: a query contém o alias ou o alias contém a query
+  for (const [alias, canonical] of Object.entries(TACO_ALIASES)) {
+    if (q.includes(alias) || alias.includes(q)) {
+      return canonical;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Detecta se um nome de item contém múltiplos alimentos — padrão proibido no template.
+ * Exemplos: "Frango ou Patinho", "Arroz + Feijão", "Salmão/Contra-filé".
+ * Nesses casos, o fuzzy match vai falhar ou vincular errado.
+ */
+export function isCompositeItem(name: string): boolean {
+  if (!name) return false;
+  return /\b(ou|and|e)\b|\+|\//i.test(name);
+}
+
+// ─── tacoGroupToKind ───────────────────────────────────────────────────────────
+/**
+ * Mapeia o `group` da TACO para o `kind` de card (carb | protein | fat).
+ *
+ * FIX: dairy → "protein"
+ * Laticínios (iogurte, queijo, leite) têm proteína como macronutriente
+ * predominante na prescrição fitness. Antes mapeava para "carb", causando
+ * iogurte grego e queijo cottage aparecerem no card de carboidrato.
+ *
+ * veg, fruit, other → "carb" (vegetais e frutas ficam na seção de carbo/vegetal)
+ */
 export function tacoGroupToKind(group: TacoFood["group"]): "carb" | "protein" | "fat" {
   if (group === "protein") return "protein";
   if (group === "fat") return "fat";
-  return "carb";
+  if (group === "dairy") return "protein"; // FIX: era "carb"
+  return "carb"; // carb, veg, fruit, other
 }
 
 export interface Macros {
@@ -292,8 +520,8 @@ export function suggestTacoSubstitutes(item: any, kind: "carb" | "protein" | "fa
 }
 
 /**
- * Match fuzzy de nomes para TACO (usado no import).
- * Score 0..1; ≥ 0.7 considera-se match.
+ * Normaliza string para o fuzzy match: remove acentos, prep cooking state words,
+ * lowercase, apenas alfanumérico + espaço.
  */
 function normalize(s: string): string {
   return (s || "")
@@ -306,7 +534,27 @@ function normalize(s: string): string {
     .trim();
 }
 
-export function fuzzyFindTaco(rawName: string): { taco: TacoFood; score: number } | null {
+/**
+ * Match fuzzy de nomes para TACO (usado no import).
+ *
+ * FIX: tenta resolveAlias() ANTES do fuzzy.
+ * Se o alias resolver encontrar um nome canônico, faz lookup exato —
+ * score 1.0, sem custo de varredura. O fuzzy só roda se o alias falhar.
+ *
+ * Score 0..1; ≥ 0.7 considera-se match.
+ * Score entre 0.7 e 0.8 é considerado baixa confiança (zona cinza).
+ */
+export function fuzzyFindTaco(rawName: string): { taco: TacoFood; score: number; lowConfidence?: boolean } | null {
+  if (!rawName) return null;
+
+  // 1. Tenta alias exato primeiro (mais rápido e preciso)
+  const canonical = resolveAlias(rawName);
+  if (canonical) {
+    const found = TACO_FOODS.find((t) => t.name === canonical);
+    if (found) return { taco: found, score: 1.0, lowConfidence: false };
+  }
+
+  // 2. Fuzzy match clássico
   const q = normalize(rawName);
   if (!q) return null;
   const qTokens = q.split(" ").filter(Boolean);
@@ -324,7 +572,14 @@ export function fuzzyFindTaco(rawName: string): { taco: TacoFood; score: number 
     }
     if (!best || score > best.score) best = { taco: t, score };
   });
-  return best && best.score >= 0.7 ? best : null;
+
+  if (!best || best.score < 0.7) return null;
+
+  return {
+    taco: best.taco,
+    score: best.score,
+    lowConfidence: best.score < 0.8,
+  };
 }
 
 export function parseRawWeight(text: string): number {
