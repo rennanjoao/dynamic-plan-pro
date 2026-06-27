@@ -6,6 +6,7 @@ import {
   formatQty,
   aggregateShoppingList,
   stripHtml,
+  BUY_BOTH,
 } from "../shoppingListAgg";
 
 describe("normalizeName", () => {
@@ -123,6 +124,76 @@ describe("aggregateShoppingList", () => {
     const b = aggregateShoppingList(meals, { "0:carb": 1 });
     expect(a[0].name).toBe("Arroz");
     expect(b[0].name).toBe("Batata");
+  });
+
+  describe("BUY_BOTH (Comprar as duas)", () => {
+    it("soma os itens de TODAS as opções quando selecionado", () => {
+      const meals = [
+        mkMeal([
+          { kind: "protein", items: [{ name: "Frango", weight: "200g" }] },
+          { kind: "protein", items: [{ name: "Patinho", weight: "150g" }] },
+        ]),
+      ];
+      const out = aggregateShoppingList(meals, { "0:protein": BUY_BOTH });
+      const names = out.map((i) => i.name).sort();
+      expect(names).toEqual(["Frango", "Patinho"]);
+      expect(out.find((i) => i.name === "Frango")!.gramsPerDay).toBe(200);
+      expect(out.find((i) => i.name === "Patinho")!.gramsPerDay).toBe(150);
+    });
+
+    it("multiplica corretamente pelo período (days)", () => {
+      const meals = [
+        mkMeal([
+          { kind: "protein", items: [{ name: "Frango", weight: "200g" }] },
+          { kind: "protein", items: [{ name: "Patinho", weight: "100g" }] },
+        ]),
+      ];
+      const out = aggregateShoppingList({
+        meals,
+        selectedOptions: { "0:protein": BUY_BOTH },
+        days: 7,
+      });
+      const frango = out.find((i) => i.name === "Frango")!;
+      const patinho = out.find((i) => i.name === "Patinho")!;
+      expect(frango.total).toBe(200 * 7);
+      expect(patinho.total).toBe(100 * 7);
+    });
+
+    it("ignora opções com items vazios sem quebrar", () => {
+      const meals = [
+        mkMeal([
+          { kind: "protein", items: [{ name: "Frango", weight: "200g" }] },
+          { kind: "protein", items: [] },
+          { kind: "protein", items: [{ name: "Patinho", weight: "150g" }] },
+        ]),
+      ];
+      const out = aggregateShoppingList(meals, { "0:protein": BUY_BOTH });
+      expect(out).toHaveLength(2);
+      expect(out.find((i) => i.name === "Frango")!.gramsPerDay).toBe(200);
+      expect(out.find((i) => i.name === "Patinho")!.gramsPerDay).toBe(150);
+    });
+
+    it("agrega corretamente quando o mesmo item aparece nas duas opções", () => {
+      const meals = [
+        mkMeal([
+          { kind: "carb", items: [{ name: "Arroz", weight: "100g" }] },
+          { kind: "carb", items: [{ name: "Arroz", weight: "50g" }] },
+        ]),
+      ];
+      const out = aggregateShoppingList(meals, { "0:carb": BUY_BOTH });
+      expect(out).toHaveLength(1);
+      expect(out[0].gramsPerDay).toBe(150);
+    });
+  });
+
+  it("cache do avgCarbMultiplier: chamadas repetidas retornam o mesmo valor", () => {
+    const meals = [
+      mkMeal([{ kind: "carb", items: [{ name: "Arroz", weight: "100g" }] }]),
+    ];
+    const carbCycle = { mon: "high", tue: "off", wed: "normal", thu: "high", fri: "off", sat: "normal", sun: "normal" };
+    const a = aggregateShoppingList({ meals, days: 7, carbCycle });
+    const b = aggregateShoppingList({ meals, days: 7, carbCycle });
+    expect(a[0].total).toBe(b[0].total);
   });
 
   it("property: total agregado = soma de todos os pesos parseados (mesmo kind)", () => {
