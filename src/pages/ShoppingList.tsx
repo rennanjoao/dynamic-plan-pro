@@ -1216,30 +1216,8 @@ export default function ShoppingList() {
                 {currentChoice.sublabel && <p style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>🕐 {currentChoice.sublabel}</p>}
               </div>
 
-              {/* Toggle simples / split de dias */}
-              <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-                <button
-                  onClick={() => setSplitMode(false)}
-                  style={{ flex: 1, padding: "8px", borderRadius: 8, border: !splitMode ? "1.5px solid #CC0000" : "0.5px solid var(--color-border-secondary)", background: !splitMode ? "rgba(204,0,0,0.08)" : "var(--color-background-primary)", color: !splitMode ? "#CC0000" : "var(--color-text-secondary)", fontSize: 12, fontWeight: 500, cursor: "pointer" }}
-                >
-                  Uma opção p/ semana
-                </button>
-                <button
-                  onClick={() => setSplitMode(true)}
-                  style={{ flex: 1, padding: "8px", borderRadius: 8, border: splitMode ? "1.5px solid #CC0000" : "0.5px solid var(--color-border-secondary)", background: splitMode ? "rgba(204,0,0,0.08)" : "var(--color-background-primary)", color: splitMode ? "#CC0000" : "var(--color-text-secondary)", fontSize: 12, fontWeight: 500, cursor: "pointer" }}
-                >
-                  Dividir por dias
-                </button>
-              </div>
-
-              {splitMode ? (
-                <DaySplitPicker
-                  choice={currentChoice}
-                  split={currentSplit}
-                  onChange={(newSplit) => setDaySplit((d) => ({ ...d, [currentChoice.key]: newSplit }))}
-                />
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {/* Lista de opções (modo simples — split removido da UI) */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {currentChoice.options.map((opt) => {
                     const chosen =
                       !buyBothSelected &&
@@ -1309,7 +1287,6 @@ export default function ShoppingList() {
                     </button>
                   )}
                 </div>
-              )}
 
               <button
                 onClick={handleNextChoice}
