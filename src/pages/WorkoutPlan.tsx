@@ -99,11 +99,116 @@ export default function WorkoutPlan() {
   const workouts = Array.isArray(safePayload?.workouts) ? safePayload.workouts : [];
   const trainingGuideline = safePayload?.guidelines?.training;
   const showGuidelines: boolean = (safePayload as any)?.showGuidelines ?? false;
+  const periodizationEnabled: boolean = safePayload?.periodization?.enabled ?? false;
 
   const handleStartWorkout = (dayKey: string) => {
     setWorkoutModeDay(dayKey);
     setShowWorkoutMode(true);
   };
+
+  // Accordion de treinos — visão simples para o aluno (sem painel de coach)
+  const workoutAccordion = workouts.length === 0 ? (
+    <p className="text-center text-muted-foreground italic py-10">
+      Treinos ainda não publicados.
+    </p>
+  ) : (
+    <Accordion type="single" collapsible className="w-full space-y-4">
+      {workouts.map((day: any, i: number) => (
+        <AccordionItem
+          key={i}
+          value={`workout-${i}`}
+          className="bg-card border border-border rounded-xl shadow-sm overflow-hidden"
+        >
+          <AccordionTrigger className="px-4 py-4 hover:no-underline hover:bg-muted/30">
+            <div className="flex items-center gap-3 text-left w-full">
+              <div className="w-10 h-10 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-black text-lg shrink-0">
+                {day.key}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-bold text-base">Treino {day.key}</h3>
+                <p className="text-xs text-muted-foreground">{day.focus || "Geral"}</p>
+              </div>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="px-4 pb-4 border-t border-border/40">
+            <div className="space-y-4 mt-4">
+              {Array.isArray(day.exercises) && day.exercises.map((ex: any, idx: number) => (
+                <div key={idx} className="bg-background border border-border/50 rounded-lg p-3">
+                  <h4 className="font-bold text-sm text-primary mb-2 flex items-start gap-2">
+                    <span className="mt-0.5">•</span> {ex.name}
+                  </h4>
+                  <div className={`grid gap-2 mb-2 ${ex.cadence ? "grid-cols-4" : "grid-cols-3"}`}>
+                    <div className="bg-muted/50 p-2 rounded text-center">
+                      <p className="text-[10px] text-muted-foreground uppercase">Séries</p>
+                      <p className="font-semibold text-sm">{ex.sets || "-"}</p>
+                    </div>
+                    <div className="bg-muted/50 p-2 rounded text-center">
+                      <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
+                        Reps <InfoPopover termKey="reps" />
+                      </p>
+                      <p className="font-semibold text-sm">{ex.reps || "-"}</p>
+                    </div>
+                    {ex.cadence && (
+                      <div className="bg-muted/50 p-2 rounded text-center">
+                        <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
+                          Cadência <InfoPopover termKey="cadence" />
+                        </p>
+                        <p className="font-semibold text-sm">{ex.cadence}</p>
+                      </div>
+                    )}
+                    <div className="bg-muted/50 p-2 rounded text-center">
+                      <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
+                        Descanso <InfoPopover termKey="rest" />
+                      </p>
+                      <p className="font-semibold text-sm">{ex.rest || "-"}</p>
+                    </div>
+                  </div>
+                  {ex.notes && (
+                    <p className="text-xs text-muted-foreground mt-2 italic bg-muted/30 p-2 rounded border-l-2 border-primary/50">
+                      {ex.notes}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+            {Array.isArray(safePayload?.cardio) &&
+              safePayload.cardio.filter(
+                (c: any) => c.workoutKey === day.key && c.associationType === "workout"
+              ).length > 0 && (
+                <div className="mt-4 pt-4 border-t border-border/40 space-y-2">
+                  <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5 text-primary" />
+                    Aeróbico prescrito para este treino
+                  </h4>
+                  {safePayload.cardio
+                    .filter((c: any) => c.workoutKey === day.key && c.associationType === "workout")
+                    .map((c: any, ci: number) => (
+                      <div key={ci} className="bg-background border border-border/50 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-bold text-sm text-primary">{c.type || "Aeróbico"}</span>
+                          {c.duration && <Badge variant="outline" className="text-xs">{c.duration}</Badge>}
+                        </div>
+                        {c.intensity && <Badge variant="secondary" className="text-xs mr-1">{c.intensity}</Badge>}
+                        {c.notes && <p className="text-xs text-muted-foreground italic mt-1">{c.notes}</p>}
+                      </div>
+                    ))}
+                </div>
+              )}
+            <div className="mt-3">
+              <Button
+                size="sm"
+                className="w-full gap-2"
+                onClick={() => handleStartWorkout(day.key)}
+              >
+                Iniciar Treino {day.key}
+              </Button>
+            </div>
+            <ProtocolQuestionButton context="exercise" variant="full" />
+          </AccordionContent>
+        </AccordionItem>
+      ))}
+    </Accordion>
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -133,7 +238,6 @@ export default function WorkoutPlan() {
           </div>
         )}
 
-        {/* Diretriz fixa de falta — sempre visível, independente do coach */}
         <div className="bg-blue-500/10 border border-blue-500/30 p-4 rounded-xl shadow-sm">
           <h3 className="text-blue-600 font-bold flex items-center gap-2 mb-2 text-sm">
             <AlertTriangle className="w-4 h-4" /> O que fazer se precisar faltar ao treino?
@@ -145,108 +249,20 @@ export default function WorkoutPlan() {
           </p>
         </div>
 
-        <WorkoutPeriodizationView
-          workouts={workouts as any}
-          periodization={safePayload?.periodization}
-          onStartWorkout={handleStartWorkout}
-          showGuidelines={showGuidelines}
-          allowEdit={true}
-          renderLegacy={() =>
-            workouts.length === 0 ? (
-              <p className="text-center text-muted-foreground italic py-10">
-                Treinos ainda não publicados.
-              </p>
-            ) : (
-              <Accordion type="single" collapsible className="w-full space-y-4">
-                {workouts.map((day: any, i: number) => (
-                  <AccordionItem
-                    key={i}
-                    value={`workout-${i}`}
-                    className="bg-card border border-border rounded-xl shadow-sm overflow-hidden"
-                  >
-                    <AccordionTrigger className="px-4 py-4 hover:no-underline hover:bg-muted/30">
-                      <div className="flex items-center gap-3 text-left w-full">
-                        <div className="w-10 h-10 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-black text-lg shrink-0">
-                          {day.key}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-bold text-base">Treino {day.key}</h3>
-                          <p className="text-xs text-muted-foreground">{day.focus || "Geral"}</p>
-                        </div>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-4 pb-4 border-t border-border/40">
-                      <div className="space-y-4 mt-4">
-                        {Array.isArray(day.exercises) && day.exercises.map((ex: any, idx: number) => (
-                          <div key={idx} className="bg-background border border-border/50 rounded-lg p-3">
-                            <h4 className="font-bold text-sm text-primary mb-2 flex items-start gap-2">
-                              <span className="mt-0.5">•</span> {ex.name}
-                            </h4>
-                            <div className={`grid gap-2 mb-2 ${ex.cadence ? "grid-cols-4" : "grid-cols-3"}`}>
-                              <div className="bg-muted/50 p-2 rounded text-center">
-                                <p className="text-[10px] text-muted-foreground uppercase">Séries</p>
-                                <p className="font-semibold text-sm">{ex.sets || "-"}</p>
-                              </div>
-                              <div className="bg-muted/50 p-2 rounded text-center">
-                                <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
-                                  Reps <InfoPopover termKey="reps" />
-                                </p>
-                                <p className="font-semibold text-sm">{ex.reps || "-"}</p>
-                              </div>
-                              {ex.cadence && (
-                                <div className="bg-muted/50 p-2 rounded text-center">
-                                  <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
-                                    Cadência <InfoPopover termKey="cadence" />
-                                  </p>
-                                  <p className="font-semibold text-sm">{ex.cadence}</p>
-                                </div>
-                              )}
-                              <div className="bg-muted/50 p-2 rounded text-center">
-                                <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
-                                  Descanso <InfoPopover termKey="rest" />
-                                </p>
-                                <p className="font-semibold text-sm">{ex.rest || "-"}</p>
-                              </div>
-                            </div>
-                            {ex.notes && (
-                              <p className="text-xs text-muted-foreground mt-2 italic bg-muted/30 p-2 rounded border-l-2 border-primary/50">
-                                {ex.notes}
-                              </p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                      {Array.isArray(safePayload?.cardio) &&
-                        safePayload.cardio.filter(
-                          (c: any) => c.workoutKey === day.key && c.associationType === "workout"
-                        ).length > 0 && (
-                          <div className="mt-4 pt-4 border-t border-border/40 space-y-2">
-                            <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                              <Activity className="w-3.5 h-3.5 text-primary" />
-                              Aeróbico prescrito para este treino
-                            </h4>
-                            {safePayload.cardio
-                              .filter((c: any) => c.workoutKey === day.key && c.associationType === "workout")
-                              .map((c: any, ci: number) => (
-                                <div key={ci} className="bg-background border border-border/50 rounded-lg p-3">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <span className="font-bold text-sm text-primary">{c.type || "Aeróbico"}</span>
-                                    {c.duration && <Badge variant="outline" className="text-xs">{c.duration}</Badge>}
-                                  </div>
-                                  {c.intensity && <Badge variant="secondary" className="text-xs mr-1">{c.intensity}</Badge>}
-                                  {c.notes && <p className="text-xs text-muted-foreground italic mt-1">{c.notes}</p>}
-                                </div>
-                              ))}
-                          </div>
-                        )}
-                      <ProtocolQuestionButton context="exercise" variant="full" />
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
-            )
-          }
-        />
+        {/* Se periodização ativa → usa WorkoutPeriodizationView (sem allowEdit) */}
+        {/* Se periodização inativa → renderiza accordion diretamente, sem painel de coach */}
+        {periodizationEnabled ? (
+          <WorkoutPeriodizationView
+            workouts={workouts as any}
+            periodization={safePayload?.periodization}
+            onStartWorkout={handleStartWorkout}
+            showGuidelines={showGuidelines}
+            allowEdit={false}
+            renderLegacy={() => workoutAccordion}
+          />
+        ) : (
+          workoutAccordion
+        )}
 
         {/* Aeróbicos não vinculados a treino */}
         {Array.isArray(safePayload?.cardio) &&
