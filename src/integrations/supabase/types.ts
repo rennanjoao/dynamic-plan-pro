@@ -1014,6 +1014,8 @@ export type Database = {
           gender: string
           height: number | null
           id: string
+          onboarding_completed: boolean
+          onboarding_completed_at: string | null
           updated_at: string
           user_id: string
         }
@@ -1025,6 +1027,8 @@ export type Database = {
           gender: string
           height?: number | null
           id?: string
+          onboarding_completed?: boolean
+          onboarding_completed_at?: string | null
           updated_at?: string
           user_id: string
         }
@@ -1036,6 +1040,8 @@ export type Database = {
           gender?: string
           height?: number | null
           id?: string
+          onboarding_completed?: boolean
+          onboarding_completed_at?: string | null
           updated_at?: string
           user_id?: string
         }
