@@ -1418,13 +1418,6 @@ export default function ShoppingList() {
             {protocol?.name || "Protocolo ativo"} · {days === 1 ? "1 dia" : `${days} dias`}{persons > 1 ? ` · ${persons} pessoas` : ""}
           </p>
         </div>
-        <button
-          onClick={() => setPhase("market")}
-          style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(204,0,0,0.1)", color: "#CC0000", border: "0.5px solid rgba(204,0,0,0.3)", borderRadius: 8, padding: "7px 11px", fontSize: 12, fontWeight: 500, cursor: "pointer" }}
-          aria-label="Modo mercado"
-        >
-          <ShoppingBag size={13} /> Mercado
-        </button>
       </header>
 
       <div style={{ maxWidth: 480, margin: "0 auto", padding: "1rem" }}>
@@ -1586,24 +1579,52 @@ export default function ShoppingList() {
           Quantidades em peso cru · Itens riscados não aparecem no envio.
         </p>
 
-        {/* Exportação */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 16 }}>
-          <button onClick={exportPDF} disabled={visibleCount === 0} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "12px", borderRadius: 10, border: "0.5px solid var(--color-border-secondary)", background: "var(--color-background-primary)", color: visibleCount > 0 ? "var(--color-text-primary)" : "var(--color-text-tertiary)", fontSize: 13, fontWeight: 500, cursor: visibleCount > 0 ? "pointer" : "not-allowed", opacity: visibleCount === 0 ? 0.5 : 1 }}>
-            <FileDown size={16} /> PDF
+        {/* CTA primária: Ir às compras (modo mercado) */}
+        <button
+          onClick={() => setPhase("market")}
+          disabled={visibleCount === 0}
+          aria-label="Ir às compras — modo mercado"
+          style={{
+            width: "100%",
+            marginTop: 16,
+            padding: "16px",
+            borderRadius: 12,
+            border: "none",
+            background: visibleCount > 0 ? "#CC0000" : "var(--color-background-secondary)",
+            color: visibleCount > 0 ? "#fff" : "var(--color-text-tertiary)",
+            fontSize: 15,
+            fontWeight: 600,
+            cursor: visibleCount > 0 ? "pointer" : "not-allowed",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            boxShadow: visibleCount > 0 ? "0 4px 14px rgba(204,0,0,0.3)" : "none",
+            transition: "all 0.2s",
+          }}
+        >
+          <ShoppingBag size={18} /> Ir às compras 🛒
+        </button>
+
+        {/* Ações secundárias: PDF · WhatsApp */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+          <button
+            onClick={exportPDF}
+            disabled={visibleCount === 0}
+            aria-label="Exportar PDF"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", borderRadius: 10, border: "0.5px solid var(--color-border-secondary)", background: "transparent", color: visibleCount > 0 ? "var(--color-text-secondary)" : "var(--color-text-tertiary)", fontSize: 12, fontWeight: 500, cursor: visibleCount > 0 ? "pointer" : "not-allowed", opacity: visibleCount === 0 ? 0.5 : 1 }}
+          >
+            <FileDown size={14} /> PDF
           </button>
-          <button onClick={shareWhatsApp} disabled={visibleCount === 0} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "12px", borderRadius: 10, border: "none", background: visibleCount > 0 ? "#25D366" : "var(--color-background-secondary)", color: visibleCount > 0 ? "#fff" : "var(--color-text-tertiary)", fontSize: 13, fontWeight: 500, cursor: visibleCount > 0 ? "pointer" : "not-allowed", opacity: visibleCount === 0 ? 0.5 : 1 }}>
-            <Share2 size={16} /> WhatsApp
+          <button
+            onClick={shareWhatsApp}
+            disabled={visibleCount === 0}
+            aria-label="Enviar pelo WhatsApp"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", borderRadius: 10, border: "0.5px solid rgba(37,211,102,0.5)", background: "transparent", color: visibleCount > 0 ? "#25D366" : "var(--color-text-tertiary)", fontSize: 12, fontWeight: 500, cursor: visibleCount > 0 ? "pointer" : "not-allowed", opacity: visibleCount === 0 ? 0.5 : 1 }}
+          >
+            <Share2 size={14} /> WhatsApp
           </button>
         </div>
-
-        {/* Concluir */}
-        <button
-          onClick={handleComplete}
-          style={{ width: "100%", marginTop: 10, padding: "13px", borderRadius: 10, border: "none", background: struckCount === totalItems && totalItems > 0 ? "#34d399" : "rgba(52,211,153,0.12)", color: struckCount === totalItems && totalItems > 0 ? "#fff" : "#34d399", fontSize: 14, fontWeight: 500, cursor: "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}
-        >
-          <CheckCircle2 size={16} />
-          Concluir compras da semana
-        </button>
 
         {struckCount > 0 && (
           <button onClick={() => setStruck({})} style={{ width: "100%", marginTop: 8, padding: "10px", borderRadius: 10, border: "0.5px solid var(--color-border-tertiary)", background: "transparent", color: "var(--color-text-tertiary)", fontSize: 12, cursor: "pointer" }}>
