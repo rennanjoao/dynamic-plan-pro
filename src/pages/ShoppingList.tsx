@@ -586,6 +586,12 @@ interface HaveAtHomeSliderProps {
 function HaveAtHomeSlider({ item, value, onChange, onClose }: HaveAtHomeSliderProps) {
   const max = item.total;
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+  const presets: { label: string; pct: number }[] = [
+    { label: "Tenho um pouco", pct: 0.25 },
+    { label: "Tenho metade", pct: 0.5 },
+    { label: "Tenho quase tudo", pct: 0.75 },
+    { label: "Tenho tudo", pct: 1 },
+  ];
 
   return (
     <div style={{
@@ -620,26 +626,39 @@ function HaveAtHomeSlider({ item, value, onChange, onClose }: HaveAtHomeSliderPr
           Protocolo pede: <strong>{formatQty(item.total, item.unit)}</strong>
         </p>
 
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-          <span style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>Quanto você já tem?</span>
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#34d399" }}>
-            {formatQty(value, item.unit)} ({pct}%)
-          </span>
-        </div>
-
-        <input
-          type="range"
-          min={0}
-          max={max}
-          step={Math.max(1, Math.round(max / 20))}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-          style={{ width: "100%", accentColor: "#34d399", marginBottom: 12 }}
-        />
-
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--color-text-tertiary)", marginBottom: 20 }}>
-          <span>0</span>
-          <span>{formatQty(max, item.unit)}</span>
+        <p style={{ fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 10 }}>
+          Quanto você já tem em casa?
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
+          {presets.map((p) => {
+            const target = Math.round(max * p.pct);
+            const active = value === target;
+            return (
+              <button
+                key={p.pct}
+                onClick={() => onChange(target)}
+                aria-pressed={active}
+                aria-label={`${p.label} (${Math.round(p.pct * 100)}%)`}
+                style={{
+                  padding: "14px 10px",
+                  borderRadius: 10,
+                  border: active ? "1.5px solid #34d399" : "0.5px solid var(--color-border-secondary)",
+                  background: active ? "rgba(52,211,153,0.1)" : "var(--color-background-secondary)",
+                  color: active ? "#34d399" : "var(--color-text-primary)",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  textAlign: "center",
+                  lineHeight: 1.3,
+                }}
+              >
+                <span style={{ display: "block" }}>{p.label}</span>
+                <span style={{ display: "block", fontSize: 11, opacity: 0.7, marginTop: 2 }}>
+                  ~{Math.round(p.pct * 100)}%
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {value > 0 && (
@@ -648,7 +667,7 @@ function HaveAtHomeSlider({ item, value, onChange, onClose }: HaveAtHomeSliderPr
             borderRadius: 8, padding: "10px 14px", marginBottom: 16,
           }}>
             <p style={{ fontSize: 13, color: "#34d399" }}>
-              Você vai comprar: <strong>{formatQty(Math.max(0, item.total - value), item.unit)}</strong>
+              Selecionado: <strong>{formatQty(value, item.unit)} ({pct}%)</strong> · Comprar: <strong>{formatQty(Math.max(0, item.total - value), item.unit)}</strong>
             </p>
           </div>
         )}
@@ -703,9 +722,10 @@ export default function ShoppingList() {
   const [lastCompletedAt, setLastCompletedAt] = useState<string | null>(null);
   const [choiceStep, setChoiceStep] = useState(0);
   const [protocolUpdatedWarning, setProtocolUpdatedWarning] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("macro");
+  const [viewMode, setViewMode] = useState<ViewMode>("sector");
   const [haveAtHomeItem, setHaveAtHomeItem] = useState<AggItem | null>(null);
-  const [splitMode, setSplitMode] = useState(false); // se o choice atual está no modo split
+  // splitMode existe apenas para retrocompatibilidade — o toggle não é mais exposto na UI.
+  const [splitMode, setSplitMode] = useState(false);
 
   const stateRef = useRef<ShoppingState | null>(null);
 
@@ -775,7 +795,19 @@ export default function ShoppingList() {
   const hasCycle = useMemo(() => hasCarbCycleActive(carbCycle), [carbCycle]);
 
   useEffect(() => {
-    if (!loading && meals.length > 0 && choices.length === 0) setPhase("list");
+    if (loading || meals.length === 0) return;
+    if (choices.length === 0) {
+      setPhase("list");
+      return;
+    }
+    // Auto-resolve: quando há apenas 1 escolha, seleciona a opção 0 e pula a tela
+    if (choices.length === 1) {
+      const only = choices[0];
+      setSelectedOptions((s) =>
+        s[only.key] !== undefined ? s : { ...s, [only.key]: 0 },
+      );
+      setPhase("list");
+    }
   }, [loading, meals, choices]);
 
   // ── Agregação com split e "já tenho" ─────────────────────────────────────────
@@ -1203,30 +1235,8 @@ export default function ShoppingList() {
                 {currentChoice.sublabel && <p style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>🕐 {currentChoice.sublabel}</p>}
               </div>
 
-              {/* Toggle simples / split de dias */}
-              <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-                <button
-                  onClick={() => setSplitMode(false)}
-                  style={{ flex: 1, padding: "8px", borderRadius: 8, border: !splitMode ? "1.5px solid #CC0000" : "0.5px solid var(--color-border-secondary)", background: !splitMode ? "rgba(204,0,0,0.08)" : "var(--color-background-primary)", color: !splitMode ? "#CC0000" : "var(--color-text-secondary)", fontSize: 12, fontWeight: 500, cursor: "pointer" }}
-                >
-                  Uma opção p/ semana
-                </button>
-                <button
-                  onClick={() => setSplitMode(true)}
-                  style={{ flex: 1, padding: "8px", borderRadius: 8, border: splitMode ? "1.5px solid #CC0000" : "0.5px solid var(--color-border-secondary)", background: splitMode ? "rgba(204,0,0,0.08)" : "var(--color-background-primary)", color: splitMode ? "#CC0000" : "var(--color-text-secondary)", fontSize: 12, fontWeight: 500, cursor: "pointer" }}
-                >
-                  Dividir por dias
-                </button>
-              </div>
-
-              {splitMode ? (
-                <DaySplitPicker
-                  choice={currentChoice}
-                  split={currentSplit}
-                  onChange={(newSplit) => setDaySplit((d) => ({ ...d, [currentChoice.key]: newSplit }))}
-                />
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {/* Lista de opções (modo simples — split removido da UI) */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {currentChoice.options.map((opt) => {
                     const chosen =
                       !buyBothSelected &&
@@ -1296,7 +1306,6 @@ export default function ShoppingList() {
                     </button>
                   )}
                 </div>
-              )}
 
               <button
                 onClick={handleNextChoice}
@@ -1409,13 +1418,6 @@ export default function ShoppingList() {
             {protocol?.name || "Protocolo ativo"} · {days === 1 ? "1 dia" : `${days} dias`}{persons > 1 ? ` · ${persons} pessoas` : ""}
           </p>
         </div>
-        <button
-          onClick={() => setPhase("market")}
-          style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(204,0,0,0.1)", color: "#CC0000", border: "0.5px solid rgba(204,0,0,0.3)", borderRadius: 8, padding: "7px 11px", fontSize: 12, fontWeight: 500, cursor: "pointer" }}
-          aria-label="Modo mercado"
-        >
-          <ShoppingBag size={13} /> Mercado
-        </button>
       </header>
 
       <div style={{ maxWidth: 480, margin: "0 auto", padding: "1rem" }}>
@@ -1577,24 +1579,52 @@ export default function ShoppingList() {
           Quantidades em peso cru · Itens riscados não aparecem no envio.
         </p>
 
-        {/* Exportação */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 16 }}>
-          <button onClick={exportPDF} disabled={visibleCount === 0} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "12px", borderRadius: 10, border: "0.5px solid var(--color-border-secondary)", background: "var(--color-background-primary)", color: visibleCount > 0 ? "var(--color-text-primary)" : "var(--color-text-tertiary)", fontSize: 13, fontWeight: 500, cursor: visibleCount > 0 ? "pointer" : "not-allowed", opacity: visibleCount === 0 ? 0.5 : 1 }}>
-            <FileDown size={16} /> PDF
+        {/* CTA primária: Ir às compras (modo mercado) */}
+        <button
+          onClick={() => setPhase("market")}
+          disabled={visibleCount === 0}
+          aria-label="Ir às compras — modo mercado"
+          style={{
+            width: "100%",
+            marginTop: 16,
+            padding: "16px",
+            borderRadius: 12,
+            border: "none",
+            background: visibleCount > 0 ? "#CC0000" : "var(--color-background-secondary)",
+            color: visibleCount > 0 ? "#fff" : "var(--color-text-tertiary)",
+            fontSize: 15,
+            fontWeight: 600,
+            cursor: visibleCount > 0 ? "pointer" : "not-allowed",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            boxShadow: visibleCount > 0 ? "0 4px 14px rgba(204,0,0,0.3)" : "none",
+            transition: "all 0.2s",
+          }}
+        >
+          <ShoppingBag size={18} /> Ir às compras 🛒
+        </button>
+
+        {/* Ações secundárias: PDF · WhatsApp */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+          <button
+            onClick={exportPDF}
+            disabled={visibleCount === 0}
+            aria-label="Exportar PDF"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", borderRadius: 10, border: "0.5px solid var(--color-border-secondary)", background: "transparent", color: visibleCount > 0 ? "var(--color-text-secondary)" : "var(--color-text-tertiary)", fontSize: 12, fontWeight: 500, cursor: visibleCount > 0 ? "pointer" : "not-allowed", opacity: visibleCount === 0 ? 0.5 : 1 }}
+          >
+            <FileDown size={14} /> PDF
           </button>
-          <button onClick={shareWhatsApp} disabled={visibleCount === 0} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "12px", borderRadius: 10, border: "none", background: visibleCount > 0 ? "#25D366" : "var(--color-background-secondary)", color: visibleCount > 0 ? "#fff" : "var(--color-text-tertiary)", fontSize: 13, fontWeight: 500, cursor: visibleCount > 0 ? "pointer" : "not-allowed", opacity: visibleCount === 0 ? 0.5 : 1 }}>
-            <Share2 size={16} /> WhatsApp
+          <button
+            onClick={shareWhatsApp}
+            disabled={visibleCount === 0}
+            aria-label="Enviar pelo WhatsApp"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", borderRadius: 10, border: "0.5px solid rgba(37,211,102,0.5)", background: "transparent", color: visibleCount > 0 ? "#25D366" : "var(--color-text-tertiary)", fontSize: 12, fontWeight: 500, cursor: visibleCount > 0 ? "pointer" : "not-allowed", opacity: visibleCount === 0 ? 0.5 : 1 }}
+          >
+            <Share2 size={14} /> WhatsApp
           </button>
         </div>
-
-        {/* Concluir */}
-        <button
-          onClick={handleComplete}
-          style={{ width: "100%", marginTop: 10, padding: "13px", borderRadius: 10, border: "none", background: struckCount === totalItems && totalItems > 0 ? "#34d399" : "rgba(52,211,153,0.12)", color: struckCount === totalItems && totalItems > 0 ? "#fff" : "#34d399", fontSize: 14, fontWeight: 500, cursor: "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}
-        >
-          <CheckCircle2 size={16} />
-          Concluir compras da semana
-        </button>
 
         {struckCount > 0 && (
           <button onClick={() => setStruck({})} style={{ width: "100%", marginTop: 8, padding: "10px", borderRadius: 10, border: "0.5px solid var(--color-border-tertiary)", background: "transparent", color: "var(--color-text-tertiary)", fontSize: 12, cursor: "pointer" }}>
