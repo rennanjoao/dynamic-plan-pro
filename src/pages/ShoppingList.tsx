@@ -703,9 +703,9 @@ export default function ShoppingList() {
   const [lastCompletedAt, setLastCompletedAt] = useState<string | null>(null);
   const [choiceStep, setChoiceStep] = useState(0);
   const [protocolUpdatedWarning, setProtocolUpdatedWarning] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("macro");
+  const [viewMode, setViewMode] = useState<ViewMode>("sector");
   const [haveAtHomeItem, setHaveAtHomeItem] = useState<AggItem | null>(null);
-  const [splitMode, setSplitMode] = useState(false); // se o choice atual está no modo split
+  // splitMode removido da UI — daySplit segue funcionando internamente para sessões antigas.
 
   const stateRef = useRef<ShoppingState | null>(null);
 
@@ -775,7 +775,19 @@ export default function ShoppingList() {
   const hasCycle = useMemo(() => hasCarbCycleActive(carbCycle), [carbCycle]);
 
   useEffect(() => {
-    if (!loading && meals.length > 0 && choices.length === 0) setPhase("list");
+    if (loading || meals.length === 0) return;
+    if (choices.length === 0) {
+      setPhase("list");
+      return;
+    }
+    // Auto-resolve: quando há apenas 1 escolha, seleciona a opção 0 e pula a tela
+    if (choices.length === 1) {
+      const only = choices[0];
+      setSelectedOptions((s) =>
+        s[only.key] !== undefined ? s : { ...s, [only.key]: 0 },
+      );
+      setPhase("list");
+    }
   }, [loading, meals, choices]);
 
   // ── Agregação com split e "já tenho" ─────────────────────────────────────────
