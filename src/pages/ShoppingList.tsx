@@ -586,6 +586,12 @@ interface HaveAtHomeSliderProps {
 function HaveAtHomeSlider({ item, value, onChange, onClose }: HaveAtHomeSliderProps) {
   const max = item.total;
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+  const presets: { label: string; pct: number }[] = [
+    { label: "Tenho um pouco", pct: 0.25 },
+    { label: "Tenho metade", pct: 0.5 },
+    { label: "Tenho quase tudo", pct: 0.75 },
+    { label: "Tenho tudo", pct: 1 },
+  ];
 
   return (
     <div style={{
@@ -620,26 +626,39 @@ function HaveAtHomeSlider({ item, value, onChange, onClose }: HaveAtHomeSliderPr
           Protocolo pede: <strong>{formatQty(item.total, item.unit)}</strong>
         </p>
 
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-          <span style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>Quanto você já tem?</span>
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#34d399" }}>
-            {formatQty(value, item.unit)} ({pct}%)
-          </span>
-        </div>
-
-        <input
-          type="range"
-          min={0}
-          max={max}
-          step={Math.max(1, Math.round(max / 20))}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-          style={{ width: "100%", accentColor: "#34d399", marginBottom: 12 }}
-        />
-
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--color-text-tertiary)", marginBottom: 20 }}>
-          <span>0</span>
-          <span>{formatQty(max, item.unit)}</span>
+        <p style={{ fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 10 }}>
+          Quanto você já tem em casa?
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
+          {presets.map((p) => {
+            const target = Math.round(max * p.pct);
+            const active = value === target;
+            return (
+              <button
+                key={p.pct}
+                onClick={() => onChange(target)}
+                aria-pressed={active}
+                aria-label={`${p.label} (${Math.round(p.pct * 100)}%)`}
+                style={{
+                  padding: "14px 10px",
+                  borderRadius: 10,
+                  border: active ? "1.5px solid #34d399" : "0.5px solid var(--color-border-secondary)",
+                  background: active ? "rgba(52,211,153,0.1)" : "var(--color-background-secondary)",
+                  color: active ? "#34d399" : "var(--color-text-primary)",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  textAlign: "center",
+                  lineHeight: 1.3,
+                }}
+              >
+                <span style={{ display: "block" }}>{p.label}</span>
+                <span style={{ display: "block", fontSize: 11, opacity: 0.7, marginTop: 2 }}>
+                  ~{Math.round(p.pct * 100)}%
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {value > 0 && (
@@ -648,7 +667,7 @@ function HaveAtHomeSlider({ item, value, onChange, onClose }: HaveAtHomeSliderPr
             borderRadius: 8, padding: "10px 14px", marginBottom: 16,
           }}>
             <p style={{ fontSize: 13, color: "#34d399" }}>
-              Você vai comprar: <strong>{formatQty(Math.max(0, item.total - value), item.unit)}</strong>
+              Selecionado: <strong>{formatQty(value, item.unit)} ({pct}%)</strong> · Comprar: <strong>{formatQty(Math.max(0, item.total - value), item.unit)}</strong>
             </p>
           </div>
         )}
