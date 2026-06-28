@@ -67,7 +67,7 @@ export default function WorkoutPlan() {
         .from("coach_plans")
         .select("workout_periodization_json, coach_id")
         .eq("student_id", userId)
-        .order("created_at", { ascending: false })
+        .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       return data ?? null;
@@ -81,7 +81,7 @@ export default function WorkoutPlan() {
       const { data } = await supabase
         .from("profiles")
         .select("full_name, team_name")
-        .eq("id", (planData as any).coach_id)
+        .eq("user_id", (planData as any).coach_id)
         .maybeSingle();
       return data ?? null;
     },
@@ -145,12 +145,12 @@ export default function WorkoutPlan() {
           </p>
         </div>
 
-        {/* WorkoutPeriodizationView agora recebe onStartWorkout e injeta o botão Iniciar dentro dos cards */}
         <WorkoutPeriodizationView
           workouts={workouts as any}
           periodization={safePayload?.periodization}
           onStartWorkout={handleStartWorkout}
           showGuidelines={showGuidelines}
+          allowEdit={true}
           renderLegacy={() =>
             workouts.length === 0 ? (
               <p className="text-center text-muted-foreground italic py-10">
