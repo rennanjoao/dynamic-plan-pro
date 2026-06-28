@@ -705,7 +705,8 @@ export default function ShoppingList() {
   const [protocolUpdatedWarning, setProtocolUpdatedWarning] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("sector");
   const [haveAtHomeItem, setHaveAtHomeItem] = useState<AggItem | null>(null);
-  // splitMode removido da UI — daySplit segue funcionando internamente para sessões antigas.
+  // splitMode existe apenas para retrocompatibilidade — o toggle não é mais exposto na UI.
+  const [splitMode, setSplitMode] = useState(false);
 
   const stateRef = useRef<ShoppingState | null>(null);
 
