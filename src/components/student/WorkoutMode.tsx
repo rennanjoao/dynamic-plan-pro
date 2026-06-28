@@ -1,12 +1,28 @@
 // src/components/student/WorkoutMode.tsx
-// Modo Treino com logbook de cargas, "Última vez", percepção de esforço
-// e perguntas de conclusão (Sprint 1 + Sprint 2)
+// Modo Treino — Refatoração UX/UI (Sprint 3)
+// Principais mudanças:
+//  1. Inputs de Carga e Reps substituídos por digitação livre (inputMode="numeric")
+//  2. Um único tap no botão de esforço confirma a série (zero cliques extras)
+//  3. Botões de ação com labels de texto diretos (sem ambiguidade de ícone)
+//  4. Coach Mark na primeira visita (localStorage "wm_tutorial_seen")
 
-import { useEffect, useRef, useState, useCallback } from "react";
 import {
-  X, Pause, RotateCcw, Check, SkipForward,
-  Flame, Share2, ChevronLeft, ChevronRight,
-  Minus, Plus,
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  memo,
+} from "react";
+import {
+  X,
+  Pause,
+  RotateCcw,
+  Check,
+  SkipForward,
+  Flame,
+  Share2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -58,6 +74,7 @@ interface Props {
 /* ── Constantes ─────────────────────────────────────────────────────────────── */
 
 const GOLD = "#C9A84C";
+const TUTORIAL_KEY = "wm_tutorial_seen";
 
 const DEFAULT_WEEKS: WeekMeta[] = [
   { label: "Semana 1 — Carga Máxima",            sets: "4 a 5 séries", reps: "5 a 8 reps",   rest: "2 min",     cadence: "1s conc / 2s exc" },
@@ -66,10 +83,10 @@ const DEFAULT_WEEKS: WeekMeta[] = [
   { label: "Semana 4 — Estresse Metabólico",     sets: "2 a 4 séries", reps: "15 a 20 reps", rest: "30s a 45s", cadence: "1s conc / 1s exc" },
 ];
 
-const EFFORT_OPTIONS: { value: 1 | 2 | 3; label: string; color: string; bg: string }[] = [
-  { value: 1, label: "Limpo",  color: "#22c55e", bg: "rgba(34,197,94,0.12)"  },
-  { value: 2, label: "Pesado", color: GOLD,      bg: "rgba(201,168,76,0.12)" },
-  { value: 3, label: "Falhei", color: "#CC0000", bg: "rgba(204,0,0,0.12)"   },
+const EFFORT_OPTIONS: { value: 1 | 2 | 3; label: string; sublabel: string; color: string; bg: string }[] = [
+  { value: 1, label: "Limpo",  sublabel: "RIR 3+",   color: "#22c55e", bg: "rgba(34,197,94,0.12)"  },
+  { value: 2, label: "Pesado", sublabel: "RIR 1-2",  color: GOLD,      bg: "rgba(201,168,76,0.12)" },
+  { value: 3, label: "Falhei", sublabel: "Falha",    color: "#CC0000", bg: "rgba(204,0,0,0.12)"   },
 ];
 
 const FEELING_OPTIONS: { value: 1 | 2 | 3; emoji: string; label: string }[] = [
@@ -82,6 +99,30 @@ const SLEEP_OPTIONS: { value: 1 | 2 | 3; emoji: string; label: string }[] = [
   { value: 1, emoji: "😴", label: "Mal"    },
   { value: 2, emoji: "😊", label: "Normal" },
   { value: 3, emoji: "🌙", label: "Bem"    },
+];
+
+// Passos do tutorial Coach Mark
+const TUTORIAL_STEPS = [
+  {
+    title: "Digite o peso e as reps",
+    body: "Toque nos campos e use o teclado numérico. Sem botões +/−.",
+    emoji: "⌨️",
+  },
+  {
+    title: "Tap único confirma a série",
+    body: "Escolha como foi — Limpo, Pesado ou Falhei — e a série já fica salva automaticamente.",
+    emoji: "✅",
+  },
+  {
+    title: "Descanso automático",
+    body: "O cronômetro de descanso inicia sozinho. Vibra no seu celular quando acabar.",
+    emoji: "⏱️",
+  },
+  {
+    title: "Tudo salvo offline",
+    body: "Perdeu a conexão? Não tem problema. O treino fica salvo no aparelho.",
+    emoji: "💾",
+  },
 ];
 
 /* ── Helpers ────────────────────────────────────────────────────────────────── */
@@ -133,7 +174,7 @@ function fmtDate(iso: string): string {
   });
 }
 
-/* ── Estado de série por exercício ──────────────────────────────────────────── */
+/* ── Estado de série ────────────────────────────────────────────────────────── */
 
 interface SetData {
   weight: number;
@@ -141,6 +182,179 @@ interface SetData {
   effort?: 1 | 2 | 3;
   done: boolean;
 }
+
+/* ── Subcomponente: Coach Mark Tutorial ─────────────────────────────────────── */
+// Isolado para não gerar re-renders no componente pai
+interface CoachMarkProps {
+  onDismiss: () => void;
+}
+
+const CoachMark = memo(function CoachMark({ onDismiss }: CoachMarkProps) {
+  const [step, setStep] = useState(0);
+  const isLast = step === TUTORIAL_STEPS.length - 1;
+  const current = TUTORIAL_STEPS[step];
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-end justify-center"
+      style={{ background: "rgba(0,0,0,0.82)" }}
+    >
+      {/* Destaque visual no centro — pode ser ajustado para apontar para a UI */}
+      <motion.div
+        key={step}
+        initial={{ opacity: 0, y: 32 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 16 }}
+        transition={{ duration: 0.28, ease: "easeOut" }}
+        className="w-full max-w-md mx-auto mb-8 mx-4 rounded-2xl p-6 space-y-4"
+        style={{
+          background: "#1C1C1E",
+          border: `1px solid ${GOLD}44`,
+          boxShadow: `0 0 0 1px ${GOLD}22, 0 24px 64px rgba(0,0,0,0.7)`,
+        }}
+      >
+        {/* Ícone + título */}
+        <div className="flex items-center gap-3">
+          <span className="text-3xl">{current.emoji}</span>
+          <div>
+            <p
+              className="text-[9px] uppercase tracking-[0.2em] font-bold mb-0.5"
+              style={{ color: GOLD }}
+            >
+              Dica {step + 1} de {TUTORIAL_STEPS.length}
+            </p>
+            <h3 className="font-black text-base text-white leading-tight">
+              {current.title}
+            </h3>
+          </div>
+        </div>
+
+        {/* Corpo */}
+        <p className="text-sm text-white/70 leading-relaxed">{current.body}</p>
+
+        {/* Indicador de passo */}
+        <div className="flex items-center gap-1.5">
+          {TUTORIAL_STEPS.map((_, i) => (
+            <span
+              key={i}
+              className="rounded-full transition-all duration-300"
+              style={{
+                width:  i === step ? "20px" : "6px",
+                height: "6px",
+                background: i === step ? GOLD : "rgba(255,255,255,0.2)",
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Ações */}
+        <div className="flex gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
+            style={{
+              background: "rgba(255,255,255,0.07)",
+              color: "rgba(255,255,255,0.5)",
+            }}
+          >
+            Pular tutorial
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (isLast) {
+                onDismiss();
+              } else {
+                setStep((s) => s + 1);
+              }
+            }}
+            className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white"
+            style={{
+              background: isLast
+                ? "linear-gradient(135deg, #CC0000, #8B0000)"
+                : GOLD,
+              color: isLast ? "#fff" : "#000",
+            }}
+          >
+            {isLast ? "Começar treino 🔥" : "Próximo →"}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+});
+
+/* ── Subcomponente: Input numérico de campo livre ───────────────────────────── */
+// Memoizado para evitar re-render desnecessário ao mudar estado do pai
+
+interface NumericFieldProps {
+  label: string;
+  unit: string;
+  value: number;
+  placeholder: string;
+  onChange: (val: number) => void;
+  onBlur?: () => void;
+  /** Destaque de cor quando faz parte da zona de confirmação */
+  accent?: boolean;
+}
+
+const NumericField = memo(function NumericField({
+  label,
+  unit,
+  value,
+  placeholder,
+  onChange,
+  onBlur,
+  accent = false,
+}: NumericFieldProps) {
+  // Exibe string vazia quando value === 0 para não pré-preencher com "0"
+  const displayVal = value > 0 ? String(value) : "";
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/[^0-9.]/g, "");
+    const parsed = parseFloat(raw);
+    onChange(isNaN(parsed) ? 0 : parsed);
+  };
+
+  return (
+    <div className="flex-1 flex flex-col gap-1">
+      <label
+        className="text-[9px] uppercase tracking-[0.18em] font-bold"
+        style={{ color: accent ? GOLD : "rgba(255,255,255,0.4)" }}
+      >
+        {label}
+      </label>
+      <div
+        className="flex items-center rounded-xl overflow-hidden transition-all"
+        style={{
+          border: accent
+            ? `1.5px solid ${GOLD}99`
+            : "1.5px solid rgba(255,255,255,0.12)",
+          background: "rgba(255,255,255,0.05)",
+        }}
+      >
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={displayVal}
+          placeholder={placeholder}
+          onChange={handleChange}
+          onBlur={onBlur}
+          className="flex-1 bg-transparent text-center text-2xl font-black text-white py-3 outline-none w-0 min-w-0 tabular-nums"
+          style={{ caretColor: accent ? GOLD : "#fff" }}
+        />
+        <span
+          className="pr-3 text-sm font-semibold shrink-0"
+          style={{ color: "rgba(255,255,255,0.35)" }}
+        >
+          {unit}
+        </span>
+      </div>
+    </div>
+  );
+});
 
 /* ── Componente principal ───────────────────────────────────────────────────── */
 
@@ -165,10 +379,20 @@ export default function WorkoutMode({
       ? periodization.weeks
       : DEFAULT_WEEKS;
 
-  // ── Lê estado persistido do localStorage (antes dos useState) ─────────────
+  // ── Lê estado persistido do localStorage ──────────────────────────────────
   const _saved = (() => {
     try { return JSON.parse(localStorage.getItem(storageKey) ?? "null"); } catch { return null; }
   })();
+
+  // ── Coach Mark: mostra apenas na primeira visita ───────────────────────────
+  const [showTutorial, setShowTutorial] = useState<boolean>(() => {
+    try { return !localStorage.getItem(TUTORIAL_KEY); } catch { return false; }
+  });
+
+  const dismissTutorial = useCallback(() => {
+    try { localStorage.setItem(TUTORIAL_KEY, "1"); } catch { /* noop */ }
+    setShowTutorial(false);
+  }, []);
 
   // ── Estado core ────────────────────────────────────────────────────────────
   const [selectedDay] = useState<string>(initialDay ?? workouts[0]?.key ?? "");
@@ -185,7 +409,7 @@ export default function WorkoutMode({
   const [showShare, setShowShare]           = useState(false);
   const [shareMode, setShareMode]           = useState<"final" | "partial">("final");
 
-  // controle legado (compatibilidade com WorkoutShareCard)
+  // legado (compatibilidade WorkoutShareCard)
   const [completed, setCompleted] = useState<Record<string, number[]>>(_saved?.completed ?? {});
   const [startedAt, setStartedAt] = useState(Date.now());
   const [now, setNow]             = useState(Date.now());
@@ -193,11 +417,11 @@ export default function WorkoutMode({
   // histórico do banco
   const [historyMap, setHistoryMap] = useState<Record<string, ExerciseHistory[]>>({});
 
-  // ── Persiste estado continuamente no localStorage ──────────────────────────
+  // ── Persiste estado no localStorage ───────────────────────────────────────
   useEffect(() => {
     try {
       localStorage.setItem(storageKey, JSON.stringify({ activeWeek, completed, setDataMap }));
-    } catch { /* quota exceeded — ignora */ }
+    } catch { /* quota exceeded */ }
   }, [activeWeek, completed, setDataMap, storageKey]);
 
   // ── Timer global ───────────────────────────────────────────────────────────
@@ -207,9 +431,8 @@ export default function WorkoutMode({
   }, []);
   const elapsedSec = startedAt ? Math.floor((now - startedAt) / 1000) : 0;
 
-  // ── Resolve exercícios do dia com overrides de periodização ────────────────
+  // ── Resolve exercícios do dia com overrides ────────────────────────────────
   const day = workouts.find((d) => d.key === selectedDay) ?? workouts[0];
-
   const exercises: Exercise[] = (day?.exercises ?? []).map((ex, idx) => {
     if (!isPeriodizationOn) return ex;
     const weekOverrides = periodization?.overrides?.[String(activeWeek)] ?? {};
@@ -232,7 +455,7 @@ export default function WorkoutMode({
   const setsMin       = parseSetsMin(currentEx?.sets);
   const defaultRestSec = parseRestSec(currentEx?.rest);
 
-  // ── Inicialização do setDataMap para o exercício atual ─────────────────────
+  // ── Inicialização do setDataMap ────────────────────────────────────────────
   useEffect(() => {
     if (!currentEx) return;
     setSetDataMap((prev) => {
@@ -248,7 +471,7 @@ export default function WorkoutMode({
     });
   }, [currentExKey, setsMax, currentEx]);
 
-  // ── Inicia sessão no banco na primeira montagem ────────────────────────────
+  // ── Inicia sessão no banco ─────────────────────────────────────────────────
   useEffect(() => {
     setStartedAt(Date.now());
     session.startSession({
@@ -260,7 +483,7 @@ export default function WorkoutMode({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Busca histórico dos exercícios ─────────────────────────────────────────
+  // ── Busca histórico ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!userId || exercises.length === 0) return;
     exercises.forEach((ex) => {
@@ -310,7 +533,6 @@ export default function WorkoutMode({
           advanceIfDone();
           return 0;
         }
-        // Vibração leve nos últimos 3s
         if (r <= 4 && navigator.vibrate) navigator.vibrate(50);
         return r - 1;
       });
@@ -329,32 +551,25 @@ export default function WorkoutMode({
   // ── Handlers de carga ──────────────────────────────────────────────────────
   const currentSets    = setDataMap[currentExKey] ?? [];
   const doneSetsCount  = currentSets.filter((s) => s.done).length;
-  const currentSetIdx  = doneSetsCount; // índice da próxima série a fazer
+  const currentSetIdx  = doneSetsCount;
   const todasFeitas    = doneSetsCount >= setsMax;
   const serieAtualNum  = Math.min(doneSetsCount + 1, setsMax);
 
-  // Pega o peso da última série feita (ou da série anterior) para pré-preencher
-  const lastDoneWeight = currentSets.filter((s) => s.done).at(-1)?.weight ?? 0;
-
-  // Peso exibido no campo da série atual: herda do histórico se 0
+  const lastDoneWeight    = currentSets.filter((s) => s.done).at(-1)?.weight ?? 0;
   const lastHistoryWeight = historyMap[currentExKey]?.[0]?.weightKg ?? 0;
-  const defaultWeight = lastDoneWeight > 0 ? lastDoneWeight : lastHistoryWeight;
+  const defaultWeight     = lastDoneWeight > 0 ? lastDoneWeight : lastHistoryWeight;
 
   const [activeWeight, setActiveWeight] = useState(0);
   const [activeReps, setActiveReps]     = useState(0);
 
-  // Inicializa o campo de peso quando muda de exercício ou de série
+  // Pré-preenche peso ao trocar exercício/série
   useEffect(() => {
     setActiveWeight(defaultWeight);
     setActiveReps(0);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentExKey, doneSetsCount]);
 
-  const adjustWeight = (delta: number) => {
-    setActiveWeight((w) => Math.max(0, Math.round((w + delta) * 2) / 2));
-  };
-
-  // ── Registrar série ────────────────────────────────────────────────────────
+  // ── Registrar série — 1 tap ────────────────────────────────────────────────
   const handleFizASerie = useCallback(
     async (effort?: 1 | 2 | 3) => {
       if (todasFeitas) return;
@@ -362,7 +577,7 @@ export default function WorkoutMode({
       const weight = activeWeight;
       const reps   = activeReps;
 
-      // Atualiza UI imediatamente
+      // Atualiza UI imediatamente (otimista)
       setSetDataMap((prev) => {
         const arr = [...(prev[currentExKey] ?? [])];
         if (arr[currentSetIdx]) {
@@ -371,7 +586,6 @@ export default function WorkoutMode({
         return { ...prev, [currentExKey]: arr };
       });
 
-      // Atualiza completed legado
       setCompleted((prev) => {
         const arr = prev[currentExKey] ?? [];
         if (arr.includes(currentSetIdx)) return prev;
@@ -401,7 +615,7 @@ export default function WorkoutMode({
     ]
   );
 
-  // ── Métricas gerais ─────────────────────────────────────────────────────────
+  // ── Métricas gerais ────────────────────────────────────────────────────────
   const totalSets = exercises.reduce((a, e) => a + parseSetsMin(e.sets), 0);
   const doneSets  = exercises.reduce((a, _, idx) => {
     const k = `${day!.key}::${idx}`;
@@ -414,12 +628,7 @@ export default function WorkoutMode({
   }, 0);
   const hasAnyDone = doneSets > 0;
 
-  // ── Concluir treino ─────────────────────────────────────────────────────────
-  const handleConcluir = () => {
-    setShareMode("final");
-    setShowShare(true);
-  };
-
+  // ── Conclusão ──────────────────────────────────────────────────────────────
   const handleSharedDone = async () => {
     await session.finishSession({
       generalFeeling,
@@ -448,7 +657,7 @@ export default function WorkoutMode({
   const currentHistory = historyMap[currentExKey] ?? [];
   const lastSession    = currentHistory[0];
 
-  // ── Render guard ────────────────────────────────────────────────────────────
+  // ── Guard ──────────────────────────────────────────────────────────────────
   if (!day)
     return (
       <div className="fixed inset-0 z-50 bg-background flex items-center justify-center p-6">
@@ -464,6 +673,11 @@ export default function WorkoutMode({
     return (
       <div className="fixed inset-0 z-50 bg-background overflow-y-auto pb-32">
 
+        {/* ── Coach Mark (primeira visita) ───────────────────────────────────── */}
+        <AnimatePresence>
+          {showTutorial && <CoachMark onDismiss={dismissTutorial} />}
+        </AnimatePresence>
+
         {/* ── Header sticky ─────────────────────────────────────────────────── */}
         <header className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-4 py-3 flex items-center gap-3 relative">
           {/* Barra de progresso dourada */}
@@ -473,9 +687,18 @@ export default function WorkoutMode({
               style={{ width: `${progressPct}%`, background: GOLD }}
             />
           </div>
-          <Button variant="ghost" size="icon" onClick={handleClose}>
-            <X className="w-5 h-5" />
-          </Button>
+
+          {/* Botão fechar com label */}
+          <button
+            type="button"
+            onClick={handleClose}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Sair do treino"
+          >
+            <X className="w-4 h-4" />
+            <span className="hidden sm:inline">Sair</span>
+          </button>
+
           <div className="flex-1 min-w-0">
             <h1 className="font-bold text-base truncate">
               Treino {day.key}{day.focus ? ` · ${day.focus}` : ""}
@@ -527,7 +750,7 @@ export default function WorkoutMode({
             </div>
           )}
 
-          {/* ── Anel de progresso ─────────────────────────────────────────── */}
+          {/* ── Anel de progresso + timer de descanso ─────────────────────── */}
           <div
             className="rounded-2xl p-6 text-center relative overflow-hidden"
             style={{
@@ -581,8 +804,11 @@ export default function WorkoutMode({
               </div>
             </div>
             <p className="text-sm text-white/60 mb-5 mt-3 truncate px-4 relative">{currentEx?.name ?? ""}</p>
-            <div className="flex items-center justify-center gap-2 relative">
+
+            {/* ── Botões de controle com labels ──────────────────────────── */}
+            <div className="flex items-center justify-center gap-2 relative flex-wrap">
               {!restRunning ? (
+                // Ação primária quando NÃO está descansando
                 <motion.button
                   type="button"
                   disabled={todasFeitas}
@@ -590,38 +816,50 @@ export default function WorkoutMode({
                   whileTap={{ scale: 0.94 }}
                   style={{ backgroundColor: todasFeitas ? "#374151" : "#CC0000" }}
                   className="flex items-center gap-2 px-6 py-2.5 rounded-full text-white font-bold text-sm disabled:opacity-50"
+                  title="Confirma a série e inicia o descanso"
                 >
                   <Check className="w-4 h-4" />
-                  {todasFeitas ? "Séries concluídas" : "Fiz a série → descansar"}
+                  {todasFeitas ? "Séries concluídas" : "Concluir série e descansar"}
                 </motion.button>
               ) : (
                 <>
+                  {/* Pausar descanso */}
                   <button
                     type="button"
                     onClick={() => setRestRunning(false)}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-full text-white font-bold text-sm"
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-full text-white font-bold text-sm"
                     style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
+                    title="Pausa o cronômetro de descanso"
                   >
-                    <Pause className="w-4 h-4" /> Pausar
+                    <Pause className="w-4 h-4" />
+                    <span>Pausar descanso</span>
                   </button>
+
+                  {/* Pular descanso */}
                   <motion.button
                     type="button"
                     onClick={skipRest}
                     whileTap={{ scale: 0.94 }}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm"
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-full font-bold text-sm"
                     style={{ backgroundColor: `${GOLD}22`, color: GOLD, border: `1px solid ${GOLD}55` }}
+                    title="Pula o descanso e vai para a próxima série"
                   >
-                    <SkipForward className="w-4 h-4" /> Pular
+                    <SkipForward className="w-4 h-4" />
+                    <span>Pular e ir treinar</span>
                   </motion.button>
                 </>
               )}
+
+              {/* Reiniciar timer — sempre visível */}
               <button
                 type="button"
                 onClick={() => { setRestRunning(false); setRestRemaining(defaultRestSec); }}
-                className="flex items-center gap-2 px-3 py-2.5 rounded-full text-sm"
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-full text-xs font-semibold"
                 style={{ border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)" }}
+                title="Reinicia o cronômetro de descanso"
               >
-                <RotateCcw className="w-4 h-4" />
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Resetar timer</span>
               </button>
             </div>
           </div>
@@ -649,7 +887,7 @@ export default function WorkoutMode({
                   </span>
                 </div>
 
-                {/* ── Card "Última vez" (Sprint 2) ── */}
+                {/* Card "Última vez" */}
                 {lastSession && (
                   <div
                     className="rounded-lg px-3 py-2.5 flex items-center justify-between gap-2"
@@ -672,7 +910,7 @@ export default function WorkoutMode({
                   </div>
                 )}
 
-                {/* ── Bolhas de série ── */}
+                {/* Bolhas de série */}
                 <div className="flex gap-2.5 flex-wrap">
                   {Array.from({ length: setsMax }).map((_, i) => {
                     const setInfo   = currentSets[i];
@@ -684,9 +922,9 @@ export default function WorkoutMode({
                         type="button"
                         animate={isDone ? { scale: [1, 1.25, 1] } : { scale: 1 }}
                         transition={{ duration: 0.35, ease: "easeOut" }}
+                        title={isDone ? `Série ${i + 1} feita — toque para desfazer` : `Série ${i + 1}`}
                         onClick={() => {
                           if (isDone) {
-                            // Toggle para corrigir manualmente
                             setSetDataMap((prev) => {
                               const arr = [...(prev[currentExKey] ?? [])];
                               if (arr[i]) arr[i] = { ...arr[i], done: false };
@@ -713,94 +951,89 @@ export default function WorkoutMode({
                   })}
                 </div>
 
-                {/* ── Campo de carga (Sprint 1) ── */}
+                {/* ── BLOCO DE REGISTRO (inputs livres + 1-tap) ─────────────── */}
                 {!todasFeitas && (
                   <div
-                    className="rounded-lg p-3 space-y-3"
-                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
+                    className="rounded-xl p-4 space-y-4"
+                    style={{
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                    }}
                   >
-                    <p className="text-[9px] uppercase tracking-widest text-white/40 font-bold">
-                      Registrar série {serieAtualNum}
-                    </p>
-
-                    {/* Carga */}
-                    <div className="flex items-center gap-3">
-                      <span className="text-[10px] text-white/50 w-10">Carga</span>
-                      <button
-                        type="button"
-                        onClick={() => adjustWeight(-2.5)}
-                        className="w-9 h-9 rounded-full flex items-center justify-center border border-white/20 text-white/70"
+                    {/* Cabeçalho da série */}
+                    <div className="flex items-center justify-between">
+                      <p
+                        className="text-[9px] uppercase tracking-widest font-bold"
+                        style={{ color: "rgba(255,255,255,0.4)" }}
                       >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <div className="flex-1 text-center">
-                        <span className="text-2xl font-black text-white tabular-nums">
-                          {activeWeight > 0 ? activeWeight : "—"}
-                        </span>
-                        <span className="text-white/50 text-sm ml-1">kg</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => adjustWeight(2.5)}
-                        className="w-9 h-9 rounded-full flex items-center justify-center border border-white/20 text-white/70"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
+                        Registrar série {serieAtualNum}
+                      </p>
+                      <p className="text-[9px] text-white/30">
+                        Preencha e escolha como foi ↓
+                      </p>
                     </div>
 
-                    {/* Reps */}
-                    <div className="flex items-center gap-3">
-                      <span className="text-[10px] text-white/50 w-10">Reps</span>
-                      <button
-                        type="button"
-                        onClick={() => setActiveReps((r) => Math.max(0, r - 1))}
-                        className="w-9 h-9 rounded-full flex items-center justify-center border border-white/20 text-white/70"
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <div className="flex-1 text-center">
-                        <span className="text-2xl font-black text-white tabular-nums">
-                          {activeReps > 0 ? activeReps : "—"}
-                        </span>
-                        <span className="text-white/50 text-xs ml-1">reps</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setActiveReps((r) => r + 1)}
-                        className="w-9 h-9 rounded-full flex items-center justify-center border border-white/20 text-white/70"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
+                    {/* ── Inputs de digitação livre ─────────────────────────── */}
+                    <div className="flex gap-3">
+                      <NumericField
+                        label="Carga"
+                        unit="kg"
+                        value={activeWeight}
+                        placeholder={defaultWeight > 0 ? String(defaultWeight) : "0"}
+                        onChange={setActiveWeight}
+                        accent
+                      />
+                      <NumericField
+                        label="Repetições"
+                        unit="reps"
+                        value={activeReps}
+                        placeholder={parseRepsLabel(currentEx.reps)}
+                        onChange={setActiveReps}
+                        accent
+                      />
                     </div>
 
-                    {/* Percepção de esforço (Sprint 2) */}
+                    {/* ── Percepção de esforço = confirma a série ───────────── */}
                     <div>
-                      <p className="text-[9px] uppercase tracking-widest text-white/40 font-bold mb-2">
-                        Como foi?
+                      <p
+                        className="text-[9px] uppercase tracking-widest font-bold mb-2"
+                        style={{ color: "rgba(255,255,255,0.4)" }}
+                      >
+                        Como foi a série? (tap = salvar)
                       </p>
                       <div className="grid grid-cols-3 gap-2">
                         {EFFORT_OPTIONS.map((opt) => (
                           <motion.button
                             key={opt.value}
                             type="button"
-                            whileTap={{ scale: 0.94 }}
+                            whileTap={{ scale: 0.93 }}
                             onClick={() => handleFizASerie(opt.value)}
-                            className="py-2 rounded-lg text-sm font-bold border transition"
+                            className="py-3 rounded-xl border transition flex flex-col items-center gap-0.5"
                             style={{
                               background: opt.bg,
                               borderColor: opt.color + "66",
                               color: opt.color,
                             }}
+                            title={`${opt.label} — ${opt.sublabel} — salva a série automaticamente`}
                           >
-                            {opt.label}
+                            <span className="text-sm font-bold">{opt.label}</span>
+                            <span
+                              className="text-[9px] font-semibold"
+                              style={{ color: opt.color + "99" }}
+                            >
+                              {opt.sublabel}
+                            </span>
                           </motion.button>
                         ))}
                       </div>
+                      <p className="text-[9px] text-white/25 text-center mt-2">
+                        Ou use o botão "Concluir série" acima sem percepção de esforço
+                      </p>
                     </div>
                   </div>
                 )}
 
-                {/* ── Info: reps alvo + descanso + cadência ── */}
+                {/* Info: reps alvo + descanso + cadência */}
                 <div className="grid grid-cols-3 gap-2">
                   <div className="rounded-lg p-2.5 text-center" style={{ background: "rgba(255,255,255,0.04)" }}>
                     <p className="text-[9px] uppercase tracking-widest text-white/40 font-bold">Reps alvo</p>
@@ -829,7 +1062,7 @@ export default function WorkoutMode({
             </AnimatePresence>
           )}
 
-          {/* ── Navegação entre exercícios ────────────────────────────────── */}
+          {/* ── Navegação entre exercícios ─────────────────────────────────── */}
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -841,7 +1074,7 @@ export default function WorkoutMode({
                 setRestRunning(false);
               }}
             >
-              <ChevronLeft className="w-4 h-4" /> Anterior
+              <ChevronLeft className="w-4 h-4" /> Exercício anterior
             </Button>
             <Button
               variant="outline"
@@ -853,7 +1086,7 @@ export default function WorkoutMode({
                 setRestRunning(false);
               }}
             >
-              Próximo <ChevronRight className="w-4 h-4" />
+              Próximo exercício <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
 
@@ -863,11 +1096,11 @@ export default function WorkoutMode({
               Exercícios do treino
             </p>
             {exercises.map((ex, idx) => {
-              const k        = `${day!.key}::${idx}`;
-              const done     = (completed[k]?.length ?? 0) >= parseSetsMin(ex.sets);
+              const k         = `${day!.key}::${idx}`;
+              const done      = (completed[k]?.length ?? 0) >= parseSetsMin(ex.sets);
               const isCurrent = idx === currentExIdx;
-              const exDone   = completed[k]?.length ?? 0;
-              const exMax    = parseSetsMax(ex.sets);
+              const exDone    = completed[k]?.length ?? 0;
+              const exMax     = parseSetsMax(ex.sets);
               return (
                 <div
                   key={idx}
@@ -897,7 +1130,7 @@ export default function WorkoutMode({
                           key={si}
                           className="rounded-full transition-all"
                           style={{
-                            width: si < exDone ? "8px" : "6px",
+                            width:  si < exDone ? "8px" : "6px",
                             height: si < exDone ? "8px" : "6px",
                             backgroundColor:
                               si < exDone
@@ -926,7 +1159,7 @@ export default function WorkoutMode({
           </div>
         </main>
 
-        {/* ── Footer: Concluir ─────────────────────────────────────────────── */}
+        {/* ── Footer: Concluir ──────────────────────────────────────────────── */}
         {hasAnyDone && (
           <div className="fixed bottom-0 left-0 right-0 z-20 p-4 bg-gradient-to-t from-background via-background/95 to-transparent">
             <div className="max-w-2xl mx-auto flex items-center gap-2">
@@ -943,10 +1176,12 @@ export default function WorkoutMode({
                   type="button"
                   whileTap={{ scale: 0.9 }}
                   onClick={() => { setShareMode("partial"); setShowShare(true); }}
-                  className="h-12 w-12 shrink-0 rounded-2xl flex items-center justify-center"
+                  className="h-12 px-3 shrink-0 rounded-2xl flex items-center gap-1.5 text-xs font-bold"
                   style={{ background: `${GOLD}1A`, border: `1px solid ${GOLD}55`, color: GOLD }}
+                  title="Compartilhar progresso parcial"
                 >
-                  <Share2 className="w-5 h-5" />
+                  <Share2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Compartilhar</span>
                 </motion.button>
               )}
             </div>
@@ -973,7 +1208,6 @@ export default function WorkoutMode({
   }
 
   /* ── FASE: CONCLUSÃO ─────────────────────────────────────────────────────── */
-  // Destaques de cargas para mostrar na conclusão
   const highlights: { name: string; note: string }[] = exercises
     .map((ex, idx) => {
       const k    = `${day!.key}::${idx}`;
@@ -999,7 +1233,6 @@ export default function WorkoutMode({
     <div className="fixed inset-0 z-50 bg-background overflow-y-auto">
       <main className="max-w-md mx-auto px-4 py-12 flex flex-col items-center gap-6 text-center">
 
-        {/* Troféu */}
         <motion.div
           initial={{ scale: 0.5, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -1034,7 +1267,7 @@ export default function WorkoutMode({
           </div>
         )}
 
-        {/* Pergunta 1: Como foi o treino? */}
+        {/* Como foi o treino? */}
         <div className="w-full space-y-3">
           <p className="font-semibold text-foreground">Como foi o treino?</p>
           <div className="grid grid-cols-3 gap-3">
@@ -1058,7 +1291,7 @@ export default function WorkoutMode({
           </div>
         </div>
 
-        {/* Pergunta 2: Como dormiu? */}
+        {/* Como dormiu? */}
         <div className="w-full space-y-3">
           <p className="font-semibold text-foreground">Como você dormiu ontem?</p>
           <div className="grid grid-cols-3 gap-3">
