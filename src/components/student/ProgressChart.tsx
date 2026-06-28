@@ -98,25 +98,22 @@ export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
     );
   }
 
-  // Comparamos a medida mais recente com a medida anterior a ela (tendência
-  // atual), e não com o primeiro ponto absoluto da linha do tempo. Comparar
-  // contra o primeiro ponto esconde oscilações (ex: peso subiu e desceu) e,
-  // se o primeiro ponto não tiver gordura calculável (anamnese sem cintura/
-  // pescoço), a mudança de gordura ficava sempre "—" mesmo havendo dados
-  // recentes suficientes para mostrar a tendência.
+  // Comparamos sempre a medida mais recente com o primeiro ponto (anamnese
+  // baseline) para mostrar o progresso total desde o início — coerente com
+  // o ComparisonBoard que exibe a mesma comparação "Partida → Hoje".
   const ultimaMedida = chartData[chartData.length - 1];
-  const anteriorMedida = chartData.length > 1 ? chartData[chartData.length - 2] : chartData[0];
-  const mudancaPeso = (ultimaMedida.peso - anteriorMedida.peso).toFixed(1);
+  const primeiraMedida = chartData[0];
+  const mudancaPeso = (ultimaMedida.peso - primeiraMedida.peso).toFixed(1);
 
-  // Para gordura, usamos o último ponto anterior ao mais recente que tenha
-  // valor calculado (pula pontos com gordura null no meio do caminho).
-  const pontoGorduraAnterior = [...chartData]
-    .slice(0, -1)
-    .reverse()
-    .find((p) => p.gordura !== null);
+  // Para gordura, usamos o primeiro ponto que tenha valor calculado como
+  // referência, e comparamos com o último ponto calculado disponível.
+  const primeiraMedidaComGordura = chartData.find((p) => p.gordura !== null);
+  const ultimaMedidaComGordura = [...chartData].reverse().find((p) => p.gordura !== null);
   const mudancaGordura =
-    ultimaMedida.gordura !== null && pontoGorduraAnterior
-      ? (ultimaMedida.gordura - pontoGorduraAnterior.gordura!).toFixed(1)
+    ultimaMedidaComGordura && primeiraMedidaComGordura && ultimaMedidaComGordura !== primeiraMedidaComGordura
+      ? (ultimaMedidaComGordura.gordura! - primeiraMedidaComGordura.gordura!).toFixed(1)
+      : ultimaMedidaComGordura && primeiraMedidaComGordura
+      ? "0"
       : "0";
 
   return (
@@ -176,11 +173,11 @@ export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
         <div className="glass rounded-xl p-4">
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Gordura Estimada</p>
           <p className={`text-2xl font-bold mt-1 ${Number(mudancaGordura) <= 0 ? 'text-emerald-400' : 'text-primary'}`}>
-            {ultimaMedida.gordura !== null && pontoGorduraAnterior
+            {ultimaMedidaComGordura && primeiraMedidaComGordura
               ? `${Number(mudancaGordura) > 0 ? '+' : ''}${mudancaGordura}%`
               : '—'}
           </p>
-          {ultimaMedida.gordura === null && (
+          {!ultimaMedidaComGordura && (
             <p className="text-[10px] text-muted-foreground mt-1">Informe cintura e pescoço nos check-ins</p>
           )}
         </div>
