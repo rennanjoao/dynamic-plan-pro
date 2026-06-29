@@ -1436,6 +1436,27 @@ export default function ShoppingList() {
           <p style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>
             {protocol?.name || "Protocolo ativo"} · {days === 1 ? "1 dia" : `${days} dias`}{persons > 1 ? ` · ${persons} pessoas` : ""}
           </p>
+          {typeof shoppingStreak === "number" && shoppingStreak >= 2 && (
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                marginTop: 4,
+                padding: "2px 8px",
+                borderRadius: 999,
+                background: "rgba(204,0,0,0.10)",
+                border: "0.5px solid rgba(204,0,0,0.30)",
+                fontSize: 10,
+                fontWeight: 600,
+                color: "#CC0000",
+              }}
+              aria-label={`Streak de ${shoppingStreak} semanas consecutivas`}
+            >
+              <ShoppingCart size={10} />
+              {shoppingStreak} semanas seguidas 🛒
+            </div>
+          )}
         </div>
       </header>
 
