@@ -33,7 +33,7 @@ export interface AggItem {
 
 export interface AggregateParams {
   meals: any[];
-  selectedOptions?: Record<string, number>; // chave "mealIdx:kind" → índice da opção
+  selectedOptions?: Record<string, number | number[]>; // chave "mealIdx:kind" → índice (legacy) ou array de índices (multi-select)
   days?: number;
   carbCycle?: Record<string, unknown>;      // { mon: "high", tue: "off", ... }
   carbCycleHighPct?: number;                // default 15
@@ -80,11 +80,17 @@ function toDisplayName(s: string): string {
  * Detecta se o item usa unidade de volume (ml/l) ou peso (g/kg).
  * Retorna "ml" ou "g".
  */
+const LIQUID_NAME_RE =
+  /\b(leite|água|agua|azeite|óleo|oleo|suco|whey|iogurte|kefir|vinagre|molho|caldo|chá|cha|café|cafe|bebida|shake|creatina líquida|isotônico|isotonico)\b/i;
+
 export function parseUnit(item: any): string {
   if (!item) return "g";
   const w: string = String(item.weight || "").trim().toLowerCase();
   if (/\bml\b/.test(w)) return "ml";
   if (/\bl\b/.test(w) && !/\bml\b/.test(w)) return "ml";
+  // Detecção por nome — leite/azeite/óleo etc. com peso em "g" devem virar ml.
+  const name = String(item.baseName || item.name || "");
+  if (name && LIQUID_NAME_RE.test(name)) return "ml";
   return "g";
 }
 
