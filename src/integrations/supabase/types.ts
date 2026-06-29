@@ -1256,6 +1256,7 @@ export type Database = {
           notification_email: string
         }[]
       }
+      get_student_hub_context: { Args: { p_student_id: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

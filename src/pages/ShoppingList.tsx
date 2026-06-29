@@ -15,6 +15,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft,
@@ -729,6 +730,24 @@ export default function ShoppingList() {
 
   const stateRef = useRef<ShoppingState | null>(null);
 
+  // ── Streak persistido no banco (semanas consecutivas) ─────────────────────
+  const { data: shoppingStreak } = useQuery({
+    queryKey: ["shopping-streak", userId],
+    enabled: !!userId,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any)
+        .from("shopping_sessions")
+        .select("streak, created_at")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return (data?.streak ?? 0) as number;
+    },
+  });
+
   // ── Carrega protocolo e estado salvo ────────────────────────────────────────
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
@@ -1417,6 +1436,27 @@ export default function ShoppingList() {
           <p style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>
             {protocol?.name || "Protocolo ativo"} · {days === 1 ? "1 dia" : `${days} dias`}{persons > 1 ? ` · ${persons} pessoas` : ""}
           </p>
+          {typeof shoppingStreak === "number" && shoppingStreak >= 2 && (
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                marginTop: 4,
+                padding: "2px 8px",
+                borderRadius: 999,
+                background: "rgba(204,0,0,0.10)",
+                border: "0.5px solid rgba(204,0,0,0.30)",
+                fontSize: 10,
+                fontWeight: 600,
+                color: "#CC0000",
+              }}
+              aria-label={`Streak de ${shoppingStreak} semanas consecutivas`}
+            >
+              <ShoppingCart size={10} />
+              {shoppingStreak} semanas seguidas 🛒
+            </div>
+          )}
         </div>
       </header>
 
