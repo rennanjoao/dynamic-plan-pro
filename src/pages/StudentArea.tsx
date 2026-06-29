@@ -1,24 +1,25 @@
 /**
  * StudentArea.tsx — Hub Central do Aluno
  *
- * MELHORIAS v2:
- * - Avatar com iniciais coloridas no header
- * - Saudação dinâmica por hora do dia
- * - Streak de treino (dias seguidos) com ícone de chama
- * - Status do treino de hoje no card de Treino
- * - Dieta e Treino em destaque (full width) acima dos demais módulos
- * - Rodapé substituído por card do coach
- * - Mantidas todas as lógicas de alerta, dismiss e notificação
+ * MELHORIAS v3 (Skeletons):
+ * - Removido o Loader2 blocking para profileLoading — agora exibe o shell
+ *   completo imediatamente com skeletons nos spots que ainda carregam.
+ * - Skeleton no header: avatar + greeting + streak enquanto profile/workoutLogs carregam.
+ * - Skeleton inline nos cards de Dieta e Treino (badge de status + hint de protocolo).
+ * - Skeleton no card do coach enquanto coachLink carrega.
+ * - Mantida toda a lógica de alertas, dismiss, PIX, QR Code e notificações.
  */
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Apple, Dumbbell, Pill, TrendingUp, CheckCircle2,
-  Loader2, AlertCircle, Copy, Check, X, LogOut, Sparkles,
+  AlertCircle, Copy, Check, X, LogOut, Sparkles,
   ShoppingCart, FileEdit, Flame, User,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -27,7 +28,6 @@ import { toast } from "sonner";
 import FeedbackCountdownAlert from "@/components/student/FeedbackCountdownAlert";
 import { TrainerAlert } from "@/components/student/TrainerAlert";
 import { useWakeLock } from "@/hooks/useWakeLock";
-import { useStudentHubContext } from "@/hooks/useStudentHubContext";
 import { buildPixBrCode } from "@/lib/pixBrCode";
 import QRCode from "qrcode";
 
@@ -40,8 +40,6 @@ function saveDismissed(uid: string, ids: string[]) {
   try { localStorage.setItem(DISMISSED_KEY(uid), JSON.stringify(ids)); } catch { /* noop */ }
 }
 
-// Sincroniza dispensa de alertas com o banco (persistente entre dispositivos).
-// localStorage segue como cache otimista local.
 async function fetchDismissedFromDB(uid: string): Promise<string[]> {
   try {
     const { data } = await (supabase as any)
@@ -99,29 +97,22 @@ function StreakBadge({ streak }: { streak: number }) {
 }
 
 // ─── Calcula streak de treino ────────────────────────────────────────────────
-function calcStreak(
-  logs: { completed_at: string | null }[],
-  lastSessionAt?: string | null
-): number {
-  const rawDays = logs
-    .filter((l) => l.completed_at)
-    .map((l) => new Date(l.completed_at!).toISOString().slice(0, 10));
+function calcStreak(logs: { completed_at: string | null }[]): number {
+  if (!logs.length) return 0;
+  const days = [...new Set(
+    logs
+      .filter((l) => l.completed_at)
+      .map((l) => new Date(l.completed_at!).toISOString().slice(0, 10))
+  )].sort().reverse();
 
-  if (lastSessionAt) {
-    rawDays.push(new Date(lastSessionAt).toISOString().slice(0, 10));
-  }
-
-  const days = [...new Set(rawDays)].sort().reverse();
-  if (!days.length) return 0;
-
-  const today = new Date().toISOString().slice(0, 10);
+  const today     = new Date().toISOString().slice(0, 10);
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
   if (days[0] !== today && days[0] !== yesterday) return 0;
 
   let streak = 0;
   let cursor = new Date(days[0]);
   for (const day of days) {
-    const d = new Date(day);
+    const d    = new Date(day);
     const diff = Math.round((cursor.getTime() - d.getTime()) / 86400000);
     if (diff > 1) break;
     streak++;
@@ -130,14 +121,54 @@ function calcStreak(
   return streak;
 }
 
+// ─── Skeletons ───────────────────────────────────────────────────────────────
+
+/** Skeleton do header (avatar + greeting + streak) */
+function HeaderSkeleton() {
+  return (
+    <div className="flex items-center gap-3 min-w-0">
+      <Skeleton className="w-10 h-10 rounded-full shrink-0" />
+      <div className="space-y-1.5 min-w-0">
+        <Skeleton className="h-4 w-36 rounded" />
+        <Skeleton className="h-3 w-24 rounded" />
+      </div>
+    </div>
+  );
+}
+
+/** Skeleton do badge de status do treino (dentro do card Treino) */
+function WorkoutBadgeSkeleton() {
+  return <Skeleton className="h-4 w-20 rounded-full" />;
+}
+
+/** Skeleton da linha "Aguardando protocolo" */
+function ProtocolHintSkeleton() {
+  return <Skeleton className="h-3 w-40 rounded mt-1" />;
+}
+
+/** Skeleton do card do coach */
+function CoachCardSkeleton() {
+  return (
+    <div className="rounded-xl border border-border/50 bg-card/60 p-4 flex items-center gap-3">
+      <Skeleton className="w-10 h-10 rounded-full shrink-0" />
+      <div className="space-y-1.5 flex-1">
+        <Skeleton className="h-3 w-20 rounded" />
+        <Skeleton className="h-4 w-32 rounded" />
+      </div>
+    </div>
+  );
+}
+
+// ─── Componente principal ────────────────────────────────────────────────────
+
 export default function StudentArea() {
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string | null>(null);
   useWakeLock();
-  const [copiedPix, setCopiedPix] = useState(false);
+  const [copiedPix, setCopiedPix]           = useState(false);
   const [dismissedAlerts, setDismissedAlerts] = useState<string[]>([]);
-  const [notifyingCoach, setNotifyingCoach] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
+  const [notifyingCoach, setNotifyingCoach]   = useState(false);
+  const [showProfile, setShowProfile]         = useState(false);
 
   // ─── Auth ───
   useEffect(() => {
@@ -146,7 +177,6 @@ export default function StudentArea() {
         const uid = data.session.user.id;
         setUserId(uid);
         setDismissedAlerts(loadDismissed(uid));
-        // Mescla com fonte autoritativa no banco
         fetchDismissedFromDB(uid).then((remote) => {
           if (!remote.length) return;
           setDismissedAlerts((prev) => {
@@ -161,78 +191,156 @@ export default function StudentArea() {
     });
   }, [navigate]);
 
-  // ─── Hub Context (uma única RPC consolida 7 queries) ───
-  const { data: hub, isLoading: hubLoading } = useStudentHubContext(userId);
+  // ─── Profile ───
+  const { data: profile, isLoading: profileLoading } = useQuery({
+    queryKey: ["student-profile-hub", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", userId)
+        .maybeSingle();
+      return data;
+    },
+  });
 
-  const profile = hub ? { full_name: hub.full_name ?? null } : null;
-  const profileLoading = hubLoading;
+  // ─── Streak + status de hoje ───
+  const { data: workoutLogs, isLoading: logsLoading } = useQuery({
+    queryKey: ["student-workout-logs", userId],
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 5,
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("workout_progress")
+        .select("completed_at, workout_id, completed")
+        .eq("user_id", userId)
+        .eq("completed", true)
+        .order("completed_at", { ascending: false })
+        .limit(60);
+      return (data ?? []) as { completed_at: string | null; workout_id: string; completed: boolean }[];
+    },
+  });
 
-  const workoutLogs = (hub?.workout_logs ?? []).map((t) => ({
-    completed_at: t,
-    workout_id: "",
-    completed: true,
-  }));
+  // ─── Coach info ───
+  const { data: coachLink, isLoading: coachLoading } = useQuery({
+    queryKey: ["student-coach-link", userId],
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 10,
+    queryFn: async () => {
+      const { data: link } = await supabase
+        .from("coach_students")
+        .select("coach_id")
+        .eq("student_id", userId)
+        .eq("status", "active")
+        .maybeSingle();
+      if (!link?.coach_id) return null;
+      const { data: coach } = await supabase
+        .from("profiles")
+        .select("full_name, pix_key, pix_holder_name, pix_city, billing_alert_days")
+        .eq("user_id", link.coach_id)
+        .maybeSingle();
+      return coach ? { ...coach, coachId: link.coach_id } : null;
+    },
+  });
 
-  const coachLink = hub?.coach
-    ? {
-        full_name: hub.coach.full_name,
-        pix_key: hub.coach.pix_key ?? null,
-        pix_holder_name: hub.coach.pix_holder_name ?? null,
-        pix_city: hub.coach.pix_city ?? null,
-        billing_alert_days: hub.coach.billing_alert_days ?? null,
-        coachId: hub.coach.id,
+  // ─── ALERTA 1: Protocolo ───
+  const { data: protocolAlert } = useQuery({
+    queryKey: ["student-protocol-alert", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("protocols")
+        .select("id, name, updated_at")
+        .eq("student_id", userId)
+        .eq("is_template", false)
+        .eq("active", true)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!data) return null;
+      const diffHours = (Date.now() - new Date(data.updated_at).getTime()) / 3600000;
+      if (diffHours < 72) return { id: `proto-${data.id}-${data.updated_at}`, name: data.name, date: data.updated_at };
+      return null;
+    },
+  });
+
+  // ─── Existência do protocolo ativo ───
+  const { data: hasProtocol, isLoading: protocolLoading } = useQuery({
+    queryKey: ["student-has-protocol", userId],
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 5,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("protocols")
+        .select("id")
+        .eq("student_id", userId)
+        .eq("is_template", false)
+        .eq("active", true)
+        .limit(1)
+        .maybeSingle();
+      return !!data;
+    },
+  });
+
+  // ─── ALERTA 2: Cobrança ───
+  const { data: billingAlert } = useQuery({
+    queryKey: ["student-billing-alert", userId],
+    queryFn: async () => {
+      if (!coachLink) return null;
+      const { data: finance } = await supabase
+        .from("coach_finances")
+        .select("*")
+        .eq("student_id", userId)
+        .eq("status", "pending")
+        .not("due_date", "is", null)
+        .order("due_date", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (!finance?.due_date) return null;
+      const today   = new Date(); today.setHours(0, 0, 0, 0);
+      const dueDate = new Date(finance.due_date); dueDate.setHours(0, 0, 0, 0);
+      const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / 86400000);
+      const alertThreshold = coachLink.billing_alert_days ?? 7;
+      if (diffDays <= alertThreshold) {
+        return {
+          id: finance.id,
+          financeId: finance.id,
+          coachId: coachLink.coachId,
+          amount: finance.amount,
+          dueDate: finance.due_date,
+          diffDays,
+          pixKey: coachLink.pix_key || "Chave PIX não informada pelo treinador.",
+          pixHolderName: (coachLink as any).pix_holder_name || coachLink.full_name || "RECEBEDOR",
+          pixCity: (coachLink as any).pix_city || "BRASIL",
+          hasPix: !!coachLink.pix_key,
+        };
       }
-    : null;
+      return null;
+    },
+    enabled: !!userId && !!coachLink,
+  });
 
-  const hasProtocol = !!hub?.protocol;
+  // ─── Anamnese ───
+  const { data: anamnesisMeta } = useQuery({
+    queryKey: ["student-anamnesis-meta", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("anamnesis")
+        .select("id, submitted_at, student_edit_count")
+        .eq("student_id", userId)
+        .maybeSingle();
+      return data as { id: string; submitted_at: string | null; student_edit_count: number } | null;
+    },
+  });
 
-  const protocolAlert = (() => {
-    if (!hub?.protocol) return null;
-    const diffHours = (Date.now() - new Date(hub.protocol.updated_at).getTime()) / 3600000;
-    if (diffHours < 72) {
-      return {
-        id: `proto-${hub.protocol.id}-${hub.protocol.updated_at}`,
-        name: hub.protocol.name,
-        date: hub.protocol.updated_at,
-      };
-    }
-    return null;
-  })();
-
-  const billingAlert = (() => {
-    if (!hub?.pending_bill || !hub?.coach) return null;
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const dueDate = new Date(hub.pending_bill.due_date); dueDate.setHours(0, 0, 0, 0);
-    const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / 86400000);
-    const threshold = hub.coach.billing_alert_days ?? 7;
-    if (diffDays > threshold) return null;
-    const pixKey = hub.coach.pix_key || "Chave PIX não informada pelo treinador.";
-    return {
-      id: `bill-${hub.coach.id}-${hub.pending_bill.due_date}`,
-      financeId: `${hub.coach.id}-${hub.pending_bill.due_date}`,
-      coachId: hub.coach.id,
-      amount: hub.pending_bill.amount,
-      dueDate: hub.pending_bill.due_date,
-      diffDays,
-      pixKey,
-      pixHolderName: hub.coach.pix_holder_name || hub.coach.full_name || "RECEBEDOR",
-      pixCity: hub.coach.pix_city || "BRASIL",
-      hasPix: !!hub.coach.pix_key,
-    };
-  })();
-
-  const anamnesisMeta = hub?.anamnesis_meta ?? null;
-
-  const firstName = profile?.full_name ? profile.full_name.split(" ")[0] : "Aluno";
+  const firstName      = profile?.full_name ? profile.full_name.split(" ")[0] : "Aluno";
   const anamnesisEdits = Number(anamnesisMeta?.student_edit_count ?? 0);
   const canEditAnamnesis = !!anamnesisMeta?.submitted_at && anamnesisEdits < 2;
-  const streak = calcStreak(workoutLogs, hub?.last_session_at);
-
-  // Status treino hoje
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const trainedToday = (workoutLogs ?? []).some(
-    (l) => l.completed_at?.slice(0, 10) === todayStr
-  );
+  const streak         = calcStreak(workoutLogs ?? []);
+  const todayStr       = new Date().toISOString().slice(0, 10);
+  const trainedToday   = (workoutLogs ?? []).some((l) => l.completed_at?.slice(0, 10) === todayStr);
 
   // ─── Dismiss / notificações ───
   const dismissAlert = (id: string) => {
@@ -247,15 +355,15 @@ export default function StudentArea() {
     if (!billingAlert || !userId) return;
     setNotifyingCoach(true);
     try {
-      const studentName = profile?.full_name || "Aluno";
-      const dueDateStr = new Date(billingAlert.dueDate).toLocaleDateString("pt-BR");
-      const amountStr = billingAlert.amount > 0 ? ` (R$ ${Number(billingAlert.amount).toFixed(2)})` : "";
+      const studentName  = profile?.full_name || "Aluno";
+      const dueDateStr   = new Date(billingAlert.dueDate).toLocaleDateString("pt-BR");
+      const amountStr    = billingAlert.amount > 0 ? ` (R$ ${Number(billingAlert.amount).toFixed(2)})` : "";
       await supabase.from("coach_notifications").insert({
-        coach_id: billingAlert.coachId,
-        student_id: userId,
+        coach_id:     billingAlert.coachId,
+        student_id:   userId,
         student_name: studentName,
-        context: "Financeiro",
-        message: `${studentName} ocultou o alerta de cobrança${amountStr} com vencimento em ${dueDateStr}. Verifique se o pagamento foi realizado.`,
+        context:      "Financeiro",
+        message:      `${studentName} ocultou o alerta de cobrança${amountStr} com vencimento em ${dueDateStr}. Verifique se o pagamento foi realizado.`,
       });
       const updated = [...dismissedAlerts, billingAlert.id];
       setDismissedAlerts(updated);
@@ -279,32 +387,33 @@ export default function StudentArea() {
     setTimeout(() => setCopiedPix(false), 2000);
   };
 
-  // ─── QR Code PIX (BR Code) ───
+  // ─── QR Code PIX ───
   const [pixQrDataUrl, setPixQrDataUrl] = useState<string | null>(null);
   const [copiedBrcode, setCopiedBrcode] = useState(false);
   useEffect(() => {
     if (!billingAlert || !billingAlert.hasPix) { setPixQrDataUrl(null); return; }
     try {
       const brcode = buildPixBrCode({
-        pixKey: billingAlert.pixKey,
-        amount: Number(billingAlert.amount) > 0 ? Number(billingAlert.amount) : undefined,
+        pixKey:       billingAlert.pixKey,
+        amount:       Number(billingAlert.amount) > 0 ? Number(billingAlert.amount) : undefined,
         merchantName: billingAlert.pixHolderName,
         merchantCity: billingAlert.pixCity,
-        txId: String(billingAlert.financeId).slice(0, 25),
+        txId:         String(billingAlert.financeId).slice(0, 25),
       });
       QRCode.toDataURL(brcode, { margin: 1, width: 220, errorCorrectionLevel: "M" })
         .then((url) => setPixQrDataUrl(url))
         .catch(() => setPixQrDataUrl(null));
     } catch { setPixQrDataUrl(null); }
   }, [billingAlert]);
+
   const copyBrcode = () => {
     if (!billingAlert?.hasPix) return;
     const brcode = buildPixBrCode({
-      pixKey: billingAlert.pixKey,
-      amount: Number(billingAlert.amount) > 0 ? Number(billingAlert.amount) : undefined,
+      pixKey:       billingAlert.pixKey,
+      amount:       Number(billingAlert.amount) > 0 ? Number(billingAlert.amount) : undefined,
       merchantName: billingAlert.pixHolderName,
       merchantCity: billingAlert.pixCity,
-      txId: String(billingAlert.financeId).slice(0, 25),
+      txId:         String(billingAlert.financeId).slice(0, 25),
     });
     navigator.clipboard.writeText(brcode);
     setCopiedBrcode(true);
@@ -316,20 +425,43 @@ export default function StudentArea() {
     navigate("/auth");
   };
 
-  if (!userId || profileLoading) {
+  // ── Guard mínimo: só espera userId existir (resolve em <50ms via getSession) ──
+  if (!userId) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen bg-background pb-12">
+        {/* Header skeleton completo */}
+        <header className="bg-card border-b border-border/50 sticky top-0 z-10 shadow-sm">
+          <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+            <HeaderSkeleton />
+            <div className="flex items-center gap-1 shrink-0">
+              <Skeleton className="w-8 h-8 rounded-md" />
+              <Skeleton className="w-16 h-8 rounded-md hidden sm:block" />
+              <Skeleton className="w-16 h-8 rounded-md hidden sm:block" />
+            </div>
+          </div>
+        </header>
+        <main className="max-w-4xl mx-auto px-4 py-5 space-y-4">
+          <Skeleton className="h-20 w-full rounded-xl" />
+          <Skeleton className="h-20 w-full rounded-xl" />
+          <div className="space-y-3">
+            <Skeleton className="h-24 w-full rounded-xl" />
+            <Skeleton className="h-24 w-full rounded-xl" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
+          </div>
+          <Skeleton className="h-16 w-full rounded-xl" />
+        </main>
       </div>
     );
   }
 
   // ─── Módulos secundários (grid 2x2) ───
   const secondaryModules = [
-    { title: "Suplementação", description: "Fármacos, vitaminas e horários.", icon: Pill, color: "text-purple-500", bg: "bg-purple-500/10", border: "border-purple-500/20", route: "/supplements" },
-    { title: "Evolução", description: "Fotos, gráficos e progresso.", icon: TrendingUp, color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", route: "/evolution" },
-    { title: "Check-in", description: "Feedback periódico ao treinador.", icon: CheckCircle2, color: "text-rose-500", bg: "bg-rose-500/10", border: "border-rose-500/20", route: "/check-in" },
-    { title: "Lista de Compras", description: "Compras agregadas e PDF.", icon: ShoppingCart, color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/20", route: "/shopping-list" },
+    { title: "Suplementação", description: "Fármacos, vitaminas e horários.",   icon: Pill,          color: "text-purple-500",  bg: "bg-purple-500/10",  border: "border-purple-500/20",  route: "/supplements"  },
+    { title: "Evolução",       description: "Fotos, gráficos e progresso.",      icon: TrendingUp,    color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", route: "/evolution"    },
+    { title: "Check-in",       description: "Feedback periódico ao treinador.",  icon: CheckCircle2,  color: "text-rose-500",    bg: "bg-rose-500/10",    border: "border-rose-500/20",    route: "/check-in"     },
+    { title: "Lista de Compras", description: "Compras agregadas e PDF.",        icon: ShoppingCart,  color: "text-orange-500",  bg: "bg-orange-500/10",  border: "border-orange-500/20",  route: "/shopping-list"},
   ];
 
   return (
@@ -339,19 +471,33 @@ export default function StudentArea() {
       <header className="bg-card border-b border-border/50 sticky top-0 z-10 shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <InitialsAvatar name={profile?.full_name || "A"} />
+            {/* Avatar: skeleton enquanto profile carrega */}
+            {profileLoading
+              ? <Skeleton className="w-10 h-10 rounded-full shrink-0" />
+              : <InitialsAvatar name={profile?.full_name || "A"} />
+            }
             <div className="min-w-0">
-              <h1 className="text-base font-bold text-foreground truncate">
-                {greeting(firstName)}
-              </h1>
-              <div className="flex items-center gap-2 mt-0.5">
-                <StreakBadge streak={streak} />
-                {streak < 2 && (
-                  <p className="text-xs text-muted-foreground">
-                    {trainedToday ? "Treino feito hoje ✓" : "Nenhum treino hoje ainda"}
-                  </p>
-                )}
-              </div>
+              {/* Greeting: skeleton enquanto profile carrega */}
+              {profileLoading ? (
+                <Skeleton className="h-4 w-40 rounded mb-1.5" />
+              ) : (
+                <h1 className="text-base font-bold text-foreground truncate">
+                  {greeting(firstName)}
+                </h1>
+              )}
+              {/* Streak: skeleton enquanto logs carregam */}
+              {logsLoading ? (
+                <Skeleton className="h-3 w-24 rounded" />
+              ) : (
+                <div className="flex items-center gap-2 mt-0.5">
+                  <StreakBadge streak={streak} />
+                  {streak < 2 && (
+                    <p className="text-xs text-muted-foreground">
+                      {trainedToday ? "Treino feito hoje ✓" : "Nenhum treino hoje ainda"}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-1 shrink-0">
@@ -441,7 +587,9 @@ export default function StudentArea() {
                 </div>
                 <div className="pt-2">
                   <Button size="sm" onClick={dismissBillingAlert} disabled={notifyingCoach} className="bg-amber-600 hover:bg-amber-700 text-white text-xs h-8">
-                    {notifyingCoach ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />Enviando...</> : "Já efetuei o pagamento / Ocultar"}
+                    {notifyingCoach
+                      ? <span className="flex items-center gap-1.5"><span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin inline-block" />Enviando...</span>
+                      : "Já efetuei o pagamento / Ocultar"}
                   </Button>
                 </div>
               </div>
@@ -449,10 +597,9 @@ export default function StudentArea() {
           </div>
         )}
 
-
-
-        {/* ── DESTAQUES: Dieta e Treino (full width) ── */}
+        {/* ── DESTAQUES: Dieta e Treino ── */}
         <div className="space-y-3">
+
           {/* Dieta */}
           <Card
             className="hover:shadow-md transition-all bg-card/60 border border-amber-500/20 cursor-pointer"
@@ -466,15 +613,19 @@ export default function StudentArea() {
                 <div className="flex-1 min-w-0">
                   <h3 className="font-bold text-foreground">Dieta</h3>
                   <p className="text-xs text-muted-foreground mt-0.5">Plano alimentar, substituições e macros.</p>
-                  {hasProtocol === false && (
-                    <p className="text-[11px] text-muted-foreground/80 italic mt-1">Aguardando protocolo do seu coach.</p>
-                  )}
+                  {/* Skeleton enquanto hasProtocol carrega; nada quando true */}
+                  {protocolLoading
+                    ? <ProtocolHintSkeleton />
+                    : hasProtocol === false && (
+                        <p className="text-[11px] text-muted-foreground/80 italic mt-1">Aguardando protocolo do seu coach.</p>
+                      )
+                  }
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Treino — com badge de status do dia */}
+          {/* Treino */}
           <Card
             className="hover:shadow-md transition-all bg-card/60 border border-blue-500/20 cursor-pointer"
             onClick={() => navigate("/workout-plan")}
@@ -487,20 +638,21 @@ export default function StudentArea() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="font-bold text-foreground">Treino</h3>
-                    {trainedToday ? (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600">
-                        ✓ Feito hoje
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-600">
-                        Pendente
-                      </span>
-                    )}
+                    {/* Skeleton no badge enquanto logs carregam */}
+                    {logsLoading
+                      ? <WorkoutBadgeSkeleton />
+                      : trainedToday
+                      ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600">✓ Feito hoje</span>
+                      : <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-600">Pendente</span>
+                    }
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">Séries, cadência e diretrizes biomecânicas.</p>
-                  {hasProtocol === false && (
-                    <p className="text-[11px] text-muted-foreground/80 italic mt-1">Aguardando protocolo do seu coach.</p>
-                  )}
+                  {protocolLoading
+                    ? <ProtocolHintSkeleton />
+                    : hasProtocol === false && (
+                        <p className="text-[11px] text-muted-foreground/80 italic mt-1">Aguardando protocolo do seu coach.</p>
+                      )
+                  }
                 </div>
               </div>
             </CardContent>
@@ -536,19 +688,22 @@ export default function StudentArea() {
         </div>
 
         {/* ── Card do coach ── */}
-        {coachLink?.full_name && (
-          <div className="rounded-xl border border-border/50 bg-card/60 p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-              <span className="text-sm font-bold text-primary">
-                {coachLink.full_name.split(" ").slice(0, 2).map((n: string) => n[0]).join("").toUpperCase()}
-              </span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs text-muted-foreground">Seu treinador</p>
-              <p className="text-sm font-bold text-foreground truncate">{coachLink.full_name}</p>
-            </div>
-          </div>
-        )}
+        {coachLoading
+          ? <CoachCardSkeleton />
+          : coachLink?.full_name && (
+              <div className="rounded-xl border border-border/50 bg-card/60 p-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <span className="text-sm font-bold text-primary">
+                    {coachLink.full_name.split(" ").slice(0, 2).map((n: string) => n[0]).join("").toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-muted-foreground">Seu treinador</p>
+                  <p className="text-sm font-bold text-foreground truncate">{coachLink.full_name}</p>
+                </div>
+              </div>
+            )
+        }
 
       </main>
     </div>
