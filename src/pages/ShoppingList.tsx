@@ -15,7 +15,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft,
@@ -730,24 +729,6 @@ export default function ShoppingList() {
 
   const stateRef = useRef<ShoppingState | null>(null);
 
-  // ── Streak persistido no banco (semanas consecutivas) ─────────────────────
-  const { data: shoppingStreak } = useQuery({
-    queryKey: ["shopping-streak", userId],
-    enabled: !!userId,
-    staleTime: 5 * 60_000,
-    queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase as any)
-        .from("shopping_sessions")
-        .select("streak, created_at")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      return (data?.streak ?? 0) as number;
-    },
-  });
-
   // ── Carrega protocolo e estado salvo ────────────────────────────────────────
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
@@ -1078,8 +1059,68 @@ export default function ShoppingList() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-background-tertiary)" }}>
-        <Loader2 style={{ width: 28, height: 28, color: "#CC0000" }} className="animate-spin" />
+      <div style={{ minHeight: "100vh", background: "var(--color-background-tertiary)", paddingBottom: "2rem" }}>
+        {/* ── Header skeleton ── */}
+        <header style={headerStyle}>
+          <div style={{ ...backBtnStyle, opacity: 0.3 }}>
+            <ArrowLeft size={18} />
+          </div>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ height: 14, width: 140, borderRadius: 6, background: "var(--color-background-secondary)", animation: "pulse 1.5s ease-in-out infinite" }} />
+            <div style={{ height: 11, width: 100, borderRadius: 6, background: "var(--color-background-secondary)", animation: "pulse 1.5s ease-in-out infinite" }} />
+          </div>
+        </header>
+
+        <div style={{ maxWidth: 480, margin: "0 auto", padding: "1rem", display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* Seletor de período */}
+          <div style={{ display: "flex", gap: 6 }}>
+            {[1,2,3,4,5].map((i) => (
+              <div key={i} style={{ flex: 1, height: 32, borderRadius: 20, background: "var(--color-background-secondary)", animation: "pulse 1.5s ease-in-out infinite" }} />
+            ))}
+          </div>
+
+          {/* Barra de progresso */}
+          <div style={{ background: "var(--color-background-primary)", border: "0.5px solid var(--color-border-tertiary)", borderRadius: 10, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ height: 12, width: "60%", borderRadius: 6, background: "var(--color-background-secondary)", animation: "pulse 1.5s ease-in-out infinite" }} />
+            <div style={{ height: 6, borderRadius: 3, background: "var(--color-background-secondary)", animation: "pulse 1.5s ease-in-out infinite" }} />
+          </div>
+
+          {/* Grupos de itens skeleton */}
+          {[
+            { w: "55%", items: 4 },
+            { w: "45%", items: 3 },
+            { w: "50%", items: 2 },
+          ].map((group, gi) => (
+            <div key={gi} style={{ borderRadius: 12, border: "0.5px solid var(--color-border-secondary)", background: "var(--color-background-primary)", overflow: "hidden" }}>
+              {/* Cabeçalho do grupo */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px" }}>
+                <div style={{ width: 20, height: 20, borderRadius: 4, background: "var(--color-background-secondary)", animation: "pulse 1.5s ease-in-out infinite" }} />
+                <div style={{ height: 11, width: group.w, borderRadius: 6, background: "var(--color-background-secondary)", animation: "pulse 1.5s ease-in-out infinite" }} />
+              </div>
+              {/* Linhas de item */}
+              <div style={{ borderTop: "0.5px solid var(--color-border-tertiary)" }}>
+                {Array.from({ length: group.items }).map((_, ii) => (
+                  <div key={ii} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderBottom: "0.5px solid var(--color-border-tertiary)" }}>
+                    <div style={{ width: 22, height: 22, borderRadius: "50%", background: "var(--color-background-secondary)", flexShrink: 0, animation: "pulse 1.5s ease-in-out infinite" }} />
+                    <div style={{ flex: 1, height: 13, borderRadius: 6, background: "var(--color-background-secondary)", animation: "pulse 1.5s ease-in-out infinite" }} />
+                    <div style={{ width: 48, height: 13, borderRadius: 6, background: "var(--color-background-secondary)", animation: "pulse 1.5s ease-in-out infinite" }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {/* Botão CTA skeleton */}
+          <div style={{ height: 52, borderRadius: 12, background: "var(--color-background-secondary)", animation: "pulse 1.5s ease-in-out infinite" }} />
+
+          {/* Ações secundárias skeleton */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <div style={{ height: 38, borderRadius: 10, background: "var(--color-background-secondary)", animation: "pulse 1.5s ease-in-out infinite" }} />
+            <div style={{ height: 38, borderRadius: 10, background: "var(--color-background-secondary)", animation: "pulse 1.5s ease-in-out infinite" }} />
+          </div>
+        </div>
+
+        <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.45} }`}</style>
       </div>
     );
   }
@@ -1436,27 +1477,6 @@ export default function ShoppingList() {
           <p style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>
             {protocol?.name || "Protocolo ativo"} · {days === 1 ? "1 dia" : `${days} dias`}{persons > 1 ? ` · ${persons} pessoas` : ""}
           </p>
-          {typeof shoppingStreak === "number" && shoppingStreak >= 2 && (
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-                marginTop: 4,
-                padding: "2px 8px",
-                borderRadius: 999,
-                background: "rgba(204,0,0,0.10)",
-                border: "0.5px solid rgba(204,0,0,0.30)",
-                fontSize: 10,
-                fontWeight: 600,
-                color: "#CC0000",
-              }}
-              aria-label={`Streak de ${shoppingStreak} semanas consecutivas`}
-            >
-              <ShoppingCart size={10} />
-              {shoppingStreak} semanas seguidas 🛒
-            </div>
-          )}
         </div>
       </header>
 
