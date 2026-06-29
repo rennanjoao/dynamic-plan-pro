@@ -1231,7 +1231,7 @@ export default function ShoppingList() {
                           {packageHint && <span style={{ fontSize: 11, color: "#fbbf24", display: "block", marginTop: 2 }}>📦 {packageHint}</span>}
                         </div>
                         <span style={{ fontSize: 15, fontWeight: 600, color: cfg2.color, flexShrink: 0 }}>
-                          {formatQty(it.total, it.unit)}
+                          {formatQty(it.total, it.unit, it.isUnit, it.unitValue, it.name)}
                         </span>
                       </button>
                     );
@@ -1251,7 +1251,7 @@ export default function ShoppingList() {
                 return (
                   <button key={key} onClick={() => toggleStruck(key)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", background: "transparent", border: "none", padding: "6px 0", cursor: "pointer", opacity: 0.5 }}>
                     <span style={{ fontSize: 13, color: "var(--color-text-tertiary)", textDecoration: "line-through" }}>{it.name}</span>
-                    <span style={{ fontSize: 12, color: "var(--color-text-tertiary)", textDecoration: "line-through" }}>{formatQty(it.total, it.unit)}</span>
+                    <span style={{ fontSize: 12, color: "var(--color-text-tertiary)", textDecoration: "line-through" }}>{formatQty(it.total, it.unit, it.isUnit, it.unitValue, it.name)}</span>
                   </button>
                 );
               })}
@@ -1419,7 +1419,7 @@ export default function ShoppingList() {
             </span>
             {have > 0 && !isStruck && (
               <span style={{ fontSize: 10, color: "#34d399", display: "block", marginTop: 1 }}>
-                🏠 Desconto: {formatQty(have, it.unit)} já em casa
+                🏠 Desconto: {formatQty(have, it.unit, false, 0, it.name)} já em casa
               </span>
             )}
             {packageHint && !isStruck && (
@@ -1429,7 +1429,7 @@ export default function ShoppingList() {
 
           {/* Quantidade */}
           <span style={{ fontSize: 13, fontWeight: 500, color: isStruck ? "var(--color-text-tertiary)" : containerColor, flexShrink: 0 }}>
-            {formatQty(it.total, it.unit)}
+            {formatQty(it.total, it.unit, it.isUnit, it.unitValue, it.name)}
           </span>
 
           {/* Botão "já tenho em casa" */}
@@ -1626,7 +1626,7 @@ export default function ShoppingList() {
                   return (
                     <button key={key} onClick={() => toggleStruck(key)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 14px", background: "transparent", border: "none", borderBottom: "0.5px solid var(--color-border-tertiary)", cursor: "pointer", opacity: 0.5 }}>
                       <span style={{ fontSize: 13, color: "var(--color-text-tertiary)", textDecoration: "line-through", flex: 1, textAlign: "left" }}>{it.name}</span>
-                      <span style={{ fontSize: 12, color: "var(--color-text-tertiary)", textDecoration: "line-through" }}>{formatQty(it.total, it.unit)}</span>
+                      <span style={{ fontSize: 12, color: "var(--color-text-tertiary)", textDecoration: "line-through" }}>{formatQty(it.total, it.unit, it.isUnit, it.unitValue, it.name)}</span>
                     </button>
                   );
                 })}
