@@ -623,7 +623,7 @@ function HaveAtHomeSlider({ item, value, onChange, onClose }: HaveAtHomeSliderPr
           {item.name}
         </p>
         <p style={{ fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 20 }}>
-          Protocolo pede: <strong>{formatQty(item.total, item.unit)}</strong>
+          Protocolo pede: <strong>{formatQty(item.total, item.unit, item.isUnit, item.unitValue, item.name)}</strong>
         </p>
 
         <p style={{ fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 10 }}>
@@ -667,7 +667,7 @@ function HaveAtHomeSlider({ item, value, onChange, onClose }: HaveAtHomeSliderPr
             borderRadius: 8, padding: "10px 14px", marginBottom: 16,
           }}>
             <p style={{ fontSize: 13, color: "#34d399" }}>
-              Selecionado: <strong>{formatQty(value, item.unit)} ({pct}%)</strong> · Comprar: <strong>{formatQty(Math.max(0, item.total - value), item.unit)}</strong>
+              Selecionado: <strong>{formatQty(value, item.unit, false, 0, item.name)} ({pct}%)</strong> · Comprar: <strong>{formatQty(Math.max(0, item.total - value), item.unit, false, 0, item.name)}</strong>
             </p>
           </div>
         )}
@@ -927,7 +927,7 @@ export default function ShoppingList() {
       const visibleItems = grouped[kind].filter((it) => !struck[`${it.kind}:${it.name}`]);
       if (!visibleItems.length) return;
       lines.push(`*${KIND_CFG[kind].label}*`);
-      visibleItems.forEach((it) => lines.push(`• ${it.name} — ${formatQty(it.total, it.unit)}`));
+      visibleItems.forEach((it) => lines.push(`• ${it.name} — ${formatQty(it.total, it.unit, it.isUnit, it.unitValue, it.name)}`));
       lines.push("");
     });
     lines.push("_Quantidades em peso cru · Elite Prime Hub_");
@@ -982,7 +982,7 @@ export default function ShoppingList() {
         doc.rect(14, y - 3.5, 4.5, 4.5);
         doc.text(it.name, 22, y);
         doc.setFont("helvetica", "bold");
-        doc.text(formatQty(it.total, it.unit), pageW - 14, y, { align: "right" });
+        doc.text(formatQty(it.total, it.unit, it.isUnit, it.unitValue, it.name), pageW - 14, y, { align: "right" });
         doc.setFont("helvetica", "normal");
         y += 7;
       });
