@@ -20,7 +20,7 @@ import {
   AlertTriangle, CheckCircle2, Search, Filter, Users,
   Dumbbell, ClipboardList, ArrowLeft,
   Loader2, Plus, Trash2, DollarSign, Calendar, X, User, LogOut,
-  MessageSquare, History, FileDown, Settings2
+  MessageSquare, History, FileDown, Settings2, Activity
 } from "lucide-react";
 import CoachNotificationBell from "@/components/coach/CoachNotificationBell";
 import { Input } from "@/components/ui/input";
@@ -52,6 +52,7 @@ const ProtocolBuilder = lazy(() => import("@/components/coach/ProtocolBuilder"))
 const EvolutionComparisonLazy = lazy(() => import("@/components/coach/EvolutionComparison"));
 const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
 const CheckinFeedbackPanel = lazy(() => import("@/components/coach/CheckinFeedbackPanel"));
+const StudentWorkoutAnalytics = lazy(() => import("@/components/coach/StudentWorkoutAnalytics"));
 
 // ─── Renderiza respostas do payload do check-in (humor, dieta, treino, sono, etc) ──
 // [FIX 0.1] Sem isto, "Ver feedback completo" só mostrava fotos e medidas.
@@ -976,7 +977,7 @@ export default function CoachDashboard() {
   const [settingsStudent, setSettingsStudent] = useState<StudentStatus | null>(null);
   const [studentPage, setStudentPage] = useState(0);
   const STUDENTS_PER_PAGE = 20;
-  const [activeTab, setActiveTab] = useState<"students" | "finances">("students");
+  const [activeTab, setActiveTab] = useState<"students" | "finances" | "treinos">("students");
   const qc = useQueryClient();
 
   const { data: coachProfile } = useQuery({
@@ -1076,10 +1077,11 @@ export default function CoachDashboard() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "students" | "finances")} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "students" | "finances" | "treinos")} className="space-y-4">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="students" className="gap-1.5 text-xs sm:text-sm"><Users className="w-3.5 h-3.5" /> Alunos</TabsTrigger>
             <TabsTrigger value="finances" className="gap-1.5 text-xs sm:text-sm"><DollarSign className="w-3.5 h-3.5" /> Financeiro</TabsTrigger>
+            <TabsTrigger value="treinos" className="gap-1.5 text-xs sm:text-sm"><Activity className="w-3.5 h-3.5" /> Treinos</TabsTrigger>
           </TabsList>
 
           <TabsContent value="students" className="space-y-4">
@@ -1168,6 +1170,43 @@ export default function CoachDashboard() {
 
           <TabsContent value="finances">
             {coachId && <FinancesTab coachId={coachId} students={allStudents} />}
+          </TabsContent>
+
+          <TabsContent value="treinos" className="space-y-4">
+            {/* Seletor de aluno */}
+            <div className="flex gap-2 flex-wrap">
+              {allStudents.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setSelectedStudent(allStudents.find((st) => st.id === s.id) ? { id: s.id, name: s.name, alertLevel: "ok", daysInactive: 0, daysSinceLastFeedback: 999, currentWeight: undefined, lastWeightDate: undefined } as any : null)}
+                  className="px-3 py-1.5 rounded-full text-xs font-semibold border transition"
+                  style={
+                    selectedStudent?.id === s.id
+                      ? { background: "hsl(var(--primary) / 0.15)", borderColor: "hsl(var(--primary) / 0.5)", color: "hsl(var(--primary))" }
+                      : { background: "transparent", borderColor: "hsl(var(--border))", color: "hsl(var(--muted-foreground))" }
+                  }
+                >
+                  {s.name}
+                </button>
+              ))}
+            </div>
+            {selectedStudent && coachId ? (
+              <Suspense fallback={<div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>}>
+                <StudentWorkoutAnalytics
+                  studentId={selectedStudent.id}
+                  studentName={selectedStudent.name}
+                  coachId={coachId}
+                />
+              </Suspense>
+            ) : (
+              <div className="text-center py-12 text-sm text-muted-foreground">
+                <Activity className="w-8 h-8 mx-auto mb-3 opacity-30" />
+                {allStudents.length === 0
+                  ? "Nenhum aluno vinculado ainda."
+                  : "Selecione um aluno acima para ver os dados de treino."}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
 
