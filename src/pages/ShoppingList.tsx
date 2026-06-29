@@ -1340,25 +1340,40 @@ export default function ShoppingList() {
                 {currentChoice.sublabel && <p style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>🕐 {currentChoice.sublabel}</p>}
               </div>
 
-              {/* Lista de opções (modo simples — split removido da UI) */}
+              {/* Lista de opções — multi-select (1 a N opções) */}
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <p style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginBottom: -2 }}>
+                    Toque para incluir/remover. Você pode selecionar quantas quiser.
+                  </p>
                   {currentChoice.options.map((opt) => {
-                    const chosen =
-                      !buyBothSelected &&
-                      selectedOptions[currentChoice.key] === opt.idx;
+                    const chosen = currentSelectionSet.includes(opt.idx);
                     return (
                       <button
                         key={opt.idx}
-                        onClick={() => setSelectedOptions((s) => ({ ...s, [currentChoice.key]: opt.idx }))}
+                        onClick={() => toggleChoiceOption(opt.idx)}
+                        aria-pressed={chosen}
+                        aria-label={`${chosen ? "Remover" : "Incluir"} ${opt.name}`}
                         style={{ width: "100%", padding: "14px 16px", borderRadius: 12, border: chosen ? "2px solid #CC0000" : "0.5px solid var(--color-border-secondary)", background: chosen ? "rgba(204,0,0,0.07)" : "var(--color-background-primary)", cursor: "pointer", textAlign: "left", transition: "all 0.15s" }}
                       >
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: opt.items.length > 0 ? 8 : 0 }}>
                           <span style={{ fontSize: 14, fontWeight: 500, color: chosen ? "#CC0000" : "var(--color-text-primary)" }}>{opt.name}</span>
-                          {chosen && (
-                            <span style={{ width: 20, height: 20, borderRadius: "50%", background: "#CC0000", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                              <i className="ti ti-check" style={{ fontSize: 11, color: "#fff" }} aria-hidden="true" />
-                            </span>
-                          )}
+                          <span
+                            style={{
+                              width: 20,
+                              height: 20,
+                              borderRadius: 6,
+                              background: chosen ? "#CC0000" : "transparent",
+                              border: chosen ? "none" : "1.5px solid var(--color-border-secondary)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {chosen && (
+                              <i className="ti ti-check" style={{ fontSize: 12, color: "#fff" }} aria-hidden="true" />
+                            )}
+                          </span>
                         </div>
                         {opt.items.length > 0 && (
                           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -1374,28 +1389,19 @@ export default function ShoppingList() {
                     );
                   })}
 
-                  {/* Comprar as duas opções (outline) */}
+                  {/* Atalho: selecionar / limpar todas */}
                   {currentChoice.options.length >= 2 && (
                     <button
-                      onClick={() =>
-                        setSelectedOptions((s) => ({
-                          ...s,
-                          [currentChoice.key]: BUY_BOTH,
-                        }))
-                      }
-                      aria-pressed={buyBothSelected}
-                      aria-label="Comprar as duas opções"
+                      onClick={toggleSelectAll}
+                      aria-pressed={allSelected}
+                      aria-label={allSelected ? "Limpar seleção" : "Selecionar todas as opções"}
                       style={{
                         width: "100%",
                         padding: "12px 16px",
                         borderRadius: 12,
-                        border: buyBothSelected
-                          ? "2px solid #CC0000"
-                          : "1px dashed var(--color-border-secondary)",
-                        background: buyBothSelected
-                          ? "rgba(204,0,0,0.07)"
-                          : "transparent",
-                        color: buyBothSelected ? "#CC0000" : "var(--color-text-secondary)",
+                        border: "1px dashed var(--color-border-secondary)",
+                        background: "transparent",
+                        color: "var(--color-text-secondary)",
                         fontSize: 13,
                         fontWeight: 500,
                         cursor: "pointer",
@@ -1406,8 +1412,10 @@ export default function ShoppingList() {
                         transition: "all 0.15s",
                       }}
                     >
-                      <i className="ti ti-plus" style={{ fontSize: 13 }} aria-hidden="true" />
-                      Comprar as {currentChoice.options.length === 2 ? "duas" : `${currentChoice.options.length}`} opções
+                      <i className={`ti ${allSelected ? "ti-x" : "ti-check"}`} style={{ fontSize: 13 }} aria-hidden="true" />
+                      {allSelected
+                        ? "Limpar seleção"
+                        : `Comprar todas (${currentChoice.options.length})`}
                     </button>
                   )}
                 </div>
@@ -1417,12 +1425,18 @@ export default function ShoppingList() {
                 disabled={!choiceIsResolved}
                 style={{ width: "100%", marginTop: 20, padding: "14px", borderRadius: 10, border: "none", background: choiceIsResolved ? "#CC0000" : "var(--color-background-secondary)", color: choiceIsResolved ? "#fff" : "var(--color-text-tertiary)", fontSize: 14, fontWeight: 500, cursor: choiceIsResolved ? "pointer" : "not-allowed", transition: "all 0.2s" }}
               >
-                {choiceStep < choices.length - 1 ? "Próxima →" : "Ver minha lista de compras"}
+                {choiceIsResolved && currentSelectionSet.length > 1
+                  ? choiceStep < choices.length - 1
+                    ? `Próxima (${currentSelectionSet.length} selecionadas) →`
+                    : `Ver lista (${currentSelectionSet.length} opções)`
+                  : choiceStep < choices.length - 1
+                    ? "Próxima →"
+                    : "Ver minha lista de compras"}
               </button>
 
               {!choiceIsResolved && (
                 <p style={{ fontSize: 12, color: "var(--color-text-tertiary)", textAlign: "center", marginTop: 10 }}>
-                  {splitMode ? `Distribua os ${days} dias entre as opções` : "Selecione uma opção para continuar"}
+                  {splitMode ? `Distribua os ${days} dias entre as opções` : "Selecione pelo menos uma opção para continuar"}
                 </p>
               )}
             </>
