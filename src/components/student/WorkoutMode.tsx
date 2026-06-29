@@ -219,14 +219,30 @@ function parseRepsDefault(s?: string): number {
   const mx = Math.max(...nums.map(Number));
   return Math.round((mn + mx) / 2);
 }
+function parseRestRange(rest?: string): { min: number; max: number } {
+  if (!rest) return { min: 60, max: 90 };
+  const str  = rest.toLowerCase();
+  const nums = str.match(/\d+/g);
+  if (!nums) return { min: 60, max: 90 };
+  const toSec = (s: string, raw: string): number => {
+    const n = parseInt(s, 10);
+    // Se string tem "min" ou "m" (e não "ms"), converte
+    if (/min|\bm\b/.test(raw) && n < 60) return n * 60;
+    // Número sozinho: heurística — se ≤10 assume minutos
+    if (nums.length === 1 && n <= 10 && !/seg|s\b/.test(raw)) return n * 60;
+    return n;
+  };
+  if (nums.length >= 2) {
+    const a = toSec(nums[0], str);
+    const b = toSec(nums[1], str);
+    return { min: Math.min(a, b), max: Math.max(a, b) };
+  }
+  const v = toSec(nums[0], str);
+  return { min: v, max: v };
+}
+// Compat: retorna o MÁXIMO para iniciar o timer
 function parseRestSec(rest?: string): number {
-  if (!rest) return 60;
-  const str = rest.toLowerCase();
-  const m   = str.match(/(\d+)\s*(min|m|s|seg)?/);
-  if (!m) return 60;
-  const n = parseInt(m[1], 10);
-  if (m[2] && m[2].startsWith("m")) return n * 60;
-  return n;
+  return parseRestRange(rest).max;
 }
 function fmtMMSS(s: number) {
   const m = Math.floor(s / 60), sec = s % 60;
@@ -519,6 +535,8 @@ export default function WorkoutMode({
     return () => window.clearInterval(id);
   }, []);
   const elapsedSec = startedAt ? Math.floor((now - startedAt) / 1000) : 0;
+  // Zona de alerta: descanso entrou abaixo do mínimo recomendado
+  const isAlertZone = restRunning && alertRestSec > 0 && restRemaining <= alertRestSec;
 
   const day       = workouts.find((d) => d.key === selectedDay) ?? workouts[0];
   const exercises: Exercise[] = (day?.exercises ?? []).map((ex, idx) => {
@@ -541,7 +559,9 @@ export default function WorkoutMode({
   const currentExKey   = day ? `${day.key}::${currentExIdx}` : "";
   const setsMax        = parseSetsMax(currentEx?.sets);
   const setsMin        = parseSetsMin(currentEx?.sets);
-  const defaultRestSec = parseRestSec(currentEx?.rest);
+  const restRange      = parseRestRange(currentEx?.rest);
+  const defaultRestSec = restRange.max;
+  const alertRestSec   = restRange.min;   // quando chegar aqui muda de cor
 
   useEffect(() => {
     if (!currentEx) return;
@@ -591,7 +611,7 @@ export default function WorkoutMode({
     setRestRemaining(defaultRestSec);
     setRestRunning(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentExKey, activeWeek]);
+  }, [currentExKey, activeWeek, defaultRestSec]);
 
   const advanceIfDone = useCallback(() => {
     setCompleted((prev) => {
@@ -613,11 +633,12 @@ export default function WorkoutMode({
         if (r <= 1) {
           setRestRunning(false);
           if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
-          toast.success("⚡ Descansou! Hora da próxima série.");
-          advanceIfDone();
+          toast.success("⚡ Descansou! Hora da próxima série.", { duration: 4000 });
+          // NÃO avança automaticamente — aluno decide quando está pronto
           return 0;
         }
-        if (r <= 4 && navigator.vibrate) navigator.vibrate(50);
+        // Aviso háptico + visual ao atingir o mínimo de descanso
+        if (r === alertRestSec && navigator.vibrate) navigator.vibrate([80, 40, 80]);
         return r - 1;
       });
     }, 1000);
@@ -629,7 +650,7 @@ export default function WorkoutMode({
     if (restRef.current) window.clearInterval(restRef.current);
     setRestRunning(false);
     setRestRemaining(0);
-    advanceIfDone();
+    // Não avança — aluno controla
   };
 
   /* ── Carga / reps ────────────────────────────────────────────────────────────── */
@@ -884,7 +905,7 @@ export default function WorkoutMode({
             className="rounded-2xl p-6 text-center relative overflow-hidden"
             style={{
               background: "linear-gradient(135deg, #1A1A1A, #0A0A0A)",
-              border: `1px solid ${restRunning ? "rgba(201,168,76,0.35)" : "rgba(255,255,255,0.08)"}`,
+              border: `1px solid ${isAlertZone ? "rgba(255,107,53,0.5)" : restRunning ? "rgba(201,168,76,0.35)" : "rgba(255,255,255,0.08)"}`,
               transition: "border-color 0.4s ease",
             }}
           >
@@ -895,7 +916,11 @@ export default function WorkoutMode({
               />
             )}
             <p className="text-[10px] uppercase tracking-[0.18em] text-white/50 font-bold mb-3 relative">
-              {restRunning ? "descansando..." : todasFeitas ? "exercício completo!" : `série ${serieAtualNum} de ${setsMax}`}
+              {todasFeitas
+                ? "exercício completo! ✓"
+                : restRunning
+                ? `descansando · série ${serieAtualNum + 1} de ${setsMax} a seguir`
+                : `série ${serieAtualNum} de ${setsMax}`}
             </p>
 
             <div className="relative mx-auto flex flex-col items-center justify-center" style={{ minHeight: 120 }}>
@@ -907,13 +932,30 @@ export default function WorkoutMode({
                 )}
               </AnimatePresence>
               <motion.p
-                className="font-black text-white tabular-nums leading-none"
-                style={{ fontSize: "72px", letterSpacing: "-2px" }}
-                animate={burstKey ? { scale: [1, 1.12, 1] } : { scale: 1 }}
-                transition={{ duration: 0.35, ease: "easeOut" }}
+                className="font-black tabular-nums leading-none"
+                style={{
+                  fontSize: "72px",
+                  letterSpacing: "-2px",
+                  color: isAlertZone ? "#FF6B35" : "#fff",
+                  transition: "color 0.4s ease",
+                  textShadow: isAlertZone ? "0 0 20px rgba(255,107,53,0.5)" : "none",
+                }}
+                animate={burstKey ? { scale: [1, 1.12, 1] } : isAlertZone ? { scale: [1, 1.03, 1] } : { scale: 1 }}
+                transition={{ duration: isAlertZone ? 0.8 : 0.35, ease: "easeInOut", repeat: isAlertZone ? Infinity : 0 }}
               >
                 {fmtMMSS(restRemaining)}
               </motion.p>
+              {/* Label de alerta no mínimo de descanso */}
+              {isAlertZone && (
+                <motion.p
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-xs font-bold mt-1"
+                  style={{ color: "#FF6B35" }}
+                >
+                  mínimo recomendado atingido
+                </motion.p>
+              )}
               <p className="text-[10px] text-white/40 font-bold mt-2">{progressPct}% do treino</p>
               <p className="text-sm text-white/60 mt-1 truncate px-4">{currentEx?.name ?? ""}</p>
             </div>
@@ -1170,6 +1212,26 @@ export default function WorkoutMode({
           )}
 
           {/* ── Navegação ─────────────────────────────────────────────────────── */}
+          {/* Botão proeminente de avançar quando exercício concluído */}
+          {todasFeitas && currentExIdx < exercises.length - 1 && (
+            <motion.button
+              type="button"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => { setCurrentExIdx((i) => i + 1); setRestRunning(false); }}
+              className="w-full h-14 rounded-2xl font-bold text-base flex items-center justify-center gap-2"
+              style={{
+                background: "linear-gradient(135deg, #22c55e, #16a34a)",
+                color: "#fff",
+                boxShadow: "0 4px 20px rgba(34,197,94,0.35)",
+              }}
+            >
+              <ChevronRight className="w-5 h-5" />
+              Próximo exercício
+            </motion.button>
+          )}
+
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="flex-1 gap-1 h-11"
               disabled={currentExIdx === 0}
