@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import FeedbackCountdownAlert from "@/components/student/FeedbackCountdownAlert";
 import { TrainerAlert } from "@/components/student/TrainerAlert";
 import { useWakeLock } from "@/hooks/useWakeLock";
+import { useStudentHubContext } from "@/hooks/useStudentHubContext";
 import { buildPixBrCode } from "@/lib/pixBrCode";
 import QRCode from "qrcode";
 
@@ -99,13 +100,20 @@ function StreakBadge({ streak }: { streak: number }) {
 }
 
 // ─── Calcula streak de treino ────────────────────────────────────────────────
-function calcStreak(logs: { completed_at: string | null }[]): number {
-  if (!logs.length) return 0;
-  const days = [...new Set(
-    logs
-      .filter((l) => l.completed_at)
-      .map((l) => new Date(l.completed_at!).toISOString().slice(0, 10))
-  )].sort().reverse();
+function calcStreak(
+  logs: { completed_at: string | null }[],
+  lastSessionAt?: string | null
+): number {
+  const rawDays = logs
+    .filter((l) => l.completed_at)
+    .map((l) => new Date(l.completed_at!).toISOString().slice(0, 10));
+
+  if (lastSessionAt) {
+    rawDays.push(new Date(lastSessionAt).toISOString().slice(0, 10));
+  }
+
+  const days = [...new Set(rawDays)].sort().reverse();
+  if (!days.length) return 0;
 
   const today = new Date().toISOString().slice(0, 10);
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
@@ -154,154 +162,72 @@ export default function StudentArea() {
     });
   }, [navigate]);
 
-  // ─── Profile ───
-  const { data: profile, isLoading: profileLoading } = useQuery({
-    queryKey: ["student-profile-hub", userId],
-    enabled: !!userId,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("user_id", userId)
-        .maybeSingle();
-      return data;
-    },
-  });
+  // ─── Hub Context (uma única RPC consolida 7 queries) ───
+  const { data: hub, isLoading: hubLoading } = useStudentHubContext(userId);
 
-  // ─── Streak + status de hoje ───
-  const { data: workoutLogs } = useQuery({
-    queryKey: ["student-workout-logs", userId],
-    enabled: !!userId,
-    staleTime: 1000 * 60 * 5,
-    queryFn: async () => {
-      const { data } = await (supabase as any)
-        .from("workout_progress")
-        .select("completed_at, workout_id, completed")
-        .eq("user_id", userId)
-        .eq("completed", true)
-        .order("completed_at", { ascending: false })
-        .limit(60);
-      return (data ?? []) as { completed_at: string | null; workout_id: string; completed: boolean }[];
-    },
-  });
+  const profile = hub ? { full_name: hub.full_name ?? null } : null;
+  const profileLoading = hubLoading;
 
-  // ─── Coach info ───
-  const { data: coachLink } = useQuery({
-    queryKey: ["student-coach-link", userId],
-    enabled: !!userId,
-    staleTime: 1000 * 60 * 10,
-    queryFn: async () => {
-      const { data: link } = await supabase
-        .from("coach_students")
-        .select("coach_id")
-        .eq("student_id", userId)
-        .eq("status", "active")
-        .maybeSingle();
-      if (!link?.coach_id) return null;
-      const { data: coach } = await supabase
-        .from("profiles")
-        .select("full_name, pix_key, pix_holder_name, pix_city, billing_alert_days")
-        .eq("user_id", link.coach_id)
-        .maybeSingle();
-      return coach ? { ...coach, coachId: link.coach_id } : null;
-    },
-  });
+  const workoutLogs = (hub?.workout_logs ?? []).map((t) => ({
+    completed_at: t,
+    workout_id: "",
+    completed: true,
+  }));
 
-  // ─── ALERTA 1: Protocolo ───
-  const { data: protocolAlert } = useQuery({
-    queryKey: ["student-protocol-alert", userId],
-    enabled: !!userId,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("protocols")
-        .select("id, name, updated_at")
-        .eq("student_id", userId)
-        .eq("is_template", false)
-        .eq("active", true)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!data) return null;
-      const diffHours = (Date.now() - new Date(data.updated_at).getTime()) / 3600000;
-      if (diffHours < 72) return { id: `proto-${data.id}-${data.updated_at}`, name: data.name, date: data.updated_at };
-      return null;
-    },
-  });
-
-  // ─── Existência do protocolo ativo (para empty states) ───
-  const { data: hasProtocol } = useQuery({
-    queryKey: ["student-has-protocol", userId],
-    enabled: !!userId,
-    staleTime: 1000 * 60 * 5,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("protocols")
-        .select("id")
-        .eq("student_id", userId)
-        .eq("is_template", false)
-        .eq("active", true)
-        .limit(1)
-        .maybeSingle();
-      return !!data;
-    },
-  });
-
-  // ─── ALERTA 2: Cobrança ───
-  const { data: billingAlert } = useQuery({
-    queryKey: ["student-billing-alert", userId],
-    queryFn: async () => {
-      if (!coachLink) return null;
-      const { data: finance } = await supabase
-        .from("coach_finances")
-        .select("*")
-        .eq("student_id", userId)
-        .eq("status", "pending")
-        .not("due_date", "is", null)
-        .order("due_date", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      if (!finance?.due_date) return null;
-      const today = new Date(); today.setHours(0, 0, 0, 0);
-      const dueDate = new Date(finance.due_date); dueDate.setHours(0, 0, 0, 0);
-      const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / 86400000);
-      const alertThreshold = coachLink.billing_alert_days ?? 7;
-      if (diffDays <= alertThreshold) {
-        return {
-          id: finance.id,
-          financeId: finance.id,
-          coachId: coachLink.coachId,
-          amount: finance.amount,
-          dueDate: finance.due_date,
-          diffDays,
-          pixKey: coachLink.pix_key || "Chave PIX não informada pelo treinador.",
-          pixHolderName: (coachLink as any).pix_holder_name || coachLink.full_name || "RECEBEDOR",
-          pixCity: (coachLink as any).pix_city || "BRASIL",
-          hasPix: !!coachLink.pix_key,
-        };
+  const coachLink = hub?.coach
+    ? {
+        full_name: hub.coach.full_name,
+        pix_key: hub.coach.pix_key ?? null,
+        pix_holder_name: hub.coach.pix_holder_name ?? null,
+        pix_city: hub.coach.pix_city ?? null,
+        billing_alert_days: hub.coach.billing_alert_days ?? null,
+        coachId: hub.coach.id,
       }
-      return null;
-    },
-    enabled: !!userId && !!coachLink,
-  });
+    : null;
 
-  // ─── Anamnese ───
-  const { data: anamnesisMeta } = useQuery({
-    queryKey: ["student-anamnesis-meta", userId],
-    enabled: !!userId,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("anamnesis")
-        .select("id, submitted_at, student_edit_count")
-        .eq("student_id", userId)
-        .maybeSingle();
-      return data as { id: string; submitted_at: string | null; student_edit_count: number } | null;
-    },
-  });
+  const hasProtocol = !!hub?.protocol;
+
+  const protocolAlert = (() => {
+    if (!hub?.protocol) return null;
+    const diffHours = (Date.now() - new Date(hub.protocol.updated_at).getTime()) / 3600000;
+    if (diffHours < 72) {
+      return {
+        id: `proto-${hub.protocol.id}-${hub.protocol.updated_at}`,
+        name: hub.protocol.name,
+        date: hub.protocol.updated_at,
+      };
+    }
+    return null;
+  })();
+
+  const billingAlert = (() => {
+    if (!hub?.pending_bill || !hub?.coach) return null;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const dueDate = new Date(hub.pending_bill.due_date); dueDate.setHours(0, 0, 0, 0);
+    const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / 86400000);
+    const threshold = hub.coach.billing_alert_days ?? 7;
+    if (diffDays > threshold) return null;
+    const pixKey = hub.coach.pix_key || "Chave PIX não informada pelo treinador.";
+    return {
+      id: `bill-${hub.coach.id}-${hub.pending_bill.due_date}`,
+      financeId: `${hub.coach.id}-${hub.pending_bill.due_date}`,
+      coachId: hub.coach.id,
+      amount: hub.pending_bill.amount,
+      dueDate: hub.pending_bill.due_date,
+      diffDays,
+      pixKey,
+      pixHolderName: hub.coach.pix_holder_name || hub.coach.full_name || "RECEBEDOR",
+      pixCity: hub.coach.pix_city || "BRASIL",
+      hasPix: !!hub.coach.pix_key,
+    };
+  })();
+
+  const anamnesisMeta = hub?.anamnesis_meta ?? null;
 
   const firstName = profile?.full_name ? profile.full_name.split(" ")[0] : "Aluno";
   const anamnesisEdits = Number(anamnesisMeta?.student_edit_count ?? 0);
   const canEditAnamnesis = !!anamnesisMeta?.submitted_at && anamnesisEdits < 2;
-  const streak = calcStreak(workoutLogs ?? []);
+  const streak = calcStreak(workoutLogs, hub?.last_session_at);
 
   // Status treino hoje
   const todayStr = new Date().toISOString().slice(0, 10);
