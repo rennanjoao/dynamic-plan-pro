@@ -300,6 +300,7 @@ export default function WorkoutPlan() {
         <WorkoutMode
           workouts={workouts as any}
           userId={userId}
+          coachId={(planData as any)?.coach_id ?? undefined}
           coachName={(coachProfile as any)?.full_name ?? undefined}
           teamName={(coachProfile as any)?.team_name ?? undefined}
           initialDay={workoutModeDay}
