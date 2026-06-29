@@ -33,6 +33,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Zap,
+  TrendingUp,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -45,7 +46,6 @@ import { supabase } from "@/integrations/supabase/client";
 import type { ExerciseHistory } from "@/lib/workoutTypes";
 import { effortLabel, toExerciseKey } from "@/lib/workoutTypes";
 import { useLoadProgression } from "@/hooks/useLoadProgression";
-import { TrendingUp } from "lucide-react";
 
 /* ── Tipos ──────────────────────────────────────────────────────────────────── */
 
