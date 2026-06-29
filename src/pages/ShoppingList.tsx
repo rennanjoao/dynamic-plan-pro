@@ -66,7 +66,7 @@ type DaySplit = Record<string, Record<number, number>>;
 interface ShoppingState {
   struck: Record<string, boolean>;
   haveAtHome: Record<string, number>; // gramas que já tem em casa
-  selectedOptions: Record<string, number>;
+  selectedOptions: Record<string, number | number[]>;
   daySplit: DaySplit;
   period: number;
   persons: number;
@@ -259,7 +259,7 @@ function detectChoices(meals: any[], days: number): ChoiceNeeded[] {
           const g = parseGrams(it);
           const u = parseUnit(it);
           const name = stripHtml(it?.baseName || it?.name || "");
-          return { name, qty: g > 0 ? formatQty(g, u) : "" };
+          return { name, qty: g > 0 ? formatQty(g, u, false, 0, name) : "" };
         });
         return { idx, name: firstName, items };
       });
@@ -295,7 +295,7 @@ function calcStreak(lastCompletedAt: string | null, prevStreak: number): number 
 // Agrega com suporte a day-split: cada opção contribui proporcionalmente aos dias escolhidos
 function aggregateWithSplit(params: {
   meals: any[];
-  selectedOptions: Record<string, number>;
+  selectedOptions: Record<string, number | number[]>;
   daySplit: DaySplit;
   days: number;
   persons: number;
