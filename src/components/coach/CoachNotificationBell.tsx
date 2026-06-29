@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Bell, Trash2, Check, Loader2, Inbox, Reply, Send } from "lucide-react";
+import { Bell, Trash2, Check, Loader2, Inbox, Reply, Send, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,6 +43,7 @@ export default function CoachNotificationBell() {
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [checkinCount, setCheckinCount] = useState(0);
+  const [fatigueCount, setFatigueCount] = useState(0);
   const [replyOpen, setReplyOpen] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
@@ -58,13 +59,22 @@ export default function CoachNotificationBell() {
 
   const fetchNotifications = async (uid: string) => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("coach_notifications")
-      .select("*")
-      .eq("coach_id", uid)
-      .eq("is_read", false)
-      .order("created_at", { ascending: false });
-    if (!error && data) setNotifications(data as Notification[]);
+    const [notifRes, fatigueRes] = await Promise.all([
+      supabase
+        .from("coach_notifications")
+        .select("*")
+        .eq("coach_id", uid)
+        .eq("is_read", false)
+        .order("created_at", { ascending: false }),
+      (supabase as any)
+        .from("coach_fatigue_alerts")
+        .select("id", { count: "exact", head: true })
+        .eq("coach_id", uid)
+        .eq("is_read", false)
+        .is("resolved_at", null),
+    ]);
+    if (!notifRes.error && notifRes.data) setNotifications(notifRes.data as Notification[]);
+    setFatigueCount(fatigueRes.count ?? 0);
     setLoading(false);
   };
 
@@ -210,11 +220,11 @@ export default function CoachNotificationBell() {
   };
 
   const unreadCount = notifications.length;
-  const totalBadge = unreadCount + checkinCount;
+  const totalBadge = unreadCount + checkinCount + fatigueCount;
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
-    if (next) setCheckinCount(0);
+    if (next) { setCheckinCount(0); setFatigueCount(0); }
   };
 
   return (
@@ -244,6 +254,14 @@ export default function CoachNotificationBell() {
           {checkinCount > 0 && (
             <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-400">
               {checkinCount} novo(s) check-in(s) recebido(s) — acesse o painel de alunos para visualizar.
+            </div>
+          )}
+          {fatigueCount > 0 && (
+            <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-red-700 dark:text-red-400">
+                <strong>{fatigueCount}</strong> alerta{fatigueCount > 1 ? "s" : ""} de fadiga não resolvido{fatigueCount > 1 ? "s" : ""} — acesse a aba <strong>Treinos</strong> no painel para ver detalhes.
+              </p>
             </div>
           )}
           {loading ? (
