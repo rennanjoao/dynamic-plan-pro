@@ -730,6 +730,24 @@ export default function ShoppingList() {
 
   const stateRef = useRef<ShoppingState | null>(null);
 
+  // ── Streak persistido no banco (semanas consecutivas) ─────────────────────
+  const { data: shoppingStreak } = useQuery({
+    queryKey: ["shopping-streak", userId],
+    enabled: !!userId,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any)
+        .from("shopping_sessions")
+        .select("streak, created_at")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return (data?.streak ?? 0) as number;
+    },
+  });
+
   // ── Carrega protocolo e estado salvo ────────────────────────────────────────
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
