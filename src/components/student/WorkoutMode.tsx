@@ -43,7 +43,9 @@ import { useConfirm } from "@/components/ConfirmProvider";
 import { useWorkoutSession } from "@/hooks/useWorkoutSession";
 import { supabase } from "@/integrations/supabase/client";
 import type { ExerciseHistory } from "@/lib/workoutTypes";
-import { effortLabel } from "@/lib/workoutTypes";
+import { effortLabel, toExerciseKey } from "@/lib/workoutTypes";
+import { useLoadProgression } from "@/hooks/useLoadProgression";
+import { TrendingUp } from "lucide-react";
 
 /* ── Tipos ──────────────────────────────────────────────────────────────────── */
 
@@ -497,6 +499,11 @@ export default function WorkoutMode({
   const [now, setNow]               = useState(Date.now());
   const [historyMap, setHistoryMap] = useState<Record<string, ExerciseHistory[]>>({});
 
+  // Sugestão automática de progressão de carga
+  const exerciseKeys = exercises.map((ex) => toExerciseKey(ex.name));
+  const { data: progressionMap } = useLoadProgression(userId, exerciseKeys);
+  const currentProgression = progressionMap?.get(toExerciseKey(currentEx?.name ?? ""));
+
   // Micro-interação: burst ao concluir série
   const [burstKey, setBurstKey]   = useState<string | null>(null);
   const [burstColor, setBurstColor] = useState(GOLD);
@@ -634,7 +641,10 @@ export default function WorkoutMode({
 
   const lastDoneWeight    = currentSets.filter((s) => s.done && !s.skipped).at(-1)?.weight ?? 0;
   const lastHistoryWeight = historyMap[currentExKey]?.[0]?.weightKg ?? 0;
-  const suggestedWeight   = lastDoneWeight > 0 ? lastDoneWeight : lastHistoryWeight;
+  // Se progressão automática detectou overload (RIR limpo 2x seguidas), usa a sugestão dela
+  const suggestedWeight   = lastDoneWeight > 0
+    ? lastDoneWeight
+    : currentProgression?.suggestedWeightKg ?? lastHistoryWeight;
 
   const lastHistoryReps   = historyMap[currentExKey]?.[0]?.reps ?? 0;
   const lastDoneReps      = currentSets.filter((s) => s.done && !s.skipped).at(-1)?.reps ?? 0;
@@ -1043,6 +1053,32 @@ export default function WorkoutMode({
                       </p>
                       <p className="text-[9px] text-white/30">Edite se quiser, depois tap ↓</p>
                     </div>
+
+                    {/* Chip de progressão automática */}
+                    {currentProgression && !weightEdited && (
+                      <motion.button
+                        type="button"
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => {
+                          setActiveWeight(currentProgression.suggestedWeightKg);
+                          setWeightEdited(true);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold"
+                        style={{
+                          background: "rgba(201,168,76,0.12)",
+                          border: `1px solid ${GOLD}55`,
+                          color: GOLD,
+                        }}
+                      >
+                        <TrendingUp className="w-3.5 h-3.5 shrink-0" />
+                        <span className="flex-1 text-left">
+                          📈 Progressão sugerida: {currentProgression.suggestedWeightKg}kg
+                        </span>
+                        <span style={{ color: GOLD + "80", fontWeight: 400 }}>tap p/ aplicar</span>
+                      </motion.button>
+                    )}
 
                     {/* Inputs com auto-preenchimento */}
                     <div className="flex gap-3">
