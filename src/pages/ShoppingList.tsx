@@ -66,7 +66,7 @@ type DaySplit = Record<string, Record<number, number>>;
 interface ShoppingState {
   struck: Record<string, boolean>;
   haveAtHome: Record<string, number>; // gramas que já tem em casa
-  selectedOptions: Record<string, number>;
+  selectedOptions: Record<string, number | number[]>;
   daySplit: DaySplit;
   period: number;
   persons: number;
@@ -259,7 +259,7 @@ function detectChoices(meals: any[], days: number): ChoiceNeeded[] {
           const g = parseGrams(it);
           const u = parseUnit(it);
           const name = stripHtml(it?.baseName || it?.name || "");
-          return { name, qty: g > 0 ? formatQty(g, u) : "" };
+          return { name, qty: g > 0 ? formatQty(g, u, false, 0, name) : "" };
         });
         return { idx, name: firstName, items };
       });
@@ -295,7 +295,7 @@ function calcStreak(lastCompletedAt: string | null, prevStreak: number): number 
 // Agrega com suporte a day-split: cada opção contribui proporcionalmente aos dias escolhidos
 function aggregateWithSplit(params: {
   meals: any[];
-  selectedOptions: Record<string, number>;
+  selectedOptions: Record<string, number | number[]>;
   daySplit: DaySplit;
   days: number;
   persons: number;
@@ -623,7 +623,7 @@ function HaveAtHomeSlider({ item, value, onChange, onClose }: HaveAtHomeSliderPr
           {item.name}
         </p>
         <p style={{ fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 20 }}>
-          Protocolo pede: <strong>{formatQty(item.total, item.unit)}</strong>
+          Protocolo pede: <strong>{formatQty(item.total, item.unit, item.isUnit, item.unitValue, item.name)}</strong>
         </p>
 
         <p style={{ fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 10 }}>
@@ -667,7 +667,7 @@ function HaveAtHomeSlider({ item, value, onChange, onClose }: HaveAtHomeSliderPr
             borderRadius: 8, padding: "10px 14px", marginBottom: 16,
           }}>
             <p style={{ fontSize: 13, color: "#34d399" }}>
-              Selecionado: <strong>{formatQty(value, item.unit)} ({pct}%)</strong> · Comprar: <strong>{formatQty(Math.max(0, item.total - value), item.unit)}</strong>
+              Selecionado: <strong>{formatQty(value, item.unit, false, 0, item.name)} ({pct}%)</strong> · Comprar: <strong>{formatQty(Math.max(0, item.total - value), item.unit, false, 0, item.name)}</strong>
             </p>
           </div>
         )}
@@ -712,7 +712,7 @@ export default function ShoppingList() {
 
   const [days, setDays] = useState(7);
   const [persons, setPersons] = useState(1);
-  const [selectedOptions, setSelectedOptions] = useState<Record<string, number>>({});
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, number | number[]>>({});
   const [daySplit, setDaySplit] = useState<DaySplit>({});
   const [phase, setPhase] = useState<Phase>("choosing");
   const [struck, setStruck] = useState<Record<string, boolean>>({});
@@ -927,7 +927,7 @@ export default function ShoppingList() {
       const visibleItems = grouped[kind].filter((it) => !struck[`${it.kind}:${it.name}`]);
       if (!visibleItems.length) return;
       lines.push(`*${KIND_CFG[kind].label}*`);
-      visibleItems.forEach((it) => lines.push(`• ${it.name} — ${formatQty(it.total, it.unit)}`));
+      visibleItems.forEach((it) => lines.push(`• ${it.name} — ${formatQty(it.total, it.unit, it.isUnit, it.unitValue, it.name)}`));
       lines.push("");
     });
     lines.push("_Quantidades em peso cru · Elite Prime Hub_");
@@ -982,7 +982,7 @@ export default function ShoppingList() {
         doc.rect(14, y - 3.5, 4.5, 4.5);
         doc.text(it.name, 22, y);
         doc.setFont("helvetica", "bold");
-        doc.text(formatQty(it.total, it.unit), pageW - 14, y, { align: "right" });
+        doc.text(formatQty(it.total, it.unit, it.isUnit, it.unitValue, it.name), pageW - 14, y, { align: "right" });
         doc.setFont("helvetica", "normal");
         y += 7;
       });
@@ -1006,12 +1006,57 @@ export default function ShoppingList() {
   const choiceIsResolved = currentChoice
     ? (splitMode
       ? splitDaysUsed === days
-      : selectedOptions[currentChoice.key] !== undefined)
+      : (() => {
+          const v = selectedOptions[currentChoice.key];
+          if (Array.isArray(v)) return v.length > 0;
+          return v !== undefined;
+        })())
     : false;
 
-  const buyBothSelected = currentChoice
-    ? selectedOptions[currentChoice.key] === BUY_BOTH
+  // Conjunto atual de índices selecionados para a escolha em foco.
+  const currentSelectionSet: number[] = useMemo(() => {
+    if (!currentChoice) return [];
+    const v = selectedOptions[currentChoice.key];
+    if (Array.isArray(v)) return v;
+    if (v === BUY_BOTH) return currentChoice.options.map((o) => o.idx);
+    if (typeof v === "number") return [v];
+    return [];
+  }, [currentChoice, selectedOptions]);
+
+  const allSelected = currentChoice
+    ? currentSelectionSet.length === currentChoice.options.length
     : false;
+
+  const toggleChoiceOption = useCallback(
+    (idx: number) => {
+      if (!currentChoice) return;
+      setSelectedOptions((s) => {
+        const prev = s[currentChoice.key];
+        const set: number[] = Array.isArray(prev)
+          ? prev
+          : prev === BUY_BOTH
+            ? currentChoice.options.map((o) => o.idx)
+            : typeof prev === "number"
+              ? [prev]
+              : [];
+        const next = set.includes(idx)
+          ? set.filter((i) => i !== idx)
+          : [...set, idx].sort((a, b) => a - b);
+        return { ...s, [currentChoice.key]: next };
+      });
+    },
+    [currentChoice],
+  );
+
+  const toggleSelectAll = useCallback(() => {
+    if (!currentChoice) return;
+    setSelectedOptions((s) => ({
+      ...s,
+      [currentChoice.key]: allSelected
+        ? []
+        : currentChoice.options.map((o) => o.idx),
+    }));
+  }, [currentChoice, allSelected]);
 
   const handleNextChoice = () => {
     if (choiceStep < choices.length - 1) {
@@ -1231,7 +1276,7 @@ export default function ShoppingList() {
                           {packageHint && <span style={{ fontSize: 11, color: "#fbbf24", display: "block", marginTop: 2 }}>📦 {packageHint}</span>}
                         </div>
                         <span style={{ fontSize: 15, fontWeight: 600, color: cfg2.color, flexShrink: 0 }}>
-                          {formatQty(it.total, it.unit)}
+                          {formatQty(it.total, it.unit, it.isUnit, it.unitValue, it.name)}
                         </span>
                       </button>
                     );
@@ -1251,7 +1296,7 @@ export default function ShoppingList() {
                 return (
                   <button key={key} onClick={() => toggleStruck(key)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", background: "transparent", border: "none", padding: "6px 0", cursor: "pointer", opacity: 0.5 }}>
                     <span style={{ fontSize: 13, color: "var(--color-text-tertiary)", textDecoration: "line-through" }}>{it.name}</span>
-                    <span style={{ fontSize: 12, color: "var(--color-text-tertiary)", textDecoration: "line-through" }}>{formatQty(it.total, it.unit)}</span>
+                    <span style={{ fontSize: 12, color: "var(--color-text-tertiary)", textDecoration: "line-through" }}>{formatQty(it.total, it.unit, it.isUnit, it.unitValue, it.name)}</span>
                   </button>
                 );
               })}
@@ -1295,25 +1340,40 @@ export default function ShoppingList() {
                 {currentChoice.sublabel && <p style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>🕐 {currentChoice.sublabel}</p>}
               </div>
 
-              {/* Lista de opções (modo simples — split removido da UI) */}
+              {/* Lista de opções — multi-select (1 a N opções) */}
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <p style={{ fontSize: 11, color: "var(--color-text-tertiary)", marginBottom: -2 }}>
+                    Toque para incluir/remover. Você pode selecionar quantas quiser.
+                  </p>
                   {currentChoice.options.map((opt) => {
-                    const chosen =
-                      !buyBothSelected &&
-                      selectedOptions[currentChoice.key] === opt.idx;
+                    const chosen = currentSelectionSet.includes(opt.idx);
                     return (
                       <button
                         key={opt.idx}
-                        onClick={() => setSelectedOptions((s) => ({ ...s, [currentChoice.key]: opt.idx }))}
+                        onClick={() => toggleChoiceOption(opt.idx)}
+                        aria-pressed={chosen}
+                        aria-label={`${chosen ? "Remover" : "Incluir"} ${opt.name}`}
                         style={{ width: "100%", padding: "14px 16px", borderRadius: 12, border: chosen ? "2px solid #CC0000" : "0.5px solid var(--color-border-secondary)", background: chosen ? "rgba(204,0,0,0.07)" : "var(--color-background-primary)", cursor: "pointer", textAlign: "left", transition: "all 0.15s" }}
                       >
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: opt.items.length > 0 ? 8 : 0 }}>
                           <span style={{ fontSize: 14, fontWeight: 500, color: chosen ? "#CC0000" : "var(--color-text-primary)" }}>{opt.name}</span>
-                          {chosen && (
-                            <span style={{ width: 20, height: 20, borderRadius: "50%", background: "#CC0000", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                              <i className="ti ti-check" style={{ fontSize: 11, color: "#fff" }} aria-hidden="true" />
-                            </span>
-                          )}
+                          <span
+                            style={{
+                              width: 20,
+                              height: 20,
+                              borderRadius: 6,
+                              background: chosen ? "#CC0000" : "transparent",
+                              border: chosen ? "none" : "1.5px solid var(--color-border-secondary)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {chosen && (
+                              <i className="ti ti-check" style={{ fontSize: 12, color: "#fff" }} aria-hidden="true" />
+                            )}
+                          </span>
                         </div>
                         {opt.items.length > 0 && (
                           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -1329,28 +1389,19 @@ export default function ShoppingList() {
                     );
                   })}
 
-                  {/* Comprar as duas opções (outline) */}
+                  {/* Atalho: selecionar / limpar todas */}
                   {currentChoice.options.length >= 2 && (
                     <button
-                      onClick={() =>
-                        setSelectedOptions((s) => ({
-                          ...s,
-                          [currentChoice.key]: BUY_BOTH,
-                        }))
-                      }
-                      aria-pressed={buyBothSelected}
-                      aria-label="Comprar as duas opções"
+                      onClick={toggleSelectAll}
+                      aria-pressed={allSelected}
+                      aria-label={allSelected ? "Limpar seleção" : "Selecionar todas as opções"}
                       style={{
                         width: "100%",
                         padding: "12px 16px",
                         borderRadius: 12,
-                        border: buyBothSelected
-                          ? "2px solid #CC0000"
-                          : "1px dashed var(--color-border-secondary)",
-                        background: buyBothSelected
-                          ? "rgba(204,0,0,0.07)"
-                          : "transparent",
-                        color: buyBothSelected ? "#CC0000" : "var(--color-text-secondary)",
+                        border: "1px dashed var(--color-border-secondary)",
+                        background: "transparent",
+                        color: "var(--color-text-secondary)",
                         fontSize: 13,
                         fontWeight: 500,
                         cursor: "pointer",
@@ -1361,8 +1412,10 @@ export default function ShoppingList() {
                         transition: "all 0.15s",
                       }}
                     >
-                      <i className="ti ti-plus" style={{ fontSize: 13 }} aria-hidden="true" />
-                      Comprar as {currentChoice.options.length === 2 ? "duas" : `${currentChoice.options.length}`} opções
+                      <i className={`ti ${allSelected ? "ti-x" : "ti-check"}`} style={{ fontSize: 13 }} aria-hidden="true" />
+                      {allSelected
+                        ? "Limpar seleção"
+                        : `Comprar todas (${currentChoice.options.length})`}
                     </button>
                   )}
                 </div>
@@ -1372,12 +1425,18 @@ export default function ShoppingList() {
                 disabled={!choiceIsResolved}
                 style={{ width: "100%", marginTop: 20, padding: "14px", borderRadius: 10, border: "none", background: choiceIsResolved ? "#CC0000" : "var(--color-background-secondary)", color: choiceIsResolved ? "#fff" : "var(--color-text-tertiary)", fontSize: 14, fontWeight: 500, cursor: choiceIsResolved ? "pointer" : "not-allowed", transition: "all 0.2s" }}
               >
-                {choiceStep < choices.length - 1 ? "Próxima →" : "Ver minha lista de compras"}
+                {choiceIsResolved && currentSelectionSet.length > 1
+                  ? choiceStep < choices.length - 1
+                    ? `Próxima (${currentSelectionSet.length} selecionadas) →`
+                    : `Ver lista (${currentSelectionSet.length} opções)`
+                  : choiceStep < choices.length - 1
+                    ? "Próxima →"
+                    : "Ver minha lista de compras"}
               </button>
 
               {!choiceIsResolved && (
                 <p style={{ fontSize: 12, color: "var(--color-text-tertiary)", textAlign: "center", marginTop: 10 }}>
-                  {splitMode ? `Distribua os ${days} dias entre as opções` : "Selecione uma opção para continuar"}
+                  {splitMode ? `Distribua os ${days} dias entre as opções` : "Selecione pelo menos uma opção para continuar"}
                 </p>
               )}
             </>
@@ -1419,7 +1478,7 @@ export default function ShoppingList() {
             </span>
             {have > 0 && !isStruck && (
               <span style={{ fontSize: 10, color: "#34d399", display: "block", marginTop: 1 }}>
-                🏠 Desconto: {formatQty(have, it.unit)} já em casa
+                🏠 Desconto: {formatQty(have, it.unit, false, 0, it.name)} já em casa
               </span>
             )}
             {packageHint && !isStruck && (
@@ -1429,7 +1488,7 @@ export default function ShoppingList() {
 
           {/* Quantidade */}
           <span style={{ fontSize: 13, fontWeight: 500, color: isStruck ? "var(--color-text-tertiary)" : containerColor, flexShrink: 0 }}>
-            {formatQty(it.total, it.unit)}
+            {formatQty(it.total, it.unit, it.isUnit, it.unitValue, it.name)}
           </span>
 
           {/* Botão "já tenho em casa" */}
@@ -1626,7 +1685,7 @@ export default function ShoppingList() {
                   return (
                     <button key={key} onClick={() => toggleStruck(key)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 14px", background: "transparent", border: "none", borderBottom: "0.5px solid var(--color-border-tertiary)", cursor: "pointer", opacity: 0.5 }}>
                       <span style={{ fontSize: 13, color: "var(--color-text-tertiary)", textDecoration: "line-through", flex: 1, textAlign: "left" }}>{it.name}</span>
-                      <span style={{ fontSize: 12, color: "var(--color-text-tertiary)", textDecoration: "line-through" }}>{formatQty(it.total, it.unit)}</span>
+                      <span style={{ fontSize: 12, color: "var(--color-text-tertiary)", textDecoration: "line-through" }}>{formatQty(it.total, it.unit, it.isUnit, it.unitValue, it.name)}</span>
                     </button>
                   );
                 })}

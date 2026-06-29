@@ -33,7 +33,7 @@ export interface AggItem {
 
 export interface AggregateParams {
   meals: any[];
-  selectedOptions?: Record<string, number>; // chave "mealIdx:kind" → índice da opção
+  selectedOptions?: Record<string, number | number[]>; // chave "mealIdx:kind" → índice (legacy) ou array de índices (multi-select)
   days?: number;
   carbCycle?: Record<string, unknown>;      // { mon: "high", tue: "off", ... }
   carbCycleHighPct?: number;                // default 15
@@ -80,11 +80,17 @@ function toDisplayName(s: string): string {
  * Detecta se o item usa unidade de volume (ml/l) ou peso (g/kg).
  * Retorna "ml" ou "g".
  */
+const LIQUID_NAME_RE =
+  /\b(leite|água|agua|azeite|óleo|oleo|suco|whey|iogurte|kefir|vinagre|molho|caldo|chá|cha|café|cafe|bebida|shake|creatina líquida|isotônico|isotonico)\b/i;
+
 export function parseUnit(item: any): string {
   if (!item) return "g";
   const w: string = String(item.weight || "").trim().toLowerCase();
   if (/\bml\b/.test(w)) return "ml";
   if (/\bl\b/.test(w) && !/\bml\b/.test(w)) return "ml";
+  // Detecção por nome — leite/azeite/óleo etc. com peso em "g" devem virar ml.
+  const name = String(item.baseName || item.name || "");
+  if (name && LIQUID_NAME_RE.test(name)) return "ml";
   return "g";
 }
 
@@ -188,11 +194,38 @@ export function formatQty(
   unit?: string,
   isUnit?: boolean,
   unitValue?: number,
+  name?: string,
 ): string {
-  // Quantidade por unidade: mostra "14 un"
+  const nameL = (name || "").toLowerCase();
+  const isEgg = /\bovo|ovos\b/.test(nameL) || /clara/.test(nameL);
+  const isClara = /clara/.test(nameL);
+
+  // Quantidade por unidade: mostra "X un" ou "X dz" para ovos/claras
   if (isUnit && unitValue && unitValue > 0) {
     const rounded = Math.round(unitValue);
+    if (isEgg && rounded >= 12) {
+      const dz = Math.floor(rounded / 12);
+      const rem = rounded - dz * 12;
+      return rem === 0 ? `${dz} dz` : `${dz} dz + ${rem} un`;
+    }
     return `${rounded} un`;
+  }
+
+  // Ovos/claras sem isUnit: converte gramas em unidades (50g ovo / 33g clara)
+  if (!isUnit && isEgg && grams > 0) {
+    const perUnit = isClara ? 33 : 50;
+    const units = Math.max(1, Math.round(grams / perUnit));
+    if (units >= 12) {
+      const dz = Math.floor(units / 12);
+      const rem = units - dz * 12;
+      return rem === 0 ? `${dz} dz` : `${dz} dz + ${rem} un`;
+    }
+    return `${units} un`;
+  }
+
+  // Líquidos detectados pelo nome — força unidade ml/l
+  if (!unit && name && LIQUID_NAME_RE.test(name)) {
+    unit = "ml";
   }
 
   const isVolume = unit === "ml";
@@ -278,11 +311,11 @@ function avgCarbMultiplier(
  */
 export function aggregateShoppingList(
   paramsOrMeals: AggregateParams | any[],
-  selectedOptionsLegacy?: Record<string, number>,
+  selectedOptionsLegacy?: Record<string, number | number[]>,
   daysLegacy?: number,
 ): AggItem[] {
   let meals: any[];
-  let selectedOptions: Record<string, number>;
+  let selectedOptions: Record<string, number | number[]>;
   let days: number;
   let carbCycle: Record<string, unknown>;
   let carbCycleHighPct: number;
@@ -339,13 +372,23 @@ export function aggregateShoppingList(
       const selKey = `${mi}:${kind}`;
       const selIdx = selectedOptions[selKey];
 
-      // "Comprar as duas" → soma items de TODAS as opções desse kind/meal
-      const chosenOpts: any[] =
-        kindOpts.length > 1 && selIdx === BUY_BOTH
-          ? kindOpts
-          : kindOpts.length <= 1
-            ? [kindOpts[0]]
-            : [kindOpts[selIdx ?? 0] ?? kindOpts[0]];
+      // Múltiplas opções podem ser combinadas:
+      //   - array de índices → soma apenas as opções selecionadas
+      //   - BUY_BOTH (legacy) → todas as opções
+      //   - número → opção única (default: 0)
+      let chosenOpts: any[];
+      if (kindOpts.length <= 1) {
+        chosenOpts = [kindOpts[0]];
+      } else if (Array.isArray(selIdx)) {
+        const picked = selIdx
+          .map((i) => kindOpts[i])
+          .filter((o): o is any => Boolean(o));
+        chosenOpts = picked.length > 0 ? picked : [kindOpts[0]];
+      } else if (selIdx === BUY_BOTH) {
+        chosenOpts = kindOpts;
+      } else {
+        chosenOpts = [kindOpts[selIdx ?? 0] ?? kindOpts[0]];
+      }
 
       const items: any[] = chosenOpts.flatMap((o) =>
         Array.isArray(o?.items) ? o.items : [],
