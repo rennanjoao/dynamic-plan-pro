@@ -1006,12 +1006,57 @@ export default function ShoppingList() {
   const choiceIsResolved = currentChoice
     ? (splitMode
       ? splitDaysUsed === days
-      : selectedOptions[currentChoice.key] !== undefined)
+      : (() => {
+          const v = selectedOptions[currentChoice.key];
+          if (Array.isArray(v)) return v.length > 0;
+          return v !== undefined;
+        })())
     : false;
 
-  const buyBothSelected = currentChoice
-    ? selectedOptions[currentChoice.key] === BUY_BOTH
+  // Conjunto atual de índices selecionados para a escolha em foco.
+  const currentSelectionSet: number[] = useMemo(() => {
+    if (!currentChoice) return [];
+    const v = selectedOptions[currentChoice.key];
+    if (Array.isArray(v)) return v;
+    if (v === BUY_BOTH) return currentChoice.options.map((o) => o.idx);
+    if (typeof v === "number") return [v];
+    return [];
+  }, [currentChoice, selectedOptions]);
+
+  const allSelected = currentChoice
+    ? currentSelectionSet.length === currentChoice.options.length
     : false;
+
+  const toggleChoiceOption = useCallback(
+    (idx: number) => {
+      if (!currentChoice) return;
+      setSelectedOptions((s) => {
+        const prev = s[currentChoice.key];
+        const set: number[] = Array.isArray(prev)
+          ? prev
+          : prev === BUY_BOTH
+            ? currentChoice.options.map((o) => o.idx)
+            : typeof prev === "number"
+              ? [prev]
+              : [];
+        const next = set.includes(idx)
+          ? set.filter((i) => i !== idx)
+          : [...set, idx].sort((a, b) => a - b);
+        return { ...s, [currentChoice.key]: next };
+      });
+    },
+    [currentChoice],
+  );
+
+  const toggleSelectAll = useCallback(() => {
+    if (!currentChoice) return;
+    setSelectedOptions((s) => ({
+      ...s,
+      [currentChoice.key]: allSelected
+        ? []
+        : currentChoice.options.map((o) => o.idx),
+    }));
+  }, [currentChoice, allSelected]);
 
   const handleNextChoice = () => {
     if (choiceStep < choices.length - 1) {
