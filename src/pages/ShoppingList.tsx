@@ -712,7 +712,7 @@ export default function ShoppingList() {
 
   const [days, setDays] = useState(7);
   const [persons, setPersons] = useState(1);
-  const [selectedOptions, setSelectedOptions] = useState<Record<string, number>>({});
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, number | number[]>>({});
   const [daySplit, setDaySplit] = useState<DaySplit>({});
   const [phase, setPhase] = useState<Phase>("choosing");
   const [struck, setStruck] = useState<Record<string, boolean>>({});
