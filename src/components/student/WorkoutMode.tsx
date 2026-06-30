@@ -658,6 +658,14 @@ export default function WorkoutMode({
   const [restRunning, setRestRunning]     = useState(false);
   const restRef = useRef<number | null>(null);
 
+  // Zona de alerta: descanso entrou abaixo do mínimo recomendado
+  const isAlertZone = restRunning && alertRestSec > 0 && restRemaining <= alertRestSec;
+
+  // Sugestão automática de progressão de carga
+  const exerciseKeys = exercises.map((ex) => toExerciseKey(ex.name));
+  const { data: progressionMap } = useLoadProgression(userId, exerciseKeys);
+  const currentProgression = progressionMap?.get(toExerciseKey(currentEx?.name ?? ""));
+
   useEffect(() => {
     setRestRemaining(defaultRestSec);
     setRestRunning(false);
