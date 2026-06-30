@@ -1,230 +1,560 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+/**
+ * CheckIn.tsx — Ficha de check-in quinzenal do aluno.
+ * Cada submit cria um novo registro em public.check_ins.
+ * Métricas atuais comparam contra `anamnesis.baseline_metrics`.
+ *
+ * ALTERAÇÃO: FotoSlot local removido e substituído por @/components/shared/FotoSlot
+ */
 
-import { buildCorsHeaders } from "../_shared/cors.ts";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { CHECKIN_SECTIONS, CHECKIN_METRICS } from "@/lib/checkInSchema";
+import { notifyCoach } from "@/lib/notifyCoach";
+import { uploadToCloudinary } from "@/lib/anamnesisSchema";
+import { FormField } from "@/components/student/FormField";
+import { FotoSlot } from "@/components/shared/FotoSlot";
+import { useStudentData } from "@/hooks/useStudentData";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, TrendingDown, TrendingUp, Minus, FilePlus2, FileEdit } from "lucide-react";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
-interface NotifyBody {
-  // [FIX ALTO] coachEmail removido da interface — o destino agora é sempre
-  // determinado pelo banco de dados (coach vinculado ao aluno autenticado),
-  // nunca pelo valor enviado pelo cliente. Isso impede que um aluno logado
-  // envie e-mails para qualquer destinatário externo usando nosso remetente.
-  studentName?: string;
-  studentEmail?: string;
-  kind: "anamnesis" | "checkin" | "question";
-  subject?: string;
-  summary?: string;
-  data?: Record<string, unknown>;
-  photos?: Record<string, string>;
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const sb: any = supabase;
 
-function escapeHtml(s: string) {
-  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-const PHOTO_LABELS: Record<string, string> = {
+const FOTO_KEYS = ["frente", "lateral_dir", "lateral_esq", "costas"] as const;
+const FOTO_LABELS: Record<string, string> = {
   frente: "Frente",
-  lateral_dir: "Lateral Direita",
-  lateral_esq: "Lateral Esquerda",
+  lateral_dir: "Lateral Dir.",
+  lateral_esq: "Lateral Esq.",
   costas: "Costas",
 };
 
-function renderHtml(body: NotifyBody): string {
-  const title =
-    body.kind === "anamnesis" ? "Nova Anamnese" :
-    body.kind === "checkin" ? "Novo Check-in" :
-    "Nova Dúvida do Aluno";
+export default function CheckIn() {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const { studentId, anamnesis } = useStudentData();
 
-  const studentLine = body.studentName
-    ? `<p style="margin:0 0 4px 0"><strong>Aluno:</strong> ${escapeHtml(body.studentName)}</p>` : "";
-  const emailLine = body.studentEmail
-    ? `<p style="margin:0 0 4px 0"><strong>E-mail:</strong> ${escapeHtml(body.studentEmail)}</p>` : "";
+  const [data, setData] = useState<Record<string, unknown>>({});
+  const [metrics, setMetrics] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
 
-  let dataBlock = "";
-  if (body.data && Object.keys(body.data).length) {
-    const rows = Object.entries(body.data)
-      .filter(([k, v]) => v !== undefined && v !== null && v !== "" && k !== "fotos")
-      .map(([k, v]) =>
-        `<tr>
-          <td style="padding:6px 10px;border-bottom:1px solid #eee;font-weight:600;color:#444;vertical-align:top;white-space:nowrap">${escapeHtml(k)}</td>
-          <td style="padding:6px 10px;border-bottom:1px solid #eee;color:#222">${escapeHtml(typeof v === "object" ? JSON.stringify(v) : String(v))}</td>
-        </tr>`
-      ).join("");
-    if (rows) dataBlock = `<table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:13px">${rows}</table>`;
+  const [fotoFiles, setFotoFiles] = useState<Record<string, File | null>>({
+    frente: null, lateral_dir: null, lateral_esq: null, costas: null,
+  });
+  const [fotoPreviews, setFotoPreviews] = useState<Record<string, string | null>>({
+    frente: null, lateral_dir: null, lateral_esq: null, costas: null,
+  });
+
+  // Modo: choose | new | update (atualiza último check-in)
+  const [mode, setMode] = useState<"choose" | "new" | "update">("choose");
+  const [lastCheckin, setLastCheckin] = useState<{
+    id: string; submitted_at: string; edit_count: number;
+    payload: Record<string, unknown>; current_metrics: Record<string, number>;
+  } | null>(null);
+  const [loadingLast, setLoadingLast] = useState(true);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+
+  useEffect(() => {
+    if (mode !== "choose") setStep(1);
+  }, [mode]);
+
+  // Carrega último check-in para decidir o que oferecer
+  useEffect(() => {
+    if (!studentId) return;
+    (async () => {
+      setLoadingLast(true);
+      const { data: row } = await sb
+        .from("check_ins")
+        .select("id, submitted_at, edit_count, payload, current_metrics")
+        .eq("student_id", studentId)
+        .order("submitted_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setLastCheckin(row ?? null);
+      // Se não existe nenhum, segue direto para novo
+      if (!row) setMode("new");
+      setLoadingLast(false);
+    })();
+  }, [studentId]);
+
+  function startNew() {
+    setData({});
+    setMetrics({});
+    setFotoFiles({ frente: null, lateral_dir: null, lateral_esq: null, costas: null });
+    setFotoPreviews({ frente: null, lateral_dir: null, lateral_esq: null, costas: null });
+    setMode("new");
   }
 
-  let photosBlock = "";
-  if (body.photos && Object.keys(body.photos).length) {
-    const validPhotos = Object.entries(body.photos).filter(([, url]) => !!url);
-    if (validPhotos.length) {
-      const grid = validPhotos.map(([k, url]) => `
-        <td style="padding:8px;text-align:center;vertical-align:top;width:25%">
-          <a href="${escapeHtml(url)}" target="_blank" style="text-decoration:none">
-            <img src="${escapeHtml(url)}" alt="${escapeHtml(PHOTO_LABELS[k] ?? k)}"
-              style="width:140px;height:180px;object-fit:cover;border-radius:8px;border:1px solid #eee;display:block;margin:0 auto" />
-            <span style="display:block;margin-top:6px;font-size:12px;color:#555;font-weight:600">
-              ${escapeHtml(PHOTO_LABELS[k] ?? k)}
-            </span>
-            <span style="display:block;font-size:10px;color:#888">clique para ampliar</span>
-          </a>
-        </td>`).join("");
-
-      photosBlock = `
-        <div style="margin-top:24px">
-          <h3 style="margin:0 0 12px 0;font-size:15px;color:#0F172A;border-bottom:1px solid #eee;padding-bottom:8px">📸 Fotos do Aluno</h3>
-          <table style="width:100%;border-collapse:collapse"><tr>${grid}</tr></table>
-        </div>`;
-    }
-  }
-
-  const summaryBlock = body.summary
-    ? `<p style="margin:12px 0;color:#333;line-height:1.5">${escapeHtml(body.summary)}</p>` : "";
-
-  return `<!doctype html>
-<html><body style="margin:0;padding:0;background:#f6f7f9;font-family:Inter,Arial,sans-serif;color:#111">
-  <div style="max-width:680px;margin:0 auto;padding:24px">
-    <div style="background:#fff;border-radius:14px;padding:28px;border:1px solid #eaeaea">
-      <h1 style="margin:0 0 16px 0;font-size:20px;color:#0F172A">
-        Elite Prime <span style="color:#E11D48">Hub</span> — ${title}
-      </h1>
-      ${studentLine}${emailLine}${summaryBlock}${dataBlock}${photosBlock}
-      <p style="margin-top:28px;color:#888;font-size:12px;border-top:1px solid #f0f0f0;padding-top:16px">
-        Mensagem automática — acesse o painel para responder.
-      </p>
-    </div>
-  </div>
-</body></html>`;
-}
-
-serve(async (req) => {
-  const corsHeaders = buildCorsHeaders(req.headers.get("origin"));
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-
-  try {
-    // ── Exige usuário autenticado (aluno ou coach logado) ──
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const authHeader = req.headers.get("Authorization") || "";
-
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
+  function startUpdate() {
+    if (!lastCheckin) return;
+    const p = (lastCheckin.payload ?? {}) as Record<string, unknown>;
+    const rawMetrics = (p.metrics_raw as Record<string, string>) ?? {};
+    setData({ ...p });
+    // Reidrata métricas atuais a partir de current_metrics e ini de metrics_raw
+    const m: Record<string, string> = { ...rawMetrics };
+    CHECKIN_METRICS.forEach((cm) => {
+      const cur = lastCheckin.current_metrics?.[cm.key];
+      if (typeof cur === "number") m[`cur_${cm.key}`] = String(cur);
     });
-    const { data: { user } } = await userClient.auth.getUser();
-    if (!user) {
-      return new Response(JSON.stringify({ error: "unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    setMetrics(m);
+    // Fotos existentes vão como previews; só substituem se o aluno carregar arquivo novo
+    const fotos = (p.fotos as Record<string, string>) ?? {};
+    setFotoPreviews({
+      frente: fotos.frente || null,
+      lateral_dir: fotos.lateral_dir || null,
+      lateral_esq: fotos.lateral_esq || null,
+      costas: fotos.costas || null,
+    });
+    setMode("update");
+  }
+
+  // [FIX MÉDIO] baseline movido para dentro do useEffect para evitar dependência
+  // instável no array de deps (objeto recriado a cada render causava loop).
+  useEffect(() => {
+    const baseline = anamnesis?.baseline_metrics ?? {};
+    if (mode === "new" && Object.keys(metrics).length === 0 && baseline) {
+      const init: Record<string, string> = {};
+      CHECKIN_METRICS.forEach((m) => {
+        if (baseline[m.key] != null) init[`ini_${m.key}`] = String(baseline[m.key]);
       });
+      setMetrics(init);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anamnesis, mode]);
 
-    const body = (await req.json()) as NotifyBody;
-    if (!body?.kind) {
-      return new Response(JSON.stringify({ error: "missing fields" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+  const progress = useMemo(() => {
+    const all = CHECKIN_SECTIONS.flatMap((s) => s.fields);
+    const filled = all.filter((f) => {
+      const v = data[f.key];
+      return v !== undefined && v !== null && v !== "";
+    }).length;
+    return Math.round((filled / all.length) * 100);
+  }, [data]);
+
+  function delta(key: string) {
+    const ini = parseFloat(String(metrics[`ini_${key}`] ?? "").replace(",", "."));
+    const cur = parseFloat(String(metrics[`cur_${key}`] ?? "").replace(",", "."));
+    if (isNaN(ini) || isNaN(cur)) return null;
+    return cur - ini;
+  }
+
+  function handleFotoFile(key: string, file: File) {
+    setFotoFiles((p) => ({ ...p, [key]: file }));
+    const url = URL.createObjectURL(file);
+    setFotoPreviews((p) => ({ ...p, [key]: url }));
+  }
+
+  function handleFotoRemove(key: string) {
+    setFotoFiles((p) => ({ ...p, [key]: null }));
+    setFotoPreviews((p) => ({ ...p, [key]: null }));
+  }
+
+  async function submit() {
+    if (!studentId) { toast.error("Não autenticado"); return; }
+    if (mode === "update" && lastCheckin && lastCheckin.edit_count >= 3) {
+      toast.error("Você já editou este check-in 3 vezes.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const current_metrics: Record<string, number> = {};
+      CHECKIN_METRICS.forEach((m) => {
+        const v = parseFloat(String(metrics[`cur_${m.key}`] ?? "").replace(",", "."));
+        if (!isNaN(v)) current_metrics[m.key] = v;
       });
+
+      // Upload fotos novas (best-effort). Preserva URLs existentes em modo update.
+      const existingFotos =
+        mode === "update" && lastCheckin
+          ? ((lastCheckin.payload as Record<string, unknown>)?.fotos as Record<string, string>) || {}
+          : {};
+      const fotos: Record<string, string> = { ...existingFotos };
+      for (const key of FOTO_KEYS) {
+        const file = fotoFiles[key];
+        if (file) {
+          try { fotos[key] = await uploadToCloudinary(file); } catch { fotos[key] = ""; }
+        }
+      }
+
+      if (mode === "update" && lastCheckin) {
+        const { error } = await sb
+          .from("check_ins")
+          .update({
+            current_metrics,
+            payload: { ...data, metrics_raw: metrics, fotos },
+            edit_count: (lastCheckin.edit_count ?? 0) + 1,
+            submitted_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", lastCheckin.id);
+        if (error) throw error;
+      } else {
+        const { error } = await sb.from("check_ins").insert({
+          student_id: studentId,
+          current_metrics,
+          payload: { ...data, metrics_raw: metrics, fotos },
+        });
+        if (error) throw error;
+      }
+
+      try {
+        const { data: link } = await sb
+          .from("coach_students")
+          .select("coach_id")
+          .eq("student_id", studentId)
+          .eq("status", "active")
+          .maybeSingle();
+
+        if (link?.coach_id) {
+          const anaPayload = (anamnesis?.payload as Record<string, unknown>) || {};
+          const studentName = String(anaPayload.nome ?? "Aluno");
+          const studentEmail = String(anaPayload.email ?? "");
+
+          // 1. Insere em coach_notifications → painel do coach apita em tempo real
+          await sb.from("coach_notifications").insert({
+            coach_id:     link.coach_id,
+            student_id:   studentId,
+            student_name: studentName,
+            context:      "Check-in",
+            message:
+              mode === "update"
+                ? "Aluno atualizou o último check-in."
+                : "Aluno enviou um novo check-in quinzenal.",
+          });
+
+          // 2. Dispara e-mail via Edge Function (busca o coachEmail server-side)
+          void notifyCoach({
+            coachEmail: "",        // ignorado pela edge function — ela re-busca via service role
+            studentName,
+            studentEmail,
+            kind: "checkin",
+            summary:
+              mode === "update"
+                ? "Aluno atualizou o último check-in."
+                : "Aluno enviou um novo check-in quinzenal.",
+            data: { ...data, ...current_metrics, fotos, _updated: mode === "update" },
+          });
+        }
+      } catch (notifyErr) {
+        console.warn("notifyCoach falhou (check-in)", notifyErr);
+      }
+
+      toast.success(
+        mode === "update"
+          ? "Check-in atualizado e enviado ao seu coach."
+          : "Check-in enviado ao seu coach."
+      );
+      qc.invalidateQueries({ queryKey: ["check-ins", studentId] });
+      setTimeout(() => navigate("/evolution"), 1000);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Erro ao enviar";
+      toast.error(msg);
+    } finally {
+      setSaving(false);
     }
+  }
 
-    // ── Buscar o coach_id vinculado ao aluno autenticado ──
-    // IMPORTANTE: coach_students não possui FK declarada para profiles no schema,
-    // portanto o JOIN via hint "profiles!coach_students_coach_id_fkey" falha silenciosamente.
-    // Solução: duas queries independentes sem JOIN.
-    const adminClient = createClient(supabaseUrl, serviceKey);
+  // Tela de escolha entre novo check-in e atualizar o último
+  if (mode === "choose") {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border">
+          <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/student-area")}>
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+            <h1 className="text-base font-bold text-foreground">Check-in</h1>
+          </div>
+        </header>
+        <main className="max-w-3xl mx-auto px-4 py-10 space-y-4">
+          {loadingLast ? (
+            <div className="flex justify-center py-10">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : (
+            <>
+              <h2 className="text-lg font-bold text-foreground">O que deseja fazer?</h2>
+              <p className="text-sm text-muted-foreground">
+                Você pode iniciar um novo check-in ou ajustar o último que enviou.
+              </p>
 
-    const { data: coachLink, error: linkErr } = await adminClient
-      .from("coach_students")
-      .select("coach_id")
-      .eq("student_id", user.id)
-      .eq("status", "active")
-      .maybeSingle();
+              <div className="grid sm:grid-cols-2 gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={startNew}
+                  className="text-left rounded-2xl border border-border bg-card/60 p-5 hover:border-primary/60 hover:bg-card transition-colors"
+                >
+                  <FilePlus2 className="w-6 h-6 text-primary mb-3" />
+                  <h3 className="text-sm font-bold text-foreground mb-1">Fazer novo check-in</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Envie a quinzena atual, com novas medidas e fotos.
+                  </p>
+                </button>
 
-    if (linkErr || !coachLink?.coach_id) {
-      return new Response(JSON.stringify({ error: "coach_not_found" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const coachId = coachLink.coach_id;
-
-    // Query separada para o perfil do coach (sem JOIN — evita falha de FK)
-    const { data: coachProfile, error: profileErr } = await adminClient
-      .from("profiles")
-      .select("notification_email, email, full_name")
-      .eq("user_id", coachId)
-      .maybeSingle();
-
-    if (profileErr || !coachProfile) {
-      return new Response(JSON.stringify({ error: "coach_profile_not_found" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Preferência: notification_email; fallback: email do perfil
-    const coachEmail = coachProfile.notification_email || coachProfile.email;
-    if (!coachEmail) {
-      return new Response(JSON.stringify({ error: "coach_email_not_found" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // ── Inserir em coach_notifications para que o sino do painel apite ──
-    // Feito com service role para não depender de RLS do aluno sobre a tabela do coach.
-    if (body.kind === "checkin" || body.kind === "anamnesis") {
-      const contextLabel =
-        body.kind === "checkin" ? "Check-in" : "Anamnese";
-      await adminClient.from("coach_notifications").insert({
-        coach_id:     coachId,
-        student_id:   user.id,
-        student_name: body.studentName ?? "Aluno",
-        context:      contextLabel,
-        message:
-          body.summary ??
-          (body.kind === "checkin"
-            ? "Aluno enviou um novo check-in quinzenal."
-            : "Aluno enviou uma nova anamnese."),
-      });
-    }
-
-    const RESEND_KEY = Deno.env.get("RESEND_API_KEY");
-    if (!RESEND_KEY) {
-      return new Response(JSON.stringify({ error: "RESEND_API_KEY not set" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const subject = body.subject || (
-      body.kind === "anamnesis" ? `Nova Anamnese — ${body.studentName ?? "Aluno"}` :
-      body.kind === "checkin" ? `Novo Check-in — ${body.studentName ?? "Aluno"}` :
-      `Nova Dúvida — ${body.studentName ?? "Aluno"}`
+                <button
+                  type="button"
+                  onClick={startUpdate}
+                  disabled={!lastCheckin || (lastCheckin.edit_count ?? 0) >= 3}
+                  className={cn(
+                    "text-left rounded-2xl border p-5 transition-colors",
+                    !lastCheckin || (lastCheckin.edit_count ?? 0) >= 3
+                      ? "border-border/40 bg-card/30 opacity-60 cursor-not-allowed"
+                      : "border-border bg-card/60 hover:border-primary/60 hover:bg-card"
+                  )}
+                >
+                  <FileEdit className="w-6 h-6 text-primary mb-3" />
+                  <h3 className="text-sm font-bold text-foreground mb-1">Atualizar último check-in</h3>
+                  {lastCheckin ? (
+                    <p className="text-xs text-muted-foreground">
+                      Enviado em{" "}
+                      {new Date(lastCheckin.submitted_at).toLocaleDateString("pt-BR")}.{" "}
+                      <span className="font-semibold text-foreground">
+                        Edições usadas: {lastCheckin.edit_count ?? 0}/3
+                      </span>
+                      {(lastCheckin.edit_count ?? 0) >= 3 &&
+                        " — limite atingido, crie um novo."}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Você ainda não tem nenhum check-in registrado.
+                    </p>
+                  )}
+                </button>
+              </div>
+            </>
+          )}
+        </main>
+      </div>
     );
-
-    const r = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${RESEND_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: "Elite Prime Hub <noreply@eliteprimehub.com.br>",
-        to: [coachEmail],
-        reply_to: body.studentEmail || undefined,
-        subject,
-        html: renderHtml(body),
-      }),
-    });
-
-    const out = await r.json().catch(() => ({}));
-    if (!r.ok) {
-      return new Response(JSON.stringify({ error: "resend_failed", status: r.status, detail: out }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    return new Response(JSON.stringify({ ok: true, id: out?.id ?? null }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "unknown";
-    return new Response(JSON.stringify({ error: msg }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
   }
-});
+
+  return (
+    <div className="min-h-screen bg-background pb-32">
+      <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => setMode("choose")}>
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div className="flex-1">
+            <h1 className="text-base font-bold text-foreground">
+              {mode === "update" ? "Atualizar check-in" : "Check-in"}
+            </h1>
+            <p className="text-[11px] text-muted-foreground">
+              {mode === "update" && lastCheckin
+                ? `Edição ${(lastCheckin.edit_count ?? 0) + 1} de 3`
+                : "Atualize seus dados da quinzena"}
+            </p>
+          </div>
+          <div className="text-right">
+            <div className="text-xs font-semibold text-primary">{progress}%</div>
+            <div className="w-20 h-1 bg-muted rounded-full overflow-hidden mt-0.5">
+              <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-3xl mx-auto px-4 py-6 space-y-5">
+
+        {/* Stepper */}
+        <div>
+          <div className="flex gap-2">
+            {[1, 2, 3].map((s) => (
+              <div
+                key={s}
+                className={cn(
+                  "h-1.5 flex-1 rounded-full transition-colors",
+                  step >= s ? "bg-primary" : "bg-muted"
+                )}
+              />
+            ))}
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-1.5">Etapa {step} de 3</p>
+        </div>
+
+        {step === 1 && (
+          <>
+            {CHECKIN_SECTIONS.filter((s) => ["identificacao", "dieta", "treino_sono"].includes(s.id)).map((sec) => (
+              <Card key={sec.id} className="bg-card/60 border-border p-5">
+                <h2 className="text-sm font-bold text-primary uppercase tracking-wider mb-4">
+                  {sec.title}
+                </h2>
+                <div className="grid grid-cols-2 gap-4">
+                  {sec.fields.map((f) => (
+                    <div key={f.key} className={f.half ? "col-span-1" : "col-span-2"}>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">
+                        {f.label}
+                      </Label>
+                      <FormField
+                        field={f}
+                        value={data[f.key]}
+                        onChange={(v) => setData((p) => ({ ...p, [f.key]: v }))}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            ))}
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+        {/* Métricas com delta */}
+        <Card className="bg-card/60 border-border p-5">
+          <h2 className="text-sm font-bold text-primary uppercase tracking-wider mb-4">
+            Medidas atuais
+          </h2>
+          <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 mb-4 space-y-1 text-[11px] text-muted-foreground">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-1">📏 Como medir</p>
+            <p>• <span className="text-foreground font-medium">Pescoço:</span> logo abaixo do "gogó".</p>
+            <p>• <span className="text-foreground font-medium">Cintura:</span> no umbigo (M) ou parte mais fina (F).</p>
+            <p>• <span className="text-foreground font-medium">Quadril:</span> na maior protuberância dos glúteos.</p>
+            <p>• Fita firme, <span className="text-foreground font-medium">sem afundar na pele</span>.</p>
+          </div>
+          <div className="space-y-3">
+            {CHECKIN_METRICS.map((m) => {
+              const d = delta(m.key);
+              const Icon = d == null ? Minus : Math.abs(d) < 0.05 ? Minus : d < 0 ? TrendingDown : TrendingUp;
+              const color = d == null || Math.abs(d ?? 1) < 0.05
+                ? "text-muted-foreground"
+                : (d! < 0 ? "text-emerald-400" : "text-amber-400");
+              return (
+                <div key={m.key} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2">
+                  <Label className="text-xs text-muted-foreground">{m.label}</Label>
+                  <Input
+                    type="number" step="0.1" placeholder="ini"
+                    value={metrics[`ini_${m.key}`] ?? ""}
+                    onChange={(e) => setMetrics((p) => ({ ...p, [`ini_${m.key}`]: e.target.value }))}
+                    className="w-20 h-9 bg-card border-border text-center text-xs"
+                  />
+                  <Input
+                    type="number" step="0.1" placeholder="atual"
+                    value={metrics[`cur_${m.key}`] ?? ""}
+                    onChange={(e) => setMetrics((p) => ({ ...p, [`cur_${m.key}`]: e.target.value }))}
+                    className="w-20 h-9 bg-card border-border text-center text-xs"
+                  />
+                  <div className={cn("flex items-center gap-1 text-xs font-semibold w-16 justify-end", color)}>
+                    <Icon className="w-3 h-3" />
+                    {d == null ? "—" : `${d > 0 ? "+" : ""}${d.toFixed(1)} ${m.unit}`}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+
+        {CHECKIN_SECTIONS.filter((s) => !["identificacao", "dieta", "treino_sono"].includes(s.id)).map((sec) => (
+          <Card key={sec.id} className="bg-card/60 border-border p-5">
+            <h2 className="text-sm font-bold text-primary uppercase tracking-wider mb-4">
+              {sec.title}
+            </h2>
+            <div className="grid grid-cols-2 gap-4">
+              {sec.fields.map((f) => (
+                <div key={f.key} className={f.half ? "col-span-1" : "col-span-2"}>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">
+                    {f.label}
+                  </Label>
+                  <FormField
+                    field={f}
+                    value={data[f.key]}
+                    onChange={(v) => setData((p) => ({ ...p, [f.key]: v }))}
+                  />
+                </div>
+              ))}
+            </div>
+          </Card>
+        ))}
+
+        {/* Fotos de progresso */}
+        <Card className="bg-card/60 border-border p-5">
+          <h2 className="text-sm font-bold text-primary uppercase tracking-wider mb-4">
+            Fotos de Progresso
+          </h2>
+          <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 mb-4 space-y-1 text-[11px] text-muted-foreground">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-1">📸 Como tirar a foto correta</p>
+            {[
+              "Mesmo ambiente e fundo de sempre",
+              "Mesma iluminação (evite sombras e contraluz)",
+              "Mesma roupa — sunga, bermuda ou top",
+              "Mesmo horário (preferencialmente em jejum)",
+              "Câmera na altura da cintura, distância de 1,5m",
+            ].map((tip) => (
+              <p key={tip}>· <span className="text-foreground font-medium">{tip}</span></p>
+            ))}
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {FOTO_KEYS.map((key) => (
+              <FotoSlot
+                key={key}
+                label={FOTO_LABELS[key]}
+                preview={fotoPreviews[key]}
+                onFile={(f) => handleFotoFile(key, f)}
+                onRemove={() => handleFotoRemove(key)}
+              />
+            ))}
+          </div>
+        </Card>
+          </>
+        )}
+
+        {step === 3 && (
+          <Card className="bg-card/60 border-border p-5">
+            <h2 className="text-sm font-bold text-primary uppercase tracking-wider mb-4">
+              Revisar & Enviar
+            </h2>
+            <ul className="space-y-2 text-sm text-foreground">
+              <li>
+                <span className="text-muted-foreground">Fotos anexadas:</span>{" "}
+                <span className="font-semibold">
+                  {FOTO_KEYS.filter((k) => fotoPreviews[k]).length} de {FOTO_KEYS.length}
+                </span>
+              </li>
+              <li>
+                <span className="text-muted-foreground">Peso atual:</span>{" "}
+                <span className="font-semibold">
+                  {metrics["cur_peso"] ? `${metrics["cur_peso"]} kg` : "—"}
+                </span>
+              </li>
+              <li>
+                <span className="text-muted-foreground">Progresso do formulário:</span>{" "}
+                <span className="font-semibold">{progress}%</span>
+              </li>
+            </ul>
+            <p className="text-xs text-muted-foreground mt-4">
+              Revise os dados acima. Ao enviar, seu coach será notificado automaticamente.
+            </p>
+          </Card>
+        )}
+      </main>
+
+      <footer className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t border-border z-20">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex gap-2">
+          {step > 1 && (
+            <Button variant="outline" onClick={() => setStep((s) => (s - 1) as 1 | 2 | 3)}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Voltar
+            </Button>
+          )}
+          {step < 3 ? (
+            <Button className="flex-1" onClick={() => setStep((s) => (s + 1) as 1 | 2 | 3)}>
+              Continuar
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          ) : (
+            <Button className="flex-1" onClick={submit} disabled={saving || progress < 25}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+              Enviar check-in
+            </Button>
+          )}
+        </div>
+      </footer>
+    </div>
+  );
+}
