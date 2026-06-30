@@ -654,12 +654,17 @@ export default function WorkoutMode({
   }, [exercises.length, userId]);
 
   /* ── Timer ──────────────────────────────────────────────────────────────────── */
-  const [restRemaining, setRestRemaining] = useState(defaultRestSec);
-  const [restRunning, setRestRunning]     = useState(false);
+  const [restElapsed, setRestElapsed]   = useState(0);
+  const [restRunning, setRestRunning]   = useState(false);
   const restRef = useRef<number | null>(null);
+  // Captura defaultRestSec e alertRestSec em refs para acesso seguro dentro do intervalo
+  const defaultRestSecRef = useRef(defaultRestSec);
+  const alertRestSecRef   = useRef(alertRestSec);
+  useEffect(() => { defaultRestSecRef.current = defaultRestSec; }, [defaultRestSec]);
+  useEffect(() => { alertRestSecRef.current   = alertRestSec;   }, [alertRestSec]);
 
-  // Zona de alerta: descanso entrou abaixo do mínimo recomendado
-  const isAlertZone = restRunning && alertRestSec > 0 && restRemaining <= alertRestSec;
+  // Zona de alerta: descanso já passou do mínimo recomendado (contagem progressiva)
+  const isAlertZone = restRunning && alertRestSec > 0 && restElapsed >= alertRestSec;
 
   // Sugestão automática de progressão de carga
   const exerciseKeys = exercises.map((ex) => toExerciseKey(ex.name));
@@ -667,7 +672,7 @@ export default function WorkoutMode({
   const currentProgression = progressionMap?.get(toExerciseKey(currentEx?.name ?? ""));
 
   useEffect(() => {
-    setRestRemaining(defaultRestSec);
+    setRestElapsed(0);
     setRestRunning(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentExKey, activeWeek, defaultRestSec]);
@@ -688,17 +693,18 @@ export default function WorkoutMode({
       return;
     }
     restRef.current = window.setInterval(() => {
-      setRestRemaining((r) => {
-        if (r <= 1) {
+      setRestElapsed((e) => {
+        const next = e + 1;
+        // Aviso sonoro + visual ao atingir o mínimo recomendado
+        if (next === alertRestSecRef.current) playBeep("warn");
+        // Fim do descanso ao atingir o máximo
+        if (next >= defaultRestSecRef.current) {
           setRestRunning(false);
           playBeep("end");
           toast.success("🔔 Descansou! Hora da próxima série.", { duration: 4000 });
-          // NÃO avança automaticamente — aluno decide quando está pronto
-          return 0;
+          return defaultRestSecRef.current; // trava no teto
         }
-        // Aviso sonoro + visual ao atingir o mínimo de descanso recomendado
-        if (r === alertRestSec) playBeep("warn");
-        return r - 1;
+        return next;
       });
     }, 1000);
     return () => { if (restRef.current) window.clearInterval(restRef.current); };
@@ -708,7 +714,7 @@ export default function WorkoutMode({
   const skipRest = () => {
     if (restRef.current) window.clearInterval(restRef.current);
     setRestRunning(false);
-    setRestRemaining(0);
+    setRestElapsed(0);
     // Não avança — aluno controla
   };
 
@@ -793,7 +799,7 @@ export default function WorkoutMode({
         completed:       true,
       });
 
-      setRestRemaining(defaultRestSec);
+      setRestElapsed(0);
       setRestRunning(true);
     },
     [
@@ -1005,7 +1011,7 @@ export default function WorkoutMode({
                 animate={burstKey ? { scale: [1, 1.12, 1] } : isAlertZone ? { scale: [1, 1.03, 1] } : { scale: 1 }}
                 transition={{ duration: isAlertZone ? 0.8 : 0.35, ease: "easeInOut", repeat: isAlertZone ? Infinity : 0 }}
               >
-                {fmtMMSS(restRemaining)}
+                {fmtMMSS(restElapsed)}
               </motion.p>
               {/* Label de alerta no mínimo de descanso */}
               {isAlertZone && (
@@ -1040,7 +1046,7 @@ export default function WorkoutMode({
                 </>
               ) : (
                 <button type="button"
-                  onClick={() => { setRestRunning(false); setRestRemaining(defaultRestSec); }}
+                  onClick={() => { setRestRunning(false); setRestElapsed(0); }}
                   className="flex items-center gap-1.5 px-3 py-2.5 rounded-full text-xs font-semibold"
                   style={{ border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)" }}>
                   <RotateCcw className="w-3.5 h-3.5" />
@@ -1320,7 +1326,7 @@ export default function WorkoutMode({
               const exMax     = parseSetsMax(ex.sets);
               return (
                 <div key={idx}
-                  onClick={() => { setCurrentExIdx(idx); setRestRunning(false); setRestRemaining(parseRestSec(ex.rest)); }}
+                  onClick={() => { setCurrentExIdx(idx); setRestRunning(false); setRestElapsed(0); }}
                   className={`flex items-center gap-3 bg-card border rounded-xl p-3 cursor-pointer transition-all ${
                     isCurrent ? "border-primary shadow-[0_0_0_1px_hsl(var(--primary))]" : "border-border"
                   }`}
