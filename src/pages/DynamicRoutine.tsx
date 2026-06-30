@@ -54,7 +54,7 @@ export default function DynamicRoutine() {
       const { data } = await supabase
         .from("profiles")
         .select("full_name")
-        .eq("id", userId)
+        .eq("user_id", userId)
         .maybeSingle();
       return data ?? null;
     },
