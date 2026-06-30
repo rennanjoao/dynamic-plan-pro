@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
+import { Navigate, useLocation } from "react-router-dom";
 import { Loader2, Ban } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 export const AnamnesisGuard = ({ children }: { children: React.ReactNode }) => {
   const [coachBlocked, setCoachBlocked] = useState(false);
   const [checkingCoach, setCheckingCoach] = useState(true);
+  const [hasAnamnesis, setHasAnamnesis] = useState<boolean | null>(null);
+  const location = useLocation();
 
   useEffect(() => {
     let cancelled = false;
@@ -16,6 +19,14 @@ export const AnamnesisGuard = ({ children }: { children: React.ReactNode }) => {
           if (!cancelled) setCoachBlocked(false);
           return;
         }
+        // Verifica se o aluno já submeteu a anamnese
+        const { data: ana } = await supabase
+          .from("anamnesis")
+          .select("submitted_at")
+          .eq("student_id", userId)
+          .maybeSingle();
+        if (!cancelled) setHasAnamnesis(!!ana?.submitted_at);
+
         const { data: plan } = await supabase
           .from("coach_plans")
           .select("coach_id, updated_at")
@@ -53,6 +64,11 @@ export const AnamnesisGuard = ({ children }: { children: React.ReactNode }) => {
         <Loader2 className="w-8 h-8 animate-spin text-primary opacity-30" />
       </div>
     );
+  }
+
+  // Aluno sem anamnese submetida → forçar preenchimento antes de qualquer rota interna.
+  if (hasAnamnesis === false && location.pathname !== "/anamnesis") {
+    return <Navigate to="/anamnesis" replace />;
   }
 
   if (coachBlocked) {
