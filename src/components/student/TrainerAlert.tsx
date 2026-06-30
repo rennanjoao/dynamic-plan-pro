@@ -184,6 +184,7 @@ export const TrainerAlert = () => {
           }}
           onClick={() => setProtocolUpdateAlert(false)}
         >
+          <Zap className="h-5 w-5 absolute left-4 top-4" style={{ color: "hsl(145, 63%, 50%)" }} />
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); setProtocolUpdateAlert(false); }}
@@ -193,17 +194,18 @@ export const TrainerAlert = () => {
           >
             <X className="w-4 h-4" />
           </button>
-          <Zap className="h-5 w-5" style={{ color: "hsl(145, 63%, 50%)" }} />
-          <AlertTitle
-            className="font-bold tracking-wide"
-            style={{ color: "hsl(145, 63%, 50%)" }}
-          >
-            Protocolo Atualizado!
-          </AlertTitle>
-          <AlertDescription className="mt-1 text-gray-200 pr-6">
-            O seu treinador acabou de atualizar o seu Treino / Dieta. As
-            mudanças já se encontram disponíveis. (Toque para dispensar)
-          </AlertDescription>
+          <div className="pl-7 pr-8">
+            <AlertTitle
+              className="font-bold tracking-wide mb-1"
+              style={{ color: "hsl(145, 63%, 50%)" }}
+            >
+              Protocolo Atualizado!
+            </AlertTitle>
+            <AlertDescription className="mt-1 text-sm text-gray-200 break-words">
+              O seu treinador acabou de atualizar o seu Treino / Dieta. As
+              mudanças já se encontram disponíveis. (Toque para dispensar)
+            </AlertDescription>
+          </div>
         </Alert>
       )}
 
@@ -216,6 +218,7 @@ export const TrainerAlert = () => {
             borderColor: "hsla(145, 63%, 42%, 0.2)",
           }}
         >
+          <Info className="h-5 w-5 absolute left-4 top-4" style={{ color: "hsl(145, 63%, 49%)" }} />
           {/* Botão fechar */}
           <button
             type="button"
@@ -226,20 +229,22 @@ export const TrainerAlert = () => {
           >
             <X className="w-4 h-4" />
           </button>
-
-          <Info className="h-5 w-5" style={{ color: "hsl(145, 63%, 49%)" }} />
-          <AlertTitle
-            className="font-bold tracking-wide"
-            style={{ color: "hsl(145, 63%, 49%)" }}
-          >
-            Mensagem do Treinador
-          </AlertTitle>
-          <AlertDescription
-            className="mt-1 pr-6"
-            style={{ color: "hsla(145, 63%, 90%, 0.8)" }}
-          >
-            "{alertData!.message}"
-          </AlertDescription>
+          {/* Wrapper: garante que [&>svg~*]:pl-7 se aplique uma única vez ao div,
+              evitando sobreposição do ícone absoluto sobre o texto em mobile */}
+          <div className="pl-7 pr-8">
+            <AlertTitle
+              className="font-bold tracking-wide mb-1"
+              style={{ color: "hsl(145, 63%, 49%)" }}
+            >
+              Mensagem do Treinador
+            </AlertTitle>
+            <AlertDescription
+              className="mt-1 text-sm break-words"
+              style={{ color: "hsla(145, 63%, 90%, 0.8)" }}
+            >
+              "{alertData!.message}"
+            </AlertDescription>
+          </div>
         </Alert>
       )}
     </>
