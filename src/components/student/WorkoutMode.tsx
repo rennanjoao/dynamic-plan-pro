@@ -573,11 +573,6 @@ export default function WorkoutMode({
   const [now, setNow]               = useState(Date.now());
   const [historyMap, setHistoryMap] = useState<Record<string, ExerciseHistory[]>>({});
 
-  // Sugestão automática de progressão de carga
-  const exerciseKeys = exercises.map((ex) => toExerciseKey(ex.name));
-  const { data: progressionMap } = useLoadProgression(userId, exerciseKeys);
-  const currentProgression = progressionMap?.get(toExerciseKey(currentEx?.name ?? ""));
-
   // Micro-interação: burst ao concluir série
   const [burstKey, setBurstKey]   = useState<string | null>(null);
   const [burstColor, setBurstColor] = useState(GOLD);
@@ -593,8 +588,6 @@ export default function WorkoutMode({
     return () => window.clearInterval(id);
   }, []);
   const elapsedSec = startedAt ? Math.floor((now - startedAt) / 1000) : 0;
-  // Zona de alerta: descanso entrou abaixo do mínimo recomendado
-  const isAlertZone = restRunning && alertRestSec > 0 && restRemaining <= alertRestSec;
 
   const day       = workouts.find((d) => d.key === selectedDay) ?? workouts[0];
   const exercises: Exercise[] = (day?.exercises ?? []).map((ex, idx) => {
@@ -664,6 +657,14 @@ export default function WorkoutMode({
   const [restRemaining, setRestRemaining] = useState(defaultRestSec);
   const [restRunning, setRestRunning]     = useState(false);
   const restRef = useRef<number | null>(null);
+
+  // Zona de alerta: descanso entrou abaixo do mínimo recomendado
+  const isAlertZone = restRunning && alertRestSec > 0 && restRemaining <= alertRestSec;
+
+  // Sugestão automática de progressão de carga
+  const exerciseKeys = exercises.map((ex) => toExerciseKey(ex.name));
+  const { data: progressionMap } = useLoadProgression(userId, exerciseKeys);
+  const currentProgression = progressionMap?.get(toExerciseKey(currentEx?.name ?? ""));
 
   useEffect(() => {
     setRestRemaining(defaultRestSec);
