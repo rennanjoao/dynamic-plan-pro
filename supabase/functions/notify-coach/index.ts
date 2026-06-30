@@ -123,32 +123,65 @@ serve(async (req) => {
       });
     }
 
-    // ── [FIX ALTO] Buscar o e-mail do coach pelo banco, ignorando qualquer
-    // valor que o cliente tenha tentado enviar. O destino do e-mail é sempre
-    // determinado pelo vínculo coach_students → profiles do banco de dados. ──
+    // ── Buscar o coach_id vinculado ao aluno autenticado ──
+    // IMPORTANTE: coach_students não possui FK declarada para profiles no schema,
+    // portanto o JOIN via hint "profiles!coach_students_coach_id_fkey" falha silenciosamente.
+    // Solução: duas queries independentes sem JOIN.
     const adminClient = createClient(supabaseUrl, serviceKey);
+
     const { data: coachLink, error: linkErr } = await adminClient
       .from("coach_students")
-      .select("coach_id, profiles!coach_students_coach_id_fkey(notification_email, email)")
+      .select("coach_id")
       .eq("student_id", user.id)
       .eq("status", "active")
       .maybeSingle();
 
-    if (linkErr || !coachLink) {
+    if (linkErr || !coachLink?.coach_id) {
       return new Response(JSON.stringify({ error: "coach_not_found" }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    const coachId = coachLink.coach_id;
+
+    // Query separada para o perfil do coach (sem JOIN — evita falha de FK)
+    const { data: coachProfile, error: profileErr } = await adminClient
+      .from("profiles")
+      .select("notification_email, email, full_name")
+      .eq("user_id", coachId)
+      .maybeSingle();
+
+    if (profileErr || !coachProfile) {
+      return new Response(JSON.stringify({ error: "coach_profile_not_found" }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Preferência: notification_email; fallback: email do perfil
-    const coachProfile = coachLink.profiles as { notification_email?: string; email?: string } | null;
-    const coachEmail = coachProfile?.notification_email || coachProfile?.email;
+    const coachEmail = coachProfile.notification_email || coachProfile.email;
     if (!coachEmail) {
       return new Response(JSON.stringify({ error: "coach_email_not_found" }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    // ── fim do fix ──
+
+    // ── Inserir em coach_notifications para que o sino do painel apite ──
+    // Feito com service role para não depender de RLS do aluno sobre a tabela do coach.
+    if (body.kind === "checkin" || body.kind === "anamnesis") {
+      const contextLabel =
+        body.kind === "checkin" ? "Check-in" : "Anamnese";
+      await adminClient.from("coach_notifications").insert({
+        coach_id:     coachId,
+        student_id:   user.id,
+        student_name: body.studentName ?? "Aluno",
+        context:      contextLabel,
+        message:
+          body.summary ??
+          (body.kind === "checkin"
+            ? "Aluno enviou um novo check-in quinzenal."
+            : "Aluno enviou uma nova anamnese."),
+      });
+    }
 
     const RESEND_KEY = Deno.env.get("RESEND_API_KEY");
     if (!RESEND_KEY) {
