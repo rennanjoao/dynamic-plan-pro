@@ -132,19 +132,19 @@ const SLEEP_OPTIONS: { value: 1 | 2 | 3; emoji: string; label: string }[] = [
 
 const TUTORIAL_STEPS = [
   {
-    title: "Peso pré-carregado",
-    body: "O último peso que você usou já aparece no campo. Se for usar o mesmo, nem toque — só escolha como foi.",
+    title: "Carga pré-carregada",
+    body: "O peso da última série já vem preenchido. Mude conforme sua progressão — economiza tempo entre séries.",
     emoji: "⚡",
   },
   {
-    title: "Tap único salva a série",
-    body: "Limpo, Pesado ou Falhei. Um toque e o descanso começa. Sem botão extra de confirmar.",
+    title: "Um toque, série registrada",
+    body: "Limpo, Pesado ou Falhei. O toque já salva e inicia o descanso — sem etapa de confirmação.",
     emoji: "✅",
   },
   {
-    title: "Vibra quando acabar o descanso",
-    body: "Pode guardar o celular. O háptico avisa quando é hora de treinar de novo.",
-    emoji: "📳",
+    title: "Aviso sonoro no fim do descanso",
+    body: "Um beep avisa quando o tempo termina. Mantenha o app aberto durante o treino para não perder o aviso.",
+    emoji: "🔔",
   },
 ];
 
@@ -179,6 +179,64 @@ const BurstParticles = memo(function BurstParticles({ color }: { color: string }
     </div>
   );
 });
+
+/* ── Beep sonoro (Web Audio API — sem dependências novas) ──────────────────────
+   Funciona em iOS e Android igual, desde que o app esteja em primeiro plano.
+   Diferente de navigator.vibrate(), que o iOS bloqueia por completo. */
+
+let sharedAudioCtx: AudioContext | null = null;
+
+function getAudioCtx(): AudioContext | null {
+  try {
+    if (!sharedAudioCtx) {
+      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctx) return null;
+      sharedAudioCtx = new Ctx();
+    }
+    if (sharedAudioCtx.state === "suspended") {
+      void sharedAudioCtx.resume();
+    }
+    return sharedAudioCtx;
+  } catch {
+    return null;
+  }
+}
+
+/** Toca um beep curto. type "warn" = aviso (mínimo atingido), "end" = fim do descanso. */
+function playBeep(type: "warn" | "end" = "end") {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    if (type === "end") {
+      // Dois beeps curtos e firmes — sinaliza "pronto"
+      osc.frequency.setValueAtTime(880, now);
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.25, now + 0.02);
+      gain.gain.linearRampToValueAtTime(0, now + 0.16);
+      osc.frequency.setValueAtTime(880, now + 0.22);
+      gain.gain.linearRampToValueAtTime(0.25, now + 0.24);
+      gain.gain.linearRampToValueAtTime(0, now + 0.38);
+      osc.start(now);
+      osc.stop(now + 0.4);
+    } else {
+      // Um beep curto e suave — aviso de mínimo atingido
+      osc.frequency.setValueAtTime(660, now);
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.15, now + 0.02);
+      gain.gain.linearRampToValueAtTime(0, now + 0.14);
+      osc.start(now);
+      osc.stop(now + 0.16);
+    }
+  } catch {
+    // Silencioso: navegador sem suporte, política de autoplay, etc.
+  }
+}
 
 /* ── Helpers ────────────────────────────────────────────────────────────────── */
 
@@ -632,13 +690,13 @@ export default function WorkoutMode({
       setRestRemaining((r) => {
         if (r <= 1) {
           setRestRunning(false);
-          if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
-          toast.success("⚡ Descansou! Hora da próxima série.", { duration: 4000 });
+          playBeep("end");
+          toast.success("🔔 Descansou! Hora da próxima série.", { duration: 4000 });
           // NÃO avança automaticamente — aluno decide quando está pronto
           return 0;
         }
-        // Aviso háptico + visual ao atingir o mínimo de descanso
-        if (r === alertRestSec && navigator.vibrate) navigator.vibrate([80, 40, 80]);
+        // Aviso sonoro + visual ao atingir o mínimo de descanso recomendado
+        if (r === alertRestSec) playBeep("warn");
         return r - 1;
       });
     }, 1000);
@@ -694,6 +752,9 @@ export default function WorkoutMode({
   const handleFizASerie = useCallback(
     async (effort?: 1 | 2 | 3) => {
       if (todasFeitas) return;
+
+      // Destrava o AudioContext no gesto do usuário (exigência dos navegadores)
+      getAudioCtx();
 
       // Resolve carga/reps: usa sugestão se não editado
       const weight = activeWeight > 0 ? activeWeight : suggestedWeight;
