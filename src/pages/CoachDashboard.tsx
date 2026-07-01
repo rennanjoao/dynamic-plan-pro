@@ -1009,10 +1009,7 @@ export default function CoachDashboard() {
 
   useEffect(() => { setStudentPage(0); }, [search, filter]);
 
-  // Lista leve (id/name/lastAnamnesis) só quando a aba Finanças está ativa.
-  const { data: allStudents = [] } = useCoachStudentsLite(
-    activeTab === "finances" ? coachId : null
-  );
+  const { data: allStudents = [] } = useCoachStudentsLite(coachId);
 
   const goBack = () => { setView("list"); setSelectedStudent(null); };
 
