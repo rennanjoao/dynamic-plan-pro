@@ -50,7 +50,7 @@ export default function WorkoutPlan() {
   const [showWorkoutMode, setShowWorkoutMode] = useState(false);
   const [workoutModeDay, setWorkoutModeDay] = useState<string | undefined>(undefined);
   const [showHistory, setShowHistory] = useState(false);
-  useWakeLock();
+  useWakeLock(showWorkoutMode);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
