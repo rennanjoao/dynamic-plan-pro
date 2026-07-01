@@ -569,7 +569,7 @@ export default function WorkoutMode({
   const [showShare, setShowShare]   = useState(false);
   const [shareMode, setShareMode]   = useState<"final" | "partial">("final");
   const [completed, setCompleted]   = useState<Record<string, number[]>>(_saved?.completed ?? {});
-  const [startedAt, setStartedAt]   = useState(Date.now());
+  const [startedAt, setStartedAt]   = useState<number>(_saved?.startedAt ?? Date.now());
   const [now, setNow]               = useState(Date.now());
   const [historyMap, setHistoryMap] = useState<Record<string, ExerciseHistory[]>>({});
 
@@ -579,9 +579,18 @@ export default function WorkoutMode({
 
   useEffect(() => {
     try {
-      localStorage.setItem(storageKey, JSON.stringify({ activeWeek, completed, setDataMap }));
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          activeWeek,
+          completed,
+          setDataMap,
+          sessionId: session.sessionId,
+          startedAt,
+        })
+      );
     } catch { /* quota exceeded */ }
-  }, [activeWeek, completed, setDataMap, storageKey]);
+  }, [activeWeek, completed, setDataMap, storageKey, session.sessionId, startedAt]);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
@@ -628,14 +637,24 @@ export default function WorkoutMode({
   }, [currentExKey, setsMax, currentEx]);
 
   useEffect(() => {
-    setStartedAt(Date.now());
-    session.startSession({
-      userId,
-      coachId,
-      workoutKey:   day?.key ?? "A",
-      workoutLabel: day?.focus ?? undefined,
-      periodizationWeek: isPeriodizationOn ? activeWeek + 1 : undefined,
-    });
+    // Se já existe sessão persistida no localStorage, retoma sem criar nova entrada no banco
+    if (_saved?.sessionId && _saved?.startedAt) {
+      session.resumeSession({
+        sessionId: _saved.sessionId,
+        userId,
+        workoutKey: day?.key ?? "A",
+        startedAt: _saved.startedAt,
+      });
+    } else {
+      setStartedAt(Date.now());
+      session.startSession({
+        userId,
+        coachId,
+        workoutKey:   day?.key ?? "A",
+        workoutLabel: day?.focus ?? undefined,
+        periodizationWeek: isPeriodizationOn ? activeWeek + 1 : undefined,
+      });
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
