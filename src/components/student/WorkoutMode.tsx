@@ -202,7 +202,14 @@ function getAudioCtx(): AudioContext | null {
   }
 }
 
-/** Toca um beep curto. type "warn" = aviso (mínimo atingido), "end" = fim do descanso. */
+/** Toca um beep curto. type "warn" = aviso (mínimo atingido), "end" = fim do descanso.
+ *
+ * ⚠️ Limitação conhecida: o AudioContext é suspenso pelo navegador quando o app
+ * está em background (aba minimizada, celular bloqueado, outro app em foco).
+ * O `useWakeLock` mantém a tela acesa durante o treino, mas não impede o usuário
+ * de trocar de app. Para alertas em background considerar futuramente Notifications
+ * API + Service Worker (push local agendado).
+ */
 function playBeep(type: "warn" | "end" = "end") {
   const ctx = getAudioCtx();
   if (!ctx) return;
