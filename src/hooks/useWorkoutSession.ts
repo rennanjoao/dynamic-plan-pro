@@ -60,6 +60,27 @@ export function useWorkoutSession() {
     };
   }, []);
 
+  // ── Retomar sessão existente (sem inserir nova linha no banco) ─────────────
+  const resumeSession = useCallback(
+    (params: { sessionId: string; userId: string; workoutKey: string; startedAt: number }) => {
+      userIdRef.current = params.userId;
+      localDraftKey.current = `workout_session_draft_${params.userId}_${params.workoutKey}`;
+      setSessionId(params.sessionId);
+      setIsActive(true);
+      startTimeRef.current = new Date(params.startedAt);
+
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => {
+        if (startTimeRef.current) {
+          setElapsedSeconds(
+            Math.floor((Date.now() - startTimeRef.current.getTime()) / 1000)
+          );
+        }
+      }, 1000);
+    },
+    []
+  );
+
   // ── Iniciar sessão ──────────────────────────────────────────────────────────
   const startSession = useCallback(async (params: StartSessionParams) => {
     userIdRef.current = params.userId;
@@ -139,7 +160,7 @@ export function useWorkoutSession() {
       if (!sessionId.startsWith("local_")) {
         const { error } = await (supabase as any)
           .from("workout_sets")
-          .insert(setData);
+          .upsert(setData, { onConflict: "session_id,exercise_key,set_number" });
 
         if (!error) {
           // Remove do buffer local após confirmar salvamento
@@ -148,6 +169,20 @@ export function useWorkoutSession() {
           );
         }
       }
+    },
+    [sessionId]
+  );
+
+  // ── Deletar série (desfazer) ────────────────────────────────────────────────
+  const deleteSet = useCallback(
+    async (setNumber: number, exerciseName: string) => {
+      if (!sessionId || sessionId.startsWith("local_")) return;
+      await (supabase as any)
+        .from("workout_sets")
+        .delete()
+        .eq("session_id", sessionId)
+        .eq("exercise_key", toExerciseKey(exerciseName))
+        .eq("set_number", setNumber);
     },
     [sessionId]
   );
@@ -236,7 +271,9 @@ export function useWorkoutSession() {
     isActive,
     elapsedSeconds,
     startSession,
+    resumeSession,
     registerSet,
+    deleteSet,
     finishSession,
     getExerciseHistory,
   };

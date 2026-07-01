@@ -29,32 +29,34 @@ export function useLoadProgression(userId: string | undefined, exerciseKeys: str
       const result = new Map<string, ProgressionSuggestion>();
       if (!userId || exerciseKeys.length === 0) return result;
 
-      // Para cada exercício, busca as 2 sessões mais recentes da série 1
-      const { data, error } = await sb
-        .from("workout_sets")
-        .select("exercise_key, weight_kg, perceived_effort, executed_at")
-        .eq("user_id", userId)
-        .in("exercise_key", exerciseKeys)
-        .eq("set_number", 1)
-        .eq("completed", true)
-        .eq("skipped", false)
-        .order("executed_at", { ascending: false })
-        .limit(exerciseKeys.length * 4); // margem para 2 sessões por exercício
+      // Busca em paralelo as 2 sessões mais recentes de cada exercício (série 1).
+      // Um único .in() com .limit() global pode esgotar o limite nos exercícios
+      // mais frequentes e deixar de fora os menos frequentes.
+      const perExercise = await Promise.all(
+        exerciseKeys.map((key) =>
+          sb
+            .from("workout_sets")
+            .select("exercise_key, weight_kg, perceived_effort, executed_at")
+            .eq("user_id", userId)
+            .eq("exercise_key", key)
+            .eq("set_number", 1)
+            .eq("completed", true)
+            .eq("skipped", false)
+            .order("executed_at", { ascending: false })
+            .limit(2)
+        )
+      );
 
-      if (error || !data) return result;
-
-      // Agrupa por exercício, pega as 2 mais recentes
       const grouped: Record<string, { weight: number; effort: number; date: string }[]> = {};
-      for (const row of data as { exercise_key: string; weight_kg: number | null; perceived_effort: number | null; executed_at: string }[]) {
-        if (!grouped[row.exercise_key]) grouped[row.exercise_key] = [];
-        if (grouped[row.exercise_key].length < 2) {
-          grouped[row.exercise_key].push({
-            weight: row.weight_kg ?? 0,
-            effort: row.perceived_effort ?? 0,
-            date:   row.executed_at,
-          });
-        }
-      }
+      perExercise.forEach((res, i) => {
+        const key = exerciseKeys[i];
+        const rows = (res?.data ?? []) as { weight_kg: number | null; perceived_effort: number | null; executed_at: string }[];
+        grouped[key] = rows.map((r) => ({
+          weight: r.weight_kg ?? 0,
+          effort: r.perceived_effort ?? 0,
+          date:   r.executed_at,
+        }));
+      });
 
       for (const [key, sessions] of Object.entries(grouped)) {
         if (sessions.length < 2) continue;
