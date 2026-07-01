@@ -81,21 +81,24 @@ export default function WorkoutHistory({ userId }: { userId: string }) {
           )
         `)
         .eq("user_id", userId)
-        .not("ended_at", "is", null)
         .order("started_at", { ascending: false })
         .limit(30);
 
-      if (!error && newData && newData.length > 0) {
-        return newData.map((s: any) => ({
-          ...s,
-          // Calcula duração manualmente caso a coluna gerada não venha no select
-          duration_seconds: s.ended_at && s.started_at
-            ? Math.floor(
-                (new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 1000
-              )
-            : undefined,
-          sets: s.workout_sets ?? [],
-        }));
+      if (!error && newData) {
+        const withSets = (newData as any[]).filter(
+          (s) => (s.workout_sets?.length ?? 0) > 0
+        );
+        if (withSets.length > 0) {
+          return withSets.map((s: any) => ({
+            ...s,
+            duration_seconds: s.ended_at && s.started_at
+              ? Math.floor(
+                  (new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 1000
+                )
+              : undefined,
+            sets: s.workout_sets ?? [],
+          }));
+        }
       }
 
       // Fallback: tabela legada workout_progress
