@@ -903,6 +903,15 @@ export default function WorkoutMode({
       }))
     )
       return;
+
+    // Finaliza a sessão no banco mesmo saindo pelo X (sem tela de conclusão).
+    // Garante ended_at preenchido → histórico e analytics do coach funcionam.
+    await session.finishSession({
+      generalFeeling: undefined,
+      sleepQuality:   undefined,
+    });
+
+    try { localStorage.removeItem(storageKey); } catch { /* noop */ }
     onClose();
   };
 
