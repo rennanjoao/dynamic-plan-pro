@@ -1013,7 +1013,7 @@ export default function WorkoutMode({
               {todasFeitas
                 ? "exercício completo! ✓"
                 : restRunning
-                ? `descansando · série ${serieAtualNum + 1} de ${setsMax} a seguir`
+                ? `descansando · série ${serieAtualNum} de ${setsMax} a seguir`
                 : `série ${serieAtualNum} de ${setsMax}`}
             </p>
 
