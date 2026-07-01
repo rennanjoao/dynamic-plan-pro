@@ -1157,6 +1157,10 @@ export default function WorkoutMode({
                                 ...prev,
                                 [currentExKey]: (prev[currentExKey] ?? []).filter((n) => n !== i),
                               }));
+                              // Remove a série do banco para evitar duplicatas/fantasmas nas analytics
+                              if (currentEx?.name) {
+                                void session.deleteSet(i + 1, currentEx.name);
+                              }
                             }
                           }}
                           style={
