@@ -154,7 +154,6 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
         .from("workout_sessions")
         .select("id, workout_key, workout_label, started_at, ended_at, general_feeling, sleep_quality, is_deload_week")
         .eq("user_id", studentId)
-        .not("ended_at", "is", null)
         .order("started_at", { ascending: false })
         .limit(12);
       if (error) throw error;
