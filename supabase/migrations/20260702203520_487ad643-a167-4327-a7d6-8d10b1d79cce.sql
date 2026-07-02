@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS public.ws_user_id_idx;
