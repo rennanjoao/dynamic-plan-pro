@@ -177,12 +177,18 @@ export function useWorkoutSession() {
   const deleteSet = useCallback(
     async (setNumber: number, exerciseName: string) => {
       if (!sessionId || sessionId.startsWith("local_")) return;
-      await (supabase as any)
+      const { error } = await (supabase as any)
         .from("workout_sets")
         .delete()
         .eq("session_id", sessionId)
         .eq("exercise_key", toExerciseKey(exerciseName))
         .eq("set_number", setNumber);
+      if (error) {
+        console.warn(
+          "[deleteSet] Falha ao remover série — será sobrescrita no próximo registro:",
+          error.message
+        );
+      }
     },
     [sessionId]
   );
@@ -195,7 +201,7 @@ export function useWorkoutSession() {
       if (timerRef.current) clearInterval(timerRef.current);
 
       if (!sessionId.startsWith("local_")) {
-        await (supabase as any)
+        const { error } = await (supabase as any)
           .from("workout_sessions")
           .update({
             ended_at:        new Date().toISOString(),
@@ -204,6 +210,20 @@ export function useWorkoutSession() {
             notes:           params.notes ?? null,
           })
           .eq("id", sessionId);
+        if (error) {
+          console.warn("[finishSession] Erro ao finalizar no banco:", error.message);
+          try {
+            localStorage.setItem(
+              `workout_finish_pending_${sessionId}`,
+              JSON.stringify({
+                ended_at: new Date().toISOString(),
+                generalFeeling: params.generalFeeling ?? null,
+                sleepQuality: params.sleepQuality ?? null,
+                notes: params.notes ?? null,
+              })
+            );
+          } catch { /* noop */ }
+        }
       }
 
       // Compatibilidade: salva também em workout_progress (tabela legada)
