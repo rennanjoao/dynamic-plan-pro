@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { FitnessChatBot } from "@/components/fitness/FitnessChatBot";
 import { supabase } from "@/integrations/supabase/client";
 
-const HIDDEN_ROUTES = new Set(["/", "/auth", "/admin-login", "/student", "/anamnesis"]);
+const HIDDEN_ROUTES = new Set(["/", "/auth", "/admin-login", "/student", "/anamnesis", "/workout-plan"]);
 
 /** Retorna data/hora atual do browser do usuário — nunca do servidor */
 function getCurrentDateContext() {

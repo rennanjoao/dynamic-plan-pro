@@ -145,7 +145,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
   const [expandedAlert, setExpandedAlert] = useState<string | null>(null);
 
   /* ── Sessões (últimas 12) ─────────────────────────────────────────────────── */
-  const { data: sessions = [], isLoading: loadingSessions } = useQuery<SessionRow[]>({
+  const { data: sessions = [], isLoading: loadingSessions, isError: sessionsError } = useQuery<SessionRow[]>({
     queryKey: ["coach_student_sessions", studentId],
     enabled:  !!studentId,
     staleTime: 1000 * 60 * 5,
@@ -162,7 +162,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
   });
 
   /* ── Séries dos últimos 30 dias ───────────────────────────────────────────── */
-  const { data: allSets = [], isLoading: loadingSets } = useQuery<SetRow[]>({
+  const { data: allSets = [], isLoading: loadingSets, isError: setsError } = useQuery<SetRow[]>({
     queryKey: ["coach_student_sets", studentId],
     enabled:  !!studentId,
     staleTime: 1000 * 60 * 5,
@@ -287,6 +287,14 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
     );
   }
 
+  if (sessionsError || setsError) {
+    return (
+      <div className="p-6 text-center text-sm text-destructive">
+        Erro ao carregar dados de treino. Tente recarregar a página.
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
 
@@ -372,8 +380,8 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
       {sessions.length === 0 && allSets.length === 0 && (
         <div className="rounded-xl p-8 text-center space-y-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
           <Dumbbell className="w-8 h-8 text-muted-foreground mx-auto" />
-          <p className="text-sm text-muted-foreground">Nenhum treino registrado pelo aluno ainda.</p>
-          <p className="text-xs text-muted-foreground/60">Os dados aparecem aqui assim que o aluno usar o Modo Treino.</p>
+          <p className="text-sm text-muted-foreground">Este aluno ainda não registrou nenhum treino pelo app.</p>
+          <p className="text-xs text-muted-foreground/60">Os dados aparecem automaticamente após o primeiro treino concluído.</p>
         </div>
       )}
 
