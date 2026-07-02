@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, LogOut, Users, Link2, DollarSign, Activity, User } from "lucide-react";
+import { ArrowLeft, LogOut, Users, Link2, DollarSign, Activity, User, Dumbbell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { TrainerManagement } from "@/components/admin/TrainerManagement";
+import { ExerciseLibraryUploader } from "@/components/admin/ExerciseLibraryUploader";
 import { StudentLinksManagement } from "@/components/admin/StudentLinksManagement";
 import { PlansSettings } from "@/components/admin/PlansSettings";
 import { AccessLogPanel } from "@/components/admin/AccessLogPanel";
@@ -74,6 +75,7 @@ const Admin = () => {
             <TabsTrigger value="links" className="gap-1.5"><Link2 className="w-4 h-4" /> Vínculos</TabsTrigger>
             <TabsTrigger value="billing" className="gap-1.5"><DollarSign className="w-4 h-4" /> Cobrança</TabsTrigger>
             <TabsTrigger value="access" className="gap-1.5"><Activity className="w-4 h-4" /> Acessos e Senhas</TabsTrigger>
+            <TabsTrigger value="exercise-library" className="gap-1.5"><Dumbbell className="w-4 h-4" /> Biblioteca</TabsTrigger>
           </TabsList>
 
           <TabsContent value="trainers">
@@ -97,6 +99,13 @@ const Admin = () => {
               <AccessLogPanel />
             </div>
             <AdminPasswordManager />
+          </TabsContent>
+
+          <TabsContent value="exercise-library" className="space-y-6">
+            <div className="rounded-xl border border-border bg-card p-6">
+              <h2 className="text-lg font-semibold mb-4">Biblioteca de GIFs de Exercícios</h2>
+              <ExerciseLibraryUploader />
+            </div>
           </TabsContent>
         </Tabs>
       </div>
