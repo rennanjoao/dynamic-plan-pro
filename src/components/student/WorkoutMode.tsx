@@ -645,24 +645,50 @@ export default function WorkoutMode({
   }, [currentExKey, setsMax, currentEx]);
 
   useEffect(() => {
-    // Se já existe sessão persistida no localStorage, retoma sem criar nova entrada no banco
-    if (_saved?.sessionId && _saved?.startedAt) {
-      session.resumeSession({
-        sessionId: _saved.sessionId,
-        userId,
-        workoutKey: day?.key ?? "A",
-        startedAt: _saved.startedAt,
-      });
-    } else {
-      setStartedAt(Date.now());
-      session.startSession({
-        userId,
-        coachId,
-        workoutKey:   day?.key ?? "A",
-        workoutLabel: day?.focus ?? undefined,
-        periodizationWeek: isPeriodizationOn ? activeWeek + 1 : undefined,
-      });
-    }
+    let cancelled = false;
+
+    const init = async () => {
+      // Se já existe sessão persistida no localStorage, retoma sem criar nova entrada no banco
+      if (_saved?.sessionId && _saved?.startedAt) {
+        session.resumeSession({
+          sessionId: _saved.sessionId,
+          userId,
+          workoutKey: day?.key ?? "A",
+          startedAt: _saved.startedAt,
+        });
+        return;
+      }
+
+      // localStorage vazio ou corrompido: antes de abrir um treino novo,
+      // verifica se já existe uma sessão em aberto no Supabase para este
+      // aluno + treino. Evita perder o progresso e criar sessões duplicadas
+      // quando o navegador limpa o localStorage no meio do treino.
+      const active = await session.findActiveSession(userId, day?.key ?? "A");
+      if (cancelled) return;
+
+      if (active) {
+        setStartedAt(active.startedAt);
+        session.resumeSession({
+          sessionId: active.sessionId,
+          userId,
+          workoutKey: day?.key ?? "A",
+          startedAt: active.startedAt,
+        });
+        toast.info("Retomamos seu treino em andamento.");
+      } else {
+        setStartedAt(Date.now());
+        session.startSession({
+          userId,
+          coachId,
+          workoutKey:   day?.key ?? "A",
+          workoutLabel: day?.focus ?? undefined,
+          periodizationWeek: isPeriodizationOn ? activeWeek + 1 : undefined,
+        });
+      }
+    };
+
+    void init();
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -815,16 +841,21 @@ export default function WorkoutMode({
       setBurstKey(`${currentExKey}_${currentSetIdx}_${Date.now()}`);
       setTimeout(() => setBurstKey(null), 600);
 
-      await session.registerSet({
-        exerciseName:    currentEx?.name ?? "—",
-        setNumber:       currentSetIdx + 1,
-        weightKg:        weight > 0 ? weight : undefined,
-        reps:            reps > 0 ? reps : undefined,
-        repsTargetMin:   setsMin,
-        repsTargetMax:   setsMax,
-        perceivedEffort: effort,
-        completed:       true,
-      });
+      try {
+        await session.registerSet({
+          exerciseName:    currentEx?.name ?? "—",
+          setNumber:       currentSetIdx + 1,
+          weightKg:        weight > 0 ? weight : undefined,
+          reps:            reps > 0 ? reps : undefined,
+          repsTargetMin:   setsMin,
+          repsTargetMax:   setsMax,
+          perceivedEffort: effort,
+          completed:       true,
+        });
+      } catch (err) {
+        console.error("Erro ao registrar série:", err);
+        toast.error("❌ Não foi possível salvar no servidor. Seus dados ficaram salvos neste aparelho.");
+      }
 
       setRestElapsed(0);
       setRestRunning(true);
@@ -853,12 +884,17 @@ export default function WorkoutMode({
       return { ...prev, [currentExKey]: [...arr, currentSetIdx] };
     });
 
-    await session.registerSet({
-      exerciseName: currentEx?.name ?? "—",
-      setNumber:    currentSetIdx + 1,
-      completed:    false,
-      skipped:      true,
-    });
+    try {
+      await session.registerSet({
+        exerciseName: currentEx?.name ?? "—",
+        setNumber:    currentSetIdx + 1,
+        completed:    false,
+        skipped:      true,
+      });
+    } catch (err) {
+      console.error("Erro ao registrar série pulada:", err);
+      toast.error("❌ Não foi possível salvar no servidor. Seus dados ficaram salvos neste aparelho.");
+    }
   }, [todasFeitas, currentExKey, currentSetIdx, currentEx, session]);
 
   /* ── Métricas ────────────────────────────────────────────────────────────────── */
