@@ -49,6 +49,7 @@ export default function WorkoutPlan() {
   const [userId, setUserId] = useState("");
   const [showWorkoutMode, setShowWorkoutMode] = useState(false);
   const [workoutModeDay, setWorkoutModeDay] = useState<string | undefined>(undefined);
+  const [workoutModeWeek, setWorkoutModeWeek] = useState<number>(0);
   const [showHistory, setShowHistory] = useState(false);
   useWakeLock(showWorkoutMode);
 
@@ -101,8 +102,9 @@ export default function WorkoutPlan() {
   const showGuidelines: boolean = (safePayload as any)?.showGuidelines ?? false;
   const periodizationEnabled: boolean = safePayload?.periodization?.enabled ?? false;
 
-  const handleStartWorkout = (dayKey: string) => {
+  const handleStartWorkout = (dayKey: string, week?: number) => {
     setWorkoutModeDay(dayKey);
+    if (week !== undefined) setWorkoutModeWeek(week);
     setShowWorkoutMode(true);
   };
 
@@ -304,6 +306,7 @@ export default function WorkoutPlan() {
           coachName={(coachProfile as any)?.full_name ?? undefined}
           teamName={(coachProfile as any)?.team_name ?? undefined}
           initialDay={workoutModeDay}
+          initialWeek={workoutModeWeek}
           periodization={safePayload?.periodization}
           onClose={() => { setShowWorkoutMode(false); setWorkoutModeDay(undefined); }}
         />

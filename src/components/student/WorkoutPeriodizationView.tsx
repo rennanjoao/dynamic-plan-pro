@@ -46,7 +46,7 @@ interface Props {
   renderLegacy: () => React.ReactNode;
   allowEdit?: boolean;
   /** Callback para iniciar o modo treino num dia específico — vem do WorkoutPlan */
-  onStartWorkout?: (dayKey: string) => void;
+  onStartWorkout?: (dayKey: string, week?: number) => void;
   /** Controla se a Diretriz/Banner é exibida para o aluno */
   showGuidelines?: boolean;
   periodization?: {
@@ -244,7 +244,7 @@ export default function WorkoutPeriodizationView({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            onStartWorkout(day.key);
+                            onStartWorkout(day.key, activeWeek);
                           }}
                           style={{ backgroundColor: "#CC0000" }}
                           className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-white text-[11px] font-bold mr-1"

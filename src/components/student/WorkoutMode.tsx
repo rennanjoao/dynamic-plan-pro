@@ -81,6 +81,7 @@ interface Props {
   coachName?: string;
   teamName?: string;
   initialDay?: string;
+  initialWeek?: number;
   periodization?: Periodization;
   onClose: () => void;
 }
@@ -549,12 +550,12 @@ type Phase = "training" | "conclusion";
 
 export default function WorkoutMode({
   workouts, userId, coachId, coachName, teamName,
-  initialDay, periodization, onClose,
+  initialDay, initialWeek, periodization, onClose,
 }: Props) {
   const confirm = useConfirm();
   const session = useWorkoutSession();
 
-  const storageKey = `workout_session_${userId}_${new Date().toISOString().slice(0, 10)}`;
+  const storageKey = `workout_session_${userId}_${initialDay ?? workouts[0]?.key ?? "A"}`;
   const isPeriodizationOn = periodization?.enabled ?? false;
   const weeks = periodization?.weeks && periodization.weeks.length === 4 ? periodization.weeks : DEFAULT_WEEKS;
 
@@ -566,7 +567,7 @@ export default function WorkoutMode({
   const dismissTutorial = useCallback(() => { markTutorialShownToday(); setShowTutorial(false); }, []);
 
   const [selectedDay]   = useState<string>(initialDay ?? workouts[0]?.key ?? "");
-  const [activeWeek, setActiveWeek]     = useState<number>(_saved?.activeWeek ?? 0);
+  const [activeWeek, setActiveWeek]     = useState<number>(_saved?.activeWeek ?? initialWeek ?? 0);
   const [currentExIdx, setCurrentExIdx] = useState(0);
   const [phase, setPhase]               = useState<Phase>("training");
 
@@ -667,8 +668,8 @@ export default function WorkoutMode({
 
   useEffect(() => {
     if (!userId || exercises.length === 0) return;
-    exercises.forEach((ex) => {
-      const key = `${day?.key}::${exercises.indexOf(ex)}`;
+    exercises.forEach((ex, idx) => {
+      const key = `${day?.key}::${idx}`;
       if (historyMap[key]) return;
       session.getExerciseHistory(ex.name, 3).then((history) => {
         if (history.length > 0) {
@@ -677,7 +678,7 @@ export default function WorkoutMode({
       });
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exercises.length, userId]);
+  }, [exercises.map((e) => e.name).join("|"), userId]);
 
   /* ── Timer ──────────────────────────────────────────────────────────────────── */
   const [restElapsed, setRestElapsed]   = useState(0);

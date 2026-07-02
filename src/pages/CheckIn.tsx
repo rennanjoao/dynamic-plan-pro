@@ -177,8 +177,26 @@ export default function CheckIn() {
       const fotos: Record<string, string> = { ...existingFotos };
       for (const key of FOTO_KEYS) {
         const file = fotoFiles[key];
-        if (file) {
-          try { fotos[key] = await uploadToCloudinary(file); } catch { fotos[key] = ""; }
+        if (!file) continue;
+        const toastId = `upload-${key}`;
+        try {
+          toast.loading(`Enviando foto (${FOTO_LABELS[key] ?? key})...`, { id: toastId });
+          const result = await Promise.race([
+            uploadToCloudinary(file),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("timeout")), 30_000)
+            ),
+          ]);
+          fotos[key] = result as string;
+          toast.dismiss(toastId);
+        } catch (err) {
+          toast.dismiss(toastId);
+          const isTimeout = err instanceof Error && err.message === "timeout";
+          if (isTimeout) {
+            toast.warning(`Foto ${FOTO_LABELS[key] ?? key} não enviada (conexão lenta) — check-in salvo sem ela.`);
+          }
+          // Preserva foto anterior se existir; caso contrário deixa vazio
+          fotos[key] = existingFotos[key] ?? "";
         }
       }
 
