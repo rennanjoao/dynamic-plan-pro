@@ -205,6 +205,33 @@ export function useWorkoutSession() {
     [sessionId]
   );
 
+  // ── Buscar séries já salvas de uma sessão (para reconstruir o progresso local) ──
+  // Necessário quando a sessão é recuperada via findActiveSession (fallback do
+  // Supabase): nesse caso não há dados no localStorage, então o componente
+  // precisa desta lista para repopular setDataMap/completed e não mostrar o
+  // treino como "zerado" enquanto a sessão já tem séries registradas.
+  const getSessionSets = useCallback(
+    async (
+      sessionIdToFetch: string
+    ): Promise<
+      { exercise_key: string; set_number: number; weight_kg: number | null; reps: number | null; completed: boolean; skipped: boolean }[]
+    > => {
+      if (!sessionIdToFetch || sessionIdToFetch.startsWith("local_")) return [];
+
+      const { data, error } = await (supabase as any)
+        .from("workout_sets")
+        .select("exercise_key, set_number, weight_kg, reps, completed, skipped")
+        .eq("session_id", sessionIdToFetch);
+
+      if (error) {
+        console.warn("[getSessionSets] Erro ao buscar séries da sessão:", error.message);
+        return [];
+      }
+      return data ?? [];
+    },
+    []
+  );
+
   // ── Deletar série (desfazer) ────────────────────────────────────────────────
   const deleteSet = useCallback(
     async (setNumber: number, exerciseName: string) => {
@@ -325,6 +352,7 @@ export function useWorkoutSession() {
     startSession,
     resumeSession,
     findActiveSession,
+    getSessionSets,
     registerSet,
     deleteSet,
     finishSession,
