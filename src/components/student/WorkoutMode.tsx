@@ -14,6 +14,12 @@
 //     dado fantasma de weight/reps zero.
 //  6. Feedback visual de "Peso sugerido" distinguido visualmente do peso editado
 //     (borda dourada pulsante se intocado).
+//  7. GIF do exercício: thumbnail clicável ao lado do nome, abre em diálogo.
+//  8. Recuperação robusta de sessão: se o localStorage estiver vazio/corrompido,
+//     busca sessão ativa no Supabase e reconstrói o progresso a partir das séries
+//     já salvas, evitando perda de dados e sessões duplicadas.
+//  9. Registro de série com tratamento de erro: se a gravação no servidor falhar,
+//     avisa o aluno que os dados ficaram salvos apenas no aparelho.
 
 import {
   useEffect,
@@ -38,6 +44,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import WorkoutShareCard from "./WorkoutShareCard";
 import { useConfirm } from "@/components/ConfirmProvider";
@@ -46,6 +53,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { ExerciseHistory } from "@/lib/workoutTypes";
 import { effortLabel, toExerciseKey } from "@/lib/workoutTypes";
 import { useLoadProgression } from "@/hooks/useLoadProgression";
+import { useExerciseGif } from "@/hooks/useExerciseGif";
 
 /* ── Tipos ──────────────────────────────────────────────────────────────────── */
 
@@ -624,6 +632,8 @@ export default function WorkoutMode({
   });
 
   const currentEx      = exercises[currentExIdx];
+  const gifUrl          = useExerciseGif(currentEx?.name);
+  const [showGifDialog, setShowGifDialog] = useState(false);
   const currentExKey   = day ? `${day.key}::${currentExIdx}` : "";
   const setsMax        = parseSetsMax(currentEx?.sets);
   const setsMin        = parseSetsMin(currentEx?.sets);
@@ -674,6 +684,50 @@ export default function WorkoutMode({
           workoutKey: day?.key ?? "A",
           startedAt: active.startedAt,
         });
+
+        // O localStorage estava vazio, então setDataMap/completed começaram
+        // zerados — reconstrói o progresso real a partir das séries já
+        // salvas no Supabase para esta sessão, senão a tela mostraria o
+        // treino como "não iniciado" mesmo com séries já registradas.
+        const savedSets = await session.getSessionSets(active.sessionId);
+        if (!cancelled && savedSets.length > 0 && day) {
+          const exKeyToIdx = new Map<string, number>();
+          exercises.forEach((ex, idx) => exKeyToIdx.set(toExerciseKey(ex.name), idx));
+
+          const rebuiltSetDataMap: Record<string, SetData[]> = {};
+          const rebuiltCompleted: Record<string, number[]> = {};
+
+          savedSets.forEach((row) => {
+            const idx = exKeyToIdx.get(row.exercise_key);
+            if (idx === undefined) return;
+
+            const key    = `${day.key}::${idx}`;
+            const setIdx = row.set_number - 1;
+            if (setIdx < 0) return;
+
+            const maxSets = parseSetsMax(exercises[idx]?.sets);
+            if (!rebuiltSetDataMap[key]) {
+              rebuiltSetDataMap[key] = Array.from({ length: maxSets }, () => ({
+                weight: 0, reps: 0, done: false, skipped: false,
+              }));
+            }
+            if (setIdx < rebuiltSetDataMap[key].length) {
+              rebuiltSetDataMap[key][setIdx] = {
+                weight:  row.weight_kg ?? 0,
+                reps:    row.reps ?? 0,
+                done:    true,
+                skipped: row.skipped,
+              };
+            }
+            if (row.completed || row.skipped) {
+              rebuiltCompleted[key] = [...(rebuiltCompleted[key] ?? []), setIdx];
+            }
+          });
+
+          setSetDataMap((prev) => ({ ...prev, ...rebuiltSetDataMap }));
+          setCompleted((prev) => ({ ...prev, ...rebuiltCompleted }));
+        }
+
         toast.info("Retomamos seu treino em andamento.");
       } else {
         setStartedAt(Date.now());
@@ -1141,11 +1195,30 @@ export default function WorkoutMode({
                 style={{ background: "#111", border: "1px solid rgba(204,0,0,0.35)" }}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <h2 className="font-bold text-base leading-tight flex-1">{currentEx.name}</h2>
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    {gifUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setShowGifDialog(true)}
+                        className="shrink-0 w-14 h-14 rounded-lg overflow-hidden border border-white/10"
+                      >
+                        <img src={gifUrl} alt={currentEx.name} loading="lazy" className="w-full h-full object-cover" />
+                      </button>
+                    )}
+                    <h2 className="font-bold text-base leading-tight flex-1 truncate">{currentEx.name}</h2>
+                  </div>
                   <span className="text-xs text-white/40 shrink-0 mt-0.5">
                     {doneSetsCount} / {setsMax} séries
                   </span>
                 </div>
+
+                {gifUrl && (
+                  <Dialog open={showGifDialog} onOpenChange={setShowGifDialog}>
+                    <DialogContent className="max-w-sm p-2 bg-black border-white/10">
+                      <img src={gifUrl} alt={currentEx.name} className="w-full h-auto rounded-lg" />
+                    </DialogContent>
+                  </Dialog>
+                )}
 
                 {/* Última vez */}
                 {lastSession && (
