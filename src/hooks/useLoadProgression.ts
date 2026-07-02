@@ -29,33 +29,45 @@ export function useLoadProgression(userId: string | undefined, exerciseKeys: str
       const result = new Map<string, ProgressionSuggestion>();
       if (!userId || exerciseKeys.length === 0) return result;
 
-      // Busca em paralelo as 2 sessões mais recentes de cada exercício (série 1).
-      // Um único .in() com .limit() global pode esgotar o limite nos exercícios
-      // mais frequentes e deixar de fora os menos frequentes.
-      const perExercise = await Promise.all(
-        exerciseKeys.map((key) =>
-          sb
-            .from("workout_sets")
-            .select("exercise_key, weight_kg, perceived_effort, executed_at")
-            .eq("user_id", userId)
-            .eq("exercise_key", key)
-            .eq("set_number", 1)
-            .eq("completed", true)
-            .eq("skipped", false)
-            .order("executed_at", { ascending: false })
-            .limit(2)
-        )
-      );
+      // Busca o histórico de TODOS os exercícios em uma única query (evita N+1).
+      // Não aplicamos um .limit() global — isso enviesaria o resultado a favor
+      // dos exercícios mais frequentes e deixaria exercícios raros sem dados
+      // (esse era exatamente o motivo pelo qual essa query tinha sido dividida
+      // em N chamadas paralelas antes). Em vez disso, trazemos o histórico
+      // recente de todos e agrupamos client-side, pegando as 2 sessões mais
+      // recentes por exercício. O filtro de data (últimos 120 dias) mantém
+      // o payload pequeno mesmo para contas com histórico muito longo.
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 120);
+
+      const { data, error } = await sb
+        .from("workout_sets")
+        .select("exercise_key, weight_kg, perceived_effort, executed_at")
+        .eq("user_id", userId)
+        .in("exercise_key", exerciseKeys)
+        .eq("set_number", 1)
+        .eq("completed", true)
+        .eq("skipped", false)
+        .gte("executed_at", cutoff.toISOString())
+        .order("executed_at", { ascending: false });
+
+      if (error) {
+        console.error("[useLoadProgression] Erro ao carregar progressão:", error.message);
+        return result;
+      }
 
       const grouped: Record<string, { weight: number; effort: number; date: string }[]> = {};
-      perExercise.forEach((res, i) => {
-        const key = exerciseKeys[i];
-        const rows = (res?.data ?? []) as { weight_kg: number | null; perceived_effort: number | null; executed_at: string }[];
-        grouped[key] = rows.map((r) => ({
-          weight: r.weight_kg ?? 0,
-          effort: r.perceived_effort ?? 0,
-          date:   r.executed_at,
-        }));
+      ((data ?? []) as { exercise_key: string; weight_kg: number | null; perceived_effort: number | null; executed_at: string }[]).forEach((r) => {
+        const key = r.exercise_key;
+        if (!grouped[key]) grouped[key] = [];
+        // Já veio ordenado por executed_at desc; guardamos só os 2 mais recentes por exercício.
+        if (grouped[key].length < 2) {
+          grouped[key].push({
+            weight: r.weight_kg ?? 0,
+            effort: r.perceived_effort ?? 0,
+            date:   r.executed_at,
+          });
+        }
       });
 
       for (const [key, sessions] of Object.entries(grouped)) {
