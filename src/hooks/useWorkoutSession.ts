@@ -81,6 +81,33 @@ export function useWorkoutSession() {
     []
   );
 
+  // ── Buscar sessão ativa no Supabase (fallback quando o localStorage falha) ──
+  // Usado quando o localStorage foi limpo/corrompido: em vez de simplesmente
+  // abrir uma sessão nova (e perder o progresso do aluno), verificamos se já
+  // existe uma sessão sem ended_at para esse usuário+treino no banco.
+  const findActiveSession = useCallback(
+    async (userId: string, workoutKey: string): Promise<{ sessionId: string; startedAt: number } | null> => {
+      const { data, error } = await (supabase as any)
+        .from("workout_sessions")
+        .select("id, started_at")
+        .eq("user_id", userId)
+        .eq("workout_key", workoutKey)
+        .is("ended_at", null)
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.warn("[useWorkoutSession] Erro ao buscar sessão ativa:", error.message);
+        return null;
+      }
+      if (!data) return null;
+
+      return { sessionId: data.id, startedAt: new Date(data.started_at).getTime() };
+    },
+    []
+  );
+
   // ── Iniciar sessão ──────────────────────────────────────────────────────────
   const startSession = useCallback(async (params: StartSessionParams) => {
     userIdRef.current = params.userId;
@@ -167,6 +194,11 @@ export function useWorkoutSession() {
           pendingSetsRef.current = pendingSetsRef.current.filter(
             (p) => p !== params
           );
+        } else {
+          console.error("[registerSet] Falha ao salvar série no Supabase:", error.message);
+          // Os dados já estão no buffer local (pendingSetsRef/localStorage) então
+          // nada é perdido — mas o chamador precisa saber para avisar o aluno.
+          throw new Error("Falha ao salvar série no servidor. Seus dados foram mantidos localmente.");
         }
       }
     },
@@ -292,6 +324,7 @@ export function useWorkoutSession() {
     elapsedSeconds,
     startSession,
     resumeSession,
+    findActiveSession,
     registerSet,
     deleteSet,
     finishSession,
