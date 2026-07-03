@@ -605,10 +605,12 @@ export default function WorkoutMode({
           setDataMap,
           sessionId: session.sessionId,
           startedAt,
+          restBaseSec,
+          restSegStartedAt,
         })
       );
     } catch { /* quota exceeded */ }
-  }, [activeWeek, completed, setDataMap, storageKey, session.sessionId, startedAt]);
+  }, [activeWeek, completed, setDataMap, storageKey, session.sessionId, startedAt, restBaseSec, restSegStartedAt]);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
