@@ -1,10 +1,13 @@
-
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { EXERCISE_GIFS_BUCKET } from "@/lib/exerciseLibrary";
+import { toExerciseKey } from "@/lib/workoutTypes";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const sb = supabase as any;
 
 export function ExerciseLibraryUploader() {
   const [files, setFiles] = useState<File[]>([]);
@@ -30,7 +33,26 @@ export function ExerciseLibraryUploader() {
       const { error } = await supabase.storage
         .from(EXERCISE_GIFS_BUCKET)
         .upload(file.name, file, { upsert: true, contentType: "image/webp" });
-      if (error) errs.push(`${file.name}: ${error.message}`);
+
+      if (error) {
+        errs.push(`${file.name}: ${error.message}`);
+        setDone((d) => d + 1);
+        continue;
+      }
+
+      // Registra/atualiza a entrada na biblioteca para que o app já ache o
+      // gif pela chave normalizada do exercício (mesmo cálculo usado em toda
+      // a parte de treino: nome em minúsculas, sem acento, com "_").
+      const baseName = file.name.replace(/\.webp$/i, "");
+      const exerciseKey = toExerciseKey(baseName);
+      const { error: libError } = await sb
+        .from("exercise_library")
+        .upsert(
+          { exercise_key: exerciseKey, file_name: file.name, updated_at: new Date().toISOString() },
+          { onConflict: "exercise_key" }
+        );
+      if (libError) errs.push(`${file.name}: enviado, mas falhou ao registrar na biblioteca (${libError.message})`);
+
       setDone((d) => d + 1);
     }
 
@@ -44,8 +66,9 @@ export function ExerciseLibraryUploader() {
       <div>
         <p className="text-sm text-muted-foreground mb-2">
           Selecione todos os .webp da biblioteca local (Ctrl+A dentro da pasta no seletor de
-          arquivos) e clique em enviar. Os nomes têm que ser idênticos aos já cadastrados na
-          tabela <code>exercise_library</code>.
+          arquivos) e clique em enviar. O nome do arquivo (sem o .webp) deve ser igual ao nome
+          do exercício usado nos treinos — a chave de busca é gerada automaticamente a partir
+          dele e cadastrada na tabela <code>exercise_library</code> junto com o upload.
         </p>
         <input
           type="file"
