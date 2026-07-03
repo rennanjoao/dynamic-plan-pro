@@ -596,21 +596,6 @@ export default function WorkoutMode({
   const [burstColor, setBurstColor] = useState(GOLD);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        storageKey,
-        JSON.stringify({
-          activeWeek,
-          completed,
-          setDataMap,
-          sessionId: session.sessionId,
-          startedAt,
-        })
-      );
-    } catch { /* quota exceeded */ }
-  }, [activeWeek, completed, setDataMap, storageKey, session.sessionId, startedAt]);
-
-  useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, []);
@@ -750,39 +735,61 @@ export default function WorkoutMode({
 
   useEffect(() => {
     if (!userId || exercises.length === 0) return;
-    exercises.forEach((ex, idx) => {
-      const key = `${day?.key}::${idx}`;
-      if (historyMap[key]) return;
-      session.getExerciseHistory(ex.name, 3).then((history) => {
-        if (history.length > 0) {
-          setHistoryMap((prev) => ({ ...prev, [key]: history }));
-        }
+    session.getExerciseHistoryBatch(exercises.map((e) => e.name), 3).then((byName) => {
+      const next: Record<string, ExerciseHistory[]> = {};
+      exercises.forEach((ex, idx) => {
+        const key = `${day?.key}::${idx}`;
+        if (byName[ex.name]?.length) next[key] = byName[ex.name];
       });
+      if (Object.keys(next).length) setHistoryMap((prev) => ({ ...prev, ...next }));
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exercises.map((e) => e.name).join("|"), userId]);
 
   /* ── Timer ──────────────────────────────────────────────────────────────────── */
-  const [restElapsed, setRestElapsed]   = useState(0);
-  const [restRunning, setRestRunning]   = useState(false);
-  const restRef = useRef<number | null>(null);
-  // Captura defaultRestSec e alertRestSec em refs para acesso seguro dentro do intervalo
-  const defaultRestSecRef = useRef(defaultRestSec);
-  const alertRestSecRef   = useRef(alertRestSec);
-  useEffect(() => { defaultRestSecRef.current = defaultRestSec; }, [defaultRestSec]);
-  useEffect(() => { alertRestSecRef.current   = alertRestSec;   }, [alertRestSec]);
-
-  // Zona de alerta: descanso já passou do mínimo recomendado (contagem progressiva)
-  const isAlertZone = restRunning && alertRestSec > 0 && restElapsed >= alertRestSec;
-
   // Sugestão automática de progressão de carga
   const exerciseKeys = exercises.map((ex) => toExerciseKey(ex.name));
   const { data: progressionMap } = useLoadProgression(userId, exerciseKeys);
   const currentProgression = progressionMap?.get(toExerciseKey(currentEx?.name ?? ""));
 
+  // ── Timer de descanso: derivado de timestamp real ─────────────────────────
+  // Modelo baseado em base acumulada + timestamp do segmento em execução.
+  // Sobrevive a app em background/tela bloqueada porque o valor é recalculado
+  // a partir de `now` (atualizado pelo tick global e por visibilitychange),
+  // em vez de depender de setInterval sendo chamado a cada segundo.
+  const [restBaseSec, setRestBaseSec] = useState<number>(_saved?.restBaseSec ?? 0);
+  const [restSegStartedAt, setRestSegStartedAt] = useState<number | null>(
+    _saved?.restSegStartedAt ?? null
+  );
+  const restEndFiredRef = useRef(false);
+  const restRunning = restSegStartedAt !== null;
+  const restElapsed = restBaseSec + (restSegStartedAt ? Math.floor((now - restSegStartedAt) / 1000) : 0);
+  const isAlertZone = restRunning && alertRestSec > 0 && restElapsed >= alertRestSec;
+
+  // Persistência do progresso no localStorage (inclui estado do timer de descanso
+  // para sobreviver a reload/fechar o app no meio do treino)
   useEffect(() => {
-    setRestElapsed(0);
-    setRestRunning(false);
+    try {
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          activeWeek,
+          completed,
+          setDataMap,
+          sessionId: session.sessionId,
+          startedAt,
+          restBaseSec,
+          restSegStartedAt,
+        })
+      );
+    } catch { /* quota exceeded */ }
+  }, [activeWeek, completed, setDataMap, storageKey, session.sessionId, startedAt, restBaseSec, restSegStartedAt]);
+
+  // Reseta o descanso ao trocar de exercício/semana
+  useEffect(() => {
+    restEndFiredRef.current = false;
+    setRestBaseSec(0);
+    setRestSegStartedAt(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentExKey, activeWeek, defaultRestSec]);
 
@@ -796,35 +803,32 @@ export default function WorkoutMode({
     });
   }, [currentExKey, setsMin, exercises.length]);
 
+  // Recalcula na hora ao voltar pro app — cobre suspensão de timer em background
   useEffect(() => {
-    if (!restRunning) {
-      if (restRef.current) window.clearInterval(restRef.current);
-      return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") setNow(Date.now());
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
+  // Aviso sonoro + fim do descanso — derivado do tick global de 1s
+  useEffect(() => {
+    if (!restRunning) { restEndFiredRef.current = false; return; }
+    if (restElapsed === alertRestSec && alertRestSec > 0) playBeep("warn");
+    if (restElapsed >= defaultRestSec && !restEndFiredRef.current) {
+      restEndFiredRef.current = true;
+      playBeep("end");
+      toast.success("🔔 Descansou! Hora da próxima série.", { duration: 4000 });
+      setRestBaseSec(defaultRestSec);
+      setRestSegStartedAt(null);
     }
-    restRef.current = window.setInterval(() => {
-      setRestElapsed((e) => {
-        const next = e + 1;
-        // Aviso sonoro + visual ao atingir o mínimo recomendado
-        if (next === alertRestSecRef.current) playBeep("warn");
-        // Fim do descanso ao atingir o máximo
-        if (next >= defaultRestSecRef.current) {
-          setRestRunning(false);
-          playBeep("end");
-          toast.success("🔔 Descansou! Hora da próxima série.", { duration: 4000 });
-          return defaultRestSecRef.current; // trava no teto
-        }
-        return next;
-      });
-    }, 1000);
-    return () => { if (restRef.current) window.clearInterval(restRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [restRunning]);
+  }, [restElapsed, restRunning, alertRestSec, defaultRestSec]);
 
   const skipRest = () => {
-    if (restRef.current) window.clearInterval(restRef.current);
-    setRestRunning(false);
-    setRestElapsed(0);
-    // Não avança — aluno controla
+    setRestBaseSec(0);
+    setRestSegStartedAt(null);
   };
 
   /* ── Carga / reps ────────────────────────────────────────────────────────────── */
@@ -913,8 +917,9 @@ export default function WorkoutMode({
         toast.error("❌ Não foi possível salvar no servidor. Seus dados ficaram salvos neste aparelho.");
       }
 
-      setRestElapsed(0);
-      setRestRunning(true);
+      restEndFiredRef.current = false;
+      setRestBaseSec(0);
+      setRestSegStartedAt(Date.now());
     },
     [
       todasFeitas, activeWeight, activeReps, suggestedWeight, suggestedReps,
@@ -1073,7 +1078,7 @@ export default function WorkoutMode({
               <div className="grid grid-cols-4 gap-1.5">
                 {weeks.map((_w, i) => (
                   <button key={i} type="button"
-                    onClick={() => { setActiveWeek(i); setRestRunning(false); }}
+                    onClick={() => { setActiveWeek(i); setRestBaseSec(0); setRestSegStartedAt(null); }}
                     className={`py-2 rounded-lg text-[11px] font-bold border transition ${
                       activeWeek === i
                         ? "bg-primary text-primary-foreground border-primary"
@@ -1159,7 +1164,7 @@ export default function WorkoutMode({
             <div className="flex items-center justify-center gap-2 mt-4 flex-wrap">
               {restRunning ? (
                 <>
-                  <button type="button" onClick={() => setRestRunning(false)}
+                  <button type="button" onClick={() => { setRestBaseSec(restElapsed); setRestSegStartedAt(null); }}
                     className="flex items-center gap-2 px-4 py-3 rounded-full text-white font-bold text-sm"
                     style={{ backgroundColor: "rgba(255,255,255,0.15)" }}>
                     <Pause className="w-4 h-4" />
@@ -1174,7 +1179,7 @@ export default function WorkoutMode({
                 </>
               ) : (
                 <button type="button"
-                  onClick={() => { setRestRunning(false); setRestElapsed(0); }}
+                  onClick={() => { setRestBaseSec(0); setRestSegStartedAt(null); }}
                   className="flex items-center gap-1.5 px-3 py-2.5 rounded-full text-xs font-semibold"
                   style={{ border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)" }}>
                   <RotateCcw className="w-3.5 h-3.5" />
@@ -1438,7 +1443,7 @@ export default function WorkoutMode({
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               whileTap={{ scale: 0.97 }}
-              onClick={() => { setCurrentExIdx((i) => i + 1); setRestRunning(false); }}
+              onClick={() => { setCurrentExIdx((i) => i + 1); setRestBaseSec(0); setRestSegStartedAt(null); }}
               className="w-full h-14 rounded-2xl font-bold text-base flex items-center justify-center gap-2"
               style={{
                 background: "linear-gradient(135deg, #22c55e, #16a34a)",
@@ -1454,12 +1459,12 @@ export default function WorkoutMode({
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="flex-1 gap-1 h-11"
               disabled={currentExIdx === 0}
-              onClick={() => { setCurrentExIdx((i) => Math.max(0, i - 1)); setRestRunning(false); }}>
+              onClick={() => { setCurrentExIdx((i) => Math.max(0, i - 1)); setRestBaseSec(0); setRestSegStartedAt(null); }}>
               <ChevronLeft className="w-4 h-4" /> Anterior
             </Button>
             <Button variant="outline" size="sm" className="flex-1 gap-1 h-11"
               disabled={currentExIdx >= exercises.length - 1}
-              onClick={() => { setCurrentExIdx((i) => Math.min(i + 1, exercises.length - 1)); setRestRunning(false); }}>
+              onClick={() => { setCurrentExIdx((i) => Math.min(i + 1, exercises.length - 1)); setRestBaseSec(0); setRestSegStartedAt(null); }}>
               Próximo <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
@@ -1477,7 +1482,7 @@ export default function WorkoutMode({
               const exMax     = parseSetsMax(ex.sets);
               return (
                 <div key={idx}
-                  onClick={() => { setCurrentExIdx(idx); setRestRunning(false); setRestElapsed(0); }}
+                  onClick={() => { setCurrentExIdx(idx); setRestBaseSec(0); setRestSegStartedAt(null); }}
                   className={`flex items-center gap-3 bg-card border rounded-xl p-3 cursor-pointer transition-all ${
                     isCurrent ? "border-primary shadow-[0_0_0_1px_hsl(var(--primary))]" : "border-border"
                   }`}
