@@ -51,6 +51,7 @@ import {
   ArrowUp, ArrowDown, Eye, Settings2
 } from "lucide-react";
 import { toast } from "sonner";
+import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
 import {
   ProtocolPayloadSchema, ProtocolPayload, SPLIT_OPTIONS, WEEKDAYS,
   buildBasePayload, makeEmptyExercise, makeEmptyMeal, type SplitValue, MEAL_NAME_PRESETS,
