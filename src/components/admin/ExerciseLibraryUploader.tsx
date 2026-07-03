@@ -9,6 +9,30 @@ import { toExerciseKey } from "@/lib/workoutTypes";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb = supabase as any;
 
+/**
+ * O Supabase Storage rejeita chaves de objeto com acentos, parênteses e
+ * outros caracteres fora de [a-zA-Z0-9._-] (erro "Invalid key"). Os arquivos
+ * da biblioteca vêm com nomes em português (ex.: "Alongamento de ombro
+ * reverso em pé.webp"), então precisamos gerar uma chave "limpa" só para o
+ * caminho de storage — o nome original continua preservado como file_name
+ * na tabela exercise_library, e a busca do gif usa a exercise_key (que já
+ * remove acentos via toExerciseKey), então nada quebra na hora de exibir.
+ */
+function sanitizeStorageKey(fileName: string): string {
+  const dotIdx = fileName.lastIndexOf(".");
+  const base = dotIdx >= 0 ? fileName.slice(0, dotIdx) : fileName;
+  const ext  = dotIdx >= 0 ? fileName.slice(dotIdx + 1) : "webp";
+
+  const cleanBase = base
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")   // remove acentos
+    .replace(/[()]/g, "")              // remove parênteses
+    .replace(/\s+/g, "_")              // espaços -> "_"
+    .replace(/[^a-zA-Z0-9._-]/g, "");  // remove qualquer outro caractere inválido
+
+  return `${cleanBase}.${ext.toLowerCase()}`;
+}
+
 export function ExerciseLibraryUploader() {
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -30,25 +54,35 @@ export function ExerciseLibraryUploader() {
     const errs: string[] = [];
 
     for (const file of files) {
-      const { error } = await supabase.storage
-        .from(EXERCISE_GIFS_BUCKET)
-        .upload(file.name, file, { upsert: true, contentType: "image/webp" });
+      const storageKey = sanitizeStorageKey(file.name);
 
-      if (error) {
-        errs.push(`${file.name}: ${error.message}`);
+      let uploadError: { message: string } | null = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const { error } = await supabase.storage
+          .from(EXERCISE_GIFS_BUCKET)
+          .upload(storageKey, file, { upsert: true, contentType: "image/webp" });
+        uploadError = error;
+        if (!error) break;
+        // Erros de rede/gateway (ex.: resposta HTML em vez de JSON) costumam
+        // ser transitórios — tenta mais uma vez antes de desistir do arquivo.
+      }
+
+      if (uploadError) {
+        errs.push(`${file.name}: ${uploadError.message}`);
         setDone((d) => d + 1);
         continue;
       }
 
       // Registra/atualiza a entrada na biblioteca para que o app já ache o
       // gif pela chave normalizada do exercício (mesmo cálculo usado em toda
-      // a parte de treino: nome em minúsculas, sem acento, com "_").
+      // a parte de treino: nome em minúsculas, sem acento, com "_"). O
+      // file_name salvo aqui é o mesmo usado como caminho no storage.
       const baseName = file.name.replace(/\.webp$/i, "");
       const exerciseKey = toExerciseKey(baseName);
       const { error: libError } = await sb
         .from("exercise_library")
         .upsert(
-          { exercise_key: exerciseKey, file_name: file.name, updated_at: new Date().toISOString() },
+          { exercise_key: exerciseKey, file_name: storageKey, updated_at: new Date().toISOString() },
           { onConflict: "exercise_key" }
         );
       if (libError) errs.push(`${file.name}: enviado, mas falhou ao registrar na biblioteca (${libError.message})`);
