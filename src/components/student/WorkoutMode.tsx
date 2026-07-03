@@ -913,8 +913,9 @@ export default function WorkoutMode({
         toast.error("❌ Não foi possível salvar no servidor. Seus dados ficaram salvos neste aparelho.");
       }
 
-      setRestElapsed(0);
-      setRestRunning(true);
+      restEndFiredRef.current = false;
+      setRestBaseSec(0);
+      setRestSegStartedAt(Date.now());
     },
     [
       todasFeitas, activeWeight, activeReps, suggestedWeight, suggestedReps,
@@ -1073,7 +1074,7 @@ export default function WorkoutMode({
               <div className="grid grid-cols-4 gap-1.5">
                 {weeks.map((_w, i) => (
                   <button key={i} type="button"
-                    onClick={() => { setActiveWeek(i); setRestRunning(false); }}
+                    onClick={() => { setActiveWeek(i); setRestBaseSec(0); setRestSegStartedAt(null); }}
                     className={`py-2 rounded-lg text-[11px] font-bold border transition ${
                       activeWeek === i
                         ? "bg-primary text-primary-foreground border-primary"
@@ -1159,7 +1160,7 @@ export default function WorkoutMode({
             <div className="flex items-center justify-center gap-2 mt-4 flex-wrap">
               {restRunning ? (
                 <>
-                  <button type="button" onClick={() => setRestRunning(false)}
+                  <button type="button" onClick={() => { setRestBaseSec(restElapsed); setRestSegStartedAt(null); }}
                     className="flex items-center gap-2 px-4 py-3 rounded-full text-white font-bold text-sm"
                     style={{ backgroundColor: "rgba(255,255,255,0.15)" }}>
                     <Pause className="w-4 h-4" />
@@ -1174,7 +1175,7 @@ export default function WorkoutMode({
                 </>
               ) : (
                 <button type="button"
-                  onClick={() => { setRestRunning(false); setRestElapsed(0); }}
+                  onClick={() => { setRestBaseSec(0); setRestSegStartedAt(null); }}
                   className="flex items-center gap-1.5 px-3 py-2.5 rounded-full text-xs font-semibold"
                   style={{ border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)" }}>
                   <RotateCcw className="w-3.5 h-3.5" />
@@ -1438,7 +1439,7 @@ export default function WorkoutMode({
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               whileTap={{ scale: 0.97 }}
-              onClick={() => { setCurrentExIdx((i) => i + 1); setRestRunning(false); }}
+              onClick={() => { setCurrentExIdx((i) => i + 1); setRestBaseSec(0); setRestSegStartedAt(null); }}
               className="w-full h-14 rounded-2xl font-bold text-base flex items-center justify-center gap-2"
               style={{
                 background: "linear-gradient(135deg, #22c55e, #16a34a)",
@@ -1454,12 +1455,12 @@ export default function WorkoutMode({
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="flex-1 gap-1 h-11"
               disabled={currentExIdx === 0}
-              onClick={() => { setCurrentExIdx((i) => Math.max(0, i - 1)); setRestRunning(false); }}>
+              onClick={() => { setCurrentExIdx((i) => Math.max(0, i - 1)); setRestBaseSec(0); setRestSegStartedAt(null); }}>
               <ChevronLeft className="w-4 h-4" /> Anterior
             </Button>
             <Button variant="outline" size="sm" className="flex-1 gap-1 h-11"
               disabled={currentExIdx >= exercises.length - 1}
-              onClick={() => { setCurrentExIdx((i) => Math.min(i + 1, exercises.length - 1)); setRestRunning(false); }}>
+              onClick={() => { setCurrentExIdx((i) => Math.min(i + 1, exercises.length - 1)); setRestBaseSec(0); setRestSegStartedAt(null); }}>
               Próximo <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
@@ -1477,7 +1478,7 @@ export default function WorkoutMode({
               const exMax     = parseSetsMax(ex.sets);
               return (
                 <div key={idx}
-                  onClick={() => { setCurrentExIdx(idx); setRestRunning(false); setRestElapsed(0); }}
+                  onClick={() => { setCurrentExIdx(idx); setRestBaseSec(0); setRestSegStartedAt(null); }}
                   className={`flex items-center gap-3 bg-card border rounded-xl p-3 cursor-pointer transition-all ${
                     isCurrent ? "border-primary shadow-[0_0_0_1px_hsl(var(--primary))]" : "border-border"
                   }`}
