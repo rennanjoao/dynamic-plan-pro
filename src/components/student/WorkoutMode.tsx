@@ -64,6 +64,8 @@ interface Exercise {
   cadence?: string;
   rest?: string;
   notes?: string;
+  /** Chave exata da biblioteca de gifs, gravada pelo coach ao prescrever via combobox. */
+  gifKey?: string;
 }
 interface WorkoutDay {
   key: string;
@@ -632,7 +634,7 @@ export default function WorkoutMode({
   });
 
   const currentEx      = exercises[currentExIdx];
-  const gifUrl          = useExerciseGif(currentEx?.name);
+  const gifUrl          = useExerciseGif(currentEx?.name, currentEx?.gifKey);
   const [showGifDialog, setShowGifDialog] = useState(false);
   const currentExKey   = day ? `${day.key}::${currentExIdx}` : "";
   const setsMax        = parseSetsMax(currentEx?.sets);

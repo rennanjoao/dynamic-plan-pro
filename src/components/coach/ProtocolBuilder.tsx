@@ -51,6 +51,7 @@ import {
   ArrowUp, ArrowDown, Eye, Settings2
 } from "lucide-react";
 import { toast } from "sonner";
+import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
 import {
   ProtocolPayloadSchema, ProtocolPayload, SPLIT_OPTIONS, WEEKDAYS,
   buildBasePayload, makeEmptyExercise, makeEmptyMeal, type SplitValue, MEAL_NAME_PRESETS,
@@ -864,7 +865,12 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
                   ? "md:grid-cols-[1.8fr_1fr_auto]"
                   : "md:grid-cols-[1.8fr_0.6fr_0.6fr_0.6fr_0.6fr_1fr_auto]"
               )}>
-                <Input value={ex.name} onChange={(e) => updEx(di, ei, { name: e.target.value })} placeholder="Ex: Supino reto" className="h-8 text-xs" />
+                <ExercisePickerInput
+                  value={ex.name}
+                  gifKey={(ex as any).gifKey}
+                  onChange={(patch) => updEx(di, ei, patch)}
+                  placeholder="Ex: Supino reto"
+                />
                 {!collapsed && (
                   <>
                     <Input value={effSets} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder={phSets} className={cn("h-8 text-xs", periodOn && !ex.sets && effSets ? "text-muted-foreground italic" : "")} title={periodOn && !ex.sets ? "Valor da Semana 1 — edite para personalizar" : ""} />

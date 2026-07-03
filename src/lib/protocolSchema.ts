@@ -35,6 +35,10 @@ export const ExerciseSchema = z.object({
   cadence: z.string().optional().default(""),
   rest: z.string().optional().default(""),
   notes: z.string().optional().default(""),
+  // Chave exata da biblioteca de gifs (opcional). Preenchido quando o coach
+  // seleciona o exercício via combobox. Protocolos antigos não têm este campo
+  // e continuam funcionando pelo fallback de matching por nome.
+  gifKey: z.string().optional(),
 });
 
 export const WorkoutDaySchema = z.object({
