@@ -750,39 +750,42 @@ export default function WorkoutMode({
 
   useEffect(() => {
     if (!userId || exercises.length === 0) return;
-    exercises.forEach((ex, idx) => {
-      const key = `${day?.key}::${idx}`;
-      if (historyMap[key]) return;
-      session.getExerciseHistory(ex.name, 3).then((history) => {
-        if (history.length > 0) {
-          setHistoryMap((prev) => ({ ...prev, [key]: history }));
-        }
+    session.getExerciseHistoryBatch(exercises.map((e) => e.name), 3).then((byName) => {
+      const next: Record<string, ExerciseHistory[]> = {};
+      exercises.forEach((ex, idx) => {
+        const key = `${day?.key}::${idx}`;
+        if (byName[ex.name]?.length) next[key] = byName[ex.name];
       });
+      if (Object.keys(next).length) setHistoryMap((prev) => ({ ...prev, ...next }));
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exercises.map((e) => e.name).join("|"), userId]);
 
   /* ── Timer ──────────────────────────────────────────────────────────────────── */
-  const [restElapsed, setRestElapsed]   = useState(0);
-  const [restRunning, setRestRunning]   = useState(false);
-  const restRef = useRef<number | null>(null);
-  // Captura defaultRestSec e alertRestSec em refs para acesso seguro dentro do intervalo
-  const defaultRestSecRef = useRef(defaultRestSec);
-  const alertRestSecRef   = useRef(alertRestSec);
-  useEffect(() => { defaultRestSecRef.current = defaultRestSec; }, [defaultRestSec]);
-  useEffect(() => { alertRestSecRef.current   = alertRestSec;   }, [alertRestSec]);
-
-  // Zona de alerta: descanso já passou do mínimo recomendado (contagem progressiva)
-  const isAlertZone = restRunning && alertRestSec > 0 && restElapsed >= alertRestSec;
-
   // Sugestão automática de progressão de carga
   const exerciseKeys = exercises.map((ex) => toExerciseKey(ex.name));
   const { data: progressionMap } = useLoadProgression(userId, exerciseKeys);
   const currentProgression = progressionMap?.get(toExerciseKey(currentEx?.name ?? ""));
 
+  // ── Timer de descanso: derivado de timestamp real ─────────────────────────
+  // Modelo baseado em base acumulada + timestamp do segmento em execução.
+  // Sobrevive a app em background/tela bloqueada porque o valor é recalculado
+  // a partir de `now` (atualizado pelo tick global e por visibilitychange),
+  // em vez de depender de setInterval sendo chamado a cada segundo.
+  const [restBaseSec, setRestBaseSec] = useState<number>(_saved?.restBaseSec ?? 0);
+  const [restSegStartedAt, setRestSegStartedAt] = useState<number | null>(
+    _saved?.restSegStartedAt ?? null
+  );
+  const restEndFiredRef = useRef(false);
+  const restRunning = restSegStartedAt !== null;
+  const restElapsed = restBaseSec + (restSegStartedAt ? Math.floor((now - restSegStartedAt) / 1000) : 0);
+  const isAlertZone = restRunning && alertRestSec > 0 && restElapsed >= alertRestSec;
+
+  // Reseta o descanso ao trocar de exercício/semana
   useEffect(() => {
-    setRestElapsed(0);
-    setRestRunning(false);
+    restEndFiredRef.current = false;
+    setRestBaseSec(0);
+    setRestSegStartedAt(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentExKey, activeWeek, defaultRestSec]);
 
@@ -796,35 +799,32 @@ export default function WorkoutMode({
     });
   }, [currentExKey, setsMin, exercises.length]);
 
+  // Recalcula na hora ao voltar pro app — cobre suspensão de timer em background
   useEffect(() => {
-    if (!restRunning) {
-      if (restRef.current) window.clearInterval(restRef.current);
-      return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") setNow(Date.now());
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
+  // Aviso sonoro + fim do descanso — derivado do tick global de 1s
+  useEffect(() => {
+    if (!restRunning) { restEndFiredRef.current = false; return; }
+    if (restElapsed === alertRestSec && alertRestSec > 0) playBeep("warn");
+    if (restElapsed >= defaultRestSec && !restEndFiredRef.current) {
+      restEndFiredRef.current = true;
+      playBeep("end");
+      toast.success("🔔 Descansou! Hora da próxima série.", { duration: 4000 });
+      setRestBaseSec(defaultRestSec);
+      setRestSegStartedAt(null);
     }
-    restRef.current = window.setInterval(() => {
-      setRestElapsed((e) => {
-        const next = e + 1;
-        // Aviso sonoro + visual ao atingir o mínimo recomendado
-        if (next === alertRestSecRef.current) playBeep("warn");
-        // Fim do descanso ao atingir o máximo
-        if (next >= defaultRestSecRef.current) {
-          setRestRunning(false);
-          playBeep("end");
-          toast.success("🔔 Descansou! Hora da próxima série.", { duration: 4000 });
-          return defaultRestSecRef.current; // trava no teto
-        }
-        return next;
-      });
-    }, 1000);
-    return () => { if (restRef.current) window.clearInterval(restRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [restRunning]);
+  }, [restElapsed, restRunning, alertRestSec, defaultRestSec]);
 
   const skipRest = () => {
-    if (restRef.current) window.clearInterval(restRef.current);
-    setRestRunning(false);
-    setRestElapsed(0);
-    // Não avança — aluno controla
+    setRestBaseSec(0);
+    setRestSegStartedAt(null);
   };
 
   /* ── Carga / reps ────────────────────────────────────────────────────────────── */
