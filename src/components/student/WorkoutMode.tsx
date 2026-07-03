@@ -766,6 +766,25 @@ export default function WorkoutMode({
   const restElapsed = restBaseSec + (restSegStartedAt ? Math.floor((now - restSegStartedAt) / 1000) : 0);
   const isAlertZone = restRunning && alertRestSec > 0 && restElapsed >= alertRestSec;
 
+  // Persistência do progresso no localStorage (inclui estado do timer de descanso
+  // para sobreviver a reload/fechar o app no meio do treino)
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          activeWeek,
+          completed,
+          setDataMap,
+          sessionId: session.sessionId,
+          startedAt,
+          restBaseSec,
+          restSegStartedAt,
+        })
+      );
+    } catch { /* quota exceeded */ }
+  }, [activeWeek, completed, setDataMap, storageKey, session.sessionId, startedAt, restBaseSec, restSegStartedAt]);
+
   // Reseta o descanso ao trocar de exercício/semana
   useEffect(() => {
     restEndFiredRef.current = false;
