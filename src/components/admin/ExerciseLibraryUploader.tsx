@@ -38,6 +38,7 @@ export function ExerciseLibraryUploader() {
   const [uploading, setUploading] = useState(false);
   const [done, setDone] = useState(0);
   const [failed, setFailed] = useState<string[]>([]);
+  const [summary, setSummary] = useState<string | null>(null);
 
   const handleSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = Array.from(e.target.files ?? []).filter((f) =>
@@ -46,53 +47,89 @@ export function ExerciseLibraryUploader() {
     setFiles(list);
     setDone(0);
     setFailed([]);
+    setSummary(null);
   };
 
   const handleUpload = async () => {
     setUploading(true);
     setDone(0);
+    setSummary(null);
     const errs: string[] = [];
 
-    for (const file of files) {
-      const storageKey = sanitizeStorageKey(file.name);
+    try {
+      for (const file of files) {
+        try {
+          const storageKey = sanitizeStorageKey(file.name);
 
-      let uploadError: { message: string } | null = null;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const { error } = await supabase.storage
-          .from(EXERCISE_GIFS_BUCKET)
-          .upload(storageKey, file, { upsert: true, contentType: "image/webp" });
-        uploadError = error;
-        if (!error) break;
-        // Erros de rede/gateway (ex.: resposta HTML em vez de JSON) costumam
-        // ser transitórios — tenta mais uma vez antes de desistir do arquivo.
+          let uploadError: { message: string } | null = null;
+          for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+              const { error } = await supabase.storage
+                .from(EXERCISE_GIFS_BUCKET)
+                .upload(storageKey, file, { upsert: true, contentType: "image/webp" });
+              uploadError = error;
+              if (!error) break;
+            } catch (err) {
+              // Falha de rede/gateway que nem chega a virar um { error } normal
+              // (ex.: resposta HTML em vez de JSON) — trata como erro do arquivo
+              // e tenta de novo antes de desistir.
+              uploadError = { message: err instanceof Error ? err.message : "Erro de rede desconhecido" };
+            }
+          }
+
+          if (uploadError) {
+            errs.push(`${file.name}: ${uploadError.message}`);
+            continue;
+          }
+
+          // Registra/atualiza a entrada na biblioteca para que o app já ache o
+          // gif pela chave normalizada do exercício (mesmo cálculo usado em toda
+          // a parte de treino: nome em minúsculas, sem acento, com "_"). O
+          // file_name salvo aqui é o mesmo usado como caminho no storage.
+          const baseName = file.name.replace(/\.webp$/i, "");
+          const exerciseKey = toExerciseKey(baseName);
+          try {
+            const { error: libError } = await sb
+              .from("exercise_library")
+              .upsert(
+                { exercise_key: exerciseKey, file_name: storageKey, updated_at: new Date().toISOString() },
+                { onConflict: "exercise_key" }
+              );
+            if (libError) {
+              errs.push(`${file.name}: enviado, mas falhou ao registrar na biblioteca (${libError.message})`);
+            }
+          } catch (err) {
+            errs.push(
+              `${file.name}: enviado, mas falhou ao registrar na biblioteca (${
+                err instanceof Error ? err.message : "erro desconhecido"
+              })`
+            );
+          }
+        } catch (err) {
+          // Qualquer outro erro inesperado nesse arquivo não pode derrubar o
+          // envio dos demais.
+          errs.push(`${file.name}: erro inesperado (${err instanceof Error ? err.message : "desconhecido"})`);
+        } finally {
+          setDone((d) => d + 1);
+        }
       }
-
-      if (uploadError) {
-        errs.push(`${file.name}: ${uploadError.message}`);
-        setDone((d) => d + 1);
-        continue;
+    } finally {
+      // Roda sempre, mesmo se algo escapar dos try/catch acima — garante que
+      // a tela nunca fica travada em "Enviando..." sem explicação.
+      setFailed(errs);
+      setUploading(false);
+      const okCount = files.length - errs.length;
+      const summaryText =
+        errs.length === 0
+          ? `Upload concluído: ${okCount}/${files.length} arquivos, sem erros.`
+          : `Upload concluído: ${okCount}/${files.length} arquivos ok, ${errs.length} falharam.`;
+      setSummary(summaryText);
+      if (errs.length === 0) {
+        toast.success(summaryText);
+      } else {
+        toast.error(summaryText);
       }
-
-      // Registra/atualiza a entrada na biblioteca para que o app já ache o
-      // gif pela chave normalizada do exercício (mesmo cálculo usado em toda
-      // a parte de treino: nome em minúsculas, sem acento, com "_"). O
-      // file_name salvo aqui é o mesmo usado como caminho no storage.
-      const baseName = file.name.replace(/\.webp$/i, "");
-      const exerciseKey = toExerciseKey(baseName);
-      const { error: libError } = await sb
-        .from("exercise_library")
-        .upsert(
-          { exercise_key: exerciseKey, file_name: storageKey, updated_at: new Date().toISOString() },
-          { onConflict: "exercise_key" }
-        );
-      if (libError) errs.push(`${file.name}: enviado, mas falhou ao registrar na biblioteca (${libError.message})`);
-
-      setDone((d) => d + 1);
     }
-
-    setFailed(errs);
-    setUploading(false);
-    toast.success(`Upload concluído: ${files.length - errs.length}/${files.length} arquivos.`);
   };
 
   return (
@@ -121,6 +158,10 @@ export function ExerciseLibraryUploader() {
           </Button>
           {uploading && <Progress value={(done / files.length) * 100} />}
         </div>
+      )}
+
+      {summary && !uploading && (
+        <p className="text-sm font-semibold">{summary}</p>
       )}
 
       {failed.length > 0 && (
