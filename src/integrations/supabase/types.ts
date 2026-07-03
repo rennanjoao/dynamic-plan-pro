@@ -664,19 +664,25 @@ export type Database = {
       }
       exercise_library: {
         Row: {
+          aliases: string[]
           created_at: string
+          display_name: string | null
           exercise_key: string
           file_name: string
           updated_at: string
         }
         Insert: {
+          aliases?: string[]
           created_at?: string
+          display_name?: string | null
           exercise_key: string
           file_name: string
           updated_at?: string
         }
         Update: {
+          aliases?: string[]
           created_at?: string
+          display_name?: string | null
           exercise_key?: string
           file_name?: string
           updated_at?: string
