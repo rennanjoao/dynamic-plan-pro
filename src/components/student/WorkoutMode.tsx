@@ -64,6 +64,8 @@ interface Exercise {
   cadence?: string;
   rest?: string;
   notes?: string;
+  /** Chave exata da biblioteca de gifs, gravada pelo coach ao prescrever via combobox. */
+  gifKey?: string;
 }
 interface WorkoutDay {
   key: string;
