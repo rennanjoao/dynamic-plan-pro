@@ -345,6 +345,47 @@ export function useWorkoutSession() {
     []
   );
 
+  // ── Buscar histórico de vários exercícios em uma única query ─────────────
+  const getExerciseHistoryBatch = useCallback(
+    async (
+      exerciseNames: string[],
+      limitPerExercise = 3
+    ): Promise<Record<string, ExerciseHistory[]>> => {
+      const result: Record<string, ExerciseHistory[]> = {};
+      if (!userIdRef.current || exerciseNames.length === 0) return result;
+
+      const keyToName = new Map(exerciseNames.map((n) => [toExerciseKey(n), n]));
+      const keys = Array.from(keyToName.keys());
+
+      const { data, error } = await (supabase as any)
+        .from("workout_sets")
+        .select("exercise_key, weight_kg, reps, perceived_effort, executed_at")
+        .eq("user_id", userIdRef.current)
+        .in("exercise_key", keys)
+        .eq("set_number", 1)
+        .eq("completed", true)
+        .order("executed_at", { ascending: false });
+
+      if (error || !data) return result;
+
+      (data as any[]).forEach((s) => {
+        const name = keyToName.get(s.exercise_key);
+        if (!name) return;
+        if (!result[name]) result[name] = [];
+        if (result[name].length < limitPerExercise) {
+          result[name].push({
+            weightKg: s.weight_kg ?? 0,
+            reps: s.reps ?? 0,
+            perceivedEffort: s.perceived_effort,
+            executedAt: s.executed_at,
+          });
+        }
+      });
+      return result;
+    },
+    []
+  );
+
   return {
     sessionId,
     isActive,
@@ -357,5 +398,6 @@ export function useWorkoutSession() {
     deleteSet,
     finishSession,
     getExerciseHistory,
+    getExerciseHistoryBatch,
   };
 }
