@@ -596,23 +596,6 @@ export default function WorkoutMode({
   const [burstColor, setBurstColor] = useState(GOLD);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        storageKey,
-        JSON.stringify({
-          activeWeek,
-          completed,
-          setDataMap,
-          sessionId: session.sessionId,
-          startedAt,
-          restBaseSec,
-          restSegStartedAt,
-        })
-      );
-    } catch { /* quota exceeded */ }
-  }, [activeWeek, completed, setDataMap, storageKey, session.sessionId, startedAt, restBaseSec, restSegStartedAt]);
-
-  useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, []);
