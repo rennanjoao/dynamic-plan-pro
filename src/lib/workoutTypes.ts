@@ -131,3 +131,23 @@ export function epley1RM(weightKg: number, reps: number): number {
   if (reps === 1) return weightKg;
   return Math.round(weightKg * (1 + reps / 30));
 }
+
+/**
+ * Extrai o menor número de repetições de uma string como "8 a 12 reps".
+ */
+export function parseRepsMin(s?: string): number {
+  if (!s) return 0;
+  const nums = String(s).match(/\d+/g);
+  if (!nums) return 0;
+  return Math.min(...nums.map(Number));
+}
+
+/**
+ * Extrai o maior número de repetições de uma string como "8 a 12 reps".
+ */
+export function parseRepsMax(s?: string): number {
+  if (!s) return 0;
+  const nums = String(s).match(/\d+/g);
+  if (!nums) return 0;
+  return Math.max(...nums.map(Number));
+}
