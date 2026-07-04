@@ -1716,6 +1716,11 @@ export default function WorkoutMode({
           teamName={teamName}
           weekLabel={isPeriodizationOn ? weeks[activeWeek]?.label : undefined}
           isPartial={false}
+          heroStat={(() => {
+            const bestPR = highlights.find((h) => h.note.includes("+"));
+            return bestPR ? { exerciseName: bestPR.name, note: bestPR.note } : undefined;
+          })()}
+          referralUrl={coachId ? `https://eliteprimehub.com.br/c/${coachId}` : undefined}
           onClose={handleSharedDone}
         />
       )}
