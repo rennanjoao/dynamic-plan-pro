@@ -910,6 +910,10 @@ export default function WorkoutMode({
       const weight = activeWeight > 0 ? activeWeight : suggestedWeight;
       const reps   = activeReps > 0   ? activeReps   : suggestedReps;
 
+      // Range de REPS-alvo (ex: "8 a 12 reps" → 8/12), não o range de séries.
+      const repsMin = parseRepsMin(currentEx?.reps);
+      const repsMax = parseRepsMax(currentEx?.reps);
+
       const effortColor = effort === 1 ? "#22c55e" : effort === 3 ? "#CC0000" : GOLD;
 
       setSetDataMap((prev) => {
@@ -937,8 +941,8 @@ export default function WorkoutMode({
           setNumber:       currentSetIdx + 1,
           weightKg:        weight > 0 ? weight : undefined,
           reps:            reps > 0 ? reps : undefined,
-          repsTargetMin:   setsMin,
-          repsTargetMax:   setsMax,
+          repsTargetMin:   repsMin,
+          repsTargetMax:   repsMax,
           perceivedEffort: effort,
           completed:       true,
         });
