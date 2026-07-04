@@ -1030,20 +1030,17 @@ export default function WorkoutMode({
       hasAnyDone &&
       !(await confirm({
         title: "Sair do treino",
-        description: "Sair do modo treino? Seu progresso fica salvo.",
+        description: "Seu progresso está salvo. Você pode retomar quando quiser.",
         confirmLabel: "Sair",
       }))
     )
       return;
 
-    // Finaliza a sessão no banco mesmo saindo pelo X (sem tela de conclusão).
-    // Garante ended_at preenchido → histórico e analytics do coach funcionam.
-    await session.finishSession({
-      generalFeeling: undefined,
-      sleepQuality:   undefined,
-    });
-
-    try { localStorage.removeItem(storageKey); } catch { /* noop */ }
+    // NÃO finaliza a sessão: fica "open" (ended_at = null) e pode ser retomada.
+    // O localStorage já persiste o estado; apenas marcamos a hora da pausa.
+    try {
+      localStorage.setItem(`${storageKey}_paused_at`, new Date().toISOString());
+    } catch { /* noop */ }
     onClose();
   };
 
