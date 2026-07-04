@@ -1,8 +1,10 @@
 import { Link } from "react-router-dom";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Users, Dumbbell, UtensilsCrossed, ArrowRight, Zap, Shield, TrendingUp, Sparkles, Key } from "lucide-react";
 import { motion } from "framer-motion";
 import { InfoChatBot } from "@/components/landing/InfoChatBot";
+import { captureReferralFromUrl } from "@/lib/referralCapture";
 
 const FeatureCard = ({ icon: Icon, title, description, delay }: { icon: any; title: string; description: string; delay: number }) => (
   <motion.div
@@ -27,6 +29,11 @@ const StatBlock = ({ value, label, noTranslate }: { value: string; label: string
 );
 
 const Index = () => {
+  // Captura ?ref= do QR code do WorkoutShareCard (efeito rede / referral loop)
+  useEffect(() => {
+    captureReferralFromUrl();
+  }, []);
+
   return (
     <div className="min-h-screen bg-background relative">
 
