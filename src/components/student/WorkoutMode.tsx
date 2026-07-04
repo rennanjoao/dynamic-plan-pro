@@ -1,5 +1,5 @@
 // src/components/student/WorkoutMode.tsx
-// Modo Treino — Otimizado para UX, Retenção, Dopamina e Navegação Tátil (Sprint 8)
+// Modo Treino — Otimizado para UX, Retenção, Dopamina e Navegação Tátil (Sprint 9)
 
 import {
   useEffect,
@@ -20,6 +20,7 @@ import {
   Trophy,
   Play,
   Maximize2,
+  ListTodo,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -92,6 +93,63 @@ const NumericField = memo(({ label, unit, value, suggestedValue, onChange, accen
   );
 });
 
+/* ── Partículas de recompensa ── */
+const PARTICLES = Array.from({ length: 8 }, (_, i) => i);
+const BurstParticles = memo(function BurstParticles({ color }: { color: string }) {
+  return (
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden">
+      {PARTICLES.map((i) => {
+        const angle = (i / PARTICLES.length) * 360;
+        const rad   = (angle * Math.PI) / 180;
+        const dx    = Math.cos(rad) * 28;
+        const dy    = Math.sin(rad) * 28;
+        return (
+          <motion.span
+            key={i}
+            initial={{ x: 0, y: 0, opacity: 1, scale: 1 }}
+            animate={{ x: dx, y: dy, opacity: 0, scale: 0 }}
+            transition={{ duration: 0.55, ease: "easeOut" }}
+            style={{ position: "absolute", width: 6, height: 6, borderRadius: "50%", backgroundColor: color }}
+          />
+        );
+      })}
+    </div>
+  );
+});
+
+/* ── Beep sonoro & Som de Vitória ── */
+let sharedAudioCtx: AudioContext | null = null;
+function getAudioCtx(): AudioContext | null {
+  try {
+    if (!sharedAudioCtx) {
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!Ctx) return null;
+      sharedAudioCtx = new Ctx();
+    }
+    if (sharedAudioCtx.state === "suspended") void sharedAudioCtx.resume();
+    return sharedAudioCtx;
+  } catch { return null; }
+}
+
+function playVictorySound() {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    const notes = [262, 330, 392, 523]; // C4, E4, G4, C5
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(freq, now + i * 0.15);
+      gain.gain.setValueAtTime(0, now + i * 0.15);
+      gain.gain.linearRampToValueAtTime(0.2, now + i * 0.15 + 0.05);
+      gain.gain.linearRampToValueAtTime(0, now + i * 0.15 + 0.3);
+      osc.start(now + i * 0.15); osc.stop(now + i * 0.15 + 0.4);
+    });
+  } catch {}
+}
+
 /* ── Main Component ── */
 export default function WorkoutMode({ workouts, userId, coachId, coachName, teamName, initialDay, initialWeek, periodization, onClose }: any) {
   const confirm = useConfirm();
@@ -109,6 +167,8 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const [completed, setCompleted] = useState<Record<string, number[]>>(_saved?.completed ?? {});
   const [startedAt, setStartedAt] = useState<number>(_saved?.startedAt ?? Date.now());
   const [now, setNow] = useState(Date.now());
+  const [burstKey, setBurstKey] = useState<string | null>(null);
+  const [burstColor, setBurstColor] = useState(GOLD);
   const [streak, setStreak] = useState(0);
   const [showShare, setShowShare] = useState(false);
   const [showGifDialog, setShowGifDialog] = useState(false);
@@ -117,6 +177,27 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (phase === "conclusion") playVictorySound();
+  }, [phase]);
+
+  // Fetch Streak
+  useEffect(() => {
+    const fetchStreak = async () => {
+      const { data } = await supabase.from("workout_sessions").select("started_at").eq("user_id", userId).order("started_at", { ascending: false }).limit(30);
+      if (!data) return;
+      let s = 0; let last = new Date(); last.setHours(0,0,0,0);
+      for (const sess of data) {
+        const d = new Date(sess.started_at); d.setHours(0,0,0,0);
+        const diff = Math.floor((last.getTime() - d.getTime()) / 86400000);
+        if (diff === 0) continue;
+        if (diff === 1) { s++; last = d; } else break;
+      }
+      setStreak(s);
+    };
+    fetchStreak();
+  }, [userId]);
 
   const elapsedSec = Math.floor((now - startedAt) / 1000);
   const day = workouts.find((d: any) => d.key === (initialDay ?? workouts[0]?.key)) ?? workouts[0];
@@ -223,7 +304,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         </div>
       </header>
 
-      {/* ── Barra de Navegação Horizontal (Quick Switcher) ── */}
+      {/* ── Barra de Navegação Horizontal (Mapa de Conquistas) ── */}
       <nav className="sticky top-[52px] z-20 bg-background/95 backdrop-blur border-b border-white/5 flex items-center overflow-x-auto no-scrollbar py-2 px-4 gap-2">
         {exercises.map((ex: any, i: number) => {
           const status = getExStatus(i);
@@ -270,11 +351,15 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
 
               {/* Bolhas de Séries */}
               <div className="flex gap-2 flex-wrap">
-                {Array.from({ length: setsMax }).map((_, i) => (
-                  <div key={i} className={`w-9 h-9 rounded-full border-2 flex items-center justify-center font-black text-sm transition-all ${doneSets[i] ? "bg-green-500 border-green-500 text-black" : i === doneSets.length ? "border-primary text-primary scale-110" : "border-white/10 text-white/20"}`}>
-                    {doneSets[i] ? <Check className="w-5 h-5" strokeWidth={3} /> : i + 1}
-                  </div>
-                ))}
+                {Array.from({ length: setsMax }).map((_, i) => {
+                  const isDone = (setDataMap[currentExKey] ?? [])[i]?.done;
+                  const isCurrentSet = i === (setDataMap[currentExKey] ?? []).filter(s => s.done).length;
+                  return (
+                    <div key={i} className={`w-9 h-9 rounded-full border-2 flex items-center justify-center font-black text-sm transition-all ${isDone ? "bg-green-500 border-green-500 text-black" : isCurrentSet ? "border-primary text-primary scale-110" : "border-white/10 text-white/20"}`}>
+                      {isDone ? <Check className="w-5 h-5" strokeWidth={3} /> : i + 1}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -319,6 +404,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
             </div>
           </motion.div>
         )}
+
       </main>
 
       {/* Modal da GIF Expandida */}
