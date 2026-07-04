@@ -139,6 +139,12 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const [showGifDialog, setShowGifDialog] = useState(false);
   const [showExList, setShowExList] = useState(false);
 
+  // ── Retenção comportamental: histórico p/ detecção de PR, streak real e overlay ──
+  const [historyMap, setHistoryMap] = useState<Record<string, ExerciseHistory[]>>({});
+  const [sessionPRs, setSessionPRs] = useState<{ exerciseName: string; weightKg: number; reps: number }[]>([]);
+  const [prPulse, setPrPulse] = useState(false);
+  const [realStreak, setRealStreak] = useState(0);
+
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
@@ -190,6 +196,13 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     localStorage.setItem(storageKey, JSON.stringify({ activeWeek, completed, setDataMap, sessionId: session.sessionId, startedAt, restBaseSec, restSegStartedAt }));
   }, [activeWeek, completed, setDataMap, session.sessionId, startedAt, restBaseSec, restSegStartedAt]);
 
+  // Pré-carrega o melhor histórico de cada exercício do dia — 1 query só,
+  // usada para saber em tempo real se a série atual é um Recorde Pessoal.
+  useEffect(() => {
+    session.getExerciseHistoryBatch(exercises.map((e: any) => e.name)).then(setHistoryMap);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [day?.key]);
+
   const handleFizASerie = async (effort: 1 | 2 | 3) => {
     const currentSets = setDataMap[currentExKey] ?? [];
     const setIdx = currentSets.filter(s => s.done).length;
@@ -199,7 +212,27 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     newSets[setIdx] = { weight: activeWeight, reps: activeReps, effort, done: true, skipped: false };
     setSetDataMap(prev => ({ ...prev, [currentExKey]: newSets }));
     setCompleted(prev => ({ ...prev, [currentExKey]: [...(prev[currentExKey] ?? []), setIdx] }));
-    
+
+    // ── Detecção de PR: compara a carga contra o melhor histórico do exercício ──
+    // Recompensa variável real (não cosmética) — só dispara quando há motivo de fato.
+    const history = historyMap[currentEx?.name] ?? [];
+    const bestPrevWeight = history.length ? Math.max(...history.map(h => h.weightKg)) : 0;
+    const isPR = activeWeight > 0 && activeWeight > bestPrevWeight;
+
+    if (isPR) {
+      setSessionPRs(prev => {
+        const withoutDup = prev.filter(p => p.exerciseName !== currentEx?.name);
+        return [...withoutDup, { exerciseName: currentEx?.name, weightKg: activeWeight, reps: activeReps }];
+      });
+      setPrPulse(true);
+      setTimeout(() => setPrPulse(false), 1400);
+      if (navigator.vibrate) navigator.vibrate([40, 60, 40, 60, 120]); // padrão distinto de "conquista"
+      toast.success(`🏆 NOVO RECORD! ${activeWeight}kg em ${currentEx?.name}`, { duration: 3500, icon: "🏆" });
+    } else if (navigator.vibrate) {
+      // Vibração tiered por esforço — reforça a escala em vez de feedback genérico
+      navigator.vibrate(effort === 3 ? [20, 40, 20] : effort === 2 ? [30] : [15]);
+    }
+
     setRestBaseSec(0);
     setRestSegStartedAt(Date.now());
 
@@ -219,6 +252,17 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const todasFeitas = doneSets.length >= setsMax;
   const progressPct = Math.round((Object.values(completed).flat().length / (exercises.reduce((acc: number, ex: any) => acc + parseSetsMin(ex.sets), 0))) * 100);
 
+  // Ao concluir: busca o streak real (substitui o `streak={0}` hardcoded) e
+  // auto-revela o card de compartilhamento — reduzir a fricção do clique é o
+  // maior ganho de conversão do efeito rede.
+  useEffect(() => {
+    if (phase !== "conclusion") return;
+    session.getStreak(userId).then(setRealStreak);
+    const t = setTimeout(() => setShowShare(true), 900); // deixa o troféu "aterrissar" antes
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
   if (phase === "conclusion") {
     return (
       <div className="fixed inset-0 z-50 bg-background overflow-y-auto flex flex-col items-center p-6">
@@ -233,7 +277,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
           <Button onClick={() => setShowShare(true)} className="w-full h-14 rounded-2xl gap-2 text-lg font-black uppercase italic shadow-[0_0_20px_rgba(201,168,76,0.3)] border-2 border-primary/50"><Zap className="w-5 h-5" /> Compartilhar</Button>
           <Button onClick={onClose} variant="ghost" className="w-full text-white/40">Fechar</Button>
         </motion.div>
-        {showShare && <WorkoutShareCard workoutName={day?.key} durationSec={elapsedSec} totalSets={Object.values(completed).flat().length} completedExercises={Object.keys(completed).length} totalExercises={exercises.length} coachName={coachName} teamName={teamName} streak={0} coachId={coachId} onClose={() => setShowShare(false)} />}
+        {showShare && <WorkoutShareCard workoutName={day?.key} durationSec={elapsedSec} totalSets={Object.values(completed).flat().length} completedExercises={Object.keys(completed).length} totalExercises={exercises.length} coachName={coachName} teamName={teamName} streak={realStreak} coachId={coachId} studentId={userId} prs={sessionPRs} onClose={() => setShowShare(false)} />}
       </div>
     );
   }
@@ -293,6 +337,29 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                 ))}
               </div>
             </div>
+
+            {/* Overlay de Novo Record */}
+            <AnimatePresence>
+              {prPulse && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.6 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 1.2 }}
+                  className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none"
+                >
+                  <div className="text-center">
+                    <motion.div
+                      animate={{ rotate: [0, -8, 8, -4, 0] }}
+                      transition={{ duration: 0.6 }}
+                      className="text-6xl mb-2"
+                    >🏆</motion.div>
+                    <p className="text-2xl font-black italic uppercase text-primary drop-shadow-[0_0_20px_rgba(201,168,76,0.6)]">
+                      Novo Record!
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Inputs */}
             {!todasFeitas && (
