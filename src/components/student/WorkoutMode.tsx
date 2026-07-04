@@ -256,6 +256,36 @@ function playBeep(type: "warn" | "end" = "end") {
   }
 }
 
+/**
+ * Toca um acorde curto de vitória (Dó–Mi–Sol) ao concluir o treino.
+ * Silencioso caso o navegador bloqueie o AudioContext.
+ */
+function playVictorySound() {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    const notes = [262, 330, 392];
+    const noteDuration = 0.2;
+    notes.forEach((freq, i) => {
+      const startTime = now + i * noteDuration;
+      osc.frequency.setValueAtTime(freq, startTime);
+      gain.gain.setValueAtTime(0.3, startTime);
+      gain.gain.linearRampToValueAtTime(0, startTime + noteDuration - 0.05);
+    });
+
+    osc.start(now);
+    osc.stop(now + noteDuration * 3);
+  } catch {
+    // Silencioso
+  }
+}
+
 /* ── Helpers ────────────────────────────────────────────────────────────────── */
 
 function parseSetsMax(s?: string): number {
