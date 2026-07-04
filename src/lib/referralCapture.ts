@@ -56,6 +56,11 @@ function readValid(): StoredReferral | null {
   }
 }
 
+/** Lê sem apagar — usado para auto-resolver o coach na tela de código (Anamnesis.tsx). */
+export function peekStoredReferral(): StoredReferral | null {
+  return readValid();
+}
+
 /** Lê o código armazenado e APAGA em seguida — usar só no momento da conversão. */
 export function consumeStoredReferral(): StoredReferral | null {
   const data = readValid();
