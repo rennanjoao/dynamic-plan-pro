@@ -51,7 +51,7 @@ import { useConfirm } from "@/components/ConfirmProvider";
 import { useWorkoutSession } from "@/hooks/useWorkoutSession";
 import { supabase } from "@/integrations/supabase/client";
 import type { ExerciseHistory } from "@/lib/workoutTypes";
-import { effortLabel, toExerciseKey } from "@/lib/workoutTypes";
+import { effortLabel, toExerciseKey, parseRepsMin, parseRepsMax } from "@/lib/workoutTypes";
 import { useLoadProgression } from "@/hooks/useLoadProgression";
 import { useExerciseGif } from "@/hooks/useExerciseGif";
 
