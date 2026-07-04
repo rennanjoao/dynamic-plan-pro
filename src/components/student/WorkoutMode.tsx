@@ -198,10 +198,18 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
 
   // Pré-carrega o melhor histórico de cada exercício do dia — 1 query só,
   // usada para saber em tempo real se a série atual é um Recorde Pessoal.
+  // Protegido com try/catch: se falhar (sessão ainda não pronta, rede etc.)
+  // o Modo Treino não pode quebrar por causa de uma feature de bônus (PR).
   useEffect(() => {
-    session.getExerciseHistoryBatch(exercises.map((e: any) => e.name)).then(setHistoryMap);
+    if (!exercises.length) return;
+    let cancelled = false;
+    session
+      .getExerciseHistoryBatch(exercises.map((e: any) => e.name))
+      .then((map) => { if (!cancelled) setHistoryMap(map ?? {}); })
+      .catch((err) => { console.warn("getExerciseHistoryBatch falhou (PR tracking desativado nesta sessão):", err); });
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [day?.key]);
+  }, [day?.key, exercises.length]);
 
   const handleFizASerie = async (effort: 1 | 2 | 3) => {
     const currentSets = setDataMap[currentExKey] ?? [];
@@ -252,23 +260,14 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const todasFeitas = doneSets.length >= setsMax;
   const progressPct = Math.round((Object.values(completed).flat().length / (exercises.reduce((acc: number, ex: any) => acc + parseSetsMin(ex.sets), 0))) * 100);
 
-  // Status de cada exercício p/ o Drawer "Mapa do Treino" (done / partial / pending)
-  const getExStatus = (i: number): "done" | "partial" | "pending" => {
-    const ex = exercises[i];
-    const key = `${day?.key}::${i}`;
-    const setsDone = (setDataMap[key] ?? []).filter((s: any) => s.done).length;
-    const required = parseSetsMax(ex?.sets);
-    if (setsDone === 0) return "pending";
-    if (setsDone >= required) return "done";
-    return "partial";
-  };
-
   // Ao concluir: busca o streak real (substitui o `streak={0}` hardcoded) e
   // auto-revela o card de compartilhamento — reduzir a fricção do clique é o
   // maior ganho de conversão do efeito rede.
   useEffect(() => {
     if (phase !== "conclusion") return;
-    session.getStreak(userId).then(setRealStreak);
+    session.getStreak(userId).then(setRealStreak).catch((err) => {
+      console.warn("getStreak falhou (streak ficará 0 nesta tela):", err);
+    });
     const t = setTimeout(() => setShowShare(true), 900); // deixa o troféu "aterrissar" antes
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
