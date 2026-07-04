@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { uploadToCloudinary, NEURO_SLIDERS } from "@/lib/anamnesisSchema";
 import { notifyCoach } from "@/lib/notifyCoach";
+import { consumeStoredReferral } from "@/lib/referralCapture";
 import { FotoSlot } from "@/components/shared/FotoSlot";
 import { cn } from "@/lib/utils";
 import { ShieldCheck, ArrowRight } from "lucide-react";
@@ -310,6 +311,25 @@ const Anamnesis = () => {
           body: { coachId: coachIdOrNull },
         });
         if (linkErr) console.warn("link-coach-student falhou", linkErr);
+
+        // ── Atribuição de indicação aluno→aluno (efeito rede do WorkoutShareCard) ──
+        // Só roda no primeiro cadastro (nunca em edição) e só se havia um código
+        // de referral capturado anteriormente (QR escaneado na landing page).
+        // Resolução do código e gravação acontecem 100% no backend (service role)
+        // — o client nunca decide quem é o indicador.
+        const storedRef = consumeStoredReferral();
+        if (storedRef?.code) {
+          const { error: refErr } = await supabase.functions.invoke("register-referral", {
+            body: {
+              refCode: storedRef.code,
+              coachId: coachIdOrNull,
+              utmSource: storedRef.utmSource,
+              utmMedium: storedRef.utmMedium,
+              utmCampaign: storedRef.utmCampaign,
+            },
+          });
+          if (refErr) console.warn("register-referral falhou", refErr);
+        }
       }
 
       if (coach.email) {
