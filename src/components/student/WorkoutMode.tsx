@@ -252,6 +252,17 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const todasFeitas = doneSets.length >= setsMax;
   const progressPct = Math.round((Object.values(completed).flat().length / (exercises.reduce((acc: number, ex: any) => acc + parseSetsMin(ex.sets), 0))) * 100);
 
+  // Status de cada exercício p/ o Drawer "Mapa do Treino" (done / partial / pending)
+  const getExStatus = (i: number): "done" | "partial" | "pending" => {
+    const ex = exercises[i];
+    const key = `${day?.key}::${i}`;
+    const setsDone = (setDataMap[key] ?? []).filter((s: any) => s.done).length;
+    const required = parseSetsMax(ex?.sets);
+    if (setsDone === 0) return "pending";
+    if (setsDone >= required) return "done";
+    return "partial";
+  };
+
   // Ao concluir: busca o streak real (substitui o `streak={0}` hardcoded) e
   // auto-revela o card de compartilhamento — reduzir a fricção do clique é o
   // maior ganho de conversão do efeito rede.
