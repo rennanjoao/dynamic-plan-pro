@@ -1765,6 +1765,24 @@ export default function WorkoutMode({
           </p>
         </div>
 
+        {/* Streak — sequência de dias treinando */}
+        {userStreak > 0 && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.6, duration: 0.4 }}
+            className="w-full rounded-xl p-4 flex items-center gap-3"
+            style={{ background: "rgba(204,0,0,0.08)", border: "1px solid rgba(204,0,0,0.35)" }}
+          >
+            <span className="text-3xl">🔥</span>
+            <div className="flex-1 text-left">
+              <p className="text-[10px] uppercase tracking-widest font-bold text-[#CC0000]">Sequência ativa</p>
+              <p className="font-black text-foreground text-lg leading-tight">{userStreak} {userStreak === 1 ? "dia" : "dias"}</p>
+              <p className="text-xs text-muted-foreground">Mantenha a consistência!</p>
+            </div>
+          </motion.div>
+        )}
+
         {/* Botões */}
         <div className="w-full flex gap-3">
           <Button type="button" variant="outline" className="flex-1 gap-2 h-12"
