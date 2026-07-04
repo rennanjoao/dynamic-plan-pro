@@ -1767,6 +1767,9 @@ export default function WorkoutMode({
 
         {/* Botões */}
         <div className="w-full flex gap-3">
+          {userStreak > 0 && (
+            <div className="sr-only">Streak: {userStreak} dias</div>
+          )}
           <Button type="button" variant="outline" className="flex-1 gap-2 h-12"
             onClick={() => { setShareMode("final"); setShowShare(true); }}>
             <Share2 className="w-4 h-4" /> Compartilhar
