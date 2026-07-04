@@ -19,6 +19,8 @@ interface Props {
   teamName?:            string;
   weekLabel?:           string;
   isPartial?:           boolean;
+  heroStat?:            { exerciseName: string; note: string };
+  referralUrl?:         string;
   onClose:              () => void;
 }
 
@@ -93,6 +95,8 @@ export default function WorkoutShareCard({
   teamName,
   weekLabel,
   isPartial = false,
+  heroStat,
+  referralUrl,
   onClose,
 }: Props) {
   const cardRef  = useRef<HTMLDivElement | null>(null);
