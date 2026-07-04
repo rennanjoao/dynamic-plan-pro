@@ -1557,6 +1557,7 @@ export default function WorkoutMode({
             teamName={teamName}
             weekLabel={isPeriodizationOn ? weeks[activeWeek]?.label : undefined}
             isPartial
+            referralUrl={coachId ? `https://eliteprimehub.com.br/c/${coachId}` : undefined}
             onClose={() => setShowShare(false)}
           />
         )}
