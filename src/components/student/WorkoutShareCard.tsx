@@ -1,13 +1,13 @@
 // src/components/student/WorkoutShareCard.tsx
 // Card de compartilhamento premium — proporcão 4:5 (Instagram nativa)
-// Visual: fundo texturizado, gradiente radial dourado, troféu em destaque,
-// tipografia com peso máximo, bordas com brilho, rodapé discreto.
+// Refatorado para Viralidade e Growth (Sprint 6)
 
 import { useRef, useState } from "react";
-import { Download, Share2, X, Loader2 } from "lucide-react";
+import { Download, Share2, X, Loader2, Trophy, Flame, Zap } from "lucide-react";
 import html2canvas from "html2canvas";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { motion } from "framer-motion";
 
 interface Props {
   workoutName:          string;
@@ -22,6 +22,11 @@ interface Props {
   heroStat?:            { exerciseName: string; note: string };
   referralUrl?:         string;
   onClose:              () => void;
+  // Novos props para viralidade
+  userFirstName?:       string;
+  isPR?:                boolean;
+  streak?:              number;
+  coachId?:             string;
 }
 
 function fmtDuration(sec: number): string {
@@ -33,6 +38,13 @@ function fmtDuration(sec: number): string {
   }
   return `${m}min ${String(s).padStart(2, "0")}s`;
 }
+
+const GOLD   = "#C9A84C";
+const GOLD2  = "#FFE066";
+const RED    = "#CC0000";
+const BG     = "#080808";
+const CARD   = "#141414";
+const BORDER = "#2A2A2A";
 
 /* ── SVGs inline ── */
 
@@ -50,16 +62,11 @@ function TrophySVG() {
         </filter>
       </defs>
       <g filter="url(#glow)">
-        {/* corpo */}
         <path d="M18 10 H54 V36 C54 50 46 58 36 58 C26 58 18 50 18 36 Z" fill="url(#tg)" />
-        {/* alças */}
         <path d="M18 14 H10 V26 C10 33 14 37 20 37" stroke="#C9A84C" strokeWidth="3.5" fill="none" strokeLinecap="round"/>
         <path d="M54 14 H62 V26 C62 33 58 37 52 37" stroke="#C9A84C" strokeWidth="3.5" fill="none" strokeLinecap="round"/>
-        {/* haste */}
         <rect x="30" y="58" width="12" height="8" rx="1" fill="url(#tg)" />
-        {/* base */}
         <rect x="22" y="66" width="28" height="5" rx="2" fill="url(#tg)" />
-        {/* brilho interno */}
         <ellipse cx="30" cy="26" rx="5" ry="9" fill="white" opacity="0.15" />
       </g>
     </svg>
@@ -98,6 +105,10 @@ export default function WorkoutShareCard({
   heroStat,
   referralUrl,
   onClose,
+  userFirstName,
+  isPR,
+  streak,
+  coachId,
 }: Props) {
   const cardRef  = useRef<HTMLDivElement | null>(null);
   const [busy, setBusy] = useState(false);
@@ -106,12 +117,13 @@ export default function WorkoutShareCard({
     day: "2-digit", month: "short", year: "numeric",
   });
 
-  const GOLD   = "#C9A84C";
-  const GOLD2  = "#FFE066";
-  const RED    = "#CC0000";
-  const BG     = "#080808";
-  const CARD   = "#141414";
-  const BORDER = "#2A2A2A";
+  const generateReferralUrl = (cid?: string): string => {
+    if (!cid) return "https://dynamicplanpro.com.br";
+    // Rota dedicada de referral landing
+    return `https://dynamicplanpro.com.br/c/${cid}`;
+  };
+
+  const finalReferralUrl = referralUrl || generateReferralUrl(coachId);
 
   /* ── Gerar imagem ── */
   const generateBlob = async (): Promise<Blob | null> => {
@@ -178,9 +190,14 @@ export default function WorkoutShareCard({
 
   const workoutLetter = workoutName.split("·")[0]?.trim() ?? workoutName;
   const workoutFocus  = workoutName.includes("·") ? workoutName.split("·")[1]?.trim() : null;
-  const quote         = isPartial
-    ? "Cada série conta."
-    : "Consistência é o único atalho.";
+  
+  // Copy dinâmico para viralidade
+  const getDynamicQuote = () => {
+    if (isPR) return "Novo recorde pessoal! 🔥";
+    if (streak && streak >= 7) return `${streak} dias de consistência! 🔥`;
+    if (completedExercises === totalExercises) return "Treino 100% concluído! 💪";
+    return "Consistência é o único atalho.";
+  };
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 overflow-y-auto"
@@ -240,9 +257,9 @@ export default function WorkoutShareCard({
                 }}>
                   {(teamName || "Dynamic Plan Pro").toUpperCase()}
                 </p>
-                {coachName && (
-                  <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "10px" }}>
-                    Coach {coachName}
+                {userFirstName && (
+                  <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "12px", fontWeight: 700 }}>
+                    {userFirstName}
                   </p>
                 )}
               </div>
@@ -259,7 +276,6 @@ export default function WorkoutShareCard({
             }}>
               {/* Anel + troféu */}
               <div style={{ position: "relative" }}>
-                {/* Anel externo animado (só visual na imagem) */}
                 <div style={{
                   width: "120px", height: "120px", borderRadius: "50%",
                   border: `1.5px solid ${GOLD}44`,
@@ -339,32 +355,32 @@ export default function WorkoutShareCard({
                 </div>
               ) : (
                 <p style={{
-                  color: "rgba(255,255,255,0.4)", fontSize: "12px",
+                  color: GOLD2, fontSize: "16px", fontWeight: 800,
                   fontStyle: "italic", letterSpacing: "0.02em", maxWidth: "220px",
                   lineHeight: 1.5,
                 }}>
-                  "{quote}"
+                  "{getDynamicQuote()}"
                 </p>
               )}
 
-              {/* Week badge */}
-              {weekLabel && (
+              {/* Streak badge */}
+              {streak && streak >= 2 && (
                 <div style={{
                   padding: "4px 14px",
-                  border: `1px solid ${GOLD}55`,
+                  border: `1px solid #FF6B35`,
                   borderRadius: "999px",
-                  background: `${GOLD}11`,
+                  background: `rgba(255,107,53,0.1)`,
+                  display: "flex", alignItems: "center", gap: "4px"
                 }}>
-                  <p style={{ color: GOLD, fontSize: "9px", letterSpacing: "0.15em", fontWeight: 700 }}>
-                    {weekLabel.toUpperCase()}
-                  </p>
+                  <span style={{ color: "#FF6B35", fontSize: "10px", fontWeight: 900 }}>
+                    🔥 {streak} DIAS SEGUIDOS
+                  </span>
                 </div>
               )}
             </div>
 
             {/* ── Stats grid ── */}
             <div style={{ marginTop: "8px" }}>
-              {/* Linha divisória */}
               <div style={{
                 height: "1px", marginBottom: "14px",
                 background: `linear-gradient(90deg, transparent, ${GOLD}33, transparent)`,
@@ -384,17 +400,10 @@ export default function WorkoutShareCard({
                     textAlign: "center",
                     boxShadow: stat.accent ? `0 0 12px ${GOLD}18` : "none",
                   }}>
-                    <p style={{
-                      color: "rgba(255,255,255,0.35)", fontSize: "8px",
-                      letterSpacing: "0.15em", fontWeight: 700, marginBottom: "4px",
-                    }}>
+                    <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "8px", fontWeight: 700, letterSpacing: "0.1em", marginBottom: "4px" }}>
                       {stat.label}
                     </p>
-                    <p style={{
-                      color: stat.accent ? GOLD2 : "#fff",
-                      fontSize: stat.value.length > 6 ? "13px" : "16px",
-                      fontWeight: 800, lineHeight: 1,
-                    }}>
+                    <p style={{ color: stat.accent ? GOLD : "#fff", fontSize: "13px", fontWeight: 800, tabularNums: true }}>
                       {stat.value}
                     </p>
                   </div>
@@ -402,55 +411,47 @@ export default function WorkoutShareCard({
               </div>
             </div>
 
-            {/* Rodapé */}
+            {/* Rodapé com Branding do Coach */}
             <div style={{
-              marginTop: "14px", display: "flex",
+              marginTop: "20px", display: "flex",
               alignItems: "center", justifyContent: "space-between",
+              background: "rgba(255,255,255,0.03)",
+              borderRadius: "12px",
+              padding: "12px",
+              border: "1px solid rgba(255,255,255,0.05)"
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <div style={{
-                  width: "16px", height: "16px", borderRadius: "4px",
-                  background: `linear-gradient(135deg, ${RED}, #8B0000)`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  <span style={{ color: "#fff", fontSize: "8px", fontWeight: 900 }}>D</span>
-                </div>
-                <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "10px", fontWeight: 600 }}>
-                  Dynamic Plan Pro
+              <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "9px", fontWeight: 700, letterSpacing: "0.1em" }}>
+                  TREINO POR
                 </p>
-                {referralUrl && (
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=64x64&data=${encodeURIComponent(referralUrl)}`}
-                    alt="QR"
-                    width={32}
-                    height={32}
-                    crossOrigin="anonymous"
-                    style={{ marginLeft: "8px", borderRadius: "4px", background: "#fff", padding: "2px" }}
-                  />
-                )}
+                <p style={{ color: GOLD, fontSize: "12px", fontWeight: 800 }}>
+                  {coachName || "Dynamic Plan Pro"}
+                </p>
               </div>
-              <p style={{ color: "rgba(255,255,255,0.2)", fontSize: "9px" }}>
-                #treino #academia
-              </p>
+              
+              {finalReferralUrl && (
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div style={{ textAlign: "right" }}>
+                    <p style={{ color: "#fff", fontSize: "9px", fontWeight: 800 }}>TREINE COMIGO</p>
+                    <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "7px" }}>Escaneie o QR</p>
+                  </div>
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(finalReferralUrl)}&color=C9A84C&bgcolor=080808`}
+                    alt="QR"
+                    width={40}
+                    height={40}
+                    crossOrigin="anonymous"
+                    style={{ borderRadius: "4px", border: `1px solid ${GOLD}44` }}
+                  />
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Brilho lateral esquerdo */}
-          <div style={{
-            position: "absolute", left: 0, top: "20%", bottom: "20%", width: "1px",
-            background: `linear-gradient(180deg, transparent, ${GOLD}22, transparent)`,
-          }} />
-          {/* Brilho lateral direito */}
-          <div style={{
-            position: "absolute", right: 0, top: "20%", bottom: "20%", width: "1px",
-            background: `linear-gradient(180deg, transparent, ${GOLD}22, transparent)`,
-          }} />
+          {/* Brilhos laterais */}
+          <div style={{ position: "absolute", left: 0, top: "20%", bottom: "20%", width: "1px", background: `linear-gradient(180deg, transparent, ${GOLD}22, transparent)` }} />
+          <div style={{ position: "absolute", right: 0, top: "20%", bottom: "20%", width: "1px", background: `linear-gradient(180deg, transparent, ${GOLD}22, transparent)` }} />
         </div>
-
-        {/* Hint de proporção */}
-        <p className="text-center text-xs text-white/30">
-          Proporção 4:5 · formato nativo do Instagram
-        </p>
 
         {/* ── Botões ── */}
         <div className="space-y-2">
@@ -458,31 +459,35 @@ export default function WorkoutShareCard({
             type="button"
             onClick={handleShare}
             disabled={busy}
-            className="w-full h-12 font-bold rounded-2xl gap-2"
+            className="w-full h-14 font-black rounded-2xl gap-2 text-lg shadow-xl shadow-red-900/20"
             style={{ background: `linear-gradient(135deg, ${RED}, #8B0000)`, color: "#fff" }}
           >
             {busy
-              ? <Loader2 className="w-4 h-4 animate-spin" />
-              : <Share2 className="w-4 h-4" />}
-            Compartilhar
+              ? <Loader2 className="w-5 h-5 animate-spin" />
+              : <Share2 className="w-5 h-5" />}
+            Compartilhar no Instagram
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleSave}
-            disabled={busy}
-            className="w-full h-11 rounded-2xl gap-2 font-semibold"
-          >
-            <Download className="w-4 h-4" />
-            Salvar imagem
-          </Button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full py-2.5 text-sm text-white/40 hover:text-white/70 transition"
-          >
-            Fechar
-          </button>
+          
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleSave}
+              disabled={busy}
+              className="h-12 rounded-2xl gap-2 font-bold border-white/10 bg-white/5"
+            >
+              <Download className="w-4 h-4" />
+              Salvar
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onClose}
+              className="h-12 rounded-2xl text-white/40 hover:text-white"
+            >
+              Fechar
+            </Button>
+          </div>
         </div>
       </div>
     </div>
