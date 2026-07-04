@@ -1,5 +1,5 @@
 // src/components/student/WorkoutMode.tsx
-// Modo Treino — Otimizado para UX, Retenção e Dopamina (Sprint 6)
+// Modo Treino — Otimizado para UX, Retenção, Dopamina e Flexibilidade Total (Sprint 7)
 
 import {
   useEffect,
@@ -17,11 +17,14 @@ import {
   Flame,
   Zap,
   TrendingUp,
+  List,
+  ChevronRight,
+  Trophy,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import WorkoutShareCard from "./WorkoutShareCard";
 import { useConfirm } from "@/components/ConfirmProvider";
@@ -134,34 +137,6 @@ function getAudioCtx(): AudioContext | null {
   } catch { return null; }
 }
 
-function playBeep(type: "warn" | "end" = "end") {
-  const ctx = getAudioCtx();
-  if (!ctx) return;
-  try {
-    const now = ctx.currentTime;
-    const osc  = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    if (type === "end") {
-      osc.frequency.setValueAtTime(880, now);
-      gain.gain.setValueAtTime(0, now);
-      gain.gain.linearRampToValueAtTime(0.25, now + 0.02);
-      gain.gain.linearRampToValueAtTime(0, now + 0.16);
-      osc.frequency.setValueAtTime(880, now + 0.22);
-      gain.gain.linearRampToValueAtTime(0.25, now + 0.24);
-      gain.gain.linearRampToValueAtTime(0, now + 0.38);
-      osc.start(now); osc.stop(now + 0.4);
-    } else {
-      osc.frequency.setValueAtTime(660, now);
-      gain.gain.setValueAtTime(0, now);
-      gain.gain.linearRampToValueAtTime(0.15, now + 0.02);
-      gain.gain.linearRampToValueAtTime(0, now + 0.14);
-      osc.start(now); osc.stop(now + 0.16);
-    }
-  } catch {}
-}
-
 function playVictorySound() {
   const ctx = getAudioCtx();
   if (!ctx) return;
@@ -208,9 +183,6 @@ function parseRestRange(rest?: string) {
 function fmtMMSS(s: number) {
   const m = Math.floor(s / 60), sec = s % 60;
   return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
-}
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
 }
 
 /* ── NumericField Component ── */
@@ -269,9 +241,11 @@ export default function WorkoutMode({
   const [completed, setCompleted] = useState<Record<string, number[]>>(_saved?.completed ?? {});
   const [startedAt, setStartedAt] = useState<number>(_saved?.startedAt ?? Date.now());
   const [now, setNow] = useState(Date.now());
-  const [historyMap, setHistoryMap] = useState<Record<string, ExerciseHistory[]>>({});
   const [burstKey, setBurstKey] = useState<string | null>(null);
+  const [burstColor, setBurstColor] = useState(GOLD);
   const [streak, setStreak] = useState(0);
+  const [showShare, setShowShare] = useState(false);
+  const [showExList, setShowExList] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -309,13 +283,9 @@ export default function WorkoutMode({
   });
 
   const currentEx = exercises[currentExIdx];
-  const gifUrl = useExerciseGif(currentEx?.name, currentEx?.gifKey);
-  const [showGifDialog, setShowGifDialog] = useState(false);
   const currentExKey = `${day?.key}::${currentExIdx}`;
   const setsMax = parseSetsMax(currentEx?.sets);
-  const setsMin = parseSetsMin(currentEx?.sets);
-  const restRange = parseRestRange(currentEx?.rest);
-
+  
   // Resume/Start Session
   useEffect(() => {
     const init = async () => {
@@ -378,7 +348,6 @@ export default function WorkoutMode({
 
   const handleClose = async () => {
     if (Object.keys(completed).length > 0 && !(await confirm({ title: "Sair do treino", description: "Seu progresso está salvo. Você pode retomar quando quiser.", confirmLabel: "Sair" }))) return;
-    localStorage.setItem(`${storageKey}_paused_at`, new Date().toISOString());
     onClose();
   };
 
@@ -388,6 +357,24 @@ export default function WorkoutMode({
   const serieAtualNum = Math.min(doneSets.length + 1, setsMax);
   const todasFeitas = doneSets.length >= setsMax;
   const progressPct = Math.round((Object.values(completed).flat().length / (exercises.reduce((acc, ex) => acc + parseSetsMin(ex.sets), 0))) * 100);
+
+  // Lógica de navegação flexível
+  const goToExercise = (idx: number) => {
+    setCurrentExIdx(idx);
+    setShowExList(false);
+    setActiveWeight(0);
+    setActiveReps(0);
+  };
+
+  const getExStatus = (idx: number) => {
+    const key = `${day?.key}::${idx}`;
+    const sets = setDataMap[key] ?? [];
+    const done = sets.filter(s => s.done).length;
+    const total = parseSetsMin(exercises[idx].sets);
+    if (done >= total) return "done";
+    if (done > 0) return "partial";
+    return "pending";
+  };
 
   if (phase === "conclusion") {
     return (
@@ -445,70 +432,117 @@ export default function WorkoutMode({
           <h1 className="font-bold text-sm truncate">Treino {day?.key} {day?.focus && `· ${day.focus}`}</h1>
           <p className="text-[10px] text-white/40 flex items-center gap-1"><Flame className="w-2.5 h-2.5" /> {fmtMMSS(elapsedSec)}</p>
         </div>
-        <Badge className="bg-green-500/20 text-green-500 border-green-500/30 text-[9px]">ATIVO</Badge>
+        <button onClick={() => setShowExList(true)} className="w-10 h-10 flex items-center justify-center bg-white/5 rounded-xl border border-white/10 text-primary">
+          <List className="w-5 h-5" />
+        </button>
       </header>
 
       <main className="max-w-2xl mx-auto p-4 space-y-3">
         <CompactWeekSelector isPeriodizationOn={isPeriodizationOn} weeks={weeks} activeWeek={activeWeek} onWeekChange={setActiveWeek} />
 
+        {/* Timer de Descanso */}
         <div className="rounded-2xl p-6 text-center bg-gradient-to-br from-neutral-900 to-black border border-white/5 relative overflow-hidden">
           {restRunning && <div className="absolute inset-0 bg-primary/5 animate-pulse" />}
+          <AnimatePresence>
+            {burstKey && <BurstParticles color={burstColor} />}
+          </AnimatePresence>
           <p className="text-[9px] uppercase tracking-widest text-white/40 font-bold mb-2">
             {todasFeitas ? "Exercício Completo!" : restRunning ? "Descansando..." : `Série ${serieAtualNum} de ${setsMax}`}
           </p>
           <h2 className="text-6xl font-black tabular-nums">{fmtMMSS(restElapsed)}</h2>
           {restRunning && (
             <div className="flex justify-center gap-2 mt-4">
-              <Button onClick={() => setRestSegStartedAt(null)} size="sm" variant="secondary" className="rounded-full">Pausar</Button>
-              <Button onClick={() => { setRestBaseSec(0); setRestSegStartedAt(null); }} size="sm" className="rounded-full">Pular</Button>
+              <Button onClick={() => setRestSegStartedAt(null)} size="sm" variant="secondary" className="rounded-full px-6">Pausar</Button>
+              <Button onClick={() => { setRestBaseSec(0); setRestSegStartedAt(null); }} size="sm" className="rounded-full px-6">Pular</Button>
             </div>
           )}
         </div>
 
+        {/* Exercício Atual */}
         {currentEx && (
           <motion.div key={currentExKey} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-neutral-900 rounded-2xl p-4 border border-red-900/30 space-y-4">
             <div className="flex justify-between items-start">
-              <h2 className="text-lg font-bold">{currentEx.name}</h2>
-              <span className="text-xs text-white/30">{doneSets.length}/{setsMax} séries</span>
+              <div>
+                <h2 className="text-lg font-bold leading-tight">{currentEx.name}</h2>
+                <p className="text-[10px] text-white/40 font-bold mt-1 uppercase tracking-wider">
+                  {currentEx.sets} · {currentEx.reps} · {currentEx.rest}
+                </p>
+              </div>
+              <span className="text-xs text-white/30 font-bold">{doneSets.length}/{setsMax} séries</span>
             </div>
 
-            <div className="flex gap-2">
+            {/* Bolhas de Séries */}
+            <div className="flex gap-2 flex-wrap">
               {Array.from({ length: setsMax }).map((_, i) => (
-                <div key={i} className={`w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold text-xs ${doneSets[i] ? "bg-green-500 border-green-500 text-black" : i === doneSets.length ? "border-primary text-primary" : "border-white/10 text-white/20"}`}>
-                  {doneSets[i] ? <Check className="w-4 h-4" /> : i + 1}
+                <div key={i} className={`w-9 h-9 rounded-full border-2 flex items-center justify-center font-black text-sm transition-all ${doneSets[i] ? "bg-green-500 border-green-500 text-black" : i === doneSets.length ? "border-primary text-primary bg-primary/5 scale-110" : "border-white/10 text-white/20"}`}>
+                  {doneSets[i] ? <Check className="w-5 h-5" strokeWidth={3} /> : i + 1}
                 </div>
               ))}
             </div>
 
+            {/* Painel de Input */}
             {!todasFeitas && (
-              <div className="bg-white/5 rounded-xl p-4 space-y-4 border border-white/10">
+              <div className="bg-white/5 rounded-2xl p-4 space-y-4 border border-white/10">
                 <div className="grid grid-cols-2 gap-3">
                   <NumericField label="Carga" unit="kg" value={activeWeight} suggestedValue={0} onChange={setActiveWeight} accent />
                   <NumericField label="Reps" unit="reps" value={activeReps} suggestedValue={0} onChange={setActiveReps} />
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   {EFFORT_OPTIONS.map(opt => (
-                    <button key={opt.value} onClick={() => handleFizASerie(opt.value)} className="flex flex-col items-center py-3 rounded-xl border-2 transition-all active:scale-95" style={{ borderColor: opt.color, backgroundColor: opt.bg, color: opt.color }}>
+                    <button key={opt.value} onClick={() => handleFizASerie(opt.value)} className="flex flex-col items-center py-3 rounded-xl border-2 transition-all active:scale-95 shadow-lg" style={{ borderColor: opt.color, backgroundColor: opt.bg, color: opt.color }}>
                       <span className="text-xl">{opt.emoji}</span>
-                      <span className="text-[10px] font-bold uppercase mt-1">{opt.label}</span>
+                      <span className="text-[10px] font-black uppercase mt-1 tracking-tighter">{opt.label}</span>
                     </button>
                   ))}
                 </div>
               </div>
             )}
 
-            <div className="flex justify-between pt-2">
-              <Button variant="ghost" size="sm" onClick={() => setCurrentExIdx(i => Math.max(0, i - 1))} disabled={currentExIdx === 0}>Anterior</Button>
+            {/* Navegação Inferior */}
+            <div className="flex justify-between items-center pt-2 gap-3">
+              <Button variant="ghost" size="sm" onClick={() => setCurrentExIdx(i => Math.max(0, i - 1))} disabled={currentExIdx === 0} className="rounded-xl">Anterior</Button>
+              
               {todasFeitas ? (
-                <Button size="sm" onClick={() => currentExIdx === exercises.length - 1 ? setPhase("conclusion") : setCurrentExIdx(i => i + 1)}>
+                <Button size="sm" onClick={() => currentExIdx === exercises.length - 1 ? setPhase("conclusion") : setCurrentExIdx(i => i + 1)} className="flex-1 h-11 rounded-xl font-bold gap-2">
                   {currentExIdx === exercises.length - 1 ? "Finalizar Treino" : "Próximo Exercício"}
+                  <ChevronRight className="w-4 h-4" />
                 </Button>
               ) : (
-                <Button variant="ghost" size="sm" onClick={() => setCurrentExIdx(i => Math.min(exercises.length - 1, i + 1))} disabled={currentExIdx === exercises.length - 1}>Pular</Button>
+                <Button variant="secondary" size="sm" onClick={() => setCurrentExIdx(i => Math.min(exercises.length - 1, i + 1))} disabled={currentExIdx === exercises.length - 1} className="rounded-xl font-bold">Pular Exercício</Button>
               )}
             </div>
           </motion.div>
         )}
+
+        {/* Drawer de Lista de Exercícios */}
+        <Dialog open={showExList} onOpenChange={setShowExList}>
+          <DialogContent className="max-w-md bg-black border-white/10 p-0 overflow-hidden rounded-t-3xl sm:rounded-3xl">
+            <DialogHeader className="p-6 border-b border-white/5">
+              <DialogTitle className="text-xl font-black">Lista de Exercícios</DialogTitle>
+            </DialogHeader>
+            <div className="max-h-[60vh] overflow-y-auto p-4 space-y-2">
+              {exercises.map((ex, i) => {
+                const status = getExStatus(i);
+                const isCurrent = currentExIdx === i;
+                return (
+                  <button key={i} onClick={() => goToExercise(i)} className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all ${isCurrent ? "bg-primary/10 border-primary" : "bg-white/5 border-white/5 hover:bg-white/10"}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 font-bold text-xs ${status === "done" ? "bg-green-500 text-black" : status === "partial" ? "bg-primary/20 text-primary border border-primary/30" : "bg-white/10 text-white/40"}`}>
+                      {status === "done" ? <Check className="w-4 h-4" /> : i + 1}
+                    </div>
+                    <div className="flex-1 text-left min-w-0">
+                      <p className={`font-bold text-sm truncate ${isCurrent ? "text-primary" : "text-white"}`}>{ex.name}</p>
+                      <p className="text-[10px] text-white/40 font-medium uppercase tracking-wider">{ex.sets} · {ex.reps}</p>
+                    </div>
+                    {isCurrent && <Badge className="bg-primary text-primary-foreground text-[8px]">FOCADO</Badge>}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="p-4 bg-white/5 border-t border-white/5">
+              <Button onClick={() => setShowExList(false)} variant="ghost" className="w-full font-bold">Voltar ao Treino</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
