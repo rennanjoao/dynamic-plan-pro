@@ -386,6 +386,37 @@ export function useWorkoutSession() {
     []
   );
 
+  // ── Streak real de dias consecutivos com sessão finalizada ─────────────────
+  // Substitui o `streak={0}` hardcoded do WorkoutMode — sem isso o gatilho de
+  // "perder a sequência" (o de maior retenção comprovada do mercado) era fake.
+  const getStreak = useCallback(async (userId: string): Promise<number> => {
+    const { data, error } = await (supabase as any)
+      .from("workout_sessions")
+      .select("ended_at")
+      .eq("user_id", userId)
+      .not("ended_at", "is", null)
+      .order("ended_at", { ascending: false })
+      .limit(90);
+
+    if (error || !data?.length) return 0;
+
+    const daySet = new Set(
+      (data as any[]).map((s) => new Date(s.ended_at).toISOString().slice(0, 10))
+    );
+
+    let streak = 0;
+    const cursor = new Date();
+    // Se ainda não treinou hoje, o streak conta a partir de ontem
+    if (!daySet.has(cursor.toISOString().slice(0, 10))) {
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    while (daySet.has(cursor.toISOString().slice(0, 10))) {
+      streak++;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return streak;
+  }, []);
+
   return {
     sessionId,
     isActive,
@@ -399,5 +430,6 @@ export function useWorkoutSession() {
     finishSession,
     getExerciseHistory,
     getExerciseHistoryBatch,
+    getStreak,
   };
 }
