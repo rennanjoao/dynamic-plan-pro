@@ -314,14 +314,38 @@ export default function WorkoutShareCard({
                 )}
               </div>
 
-              {/* Citação */}
-              <p style={{
-                color: "rgba(255,255,255,0.4)", fontSize: "12px",
-                fontStyle: "italic", letterSpacing: "0.02em", maxWidth: "220px",
-                lineHeight: 1.5,
-              }}>
-                "{quote}"
-              </p>
+              {/* Citação ou Recorde do dia */}
+              {heroStat ? (
+                <div style={{
+                  display: "flex", flexDirection: "column", alignItems: "center",
+                  gap: "2px", padding: "8px 16px",
+                  background: `${GOLD}12`,
+                  border: `1px solid ${GOLD}44`,
+                  borderRadius: "12px",
+                  maxWidth: "260px",
+                }}>
+                  <p style={{
+                    color: GOLD, fontSize: "10px", fontWeight: 800,
+                    letterSpacing: "0.15em", textTransform: "uppercase",
+                  }}>
+                    🏆 Recorde do dia
+                  </p>
+                  <p style={{ color: "#fff", fontSize: "13px", fontWeight: 700, lineHeight: 1.3, textAlign: "center" }}>
+                    {heroStat.exerciseName}
+                  </p>
+                  <p style={{ color: GOLD2, fontSize: "14px", fontWeight: 800, lineHeight: 1 }}>
+                    {heroStat.note}
+                  </p>
+                </div>
+              ) : (
+                <p style={{
+                  color: "rgba(255,255,255,0.4)", fontSize: "12px",
+                  fontStyle: "italic", letterSpacing: "0.02em", maxWidth: "220px",
+                  lineHeight: 1.5,
+                }}>
+                  "{quote}"
+                </p>
+              )}
 
               {/* Week badge */}
               {weekLabel && (
@@ -394,6 +418,16 @@ export default function WorkoutShareCard({
                 <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "10px", fontWeight: 600 }}>
                   Dynamic Plan Pro
                 </p>
+                {referralUrl && (
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=64x64&data=${encodeURIComponent(referralUrl)}`}
+                    alt="QR"
+                    width={32}
+                    height={32}
+                    crossOrigin="anonymous"
+                    style={{ marginLeft: "8px", borderRadius: "4px", background: "#fff", padding: "2px" }}
+                  />
+                )}
               </div>
               <p style={{ color: "rgba(255,255,255,0.2)", fontSize: "9px" }}>
                 #treino #academia
