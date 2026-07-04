@@ -1,12 +1,13 @@
 // src/components/student/WorkoutShareCard.tsx
 // Card de Compartilhamento — Elite Prime Hub (Sprint 11)
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Download, Share2, X, Loader2 } from "lucide-react";
 import html2canvas from "html2canvas";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   workoutName: string;
@@ -18,6 +19,8 @@ interface Props {
   teamName?: string;
   streak?: number;
   coachId?: string;
+  studentId?: string; // necessário para gerar/buscar o código de referral
+  prs?: { exerciseName: string; weightKg: number; reps: number }[];
   onClose: () => void;
 }
 
@@ -45,10 +48,24 @@ export default function WorkoutShareCard({
   teamName,
   streak,
   coachId,
+  studentId,
+  prs,
   onClose,
 }: Props) {
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [busy, setBusy] = useState(false);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+
+  // Busca (ou cria, no backend) o código de indicação único do aluno.
+  // Sem isso o QR apontava pra URL genérica e não havia como atribuir quem
+  // trouxe um novo aluno — o modelo de bônus de referral ficava inoperável.
+  useEffect(() => {
+    if (!studentId) return;
+    (supabase as any)
+      .rpc("get_or_create_referral_code", { p_user_id: studentId })
+      .then(({ data }: { data: string | null }) => { if (data) setReferralCode(data); })
+      .catch(() => { /* fallback silencioso — QR usa URL sem ref abaixo */ });
+  }, [studentId]);
 
   const today = new Date().toLocaleDateString("pt-BR", {
     day: "2-digit",
@@ -67,6 +84,12 @@ export default function WorkoutShareCard({
     });
     return new Promise<Blob | null>((res) => canvas.toBlob(res, "image/png"));
   };
+
+  // URL rastreada do QR — só inclui ?ref= quando o código já carregou, para
+  // não gravar cliques órfãos sem atribuição possível.
+  const qrTrackedUrl = referralCode
+    ? `https://www.eliteprimehub.com.br?ref=${referralCode}&utm_source=workout_share&utm_medium=qrcode&utm_campaign=student_referral`
+    : "https://www.eliteprimehub.com.br";
 
   const slug = (teamName || "elite-prime-hub")
     .toLowerCase()
@@ -302,7 +325,7 @@ export default function WorkoutShareCard({
                   lineHeight: 1.4,
                 }}
               >
-                "Consistência é o único atalho."
+                {prs && prs.length > 0 ? "Você superou seus próprios limites." : "Consistência é o único atalho."}
               </p>
 
               {/* Streak */}
@@ -331,6 +354,29 @@ export default function WorkoutShareCard({
                 </div>
               )}
             </div>
+
+            {/* Recordes Pessoais — o gancho de orgulho que gera compartilhamento espontâneo */}
+            {prs && prs.length > 0 && (
+              <div style={{ marginTop: "12px" }}>
+                <div
+                  style={{
+                    padding: "10px 14px",
+                    borderRadius: "14px",
+                    background: "linear-gradient(135deg, rgba(201,168,76,0.18), rgba(201,168,76,0.04))",
+                    border: `1px solid ${GOLD}55`,
+                  }}
+                >
+                  <p style={{ color: GOLD, fontSize: "9px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: "6px" }}>
+                    🏆 {prs.length === 1 ? "Recorde Pessoal Batido" : `${prs.length} Recordes Pessoais Batidos`}
+                  </p>
+                  {prs.slice(0, 2).map((pr, i) => (
+                    <p key={i} style={{ color: "#fff", fontSize: "13px", fontWeight: 800 }}>
+                      {pr.exerciseName}: <span style={{ color: GOLD }}>{pr.weightKg}kg</span> × {pr.reps}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Stats Grid */}
             <div style={{ marginTop: "12px" }}>
@@ -432,7 +478,7 @@ export default function WorkoutShareCard({
           <div className="flex justify-center">
             <div className="w-32 h-32 bg-white rounded-lg p-2">
               <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=128x128&data=${encodeURIComponent("https://www.eliteprimehub.com.br")}`}
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=128x128&data=${encodeURIComponent(qrTrackedUrl)}`}
                 alt="QR Code"
                 className="w-full h-full object-contain"
               />
