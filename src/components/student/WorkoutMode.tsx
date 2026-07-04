@@ -260,6 +260,18 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const todasFeitas = doneSets.length >= setsMax;
   const progressPct = Math.round((Object.values(completed).flat().length / (exercises.reduce((acc: number, ex: any) => acc + parseSetsMin(ex.sets), 0))) * 100);
 
+  // Status de cada exercício para o "Mapa do Treino" (drawer) — estava sendo
+  // chamada na linha do map() mas nunca foi declarada, o que derrubava a tela
+  // inteira com "ReferenceError: getExStatus is not defined" ao abrir o mapa.
+  const getExStatus = (i: number): "done" | "partial" | "pending" => {
+    const ex = exercises[i];
+    const key = `${day?.key}::${i}`;
+    const doneCount = (setDataMap[key] ?? []).filter((s: any) => s.done).length;
+    if (doneCount <= 0) return "pending";
+    if (doneCount >= parseSetsMin(ex?.sets)) return "done";
+    return "partial";
+  };
+
   // Ao concluir: busca o streak real (substitui o `streak={0}` hardcoded) e
   // auto-revela o card de compartilhamento — reduzir a fricção do clique é o
   // maior ganho de conversão do efeito rede.
