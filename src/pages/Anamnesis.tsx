@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { uploadToCloudinary, NEURO_SLIDERS } from "@/lib/anamnesisSchema";
 import { notifyCoach } from "@/lib/notifyCoach";
-import { consumeStoredReferral } from "@/lib/referralCapture";
+import { consumeStoredReferral, peekStoredReferral } from "@/lib/referralCapture";
 import { FotoSlot } from "@/components/shared/FotoSlot";
 import { cn } from "@/lib/utils";
 import { ShieldCheck, ArrowRight } from "lucide-react";
@@ -192,6 +192,31 @@ const Anamnesis = () => {
       }
     })();
   }, [navigate, isEditMode]);
+
+  // ── Auto-resolve do coach via indicação (?ref= do QR do WorkoutShareCard) ──
+  // Se o visitante chegou com um código de indicação válido, descobrimos
+  // sozinhos o coach do aluno que indicou e pulamos a tela de "digite o
+  // código do treinador" — sem isso, o link de indicação levava a pessoa até
+  // a porta do site mas ela ainda precisaria de um segundo código pra entrar.
+  useEffect(() => {
+    if (bootstrapping || step !== "code" || loggedUserId) return;
+    const stored = peekStoredReferral();
+    if (!stored?.code) return;
+
+    (async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("resolve-referral-coach", {
+          body: { refCode: stored.code },
+        });
+        if (!error && data?.coach_id) {
+          setCoach({ id: data.coach_id, name: data.coach_name, email: data.notification_email });
+          setStep("form");
+        }
+        // Falhou (código expirado, indicador sem coach ativo etc.) → fica na
+        // tela de código manual normalmente, sem mostrar erro nenhum ao visitante.
+      } catch { /* fallback silencioso */ }
+    })();
+  }, [bootstrapping, step, loggedUserId]);
 
   // ETAPA 1: VALIDAR CÓDIGO DO COACH
   const handleValidateCode = async (e?: React.FormEvent) => {
