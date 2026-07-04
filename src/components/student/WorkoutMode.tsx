@@ -621,6 +621,9 @@ export default function WorkoutMode({
   const [now, setNow]               = useState(Date.now());
   const [historyMap, setHistoryMap] = useState<Record<string, ExerciseHistory[]>>({});
 
+  // Sequência (streak) de dias consecutivos treinando — exibido na conclusão
+  const [userStreak, setUserStreak] = useState(0);
+
   // Micro-interação: burst ao concluir série
   const [burstKey, setBurstKey]   = useState<string | null>(null);
   const [burstColor, setBurstColor] = useState(GOLD);
@@ -629,6 +632,46 @@ export default function WorkoutMode({
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, []);
+
+  // Busca as últimas sessões e calcula sequência de dias consecutivos
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("workout_sessions")
+        .select("started_at")
+        .eq("user_id", userId)
+        .order("started_at", { ascending: false })
+        .limit(30);
+      if (cancelled || !data) return;
+
+      let streak = 0;
+      let cursor = new Date();
+      cursor.setHours(0, 0, 0, 0);
+
+      for (const row of data as { started_at: string }[]) {
+        const d = new Date(row.started_at);
+        d.setHours(0, 0, 0, 0);
+        const diff = Math.floor((cursor.getTime() - d.getTime()) / 86_400_000);
+        if (diff === 0) continue;
+        if (diff === 1) {
+          streak++;
+          cursor = d;
+        } else {
+          break;
+        }
+      }
+      if (!cancelled) setUserStreak(streak);
+    })();
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  // Som de vitória quando a fase de conclusão é atingida
+  useEffect(() => {
+    if (phase === "conclusion") playVictorySound();
+  }, [phase]);
+
   const elapsedSec = startedAt ? Math.floor((now - startedAt) / 1000) : 0;
 
   const day       = workouts.find((d) => d.key === selectedDay) ?? workouts[0];
