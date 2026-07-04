@@ -51,7 +51,7 @@ import { useConfirm } from "@/components/ConfirmProvider";
 import { useWorkoutSession } from "@/hooks/useWorkoutSession";
 import { supabase } from "@/integrations/supabase/client";
 import type { ExerciseHistory } from "@/lib/workoutTypes";
-import { effortLabel, toExerciseKey } from "@/lib/workoutTypes";
+import { effortLabel, toExerciseKey, parseRepsMin, parseRepsMax } from "@/lib/workoutTypes";
 import { useLoadProgression } from "@/hooks/useLoadProgression";
 import { useExerciseGif } from "@/hooks/useExerciseGif";
 
@@ -253,6 +253,36 @@ function playBeep(type: "warn" | "end" = "end") {
     }
   } catch {
     // Silencioso: navegador sem suporte, política de autoplay, etc.
+  }
+}
+
+/**
+ * Toca um acorde curto de vitória (Dó–Mi–Sol) ao concluir o treino.
+ * Silencioso caso o navegador bloqueie o AudioContext.
+ */
+function playVictorySound() {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    const notes = [262, 330, 392];
+    const noteDuration = 0.2;
+    notes.forEach((freq, i) => {
+      const startTime = now + i * noteDuration;
+      osc.frequency.setValueAtTime(freq, startTime);
+      gain.gain.setValueAtTime(0.3, startTime);
+      gain.gain.linearRampToValueAtTime(0, startTime + noteDuration - 0.05);
+    });
+
+    osc.start(now);
+    osc.stop(now + noteDuration * 3);
+  } catch {
+    // Silencioso
   }
 }
 
@@ -591,6 +621,9 @@ export default function WorkoutMode({
   const [now, setNow]               = useState(Date.now());
   const [historyMap, setHistoryMap] = useState<Record<string, ExerciseHistory[]>>({});
 
+  // Sequência (streak) de dias consecutivos treinando — exibido na conclusão
+  const [userStreak, setUserStreak] = useState(0);
+
   // Micro-interação: burst ao concluir série
   const [burstKey, setBurstKey]   = useState<string | null>(null);
   const [burstColor, setBurstColor] = useState(GOLD);
@@ -599,6 +632,46 @@ export default function WorkoutMode({
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, []);
+
+  // Busca as últimas sessões e calcula sequência de dias consecutivos
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("workout_sessions")
+        .select("started_at")
+        .eq("user_id", userId)
+        .order("started_at", { ascending: false })
+        .limit(30);
+      if (cancelled || !data) return;
+
+      let streak = 0;
+      let cursor = new Date();
+      cursor.setHours(0, 0, 0, 0);
+
+      for (const row of data as { started_at: string }[]) {
+        const d = new Date(row.started_at);
+        d.setHours(0, 0, 0, 0);
+        const diff = Math.floor((cursor.getTime() - d.getTime()) / 86_400_000);
+        if (diff === 0) continue;
+        if (diff === 1) {
+          streak++;
+          cursor = d;
+        } else {
+          break;
+        }
+      }
+      if (!cancelled) setUserStreak(streak);
+    })();
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  // Som de vitória quando a fase de conclusão é atingida
+  useEffect(() => {
+    if (phase === "conclusion") playVictorySound();
+  }, [phase]);
+
   const elapsedSec = startedAt ? Math.floor((now - startedAt) / 1000) : 0;
 
   const day       = workouts.find((d) => d.key === selectedDay) ?? workouts[0];
@@ -880,6 +953,10 @@ export default function WorkoutMode({
       const weight = activeWeight > 0 ? activeWeight : suggestedWeight;
       const reps   = activeReps > 0   ? activeReps   : suggestedReps;
 
+      // Range de REPS-alvo (ex: "8 a 12 reps" → 8/12), não o range de séries.
+      const repsMin = parseRepsMin(currentEx?.reps);
+      const repsMax = parseRepsMax(currentEx?.reps);
+
       const effortColor = effort === 1 ? "#22c55e" : effort === 3 ? "#CC0000" : GOLD;
 
       setSetDataMap((prev) => {
@@ -907,8 +984,8 @@ export default function WorkoutMode({
           setNumber:       currentSetIdx + 1,
           weightKg:        weight > 0 ? weight : undefined,
           reps:            reps > 0 ? reps : undefined,
-          repsTargetMin:   setsMin,
-          repsTargetMax:   setsMax,
+          repsTargetMin:   repsMin,
+          repsTargetMax:   repsMax,
           perceivedEffort: effort,
           completed:       true,
         });
@@ -996,20 +1073,17 @@ export default function WorkoutMode({
       hasAnyDone &&
       !(await confirm({
         title: "Sair do treino",
-        description: "Sair do modo treino? Seu progresso fica salvo.",
+        description: "Seu progresso está salvo. Você pode retomar quando quiser.",
         confirmLabel: "Sair",
       }))
     )
       return;
 
-    // Finaliza a sessão no banco mesmo saindo pelo X (sem tela de conclusão).
-    // Garante ended_at preenchido → histórico e analytics do coach funcionam.
-    await session.finishSession({
-      generalFeeling: undefined,
-      sleepQuality:   undefined,
-    });
-
-    try { localStorage.removeItem(storageKey); } catch { /* noop */ }
+    // NÃO finaliza a sessão: fica "open" (ended_at = null) e pode ser retomada.
+    // O localStorage já persiste o estado; apenas marcamos a hora da pausa.
+    try {
+      localStorage.setItem(`${storageKey}_paused_at`, new Date().toISOString());
+    } catch { /* noop */ }
     onClose();
   };
 
@@ -1690,6 +1764,24 @@ export default function WorkoutMode({
             })()}
           </p>
         </div>
+
+        {/* Streak — sequência de dias treinando */}
+        {userStreak > 0 && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.6, duration: 0.4 }}
+            className="w-full rounded-xl p-4 flex items-center gap-3"
+            style={{ background: "rgba(204,0,0,0.08)", border: "1px solid rgba(204,0,0,0.35)" }}
+          >
+            <span className="text-3xl">🔥</span>
+            <div className="flex-1 text-left">
+              <p className="text-[10px] uppercase tracking-widest font-bold text-[#CC0000]">Sequência ativa</p>
+              <p className="font-black text-foreground text-lg leading-tight">{userStreak} {userStreak === 1 ? "dia" : "dias"}</p>
+              <p className="text-xs text-muted-foreground">Mantenha a consistência!</p>
+            </div>
+          </motion.div>
+        )}
 
         {/* Botões */}
         <div className="w-full flex gap-3">

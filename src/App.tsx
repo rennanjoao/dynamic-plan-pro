@@ -1,9 +1,9 @@
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate } from "react-router-dom";
 import { AdminGuard } from "./components/admin/AdminGuard";
 import { AnamnesisGuard } from "./components/student/AnamnesisGuard";
 import { CoachGuard } from "./components/coach/CoachGuard";
@@ -52,6 +52,18 @@ function PageLoader() {
   );
 }
 
+/** Rota curta de referral: /c/:coachId → redireciona para /register com UTM. */
+function CoachReferralRedirect() {
+  const { coachId } = useParams<{ coachId: string }>();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!coachId) return;
+    console.log("[Analytics] Referral click:", { coachId, source: "workout_share" });
+    navigate(`/register?invite=${coachId}&utm_source=workout_share&utm_medium=qr`, { replace: true });
+  }, [coachId, navigate]);
+  return null;
+}
+
 const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
@@ -70,6 +82,7 @@ const App = () => {
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/register"    element={<CoachRegister />} />
+              <Route path="/c/:coachId"  element={<CoachReferralRedirect />} />
 
               {/* Redirects de rotas antigas — mantém links antigos funcionando */}
               <Route path="/student"  element={<Navigate to="/student-area" replace />} />
