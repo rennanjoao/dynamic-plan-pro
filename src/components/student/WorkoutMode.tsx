@@ -1,5 +1,5 @@
 // src/components/student/WorkoutMode.tsx
-// Modo Treino — Otimizado para UX, Retenção, Dopamina e Navegação Tátil (Sprint 9)
+// Modo Treino — UX Equilibrada: Alertas Restaurados, Lista em Drawer e Controle Total (Sprint 10)
 
 import {
   useEffect,
@@ -21,11 +21,13 @@ import {
   Play,
   Maximize2,
   ListTodo,
+  ChevronUp,
+  AlertCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import WorkoutShareCard from "./WorkoutShareCard";
 import { useConfirm } from "@/components/ConfirmProvider";
@@ -68,13 +70,80 @@ function parseRepsMax(s?: string): number {
   const nums = String(s || "0").match(/\d+/g);
   return nums ? Math.max(...nums.map(Number)) : 0;
 }
+function parseRestRange(rest?: string) {
+  const nums = String(rest || "60-90").match(/\d+/g);
+  if (!nums) return { min: 60, max: 90 };
+  const toSec = (n: number) => (n < 60 && !/seg|s/.test(rest || "") ? n * 60 : n);
+  const vals = nums.map(n => toSec(parseInt(n, 10)));
+  return { min: Math.min(...vals), max: Math.max(...vals) };
+}
 function fmtMMSS(s: number) {
   const m = Math.floor(s / 60), sec = s % 60;
   return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
+/* ── Sons & Alertas ── */
+let sharedAudioCtx: AudioContext | null = null;
+function getAudioCtx(): AudioContext | null {
+  try {
+    if (!sharedAudioCtx) {
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!Ctx) return null;
+      sharedAudioCtx = new Ctx();
+    }
+    if (sharedAudioCtx.state === "suspended") void sharedAudioCtx.resume();
+    return sharedAudioCtx;
+  } catch { return null; }
+}
+
+function playBeep(type: "warn" | "end" = "end") {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    if (type === "end") {
+      osc.frequency.setValueAtTime(880, now);
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.25, now + 0.02);
+      gain.gain.linearRampToValueAtTime(0, now + 0.16);
+      osc.frequency.setValueAtTime(880, now + 0.22);
+      gain.gain.linearRampToValueAtTime(0.25, now + 0.24);
+      gain.gain.linearRampToValueAtTime(0, now + 0.38);
+      osc.start(now); osc.stop(now + 0.4);
+    } else {
+      osc.frequency.setValueAtTime(660, now);
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.15, now + 0.02);
+      gain.gain.linearRampToValueAtTime(0, now + 0.14);
+      osc.start(now); osc.stop(now + 0.16);
+    }
+  } catch {}
+}
+
+function playVictorySound() {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    const notes = [262, 330, 392, 523];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(freq, now + i * 0.15);
+      gain.gain.setValueAtTime(0, now + i * 0.15);
+      gain.gain.linearRampToValueAtTime(0.2, now + i * 0.15 + 0.05);
+      gain.gain.linearRampToValueAtTime(0, now + i * 0.15 + 0.3);
+      osc.start(now + i * 0.15); osc.stop(now + i * 0.15 + 0.4);
+    });
+  } catch {}
+}
+
 /* ── NumericField ── */
-const NumericField = memo(({ label, unit, value, suggestedValue, onChange, accent = false }: any) => {
+const NumericField = memo(({ label, unit, value, suggestedValue, onChange }: any) => {
   const displayVal = value > 0 ? String(value) : "";
   return (
     <div className="flex-1 flex flex-col gap-1">
@@ -93,63 +162,6 @@ const NumericField = memo(({ label, unit, value, suggestedValue, onChange, accen
   );
 });
 
-/* ── Partículas de recompensa ── */
-const PARTICLES = Array.from({ length: 8 }, (_, i) => i);
-const BurstParticles = memo(function BurstParticles({ color }: { color: string }) {
-  return (
-    <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden">
-      {PARTICLES.map((i) => {
-        const angle = (i / PARTICLES.length) * 360;
-        const rad   = (angle * Math.PI) / 180;
-        const dx    = Math.cos(rad) * 28;
-        const dy    = Math.sin(rad) * 28;
-        return (
-          <motion.span
-            key={i}
-            initial={{ x: 0, y: 0, opacity: 1, scale: 1 }}
-            animate={{ x: dx, y: dy, opacity: 0, scale: 0 }}
-            transition={{ duration: 0.55, ease: "easeOut" }}
-            style={{ position: "absolute", width: 6, height: 6, borderRadius: "50%", backgroundColor: color }}
-          />
-        );
-      })}
-    </div>
-  );
-});
-
-/* ── Beep sonoro & Som de Vitória ── */
-let sharedAudioCtx: AudioContext | null = null;
-function getAudioCtx(): AudioContext | null {
-  try {
-    if (!sharedAudioCtx) {
-      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!Ctx) return null;
-      sharedAudioCtx = new Ctx();
-    }
-    if (sharedAudioCtx.state === "suspended") void sharedAudioCtx.resume();
-    return sharedAudioCtx;
-  } catch { return null; }
-}
-
-function playVictorySound() {
-  const ctx = getAudioCtx();
-  if (!ctx) return;
-  try {
-    const now = ctx.currentTime;
-    const notes = [262, 330, 392, 523]; // C4, E4, G4, C5
-    notes.forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.frequency.setValueAtTime(freq, now + i * 0.15);
-      gain.gain.setValueAtTime(0, now + i * 0.15);
-      gain.gain.linearRampToValueAtTime(0.2, now + i * 0.15 + 0.05);
-      gain.gain.linearRampToValueAtTime(0, now + i * 0.15 + 0.3);
-      osc.start(now + i * 0.15); osc.stop(now + i * 0.15 + 0.4);
-    });
-  } catch {}
-}
-
 /* ── Main Component ── */
 export default function WorkoutMode({ workouts, userId, coachId, coachName, teamName, initialDay, initialWeek, periodization, onClose }: any) {
   const confirm = useConfirm();
@@ -167,37 +179,15 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const [completed, setCompleted] = useState<Record<string, number[]>>(_saved?.completed ?? {});
   const [startedAt, setStartedAt] = useState<number>(_saved?.startedAt ?? Date.now());
   const [now, setNow] = useState(Date.now());
-  const [burstKey, setBurstKey] = useState<string | null>(null);
-  const [burstColor, setBurstColor] = useState(GOLD);
   const [streak, setStreak] = useState(0);
   const [showShare, setShowShare] = useState(false);
   const [showGifDialog, setShowGifDialog] = useState(false);
+  const [showExList, setShowExList] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
-
-  useEffect(() => {
-    if (phase === "conclusion") playVictorySound();
-  }, [phase]);
-
-  // Fetch Streak
-  useEffect(() => {
-    const fetchStreak = async () => {
-      const { data } = await supabase.from("workout_sessions").select("started_at").eq("user_id", userId).order("started_at", { ascending: false }).limit(30);
-      if (!data) return;
-      let s = 0; let last = new Date(); last.setHours(0,0,0,0);
-      for (const sess of data) {
-        const d = new Date(sess.started_at); d.setHours(0,0,0,0);
-        const diff = Math.floor((last.getTime() - d.getTime()) / 86400000);
-        if (diff === 0) continue;
-        if (diff === 1) { s++; last = d; } else break;
-      }
-      setStreak(s);
-    };
-    fetchStreak();
-  }, [userId]);
 
   const elapsedSec = Math.floor((now - startedAt) / 1000);
   const day = workouts.find((d: any) => d.key === (initialDay ?? workouts[0]?.key)) ?? workouts[0];
@@ -212,12 +202,27 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const currentExKey = `${day?.key}::${currentExIdx}`;
   const gifUrl = useExerciseGif(currentEx?.name, currentEx?.gifKey);
   const setsMax = parseSetsMax(currentEx?.sets);
+  const restRange = parseRestRange(currentEx?.rest);
   
   // Timer logic
   const [restBaseSec, setRestBaseSec] = useState(_saved?.restBaseSec ?? 0);
   const [restSegStartedAt, setRestSegStartedAt] = useState<number | null>(_saved?.restSegStartedAt ?? null);
   const restElapsed = restBaseSec + (restSegStartedAt ? Math.floor((now - restSegStartedAt) / 1000) : 0);
   const restRunning = restSegStartedAt !== null;
+
+  // Alertas do Cronômetro
+  const lastAlertRef = useRef<number>(-1);
+  useEffect(() => {
+    if (!restRunning) { lastAlertRef.current = -1; return; }
+    const timeLeft = restRange.min - restElapsed;
+    if (timeLeft <= 3 && timeLeft > 0 && lastAlertRef.current !== timeLeft) {
+      playBeep("warn");
+      lastAlertRef.current = timeLeft;
+    } else if (timeLeft === 0 && lastAlertRef.current !== 0) {
+      playBeep("end");
+      lastAlertRef.current = 0;
+    }
+  }, [restElapsed, restRunning, restRange.min]);
 
   useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify({ activeWeek, completed, setDataMap, sessionId: session.sessionId, startedAt, restBaseSec, restSegStartedAt }));
@@ -246,6 +251,13 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     });
   };
 
+  const handleFinalizarTreino = async () => {
+    if (Object.keys(completed).length < exercises.length) {
+      if (!(await confirm({ title: "Finalizar Treino?", description: "Você ainda tem exercícios pendentes. Deseja concluir agora?", confirmLabel: "Finalizar" }))) return;
+    }
+    setPhase("conclusion");
+  };
+
   const [activeWeight, setActiveWeight] = useState(0);
   const [activeReps, setActiveReps] = useState(0);
   const doneSets = (setDataMap[currentExKey] ?? []).filter(s => s.done);
@@ -266,23 +278,13 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     return (
       <div className="fixed inset-0 z-50 bg-background overflow-y-auto flex flex-col items-center p-6">
         <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-md text-center space-y-6 py-12">
-          <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Trophy className="w-10 h-10 text-primary" />
-          </div>
+          <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4"><Trophy className="w-10 h-10 text-primary" /></div>
           <h1 className="text-3xl font-black">Missão Cumprida!</h1>
           <div className="grid grid-cols-2 gap-4">
-            <div className="bg-card p-4 rounded-2xl border border-border">
-              <p className="text-[10px] uppercase font-bold text-muted-foreground">Tempo</p>
-              <p className="text-xl font-black">{fmtMMSS(elapsedSec)}</p>
-            </div>
-            <div className="bg-card p-4 rounded-2xl border border-border">
-              <p className="text-[10px] uppercase font-bold text-muted-foreground">Sequência</p>
-              <p className="text-xl font-black">{streak} dias 🔥</p>
-            </div>
+            <div className="bg-card p-4 rounded-2xl border border-border"><p className="text-[10px] uppercase font-bold text-muted-foreground">Tempo</p><p className="text-xl font-black">{fmtMMSS(elapsedSec)}</p></div>
+            <div className="bg-card p-4 rounded-2xl border border-border"><p className="text-[10px] uppercase font-bold text-muted-foreground">Sets</p><p className="text-xl font-black">{Object.values(completed).flat().length}</p></div>
           </div>
-          <Button onClick={() => setShowShare(true)} className="w-full h-14 rounded-2xl gap-2 text-lg font-bold">
-            <Zap className="w-5 h-5" /> Compartilhar Resultado
-          </Button>
+          <Button onClick={() => setShowShare(true)} className="w-full h-14 rounded-2xl gap-2 text-lg font-bold"><Zap className="w-5 h-5" /> Compartilhar</Button>
           <Button onClick={onClose} variant="ghost" className="w-full text-white/40">Fechar</Button>
         </motion.div>
         {showShare && <WorkoutShareCard workoutName={day?.key} durationSec={elapsedSec} totalSets={Object.values(completed).flat().length} completedExercises={Object.keys(completed).length} totalExercises={exercises.length} coachName={coachName} teamName={teamName} streak={streak} coachId={coachId} onClose={() => setShowShare(false)} />}
@@ -291,7 +293,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-background overflow-y-auto pb-32 flex flex-col">
+    <div className="fixed inset-0 z-50 bg-background overflow-y-auto pb-40 flex flex-col">
       {/* ── Header ── */}
       <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-white/5 px-4 py-2 flex items-center gap-3">
         <button onClick={onClose} className="w-8 h-8 flex items-center justify-center text-white/40"><X className="w-5 h-5" /></button>
@@ -304,21 +306,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         </div>
       </header>
 
-      {/* ── Barra de Navegação Horizontal (Mapa de Conquistas) ── */}
-      <nav className="sticky top-[52px] z-20 bg-background/95 backdrop-blur border-b border-white/5 flex items-center overflow-x-auto no-scrollbar py-2 px-4 gap-2">
-        {exercises.map((ex: any, i: number) => {
-          const status = getExStatus(i);
-          const isCurrent = currentExIdx === i;
-          return (
-            <button key={i} onClick={() => setCurrentExIdx(i)} className={`shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${isCurrent ? "bg-primary border-primary text-primary-foreground" : "bg-white/5 border-white/10 text-white/40"}`}>
-              <span className="text-[10px] font-black">{i + 1}</span>
-              {status === "done" && <Check className="w-3 h-3" />}
-              {isCurrent && <span className="text-[10px] font-bold uppercase tracking-tighter whitespace-nowrap">{ex.name}</span>}
-            </button>
-          );
-        })}
-      </nav>
-
       <main className="max-w-2xl mx-auto w-full p-4 space-y-4 flex-1">
         <CompactWeekSelector isPeriodizationOn={isPeriodizationOn} weeks={weeks} activeWeek={activeWeek} onWeekChange={setActiveWeek} />
 
@@ -326,48 +313,38 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         {currentEx && (
           <motion.div key={currentExKey} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
             
-            {/* GIF + Nome */}
+            {/* GIF + Info */}
             <div className="bg-neutral-900 rounded-3xl p-4 border border-white/5 space-y-4">
               <div className="flex items-center gap-4">
                 {gifUrl ? (
                   <button onClick={() => setShowGifDialog(true)} className="relative w-20 h-20 rounded-2xl overflow-hidden border border-white/10 shrink-0 group">
                     <img src={gifUrl} alt="Execução" className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Maximize2 className="w-5 h-5 text-white" />
-                    </div>
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center"><Maximize2 className="w-4 h-4 text-white" /></div>
                   </button>
                 ) : (
-                  <div className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-                    <Play className="w-6 h-6 text-white/20" />
-                  </div>
+                  <div className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0"><Play className="w-6 h-6 text-white/20" /></div>
                 )}
                 <div className="flex-1 min-w-0">
                   <h2 className="text-xl font-black leading-tight">{currentEx.name}</h2>
-                  <p className="text-[11px] text-primary font-bold uppercase tracking-widest mt-1">
-                    {currentEx.sets} · {currentEx.reps} · {currentEx.rest}
-                  </p>
+                  <p className="text-[11px] text-primary font-bold uppercase tracking-widest mt-1">{currentEx.sets} · {currentEx.reps} · {currentEx.rest}</p>
                 </div>
               </div>
 
               {/* Bolhas de Séries */}
               <div className="flex gap-2 flex-wrap">
-                {Array.from({ length: setsMax }).map((_, i) => {
-                  const isDone = (setDataMap[currentExKey] ?? [])[i]?.done;
-                  const isCurrentSet = i === (setDataMap[currentExKey] ?? []).filter(s => s.done).length;
-                  return (
-                    <div key={i} className={`w-9 h-9 rounded-full border-2 flex items-center justify-center font-black text-sm transition-all ${isDone ? "bg-green-500 border-green-500 text-black" : isCurrentSet ? "border-primary text-primary scale-110" : "border-white/10 text-white/20"}`}>
-                      {isDone ? <Check className="w-5 h-5" strokeWidth={3} /> : i + 1}
-                    </div>
-                  );
-                })}
+                {Array.from({ length: setsMax }).map((_, i) => (
+                  <div key={i} className={`w-9 h-9 rounded-full border-2 flex items-center justify-center font-black text-sm transition-all ${doneSets[i] ? "bg-green-500 border-green-500 text-black" : i === doneSets.length ? "border-primary text-primary scale-110" : "border-white/10 text-white/20"}`}>
+                    {doneSets[i] ? <Check className="w-5 h-5" strokeWidth={3} /> : i + 1}
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Timer + Inputs */}
-            <div className="bg-neutral-900 rounded-3xl p-5 border border-white/5 space-y-6">
+            {/* Cronômetro + Inputs */}
+            <div className={`bg-neutral-900 rounded-3xl p-5 border transition-colors ${restRunning && (restRange.min - restElapsed <= 0) ? "border-green-500/50 bg-green-500/5" : "border-white/5"} space-y-6`}>
               <div className="text-center space-y-1">
-                <p className="text-[9px] uppercase font-black text-white/30 tracking-[0.2em]">{restRunning ? "Descanso em curso" : `Série ${doneSets.length + 1} de ${setsMax}`}</p>
-                <h3 className="text-6xl font-black tabular-nums tracking-tighter">{fmtMMSS(restElapsed)}</h3>
+                <p className="text-[9px] uppercase font-black text-white/30 tracking-[0.2em]">{restRunning ? "Tempo de Descanso" : `Série ${doneSets.length + 1} de ${setsMax}`}</p>
+                <h3 className={`text-6xl font-black tabular-nums tracking-tighter ${restRunning && (restRange.min - restElapsed <= 3) ? "text-red-500 animate-pulse" : "text-white"}`}>{fmtMMSS(restElapsed)}</h3>
                 {restRunning && (
                   <div className="flex justify-center gap-2 mt-2">
                     <Button onClick={() => setRestSegStartedAt(null)} variant="secondary" size="sm" className="rounded-full h-8 px-4 text-[10px] font-bold uppercase">Pausar</Button>
@@ -393,27 +370,55 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                 </div>
               )}
             </div>
-
-            {/* Navegação Inferior */}
-            <div className="flex gap-3 pt-2">
-              <Button variant="ghost" onClick={() => setCurrentExIdx(i => Math.max(0, i - 1))} disabled={currentExIdx === 0} className="flex-1 h-12 rounded-2xl font-bold text-white/40">Anterior</Button>
-              <Button onClick={() => currentExIdx === exercises.length - 1 ? setPhase("conclusion") : setCurrentExIdx(i => i + 1)} className="flex-[2] h-12 rounded-2xl font-black gap-2">
-                {currentExIdx === exercises.length - 1 ? "Finalizar Treino" : "Próximo"}
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
           </motion.div>
         )}
-
       </main>
 
-      {/* Modal da GIF Expandida */}
+      {/* ── Navegação Inferior (Fixa) ── */}
+      <div className="fixed bottom-0 left-0 right-0 z-30 bg-background/95 backdrop-blur border-t border-white/10 p-4 pb-8 space-y-3">
+        <div className="flex gap-3">
+          <Button variant="ghost" onClick={() => setCurrentExIdx(i => Math.max(0, i - 1))} disabled={currentExIdx === 0} className="flex-1 h-12 rounded-2xl font-bold text-white/40">Anterior</Button>
+          <Button onClick={() => setShowExList(true)} variant="secondary" className="flex-1 h-12 rounded-2xl font-bold gap-2">
+            <ListTodo className="w-4 h-4" /> Exercícios
+          </Button>
+          <Button onClick={() => currentExIdx === exercises.length - 1 ? handleFinalizarTreino() : setCurrentExIdx(i => i + 1)} className="flex-[1.5] h-12 rounded-2xl font-black gap-2">
+            {currentExIdx === exercises.length - 1 ? "Finalizar" : "Próximo"}
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+        <Button onClick={handleFinalizarTreino} variant="ghost" size="sm" className="w-full text-[10px] uppercase font-bold text-red-500/50 hover:text-red-500">Encerrar Treino Agora</Button>
+      </div>
+
+      {/* ── Drawer de Exercícios ── */}
+      <Dialog open={showExList} onOpenChange={setShowExList}>
+        <DialogContent className="max-w-md bg-black border-white/10 p-0 overflow-hidden rounded-t-3xl sm:rounded-3xl">
+          <DialogHeader className="p-6 border-b border-white/5"><DialogTitle className="text-xl font-black">Mapa do Treino</DialogTitle></DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto p-4 space-y-2">
+            {exercises.map((ex: any, i: number) => {
+              const status = getExStatus(i);
+              const isCurrent = currentExIdx === i;
+              return (
+                <button key={i} onClick={() => { setCurrentExIdx(i); setShowExList(false); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all ${isCurrent ? "bg-primary/10 border-primary" : "bg-white/5 border-white/5"}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 font-bold text-xs ${status === "done" ? "bg-green-500 text-black" : status === "partial" ? "bg-primary/20 text-primary" : "bg-white/10 text-white/40"}`}>{status === "done" ? <Check className="w-4 h-4" /> : i + 1}</div>
+                  <div className="flex-1 text-left min-w-0">
+                    <p className={`font-bold text-sm truncate ${isCurrent ? "text-primary" : "text-white"}`}>{ex.name}</p>
+                    <p className="text-[10px] text-white/40 uppercase tracking-wider">{ex.sets} · {ex.reps}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <div className="p-4 bg-white/5 border-t border-white/5"><Button onClick={() => setShowExList(false)} variant="ghost" className="w-full font-bold">Voltar</Button></div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal GIF */}
       <Dialog open={showGifDialog} onOpenChange={setShowGifDialog}>
         <DialogContent className="max-w-sm p-2 bg-black border-white/10 rounded-3xl overflow-hidden">
           {gifUrl && <img src={gifUrl} alt="Execução" className="w-full h-auto rounded-2xl" />}
           <div className="p-4 text-center">
             <h3 className="font-black text-lg">{currentEx?.name}</h3>
-            <Button onClick={() => setShowGifDialog(false)} variant="secondary" className="w-full mt-4 rounded-xl font-bold">Entendi</Button>
+            <Button onClick={() => setShowGifDialog(false)} variant="secondary" className="w-full mt-4 rounded-xl font-bold">Fechar</Button>
           </div>
         </DialogContent>
       </Dialog>
