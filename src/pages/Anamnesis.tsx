@@ -38,6 +38,10 @@ function Card({ children, label }: { children: React.ReactNode; label?: string }
 
 /* ── componente principal ───────────────────────────────────── */
 const ANAMNESIS_DRAFT_KEY = (uid: string) => `anamnesis_draft_${uid}`;
+// Rascunho sem usuário logado ainda (fluxo de cadastro): o studentId só existe
+// depois do supabase.auth.signUp bem-sucedido, então usamos uma chave fixa
+// para não perder o que o aluno já preencheu antes de enviar.
+const ANAMNESIS_ANON_DRAFT_KEY = "anamnesis_draft_anon";
 
 const Anamnesis = () => {
   const navigate = useNavigate();
@@ -72,21 +76,27 @@ const Anamnesis = () => {
   // Salva o progresso a cada mudança (debounced) para evitar perda de dados
   // se o aluno fechar a aba antes de submeter. Limpo no submit com sucesso.
   useEffect(() => {
-    if (bootstrapping || step !== "form" || !loggedUserId || isEditMode) return;
+    if (bootstrapping || step !== "form" || isEditMode) return;
+    // Sem conta ainda (novo cadastro) → grava sob a chave anônima, já que
+    // studentId só existe após o signUp no submit final.
+    const draftKey = loggedUserId ? ANAMNESIS_DRAFT_KEY(loggedUserId) : ANAMNESIS_ANON_DRAFT_KEY;
     const handle = setTimeout(() => {
       try {
         const draft = { d, gender, tpm, quedaF, groups, savedAt: Date.now() };
-        localStorage.setItem(ANAMNESIS_DRAFT_KEY(loggedUserId), JSON.stringify(draft));
+        localStorage.setItem(draftKey, JSON.stringify(draft));
       } catch { /* quota etc. */ }
     }, 600);
     return () => clearTimeout(handle);
   }, [d, gender, tpm, quedaF, groups, bootstrapping, step, loggedUserId, isEditMode]);
 
-  // Restaura rascunho ao montar (apenas em modo de cadastro, não em edição)
+  // Restaura rascunho ao entrar na etapa do formulário (modo de cadastro, não
+  // em edição) — cobre tanto quem já está logado quanto quem ainda não criou
+  // conta (usa a chave anônima até o studentId existir).
   useEffect(() => {
-    if (!loggedUserId || isEditMode) return;
+    if (isEditMode || step !== "form") return;
+    const draftKey = loggedUserId ? ANAMNESIS_DRAFT_KEY(loggedUserId) : ANAMNESIS_ANON_DRAFT_KEY;
     try {
-      const raw = localStorage.getItem(ANAMNESIS_DRAFT_KEY(loggedUserId));
+      const raw = localStorage.getItem(draftKey);
       if (!raw) return;
       const draft = JSON.parse(raw);
       if (draft?.d && typeof draft.d === "object") {
@@ -97,7 +107,7 @@ const Anamnesis = () => {
       if (Array.isArray(draft?.quedaF)) setQuedaF(draft.quedaF);
       if (draft?.groups && typeof draft.groups === "object") setGroups(draft.groups);
     } catch { /* draft corrompido — ignora */ }
-  }, [loggedUserId, isEditMode]);
+  }, [loggedUserId, isEditMode, step]);
 
   // Detecta aluno já logado e pula código + signup
   useEffect(() => {
@@ -377,8 +387,12 @@ const Anamnesis = () => {
       } else {
         setStep("done");
       }
-      // limpa rascunho local após submit bem-sucedido
-      try { if (studentId) localStorage.removeItem(ANAMNESIS_DRAFT_KEY(studentId)); } catch { /* noop */ }
+      // limpa rascunho local após submit bem-sucedido (chave definitiva e a anônima,
+      // já que o preenchimento pode ter começado antes da conta existir)
+      try {
+        if (studentId) localStorage.removeItem(ANAMNESIS_DRAFT_KEY(studentId));
+        localStorage.removeItem(ANAMNESIS_ANON_DRAFT_KEY);
+      } catch { /* noop */ }
     } catch (e: any) {
       console.error(e);
       showToast(e.message || "Erro ao processar cadastro.");
