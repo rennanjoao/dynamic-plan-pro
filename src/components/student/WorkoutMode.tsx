@@ -5,6 +5,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useMemo,
   useCallback,
   memo,
 } from "react";
@@ -32,7 +33,7 @@ import { useConfirm } from "@/components/ConfirmProvider";
 import { useWorkoutSession } from "@/hooks/useWorkoutSession";
 import { supabase } from "@/integrations/supabase/client";
 import type { ExerciseHistory } from "@/lib/workoutTypes";
-import { effortLabel } from "@/lib/workoutTypes";
+import { effortLabel, toExerciseKey } from "@/lib/workoutTypes";
 import { useExerciseGif } from "@/hooks/useExerciseGif";
 import { CompactWeekSelector } from "./CompactWeekSelector";
 
@@ -132,7 +133,20 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const [currentExIdx, setCurrentExIdx] = useState(0);
   const [phase, setPhase] = useState<"training" | "conclusion">("training");
   const [setDataMap, setSetDataMap] = useState<Record<string, any[]>>(_saved?.setDataMap ?? {});
-  const [completed, setCompleted] = useState<Record<string, number[]>>(_saved?.completed ?? {});
+  // Derivado de setDataMap — antes era um segundo useState (completed) atualizado
+  // "em paralelo" a cada série, o que abria uma janela de corrida entre os dois
+  // estados (um podia refletir uma série que o outro ainda não tinha). Como todo
+  // o conteúdo de `completed` (índices das séries com done=true) já existe dentro
+  // de setDataMap, não há motivo para guardá-lo separadamente.
+  const completed = useMemo(() => {
+    const map: Record<string, number[]> = {};
+    for (const key of Object.keys(setDataMap)) {
+      const doneIdx = (setDataMap[key] ?? [])
+        .reduce((acc: number[], s: any, idx: number) => { if (s?.done) acc.push(idx); return acc; }, []);
+      if (doneIdx.length) map[key] = doneIdx;
+    }
+    return map;
+  }, [setDataMap]);
   const [startedAt, setStartedAt] = useState<number>(_saved?.startedAt ?? Date.now());
   const [now, setNow] = useState(Date.now());
   const [showShare, setShowShare] = useState(false);
@@ -198,6 +212,11 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   // Tenta retomar (rascunho local ou sessão aberta no banco) antes de criar uma
   // nova, para não duplicar linha em workout_sessions nem "zerar" o progresso.
   const [isFinishing, setIsFinishing] = useState(false);
+  // Declarado aqui (não junto de handleFinishWorkout) porque handleFizASerie,
+  // definido mais acima na árvore de closures do componente, também precisa
+  // checar essa ref para não registrar uma série exatamente durante a janela
+  // de encerramento do treino.
+  const isFinishingRef = useRef(false);
   const sessionBootstrapped = useRef(false);
   useEffect(() => {
     if (sessionBootstrapped.current || !userId || !day?.key) return;
@@ -220,6 +239,34 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         if (cancelled) return;
         if (active) {
           session.resumeSession({ sessionId: active.sessionId, userId, workoutKey: day.key, startedAt: active.startedAt });
+
+          // Sem rascunho local (localStorage limpo, outro dispositivo, aba
+          // anônima etc.) mas com sessão ativa no servidor: reconstrói
+          // setDataMap a partir das séries já registradas, senão o treino
+          // aparece "zerado" na tela mesmo com progresso salvo no banco.
+          const hasLocalProgress = _saved?.setDataMap && Object.keys(_saved.setDataMap).length > 0;
+          if (!hasLocalProgress) {
+            session
+              .getSessionSets(active.sessionId)
+              .then((sets) => {
+                if (cancelled || !sets.length) return;
+                const rebuilt: Record<string, any[]> = {};
+                sets.forEach((s) => {
+                  const idx = exercises.findIndex((ex: any) => toExerciseKey(ex.name) === s.exercise_key);
+                  if (idx === -1) return;
+                  const key = `${day.key}::${idx}`;
+                  const arr = rebuilt[key] ?? [];
+                  arr[s.set_number - 1] = { weight: s.weight_kg ?? 0, reps: s.reps ?? 0, done: s.completed, skipped: s.skipped };
+                  rebuilt[key] = arr;
+                });
+                // `prev` por cima do reconstruído: preserva qualquer série que
+                // o aluno já tenha marcado localmente enquanto a busca corria.
+                setSetDataMap((prev) => ({ ...rebuilt, ...prev }));
+              })
+              .catch((err) => {
+                console.warn("[WorkoutMode] Falha ao reconstruir progresso da sessão recuperada:", err);
+              });
+          }
         } else {
           session.startSession({ userId, coachId, workoutKey: day.key, periodizationWeek: isPeriodizationOn ? activeWeek : undefined });
         }
@@ -254,15 +301,25 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [day?.key, exercises.length]);
 
+  // Guarda contra clique duplo: `isRegisteringSetRef` é checado de forma
+  // síncrona (não depende de re-render), então mesmo dois cliques disparados
+  // antes do estado `isRegisteringSet` propagar (e o botão desabilitar de
+  // fato) não conseguem entrar na função ao mesmo tempo.
+  const isRegisteringSetRef = useRef(false);
+  const [isRegisteringSet, setIsRegisteringSet] = useState(false);
+
   const handleFizASerie = async (effort: 1 | 2 | 3) => {
+    if (isRegisteringSetRef.current || isFinishingRef.current) return;
     const currentSets = setDataMap[currentExKey] ?? [];
     const setIdx = currentSets.filter(s => s.done).length;
     if (setIdx >= setsMax) return;
 
+    isRegisteringSetRef.current = true;
+    setIsRegisteringSet(true);
+
     const newSets = [...currentSets];
     newSets[setIdx] = { weight: activeWeight, reps: activeReps, effort, done: true, skipped: false };
     setSetDataMap(prev => ({ ...prev, [currentExKey]: newSets }));
-    setCompleted(prev => ({ ...prev, [currentExKey]: [...(prev[currentExKey] ?? []), setIdx] }));
 
     // ── Detecção de PR: compara a carga contra o melhor histórico do exercício ──
     // Recompensa variável real (não cosmética) — só dispara quando há motivo de fato.
@@ -299,6 +356,9 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     } catch (err) {
       console.warn("[WorkoutMode] Falha ao registrar série no servidor (mantida localmente):", err);
       toast.error("Sem conexão — série salva localmente e será sincronizada depois.", { duration: 2500 });
+    } finally {
+      isRegisteringSetRef.current = false;
+      setIsRegisteringSet(false);
     }
   };
 
@@ -326,7 +386,11 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   // que o aluno podia fechar o modal antes do encerramento ser salvo — quando
   // chegamos à tela de conclusão, o encerramento já foi tentado.
   const handleFinishWorkout = async () => {
-    if (isFinishing) return;
+    // `isFinishing` (estado) só reflete no próximo render — dois cliques quase
+    // simultâneos podem ler o valor antigo antes de o botão desabilitar de
+    // fato. O ref é checado e travado de forma síncrona, então cobre essa janela.
+    if (isFinishingRef.current) return;
+    isFinishingRef.current = true;
     setIsFinishing(true);
     try {
       await session.finishSession({ periodizationWeek: isPeriodizationOn ? activeWeek : undefined });
@@ -335,6 +399,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
       console.warn("[WorkoutMode] Falha ao finalizar sessão:", err);
       toast.error("Não foi possível confirmar o encerramento no servidor. Seu progresso foi mantido localmente.");
     } finally {
+      isFinishingRef.current = false;
       setIsFinishing(false);
       setPhase("conclusion");
     }
@@ -460,7 +525,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   {EFFORT_OPTIONS.map(opt => (
-                    <button key={opt.value} onClick={() => handleFizASerie(opt.value)} className="flex flex-col items-center py-3 rounded-2xl border-2 transition-all active:scale-95" style={{ borderColor: opt.color, backgroundColor: opt.bg, color: opt.color }}><span className="text-xl">{opt.emoji}</span><span className="text-[9px] font-black uppercase mt-1">{opt.label}</span></button>
+                    <button key={opt.value} onClick={() => handleFizASerie(opt.value)} disabled={isRegisteringSet || isFinishing} className="flex flex-col items-center py-3 rounded-2xl border-2 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none" style={{ borderColor: opt.color, backgroundColor: opt.bg, color: opt.color }}><span className="text-xl">{opt.emoji}</span><span className="text-[9px] font-black uppercase mt-1">{opt.label}</span></button>
                   ))}
                 </div>
               </div>
