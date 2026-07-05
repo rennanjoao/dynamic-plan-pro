@@ -14,9 +14,18 @@ export class ErrorBoundary extends Component<Props, State> {
   static getDerivedStateFromError(): State {
     return { hasError: true };
   }
-  componentDidCatch(error: Error) {
-    console.error("[ErrorBoundary]", error);
+  componentDidCatch(error: Error, errorInfo: { componentStack: string }) {
+    // Loga a stack do componente também — sem isso, um erro capturado aqui
+    // só mostra a mensagem, sem pista de qual árvore de componentes falhou.
+    console.error("[ErrorBoundary]", error, errorInfo.componentStack);
   }
+  // Reset "suave": tenta re-renderizar a árvore sem recarregar a página
+  // inteira, para não zerar estado que não tinha relação com o erro (ex.
+  // outro componente irmão que ainda tinha progresso não salvo). Se o erro
+  // persistir, a árvore simplesmente cai de novo no fallback.
+  handleRetry = () => {
+    this.setState({ hasError: false });
+  };
   render() {
     if (this.state.hasError) {
       return (
@@ -26,7 +35,10 @@ export class ErrorBoundary extends Component<Props, State> {
             <p className="text-sm text-muted-foreground">
               {this.props.label ?? "Recarregue a página para continuar."}
             </p>
-            <Button onClick={() => window.location.reload()}>Recarregar</Button>
+            <div className="flex flex-col gap-2 pt-1">
+              <Button onClick={this.handleRetry} variant="outline">Tentar novamente</Button>
+              <Button onClick={() => window.location.reload()}>Recarregar</Button>
+            </div>
           </div>
         </div>
       );
