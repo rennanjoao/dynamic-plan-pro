@@ -440,13 +440,18 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   return (
     <div className="fixed inset-0 z-50 bg-background overflow-y-auto pb-40 flex flex-col">
       <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-white/5 px-4 py-2 flex items-center gap-3">
-        <button onClick={onClose} className="w-8 h-8 flex items-center justify-center text-white/40"><X className="w-5 h-5" /></button>
+        {/* Alvo de toque ampliado (44px) — antes 32px, abaixo do mínimo recomendado para fechar sem precisão */}
+        <button onClick={onClose} className="w-11 h-11 -ml-1 flex items-center justify-center text-white/60 active:text-white active:scale-90 transition-all"><X className="w-6 h-6" /></button>
         <div className="flex-1 min-w-0">
           <h1 className="font-black text-sm truncate uppercase tracking-tight">Treino {day?.key} {day?.focus && `· ${day.focus}`}</h1>
-          <p className="text-[10px] text-primary font-bold flex items-center gap-1"><Flame className="w-2.5 h-2.5" /> {fmtMMSS(elapsedSec)}</p>
+          <p className="text-xs text-primary font-bold flex items-center gap-1"><Flame className="w-3 h-3" /> {fmtMMSS(elapsedSec)}</p>
         </div>
-        <div className="h-1.5 w-16 bg-white/10 rounded-full overflow-hidden">
-          <motion.div className="h-full bg-primary" animate={{ width: `${progressPct}%` }} />
+        {/* Barra de progresso ampliada + fração numérica — reforça senso de avanço em vista periférica */}
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <span className="text-[10px] font-black text-white/70 tabular-nums">{Object.values(completed).flat().length}/{exercises.reduce((acc: number, ex: any) => acc + parseSetsMin(ex.sets), 0)} séries</span>
+          <div className="h-2 w-20 bg-white/10 rounded-full overflow-hidden">
+            <motion.div className="h-full bg-primary" animate={{ width: `${progressPct}%` }} />
+          </div>
         </div>
       </header>
 
@@ -463,13 +468,14 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                   <Badge variant="outline" className={`text-[9px] uppercase font-black ${restElapsed >= restRange.min ? "bg-green-500/10 text-green-500 border-green-500/20" : "bg-primary/10 text-primary border-primary/20"}`}>
                     {restRunning ? (restElapsed >= restRange.min ? "Janela Aberta" : "Recuperando") : "Aguardando Série"}
                   </Badge>
-                  <span className="text-[9px] text-white/40 font-bold uppercase tracking-widest">{restRange.min}-{restRange.max}s</span>
+                  <span className="text-[10px] text-white/60 font-bold uppercase tracking-widest">{restRange.min}-{restRange.max}s</span>
                 </div>
                 <h3 className={`text-7xl font-black tabular-nums tracking-tighter transition-colors ${restRunning && (restRange.max - restElapsed <= 5) ? "text-red-500 animate-pulse" : "text-white"}`}>{fmtMMSS(restElapsed)}</h3>
                 {restRunning && (
+                  /* Botões com altura mínima de 44px (h-11) — antes h-9/36px, insuficiente para toque em movimento */
                   <div className="flex justify-center gap-3 mt-4">
-                    <Button onClick={() => setRestSegStartedAt(null)} variant="secondary" size="sm" className="rounded-full h-9 px-6 text-[10px] font-black uppercase">Pausar</Button>
-                    <Button onClick={() => { setRestBaseSec(0); setRestSegStartedAt(null); }} size="sm" className="rounded-full h-9 px-6 text-[10px] font-black uppercase">Zerar</Button>
+                    <Button onClick={() => setRestSegStartedAt(null)} variant="secondary" size="sm" className="rounded-full h-11 px-7 text-xs font-black uppercase active:scale-95">Pausar</Button>
+                    <Button onClick={() => { setRestBaseSec(0); setRestSegStartedAt(null); }} size="sm" className="rounded-full h-11 px-7 text-xs font-black uppercase active:scale-95">Zerar</Button>
                   </div>
                 )}
               </div>
@@ -483,12 +489,19 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                 )}
                 <div className="flex-1">
                   <h2 className="text-xl font-black leading-tight uppercase italic">{currentEx.name}</h2>
-                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-[0.2em] mt-1">{currentEx.sets} · {currentEx.reps} · {currentEx.rest}</p>
+                  <p className="text-[11px] text-white/60 font-bold uppercase tracking-[0.2em] mt-1">{currentEx.sets} · {currentEx.reps} · {currentEx.rest}</p>
                 </div>
               </div>
               <div className="flex gap-2">
+                {/* Círculos maiores (44px, antes 36px) + "pop" ao marcar — recompensa imediata em toda série, não só no PR */}
                 {Array.from({ length: setsMax }).map((_, i) => (
-                  <div key={i} className={`w-9 h-9 rounded-full border-2 flex items-center justify-center font-black text-sm transition-all ${doneSets[i] ? "bg-green-500 border-green-500 text-black" : i === doneSets.length ? "border-primary text-primary scale-110" : "border-white/10 text-white/20"}`}>{doneSets[i] ? <Check className="w-5 h-5" strokeWidth={3} /> : i + 1}</div>
+                  <motion.div
+                    key={i}
+                    initial={false}
+                    animate={doneSets[i] ? { scale: [1, 1.25, 1] } : { scale: 1 }}
+                    transition={{ duration: 0.35 }}
+                    className={`w-11 h-11 rounded-full border-2 flex items-center justify-center font-black text-sm transition-all ${doneSets[i] ? "bg-green-500 border-green-500 text-black" : i === doneSets.length ? "border-primary text-primary scale-110" : "border-white/15 text-white/30"}`}
+                  >{doneSets[i] ? <Check className="w-5 h-5" strokeWidth={3} /> : i + 1}</motion.div>
                 ))}
               </div>
             </div>
@@ -519,15 +532,39 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
             {/* Inputs */}
             {!todasFeitas && (
               <div className="bg-neutral-900 rounded-3xl p-5 border border-white/5 space-y-4">
-                <div className="flex gap-3">
-                  <div className="flex-1 space-y-1"><label className="text-[9px] uppercase font-black text-white/40 ml-1">Carga (kg)</label><input type="text" inputMode="numeric" value={activeWeight || ""} onChange={e => setActiveWeight(parseFloat(e.target.value.replace(/[^0-9.]/g, "")) || 0)} className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl text-center text-2xl font-black outline-none focus:border-primary/50" /></div>
-                  <div className="flex-1 space-y-1"><label className="text-[9px] uppercase font-black text-white/40 ml-1">Reps</label><input type="text" inputMode="numeric" value={activeReps || ""} onChange={e => setActiveReps(parseFloat(e.target.value.replace(/[^0-9.]/g, "")) || 0)} className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl text-center text-2xl font-black outline-none focus:border-primary/50" /></div>
+                {/*
+                  Carga/Reps: teclado numérico exige precisão de toque + visão de perto — ruim com mãos
+                  suadas/em movimento. Adicionados botões +/- (48px) como via alternativa de ajuste rápido
+                  sem precisar digitar; o input de texto continua disponível para valores exatos/atípicos.
+                */}
+              <div className="flex gap-3">
+                  <div className="flex-1 space-y-1">
+                    <label className="text-[10px] uppercase font-black text-white/60 ml-1">Carga (kg)</label>
+                    <div className="flex items-stretch gap-1.5">
+                      <button type="button" onClick={() => setActiveWeight(w => Math.max(0, w - 2.5))} className="w-12 h-14 shrink-0 rounded-2xl bg-white/5 border border-white/10 text-xl font-black text-white/70 active:bg-white/10 active:scale-95 transition-all">–</button>
+                      <input type="text" inputMode="numeric" value={activeWeight || ""} onChange={e => setActiveWeight(parseFloat(e.target.value.replace(/[^0-9.]/g, "")) || 0)} className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl text-center text-2xl font-black outline-none focus:border-primary/50" />
+                      <button type="button" onClick={() => setActiveWeight(w => w + 2.5)} className="w-12 h-14 shrink-0 rounded-2xl bg-white/5 border border-white/10 text-xl font-black text-white/70 active:bg-white/10 active:scale-95 transition-all">+</button>
+                    </div>
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <label className="text-[10px] uppercase font-black text-white/60 ml-1">Reps</label>
+                    <div className="flex items-stretch gap-1.5">
+                      <button type="button" onClick={() => setActiveReps(r => Math.max(0, r - 1))} className="w-12 h-14 shrink-0 rounded-2xl bg-white/5 border border-white/10 text-xl font-black text-white/70 active:bg-white/10 active:scale-95 transition-all">–</button>
+                      <input type="text" inputMode="numeric" value={activeReps || ""} onChange={e => setActiveReps(parseFloat(e.target.value.replace(/[^0-9.]/g, "")) || 0)} className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl text-center text-2xl font-black outline-none focus:border-primary/50" />
+                      <button type="button" onClick={() => setActiveReps(r => r + 1)} className="w-12 h-14 shrink-0 rounded-2xl bg-white/5 border border-white/10 text-xl font-black text-white/70 active:bg-white/10 active:scale-95 transition-all">+</button>
+                    </div>
+                  </div>
                 </div>
+                {/* Botões de esforço maiores (min-h-20, antes py-3/~52px) — alvo de toque confortável em movimento */}
                 <div className="grid grid-cols-3 gap-2">
                   {EFFORT_OPTIONS.map(opt => (
-                    <button key={opt.value} onClick={() => handleFizASerie(opt.value)} disabled={isRegisteringSet || isFinishing} className="flex flex-col items-center py-3 rounded-2xl border-2 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none" style={{ borderColor: opt.color, backgroundColor: opt.bg, color: opt.color }}><span className="text-xl">{opt.emoji}</span><span className="text-[9px] font-black uppercase mt-1">{opt.label}</span></button>
+                    <button key={opt.value} onClick={() => handleFizASerie(opt.value)} disabled={isRegisteringSet || isFinishing} className="flex flex-col items-center justify-center min-h-20 rounded-2xl border-2 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none" style={{ borderColor: opt.color, backgroundColor: opt.bg, color: opt.color }}><span className="text-2xl">{opt.emoji}</span><span className="text-[10px] font-black uppercase mt-1">{opt.label}</span></button>
                   ))}
                 </div>
+                {/* Microcopy apenas na primeiríssima série do treino — orienta o iniciante sem infantilizar a UI nas séries seguintes */}
+                {currentExIdx === 0 && doneSets.length === 0 && (
+                  <p className="text-center text-[10px] text-white/40 font-medium -mt-1">Ajuste carga e reps, depois toque em como foi a série</p>
+                )}
               </div>
             )}
           </motion.div>
@@ -537,7 +574,8 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
       {/* Navegação Inferior Fixa */}
       <div className="fixed bottom-0 left-0 right-0 z-30 bg-background/95 backdrop-blur border-t border-white/10 p-4 pb-8">
         <div className="flex gap-3 max-w-2xl mx-auto">
-          <Button variant="ghost" onClick={() => setCurrentExIdx(i => Math.max(0, i - 1))} disabled={currentExIdx === 0} className="flex-1 h-12 rounded-2xl font-bold text-white/40">Anterior</Button>
+          {/* Contraste condicional: esmaecido só quando de fato desabilitado (1º exercício); antes era sempre white/40, parecendo inativo mesmo quando clicável */}
+          <Button variant="ghost" onClick={() => setCurrentExIdx(i => Math.max(0, i - 1))} disabled={currentExIdx === 0} className={`flex-1 h-12 rounded-2xl font-bold ${currentExIdx === 0 ? "text-white/25" : "text-white/70"}`}>Anterior</Button>
           <Button onClick={() => setShowExList(true)} variant="secondary" className="flex-1 h-12 rounded-2xl font-black uppercase italic tracking-tighter gap-2"><ListTodo className="w-4 h-4" /> Mapa</Button>
           <Button onClick={() => currentExIdx === exercises.length - 1 ? handleFinishWorkout() : setCurrentExIdx(i => i + 1)} disabled={isFinishing} className="flex-[1.5] h-12 rounded-2xl font-black uppercase italic tracking-tighter bg-primary text-black hover:bg-primary/90 gap-2">{currentExIdx === exercises.length - 1 ? (isFinishing ? "Salvando..." : "Finalizar") : "Próximo"} <ChevronRight className="w-4 h-4" /></Button>
         </div>
