@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft,
+  X,
   Loader2,
   ShoppingCart,
   Share2,
@@ -1105,11 +1106,13 @@ export default function ShoppingList() {
   if (loading) {
     return (
       <div style={{ minHeight: "100vh", background: "var(--color-background-tertiary)", paddingBottom: "2rem" }}>
-        {/* ── Header skeleton ── */}
+        {/* Antes: <div> decorativo, sem onClick nem href — parecia um botão de
+            voltar mas não fazia nada. Se o carregamento travasse, não havia
+            saída real nenhuma nessa tela. */}
         <header style={headerStyle}>
-          <div style={{ ...backBtnStyle, opacity: 0.3 }}>
+          <Link to="/student-area" style={{ ...backBtnStyle, textDecoration: "none" }} aria-label="Voltar">
             <ArrowLeft size={18} />
-          </div>
+          </Link>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
             <div style={{ height: 14, width: 140, borderRadius: 6, background: "var(--color-background-secondary)", animation: "pulse 1.5s ease-in-out infinite" }} />
             <div style={{ height: 11, width: 100, borderRadius: 6, background: "var(--color-background-secondary)", animation: "pulse 1.5s ease-in-out infinite" }} />
@@ -1316,7 +1319,7 @@ export default function ShoppingList() {
     return (
       <div style={{ minHeight: "100vh", background: "var(--color-background-tertiary)", padding: "0 0 2rem" }}>
         <header style={headerStyle}>
-          <button onClick={() => choiceStep > 0 ? handlePrevChoice() : navigate(-1)} style={backBtnStyle}>
+          <button onClick={() => choiceStep > 0 ? handlePrevChoice() : navigate(-1)} style={backBtnStyle} aria-label="Passo anterior">
             <ArrowLeft size={18} />
           </button>
           <div style={{ flex: 1 }}>
@@ -1325,6 +1328,14 @@ export default function ShoppingList() {
               {choiceStep + 1} de {choices.length} {choices.length === 1 ? "escolha" : "escolhas"}
             </p>
           </div>
+          {/*
+            Antes só existia a flecha de voltar, que anda um passo por vez —
+            para sair de fato era preciso clicar "voltar" uma vez por escolha
+            até chegar no passo 1. Este X sai direto, de qualquer passo.
+          */}
+          <Link to="/student-area" style={{ ...backBtnStyle, textDecoration: "none" }} aria-label="Sair da lista de compras">
+            <X size={18} />
+          </Link>
         </header>
 
         <div style={{ height: 3, background: "var(--color-background-secondary)" }}>
@@ -1537,6 +1548,18 @@ export default function ShoppingList() {
             {protocol?.name || "Protocolo ativo"} · {days === 1 ? "1 dia" : `${days} dias`}{persons > 1 ? ` · ${persons} pessoas` : ""}
           </p>
         </div>
+        {/*
+          Antes, com escolhas configuradas, o único botão do header era
+          "Voltar às escolhas" — não existia como sair da lista de compras
+          de fato, só como voltar para o fluxo de escolhas de novo. Estado
+          já é persistido (persistState() cobre a fase "list"), então sair
+          aqui é seguro e não perde o progresso.
+        */}
+        {choices.length > 0 && (
+          <Link to="/student-area" style={{ ...backBtnStyle, textDecoration: "none" }} aria-label="Sair da lista de compras">
+            <X size={18} />
+          </Link>
+        )}
       </header>
 
       <div style={{ maxWidth: 480, margin: "0 auto", padding: "1rem" }}>
