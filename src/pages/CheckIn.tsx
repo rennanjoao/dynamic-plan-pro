@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, TrendingDown, TrendingUp, Minus, FilePlus2, FileEdit } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, TrendingDown, TrendingUp, Minus, FilePlus2, FileEdit, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -349,7 +349,7 @@ export default function CheckIn() {
     <div className="min-h-screen bg-background pb-32">
       <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => setMode("choose")}>
+          <Button variant="ghost" size="icon" onClick={() => setMode("choose")} aria-label="Voltar para escolha">
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <div className="flex-1">
@@ -368,6 +368,14 @@ export default function CheckIn() {
               <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
             </div>
           </div>
+          {/*
+            Antes, a única flecha do header voltava pra tela "O que deseja fazer?"
+            (setMode("choose")) — sair de fato exigia 2 toques (voltar à escolha,
+            depois sair dali). Este X sai direto pro student-area em 1 toque.
+          */}
+          <Button variant="ghost" size="icon" onClick={() => navigate("/student-area")} aria-label="Sair do check-in">
+            <X className="w-4 h-4" />
+          </Button>
         </div>
       </header>
 
