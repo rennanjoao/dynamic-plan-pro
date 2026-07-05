@@ -202,9 +202,22 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
       lastAlertRef.current = restRange.max;
       setRestSegStartedAt(null);
       setRestBaseSec(restRange.max);
-      toast.error("Limite de descanso atingido! Inicie agora.", { icon: "💀", duration: 3000 });
+
+      // Se a última série do exercício já foi feita, o descanso máximo agora
+      // funciona como o sinal de "hora de trocar" — avança sozinho para o
+      // próximo exercício em vez de só travar o timer esperando um toque manual.
+      const doneCountThisEx = (setDataMap[currentExKey] ?? []).filter((s: any) => s.done).length;
+      const exerciseFullyDone = doneCountThisEx >= setsMax;
+      const hasNextExercise = currentExIdx < exercises.length - 1;
+
+      if (exerciseFullyDone && hasNextExercise) {
+        toast.success(`Indo para ${exercises[currentExIdx + 1]?.name}`, { icon: "➡️", duration: 2500 });
+        setCurrentExIdx((i) => i + 1);
+      } else {
+        toast.error("Limite de descanso atingido! Inicie agora.", { icon: "💀", duration: 3000 });
+      }
     }
-  }, [restElapsed, restRunning, restRange]);
+  }, [restElapsed, restRunning, restRange, setDataMap, currentExKey, setsMax, currentExIdx, exercises]);
 
   // ── Ciclo de vida da sessão de treino ───────────────────────────────────────
   // Sem isto, session.sessionId nunca é preenchido e registerSet/finishSession
@@ -323,8 +336,17 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
 
     // ── Detecção de PR: compara a carga contra o melhor histórico do exercício ──
     // Recompensa variável real (não cosmética) — só dispara quando há motivo de fato.
+    // BUG CORRIGIDO: "bestPrevWeight" antes só olhava o histórico de sessões
+    // anteriores (buscado 1x ao entrar no exercício) e nunca era atualizado com
+    // as séries já feitas NESTA sessão. Resultado: a 2ª, 3ª... série do mesmo
+    // exercício com a MESMA carga continuava batendo o número "congelado" do
+    // histórico antigo e disparava "Novo Record" de novo a cada clique.
+    // Agora o teto de comparação é o maior entre o histórico e as séries já
+    // registradas aqui, no exercício atual, durante este treino.
     const history = historyMap[currentEx?.name] ?? [];
-    const bestPrevWeight = history.length ? Math.max(...history.map(h => h.weightKg)) : 0;
+    const historyBestWeight = history.length ? Math.max(...history.map(h => h.weightKg)) : 0;
+    const sessionBestWeightThisEx = currentSets.length ? Math.max(...currentSets.map(s => s.weight || 0)) : 0;
+    const bestPrevWeight = Math.max(historyBestWeight, sessionBestWeightThisEx);
     const isPR = activeWeight > 0 && activeWeight > bestPrevWeight;
 
     if (isPR) {
@@ -440,8 +462,19 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   return (
     <div className="fixed inset-0 z-50 bg-background overflow-y-auto pb-40 flex flex-col">
       <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-white/5 px-4 py-2 flex items-center gap-3">
-        {/* Alvo de toque ampliado (44px) — antes 32px, abaixo do mínimo recomendado para fechar sem precisão */}
-        <button onClick={onClose} className="w-11 h-11 -ml-1 flex items-center justify-center text-white/60 active:text-white active:scale-90 transition-all"><X className="w-6 h-6" /></button>
+        {/* Antes: onClose disparava direto, sem aviso — 1 toque acidental e o aluno saía sem entender que o progresso fica salvo. Reaproveita o useConfirm já importado (estava sem uso). */}
+        <button
+          onClick={async () => {
+            const ok = await confirm({
+              title: "Sair do treino?",
+              description: "Seu progresso foi salvo. Você pode continuar de onde parou depois — ou finalizar agora pelo Mapa do Treino.",
+              confirmLabel: "Sair",
+              cancelLabel: "Continuar treinando",
+            });
+            if (ok) onClose();
+          }}
+          className="w-11 h-11 -ml-1 flex items-center justify-center text-white/60 active:text-white active:scale-90 transition-all"
+        ><X className="w-6 h-6" /></button>
         <div className="flex-1 min-w-0">
           <h1 className="font-black text-sm truncate uppercase tracking-tight">Treino {day?.key} {day?.focus && `· ${day.focus}`}</h1>
           <p className="text-xs text-primary font-bold flex items-center gap-1"><Flame className="w-3 h-3" /> {fmtMMSS(elapsedSec)}</p>
@@ -477,6 +510,18 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                     <Button onClick={() => setRestSegStartedAt(null)} variant="secondary" size="sm" className="rounded-full h-11 px-7 text-xs font-black uppercase active:scale-95">Pausar</Button>
                     <Button onClick={() => { setRestBaseSec(0); setRestSegStartedAt(null); }} size="sm" className="rounded-full h-11 px-7 text-xs font-black uppercase active:scale-95">Zerar</Button>
                   </div>
+                )}
+                {/* Aparece assim que a última série do exercício é marcada — avisa o próximo
+                    exercício com antecedência para o aluno já ir se posicionando durante o
+                    descanso. A troca automática só ocorre quando o descanso máximo terminar. */}
+                {todasFeitas && currentExIdx < exercises.length - 1 && (
+                  <motion.p
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-xs font-bold text-primary/90 mt-3"
+                  >
+                    Próximo: <span className="text-white">{exercises[currentExIdx + 1]?.name}</span> — use o descanso para se posicionar.
+                  </motion.p>
                 )}
               </div>
             </div>
@@ -597,7 +642,27 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
               );
             })}
           </div>
-          <div className="p-4 bg-white/5 border-t border-white/5"><Button onClick={() => setShowExList(false)} variant="ghost" className="w-full font-bold uppercase text-[10px] tracking-widest">Fechar Mapa</Button></div>
+          {/* Antes só era possível finalizar chegando na última série do último exercício.
+              Agora, a qualquer momento do treino, o aluno pode abrir o Mapa e finalizar
+              direto — útil quando decide encurtar o treino ou já fez o suficiente. */}
+          <div className="p-4 bg-white/5 border-t border-white/5 space-y-2">
+            <Button
+              onClick={async () => {
+                const totalDone = Object.values(completed).flat().length;
+                const totalPlanned = exercises.reduce((acc: number, ex: any) => acc + parseSetsMin(ex.sets), 0);
+                const ok = await confirm({
+                  title: "Finalizar treino agora?",
+                  description: `Você registrou ${totalDone} de ${totalPlanned} séries previstas. Isso vai encerrar o treino e mostrar seu resumo.`,
+                  confirmLabel: "Finalizar",
+                  cancelLabel: "Continuar treinando",
+                });
+                if (ok) { setShowExList(false); handleFinishWorkout(); }
+              }}
+              disabled={isFinishing}
+              className="w-full h-12 rounded-2xl font-black uppercase italic tracking-tighter bg-primary text-black hover:bg-primary/90"
+            >{isFinishing ? "Salvando..." : "Finalizar Treino Agora"}</Button>
+            <Button onClick={() => setShowExList(false)} variant="ghost" className="w-full font-bold uppercase text-[10px] tracking-widest">Fechar Mapa</Button>
+          </div>
         </DialogContent>
       </Dialog>
 
