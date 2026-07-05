@@ -192,6 +192,49 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     }
   }, [restElapsed, restRunning, restRange]);
 
+  // ── Ciclo de vida da sessão de treino ───────────────────────────────────────
+  // Sem isto, session.sessionId nunca é preenchido e registerSet/finishSession
+  // não têm o que persistir (ambos saem em silêncio quando sessionId é nulo).
+  // Tenta retomar (rascunho local ou sessão aberta no banco) antes de criar uma
+  // nova, para não duplicar linha em workout_sessions nem "zerar" o progresso.
+  const [isFinishing, setIsFinishing] = useState(false);
+  const sessionBootstrapped = useRef(false);
+  useEffect(() => {
+    if (sessionBootstrapped.current || !userId || !day?.key) return;
+    sessionBootstrapped.current = true;
+    let cancelled = false;
+
+    if (_saved?.sessionId && !String(_saved.sessionId).startsWith("local_")) {
+      session.resumeSession({
+        sessionId: _saved.sessionId,
+        userId,
+        workoutKey: day.key,
+        startedAt: _saved.startedAt ?? Date.now(),
+      });
+      return;
+    }
+
+    session
+      .findActiveSession(userId, day.key)
+      .then((active) => {
+        if (cancelled) return;
+        if (active) {
+          session.resumeSession({ sessionId: active.sessionId, userId, workoutKey: day.key, startedAt: active.startedAt });
+        } else {
+          session.startSession({ userId, coachId, workoutKey: day.key, periodizationWeek: isPeriodizationOn ? activeWeek : undefined });
+        }
+      })
+      .catch((err) => {
+        console.warn("[WorkoutMode] Falha ao localizar sessão ativa, iniciando uma nova:", err);
+        if (!cancelled) {
+          session.startSession({ userId, coachId, workoutKey: day.key, periodizationWeek: isPeriodizationOn ? activeWeek : undefined });
+        }
+      });
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, day?.key]);
+
   useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify({ activeWeek, completed, setDataMap, sessionId: session.sessionId, startedAt, restBaseSec, restSegStartedAt }));
   }, [activeWeek, completed, setDataMap, session.sessionId, startedAt, restBaseSec, restSegStartedAt]);
@@ -244,14 +287,19 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     setRestBaseSec(0);
     setRestSegStartedAt(Date.now());
 
-    await session.registerSet({
-      exerciseName: currentEx?.name ?? "—",
-      setNumber: setIdx + 1,
-      weightKg: activeWeight,
-      reps: activeReps,
-      perceivedEffort: effort,
-      completed: true,
-    });
+    try {
+      await session.registerSet({
+        exerciseName: currentEx?.name ?? "—",
+        setNumber: setIdx + 1,
+        weightKg: activeWeight,
+        reps: activeReps,
+        perceivedEffort: effort,
+        completed: true,
+      });
+    } catch (err) {
+      console.warn("[WorkoutMode] Falha ao registrar série no servidor (mantida localmente):", err);
+      toast.error("Sem conexão — série salva localmente e será sincronizada depois.", { duration: 2500 });
+    }
   };
 
   const [activeWeight, setActiveWeight] = useState(0);
@@ -270,6 +318,26 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     if (doneCount <= 0) return "pending";
     if (doneCount >= parseSetsMin(ex?.sets)) return "done";
     return "partial";
+  };
+
+  // ── Encerramento do treino ──────────────────────────────────────────────────
+  // Persiste ended_at/workout_progress ANTES de trocar para a tela de conclusão
+  // (em vez de só trocar o estado visual). Isso elimina a janela de corrida em
+  // que o aluno podia fechar o modal antes do encerramento ser salvo — quando
+  // chegamos à tela de conclusão, o encerramento já foi tentado.
+  const handleFinishWorkout = async () => {
+    if (isFinishing) return;
+    setIsFinishing(true);
+    try {
+      await session.finishSession({ periodizationWeek: isPeriodizationOn ? activeWeek : undefined });
+      try { localStorage.removeItem(storageKey); } catch { /* noop */ }
+    } catch (err) {
+      console.warn("[WorkoutMode] Falha ao finalizar sessão:", err);
+      toast.error("Não foi possível confirmar o encerramento no servidor. Seu progresso foi mantido localmente.");
+    } finally {
+      setIsFinishing(false);
+      setPhase("conclusion");
+    }
   };
 
   // Ao concluir: busca o streak real (substitui o `streak={0}` hardcoded) e
@@ -406,7 +474,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         <div className="flex gap-3 max-w-2xl mx-auto">
           <Button variant="ghost" onClick={() => setCurrentExIdx(i => Math.max(0, i - 1))} disabled={currentExIdx === 0} className="flex-1 h-12 rounded-2xl font-bold text-white/40">Anterior</Button>
           <Button onClick={() => setShowExList(true)} variant="secondary" className="flex-1 h-12 rounded-2xl font-black uppercase italic tracking-tighter gap-2"><ListTodo className="w-4 h-4" /> Mapa</Button>
-          <Button onClick={() => currentExIdx === exercises.length - 1 ? setPhase("conclusion") : setCurrentExIdx(i => i + 1)} className="flex-[1.5] h-12 rounded-2xl font-black uppercase italic tracking-tighter bg-primary text-black hover:bg-primary/90 gap-2">{currentExIdx === exercises.length - 1 ? "Finalizar" : "Próximo"} <ChevronRight className="w-4 h-4" /></Button>
+          <Button onClick={() => currentExIdx === exercises.length - 1 ? handleFinishWorkout() : setCurrentExIdx(i => i + 1)} disabled={isFinishing} className="flex-[1.5] h-12 rounded-2xl font-black uppercase italic tracking-tighter bg-primary text-black hover:bg-primary/90 gap-2">{currentExIdx === exercises.length - 1 ? (isFinishing ? "Salvando..." : "Finalizar") : "Próximo"} <ChevronRight className="w-4 h-4" /></Button>
         </div>
       </div>
 
