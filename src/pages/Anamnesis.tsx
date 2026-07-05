@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -75,6 +75,7 @@ const Anamnesis = () => {
   // ─── Autosave de rascunho (localStorage) ──────────────────────
   // Salva o progresso a cada mudança (debounced) para evitar perda de dados
   // se o aluno fechar a aba antes de submeter. Limpo no submit com sucesso.
+  const draftSaveFailedRef = useRef(false);
   useEffect(() => {
     if (bootstrapping || step !== "form" || isEditMode) return;
     // Sem conta ainda (novo cadastro) → grava sob a chave anônima, já que
@@ -84,7 +85,16 @@ const Anamnesis = () => {
       try {
         const draft = { d, gender, tpm, quedaF, groups, savedAt: Date.now() };
         localStorage.setItem(draftKey, JSON.stringify(draft));
-      } catch { /* quota etc. */ }
+      } catch {
+        // Quota estourada ou localStorage bloqueado — sem isso o aluno não
+        // tinha como saber que o preenchimento não estava mais protegido
+        // contra fechar a aba. Avisa uma única vez para não repetir a cada
+        // tecla digitada.
+        if (!draftSaveFailedRef.current) {
+          draftSaveFailedRef.current = true;
+          showToast("Não foi possível salvar seu progresso automaticamente neste dispositivo. Evite fechar a página antes de enviar.");
+        }
+      }
     }, 600);
     return () => clearTimeout(handle);
   }, [d, gender, tpm, quedaF, groups, bootstrapping, step, loggedUserId, isEditMode]);
@@ -96,7 +106,17 @@ const Anamnesis = () => {
     if (isEditMode || step !== "form") return;
     const draftKey = loggedUserId ? ANAMNESIS_DRAFT_KEY(loggedUserId) : ANAMNESIS_ANON_DRAFT_KEY;
     try {
-      const raw = localStorage.getItem(draftKey);
+      // Se a conta acabou de existir (loggedUserId), o rascunho pode ainda
+      // estar salvo sob a chave anônima — foi escrito antes do signUp
+      // acontecer. Sem este fallback, um reload nesse meio-tempo (ex.: conta
+      // criada mas o restante do envio não terminou) "zera" o formulário na
+      // tela mesmo com os dados intactos no localStorage.
+      let raw = localStorage.getItem(draftKey);
+      let usedAnonFallback = false;
+      if (!raw && loggedUserId) {
+        raw = localStorage.getItem(ANAMNESIS_ANON_DRAFT_KEY);
+        usedAnonFallback = !!raw;
+      }
       if (!raw) return;
       const draft = JSON.parse(raw);
       if (draft?.d && typeof draft.d === "object") {
@@ -106,6 +126,15 @@ const Anamnesis = () => {
       if (Array.isArray(draft?.tpm)) setTpm(draft.tpm);
       if (Array.isArray(draft?.quedaF)) setQuedaF(draft.quedaF);
       if (draft?.groups && typeof draft.groups === "object") setGroups(draft.groups);
+      // Migra o rascunho para a chave definitiva do usuário e limpa a
+      // anônima, para as próximas gravações (e uma eventual recuperação
+      // futura) já usarem a chave certa.
+      if (usedAnonFallback && loggedUserId) {
+        try {
+          localStorage.setItem(ANAMNESIS_DRAFT_KEY(loggedUserId), raw);
+          localStorage.removeItem(ANAMNESIS_ANON_DRAFT_KEY);
+        } catch { /* noop */ }
+      }
     } catch { /* draft corrompido — ignora */ }
   }, [loggedUserId, isEditMode, step]);
 
