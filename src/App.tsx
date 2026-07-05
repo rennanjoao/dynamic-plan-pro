@@ -68,14 +68,14 @@ const App = () => {
           <Suspense fallback={<PageLoader />}>
             <Routes>
               {/* Públicas */}
-              <Route path="/"            element={<Index />} />
-              <Route path="/auth"        element={<Auth />} />
-              <Route path="/admin-login" element={<AdminLogin />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/register"    element={<CoachRegister />} />
+              <Route path="/"            element={<ErrorBoundary label="Algo deu errado. Recarregue a página."><Index /></ErrorBoundary>} />
+              <Route path="/auth"        element={<ErrorBoundary label="Algo deu errado. Recarregue a página."><Auth /></ErrorBoundary>} />
+              <Route path="/admin-login" element={<ErrorBoundary label="Algo deu errado. Recarregue a página."><AdminLogin /></ErrorBoundary>} />
+              <Route path="/reset-password" element={<ErrorBoundary label="Algo deu errado. Recarregue a página."><ResetPassword /></ErrorBoundary>} />
+              <Route path="/register"    element={<ErrorBoundary label="Algo deu errado. Recarregue a página."><CoachRegister /></ErrorBoundary>} />
 
               {/* Rota de Referral (Landing Page de Convite) */}
-              <Route path="/c/:coachId"  element={<ReferralWelcome />} />
+              <Route path="/c/:coachId"  element={<ErrorBoundary label="Algo deu errado. Recarregue a página."><ReferralWelcome /></ErrorBoundary>} />
 
               {/* Redirects de rotas antigas — mantém links antigos funcionando */}
               <Route path="/student"  element={<Navigate to="/student-area" replace />} />
@@ -83,7 +83,7 @@ const App = () => {
               <Route path="/daily"    element={<Navigate to="/student-area" replace />} />
 
               {/* Porta de entrada (novo cadastro) */}
-              <Route path="/anamnesis" element={<Anamnesis />} />
+              <Route path="/anamnesis" element={<ErrorBoundary label="Algo deu errado. Recarregue a página."><Anamnesis /></ErrorBoundary>} />
 
               {/* Aluno autenticado */}
               <Route path="/student-area"  element={<ErrorBoundary label="Erro na área do aluno. Recarregue."><AnamnesisGuard><StudentArea /></AnamnesisGuard></ErrorBoundary>} />
@@ -96,10 +96,10 @@ const App = () => {
 
               {/* Coach */}
               <Route path="/coach"  element={<ErrorBoundary label="Erro na área do coach. Recarregue."><AdminGuard requiredRole="coach"><CoachGuard><CoachDashboard /></CoachGuard></AdminGuard></ErrorBoundary>} />
-              <Route path="/planos" element={<Planos />} />
+              <Route path="/planos" element={<ErrorBoundary label="Algo deu errado. Recarregue a página."><Planos /></ErrorBoundary>} />
 
               {/* Admin */}
-              <Route path="/admin" element={<AdminGuard><Admin /></AdminGuard>} />
+              <Route path="/admin" element={<ErrorBoundary label="Erro na área administrativa. Recarregue."><AdminGuard><Admin /></AdminGuard></ErrorBoundary>} />
 
               <Route path="*" element={<NotFound />} />
             </Routes>
