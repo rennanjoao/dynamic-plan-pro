@@ -559,6 +559,8 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
   const [editingFinance, setEditingFinance] = useState<{ id: string; due_date: string } | null>(null);
   const [quickBilling, setQuickBilling] = useState<{ student_id: string; student_name: string } | null>(null);
   const [quickForm, setQuickForm] = useState({ description: "Mensalidade", amount: "", due_date: "" });
+  const [savingDueDate, setSavingDueDate] = useState(false);
+  const [creatingBilling, setCreatingBilling] = useState(false);
 
   const addFinance = useMutation({
     mutationFn: async () => {
@@ -598,31 +600,45 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
   };
 
   const updateDueDate = async () => {
-    if (!editingFinance) return;
-    const { error } = await supabase.from("coach_finances")
-      .update({ due_date: editingFinance.due_date || null })
-      .eq("id", editingFinance.id);
-    if (error) { toast.error(error.message); return; }
-    qc.invalidateQueries({ queryKey: ["coach-finances"] });
-    setEditingFinance(null);
-    toast.success("Data de vencimento atualizada!");
+    if (!editingFinance || savingDueDate) return;
+    setSavingDueDate(true);
+    try {
+      const { error } = await supabase.from("coach_finances")
+        .update({ due_date: editingFinance.due_date || null })
+        .eq("id", editingFinance.id);
+      if (error) throw error;
+      qc.invalidateQueries({ queryKey: ["coach-finances"] });
+      setEditingFinance(null);
+      toast.success("Data de vencimento atualizada!");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao atualizar vencimento");
+    } finally {
+      setSavingDueDate(false);
+    }
   };
 
   const createQuickBilling = async () => {
-    if (!quickBilling) return;
-    const { error } = await supabase.from("coach_finances").insert({
-      coach_id: coachId,
-      student_id: quickBilling.student_id,
-      description: quickForm.description || "Mensalidade",
-      amount: Number(quickForm.amount || 0),
-      due_date: quickForm.due_date || null,
-      status: "pending",
-    });
-    if (error) { toast.error(error.message); return; }
-    qc.invalidateQueries({ queryKey: ["coach-finances"] });
-    setQuickBilling(null);
-    setQuickForm({ description: "Mensalidade", amount: "", due_date: "" });
-    toast.success(`Cobrança criada para ${quickBilling.student_name}. O aluno receberá o alerta.`);
+    if (!quickBilling || creatingBilling) return;
+    setCreatingBilling(true);
+    try {
+      const { error } = await supabase.from("coach_finances").insert({
+        coach_id: coachId,
+        student_id: quickBilling.student_id,
+        description: quickForm.description || "Mensalidade",
+        amount: Number(quickForm.amount || 0),
+        due_date: quickForm.due_date || null,
+        status: "pending",
+      });
+      if (error) throw error;
+      qc.invalidateQueries({ queryKey: ["coach-finances"] });
+      toast.success(`Cobrança criada para ${quickBilling.student_name}. O aluno receberá o alerta.`);
+      setQuickBilling(null);
+      setQuickForm({ description: "Mensalidade", amount: "", due_date: "" });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao criar cobrança");
+    } finally {
+      setCreatingBilling(false);
+    }
   };
 
   const totalReceita  = finances.filter((f) => f.status === "paid").reduce((s, f) => s + Number(f.amount), 0);
@@ -746,7 +762,9 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
             <p className="text-[11px] text-muted-foreground bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
               O aluno verá um alerta de cobrança no painel dele assim que a data de vencimento se aproximar.
             </p>
-            <Button onClick={createQuickBilling} className="w-full">Criar Cobrança</Button>
+            <Button onClick={createQuickBilling} disabled={creatingBilling} className="w-full">
+              {creatingBilling ? "Criando..." : "Criar Cobrança"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -764,7 +782,9 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
                 className="mt-1 h-9"
               />
             </div>
-            <Button onClick={updateDueDate} className="w-full">Salvar Alteração</Button>
+            <Button onClick={updateDueDate} disabled={savingDueDate} className="w-full">
+              {savingDueDate ? "Salvando..." : "Salvar Alteração"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
