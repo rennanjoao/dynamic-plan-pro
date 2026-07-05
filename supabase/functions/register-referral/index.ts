@@ -1,14 +1,14 @@
-// supabase/functions/resolve-referral-coach/index.ts
-// Dado um código de indicação (?ref=), descobre automaticamente o coach do
-// aluno que indicou — para que o amigo convidado NÃO precise digitar
-// manualmente o código do coach na tela de cadastro (Anamnesis.tsx).
+// supabase/functions/register-referral/index.ts
+// Grava a atribuição de indicação aluno→aluno após o cadastro do novo aluno.
+// Chamada por src/pages/Anamnesis.tsx logo após link-coach-student ter sucesso.
 //
-// Isso preserva a trava de segurança do site (ninguém se cadastra sem estar
-// vinculado a um coach) enquanto elimina a fricção de pedir dois códigos
-// diferentes (o de indicação + o do coach) pra mesma pessoa.
-//
-// Chamado ANTES do login (visitante ainda não tem conta), igual à
-// validate-invite-code — por isso não exige Authorization header.
+// Regras de segurança:
+// - O referrer_student_id NUNCA vem do client — é resolvido no banco (RPC
+//   resolve_referral_code), senão qualquer pessoa poderia forjar um UUID e
+//   "roubar" a comissão de outro aluno.
+// - Auto-indicação é bloqueada (referrerId === referredUserId).
+// - Idempotente via UNIQUE(referred_user_id) + upsert ignoreDuplicates: um
+//   usuário só pode ser atribuído a UM indicador, para sempre.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { buildCorsHeaders } from "../_shared/cors.ts";
@@ -18,7 +18,8 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { refCode } = await req.json();
+    const { refCode, coachId, utmSource, utmMedium, utmCampaign } = await req.json();
+
     if (!refCode || typeof refCode !== "string") {
       return new Response(JSON.stringify({ error: "refCode obrigatório" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -27,50 +28,74 @@ Deno.serve(async (req: Request) => {
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    if (!token) {
+      return new Response(JSON.stringify({ error: "não autenticado" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    const { data: userData, error: userErr } = await userClient.auth.getUser();
+    if (userErr || !userData.user) {
+      return new Response(JSON.stringify({ error: "sessão inválida" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const referredUserId = userData.user.id;
+
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    // 1) Resolve o código para o aluno que indicou (nunca exposto ao client)
+    // Resolve o código para o aluno que indicou (nunca confiar em ID vindo do client)
     const { data: referrerId, error: resolveErr } = await admin.rpc("resolve_referral_code", {
       p_code: refCode,
     });
     if (resolveErr) throw resolveErr;
 
     if (!referrerId) {
-      return new Response(JSON.stringify({ error: "Código de indicação inválido ou expirado." }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      // Código inexistente/expirado — não é erro fatal, o cadastro segue normalmente
+      return new Response(JSON.stringify({ ok: true, attributed: false, reason: "invalid_code" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // 2) Descobre o coach ATIVO desse aluno — é para esse coach que o
-    //    novo aluno indicado também vai ser vinculado.
-    const { data: link, error: linkErr } = await admin
-      .from("coach_students")
-      .select("coach_id")
-      .eq("student_id", referrerId)
-      .eq("status", "active")
-      .maybeSingle();
-    if (linkErr) throw linkErr;
-
-    if (!link?.coach_id) {
-      return new Response(JSON.stringify({ error: "Aluno indicador sem coach ativo no momento." }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    if (referrerId === referredUserId) {
+      return new Response(JSON.stringify({ ok: true, attributed: false, reason: "self_referral" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // 3) Busca os dados do coach (mesmo formato de validate-invite-code, para
-    //    o front reutilizar o mesmo shape de estado `coach`)
-    const { data: prof, error: profErr } = await admin
-      .from("profiles")
-      .select("full_name, notification_email")
-      .eq("user_id", link.coach_id)
-      .maybeSingle();
-    if (profErr) throw profErr;
+    // Idempotente: UNIQUE(referred_user_id) garante que cada pessoa só é
+    // atribuída a um indicador, mesmo que essa function seja chamada 2x.
+    const { error: insertErr } = await admin
+      .from("referrals")
+      .upsert(
+        {
+          referrer_student_id: referrerId,
+          referred_user_id: referredUserId,
+          coach_id: coachId ?? null,
+          ref_code: String(refCode).trim().toUpperCase(),
+          utm_source: utmSource ?? null,
+          utm_medium: utmMedium ?? null,
+          utm_campaign: utmCampaign ?? null,
+          converted_at: new Date().toISOString(),
+        },
+        { onConflict: "referred_user_id", ignoreDuplicates: true }
+      );
 
-    return new Response(JSON.stringify({
-      coach_id: link.coach_id,
-      coach_name: prof?.full_name ?? "Seu Treinador",
-      notification_email: prof?.notification_email ?? null,
-    }), {
+    if (insertErr) {
+      console.warn("[register-referral] falha ao gravar:", insertErr.message);
+      return new Response(JSON.stringify({ error: insertErr.message }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ ok: true, attributed: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
