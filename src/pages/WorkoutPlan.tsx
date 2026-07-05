@@ -44,6 +44,8 @@ function InfoPopover({ termKey }: { termKey: keyof typeof TERM_INFO }) {
   );
 }
 
+const WORKOUT_MODE_UI_KEY = (uid: string) => `workout_mode_ui_${uid}`;
+
 export default function WorkoutPlan() {
   const navigate = useNavigate();
   const [userId, setUserId] = useState("");
@@ -59,6 +61,41 @@ export default function WorkoutPlan() {
       else navigate("/auth");
     });
   }, [navigate]);
+
+  // ── Resiliência ao Reload (F5): restaura o Modo Treino aberto ──────────────
+  // Sem isto, recarregar a página durante um treino em curso derruba o aluno
+  // de volta para a lista de planos sem nenhum aviso (estado só existia em
+  // memória volátil). Roda uma única vez, assim que o userId é conhecido.
+  useEffect(() => {
+    if (!userId) return;
+    try {
+      const raw = localStorage.getItem(WORKOUT_MODE_UI_KEY(userId));
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (saved?.showWorkoutMode) {
+        setShowWorkoutMode(true);
+        setWorkoutModeDay(saved.workoutModeDay ?? undefined);
+        setWorkoutModeWeek(saved.workoutModeWeek ?? 0);
+      }
+    } catch { /* rascunho corrompido — ignora */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  // Persiste o estado do Modo Treino a cada mudança, e limpa quando é fechado
+  // (via onClose ou finalização) — mantém a UI e o localStorage sempre em sincronia.
+  useEffect(() => {
+    if (!userId) return;
+    try {
+      if (showWorkoutMode) {
+        localStorage.setItem(
+          WORKOUT_MODE_UI_KEY(userId),
+          JSON.stringify({ showWorkoutMode, workoutModeDay, workoutModeWeek })
+        );
+      } else {
+        localStorage.removeItem(WORKOUT_MODE_UI_KEY(userId));
+      }
+    } catch { /* quota etc. */ }
+  }, [userId, showWorkoutMode, workoutModeDay, workoutModeWeek]);
 
   const { data: planData, isLoading } = useQuery({
     queryKey: ["student-workout-json", userId],
@@ -298,7 +335,7 @@ export default function WorkoutPlan() {
           )}
       </main>
 
-      {showWorkoutMode && (
+      {showWorkoutMode && workouts.length > 0 && (
         <WorkoutMode
           workouts={workouts as any}
           userId={userId}
