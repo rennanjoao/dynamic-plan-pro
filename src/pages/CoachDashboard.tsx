@@ -11,7 +11,7 @@
  * [REFACTOR] Botão de Anamnese agora abre o EvolutionDialog diretamente.
  */
 
-import { useState, lazy, Suspense, useEffect } from "react";
+import { useState, useRef, lazy, Suspense, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoachStudentsPaged, useCoachStudentsLite, type StudentStatus, type AlertLevel, type StudentLite } from "@/hooks/useCoachStudents";
@@ -155,23 +155,25 @@ function StudentFeedbackConfigDialog({
       return;
     }
     setSaving(true);
-    const { error } = await sb
-      .from("coach_students")
-      .update({
-        feedback_interval_days: interval,
-        warning_days: warning,
-        critical_days: critical,
-      })
-      .eq("coach_id", coachId)
-      .eq("student_id", student.id);
-    setSaving(false);
-    if (error) {
-      toast.error("Erro ao salvar: " + error.message);
-      return;
+    try {
+      const { error } = await sb
+        .from("coach_students")
+        .update({
+          feedback_interval_days: interval,
+          warning_days: warning,
+          critical_days: critical,
+        })
+        .eq("coach_id", coachId)
+        .eq("student_id", student.id);
+      if (error) throw error;
+      toast.success("Configuração de feedback atualizada");
+      onSaved();
+      onClose();
+    } catch (e) {
+      toast.error("Erro ao salvar: " + (e instanceof Error ? e.message : "erro desconhecido"));
+    } finally {
+      setSaving(false);
     }
-    toast.success("Configuração de feedback atualizada");
-    onSaved();
-    onClose();
   };
 
   return (
@@ -234,9 +236,9 @@ const sb: any = supabase;
 function useCoachId() {
   const [coachId, setCoachId] = useState<string | null>(null);
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setCoachId(data.session?.user?.id || null);
-    });
+    supabase.auth.getSession()
+      .then(({ data }) => { setCoachId(data.session?.user?.id || null); })
+      .catch((e) => { console.warn("[useCoachId] Falha ao obter sessão:", e); setCoachId(null); });
   }, []);
   return coachId;
 }
@@ -385,19 +387,22 @@ function CheckinHistoryDialog({
     if (!open || !student) return;
     (async () => {
       setLoading(true);
-      const { data, error } = await sb
-        .from("check_ins")
-        .select("id, submitted_at, current_metrics, payload, coach_feedback, photo_url, feedback_read_at")
-        .eq("student_id", student.id)
-        .order("submitted_at", { ascending: false })
-        .limit(50); // teto de segurança — histórico ilimitado travava a UI
-      if (error) {
-        console.error("[CheckinHistoryDialog]", error.message);
+      try {
+        const { data, error } = await sb
+          .from("check_ins")
+          .select("id, submitted_at, current_metrics, payload, coach_feedback, photo_url, feedback_read_at")
+          .eq("student_id", student.id)
+          .order("submitted_at", { ascending: false })
+          .limit(50); // teto de segurança — histórico ilimitado travava a UI
+        if (error) throw error;
+        setItems((data || []) as CheckinRow[]);
+        setExpanded({});
+      } catch (e) {
+        console.error("[CheckinHistoryDialog]", e instanceof Error ? e.message : e);
         toast.error("Erro ao carregar histórico de check-ins");
+      } finally {
+        setLoading(false);
       }
-      setItems((data || []) as CheckinRow[]);
-      setLoading(false);
-      setExpanded({});
     })();
   }, [open, student]);
 
@@ -585,18 +590,28 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
   });
 
   const togglePaid = async (id: string, currentlyPaid: boolean) => {
-    await supabase.from("coach_finances").update({
-      status: currentlyPaid ? "pending" : "paid",
-      paid_at: currentlyPaid ? null : new Date().toISOString(),
-    }).eq("id", id);
-    qc.invalidateQueries({ queryKey: ["coach-finances"] });
-    toast.success(currentlyPaid ? "Marcado como pendente" : "Marcado como pago");
+    try {
+      const { error } = await supabase.from("coach_finances").update({
+        status: currentlyPaid ? "pending" : "paid",
+        paid_at: currentlyPaid ? null : new Date().toISOString(),
+      }).eq("id", id);
+      if (error) throw error;
+      qc.invalidateQueries({ queryKey: ["coach-finances"] });
+      toast.success(currentlyPaid ? "Marcado como pendente" : "Marcado como pago");
+    } catch (e) {
+      toast.error("Erro ao atualizar status: " + (e instanceof Error ? e.message : "erro desconhecido"));
+    }
   };
 
   const deleteFinance = async (id: string) => {
     if (!(await confirm({ title: "Remover registro", description: "Remover registro financeiro?", destructive: true, confirmLabel: "Remover" }))) return;
-    await supabase.from("coach_finances").delete().eq("id", id);
-    qc.invalidateQueries({ queryKey: ["coach-finances"] });
+    try {
+      const { error } = await supabase.from("coach_finances").delete().eq("id", id);
+      if (error) throw error;
+      qc.invalidateQueries({ queryKey: ["coach-finances"] });
+    } catch (e) {
+      toast.error("Erro ao remover: " + (e instanceof Error ? e.message : "erro desconhecido"));
+    }
   };
 
   const updateDueDate = async () => {
@@ -849,7 +864,10 @@ function ProfileDialog({ coachId, open, onClose }: { coachId: string; open: bool
       });
   }, [open, coachId]);
 
+  const generatingRef = useRef(false);
   const generateCode = async () => {
+    if (generatingRef.current) return;
+    generatingRef.current = true;
     setGenerating(true);
     try {
       const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -860,7 +878,7 @@ function ProfileDialog({ coachId, open, onClose }: { coachId: string; open: bool
         if (!exists) { setInviteCode(code); toast.success("Código gerado. Lembre de salvar."); return; }
       }
       toast.error("Não foi possível gerar um código único.");
-    } catch (e: any) { toast.error(e.message); } finally { setGenerating(false); }
+    } catch (e: any) { toast.error(e.message); } finally { generatingRef.current = false; setGenerating(false); }
   };
 
   const copyCode = async () => {
@@ -869,13 +887,16 @@ function ProfileDialog({ coachId, open, onClose }: { coachId: string; open: bool
     toast.success("Código copiado");
   };
 
+  const loadingRef = useRef(false);
   const save = async () => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setLoading(true);
     try {
       const code = inviteCode.trim().toUpperCase() || null;
       if (code) {
         const { data: clash } = await supabase.from("profiles").select("user_id").eq("invite_code", code).neq("user_id", coachId).maybeSingle();
-        if (clash) { toast.error("Este código já está em uso por outro coach."); setLoading(false); return; }
+        if (clash) { toast.error("Este código já está em uso por outro coach."); return; }
       }
       const { error } = await sb.from("profiles").update({
         full_name: fullName,
@@ -893,7 +914,7 @@ function ProfileDialog({ coachId, open, onClose }: { coachId: string; open: bool
       qc.invalidateQueries({ queryKey: ["coach-profile", coachId] });
       qc.invalidateQueries({ queryKey: ["coach-students"] });
       onClose();
-    } catch (e: any) { toast.error(e.message); } finally { setLoading(false); }
+    } catch (e: any) { toast.error(e.message); } finally { loadingRef.current = false; setLoading(false); }
   };
 
   return (
@@ -1035,15 +1056,25 @@ export default function CoachDashboard() {
 
   const confirmUnlink = async () => {
     if (!unlinkTarget) return;
-    await supabase.from("coach_students").update({ status: "inactive" }).eq("coach_id", coachId).eq("student_id", unlinkTarget.id);
-    qc.invalidateQueries({ queryKey: ["coach-students"] });
-    toast.success("Aluno desvinculado");
-    setUnlinkTarget(null);
+    try {
+      const { error } = await supabase.from("coach_students").update({ status: "inactive" }).eq("coach_id", coachId).eq("student_id", unlinkTarget.id);
+      if (error) throw error;
+      qc.invalidateQueries({ queryKey: ["coach-students"] });
+      toast.success("Aluno desvinculado");
+      setUnlinkTarget(null);
+    } catch (e) {
+      toast.error("Erro ao desvincular: " + (e instanceof Error ? e.message : "erro desconhecido"));
+    }
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    window.location.href = "/auth";
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn("[handleLogout] Falha ao encerrar sessão no servidor:", e);
+    } finally {
+      window.location.href = "/auth";
+    }
   };
 
   if (view !== "list" && selectedStudent) {
