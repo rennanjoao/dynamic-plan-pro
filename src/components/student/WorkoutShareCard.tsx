@@ -1,15 +1,17 @@
 // src/components/student/WorkoutShareCard.tsx
-// Card de Compartilhamento — Elite Prime Hub (Sprint 11)
+// Card de Compartilhamento — Elite Prime Hub (Sprint 12 — Refactor Stories 9:16)
 
 import { useEffect, useRef, useState } from "react";
-import { Download, Share2, X, Loader2 } from "lucide-react";
+import { Download, Share2, X, Loader2, Eye, EyeOff } from "lucide-react";
 import html2canvas from "html2canvas";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
+  studentName?: string;
   workoutName: string;
   durationSec: number;
   totalSets: number;
@@ -21,6 +23,7 @@ interface Props {
   coachId?: string;
   studentId?: string; // necessário para gerar/buscar o código de referral
   prs?: { exerciseName: string; weightKg: number; reps: number }[];
+  totalVolumeKg?: number; // soma de kg x reps da sessão — métrica "orgulho" não tóxica
   onClose: () => void;
 }
 
@@ -34,31 +37,39 @@ function fmtDuration(sec: number): string {
   return `${m}min ${String(s).padStart(2, "0")}s`;
 }
 
-const GOLD = "#C9A84C";
+function fmtVolume(kg: number): string {
+  if (kg >= 1000) return `${(kg / 1000).toFixed(1)}t`;
+  return `${Math.round(kg)}kg`;
+}
+
+// Identidade Elite Prime Hub
 const BG = "#080808";
+const GOLD = "#C5A059";
+const RED = "#B11226";
 const BORDER = "#2A2A2A";
 
 export default function WorkoutShareCard({
+  studentName = "Membro Elite Prime Hub",
   workoutName,
   durationSec,
   totalSets,
   completedExercises,
   totalExercises,
-  coachName,
+  coachName = "Rennan João",
   teamName,
   streak,
   coachId,
   studentId,
   prs,
+  totalVolumeKg,
   onClose,
 }: Props) {
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [referralCode, setReferralCode] = useState<string | null>(null);
+  // Dilema da Carga: opt-in explícito do aluno, off por padrão.
+  const [showLoad, setShowLoad] = useState(false);
 
-  // Busca (ou cria, no backend) o código de indicação único do aluno.
-  // Sem isso o QR apontava pra URL genérica e não havia como atribuir quem
-  // trouxe um novo aluno — o modelo de bônus de referral ficava inoperável.
   useEffect(() => {
     if (!studentId) return;
     (supabase as any)
@@ -85,8 +96,6 @@ export default function WorkoutShareCard({
     return new Promise<Blob | null>((res) => canvas.toBlob(res, "image/png"));
   };
 
-  // URL rastreada do QR — só inclui ?ref= quando o código já carregou, para
-  // não gravar cliques órfãos sem atribuição possível.
   const qrTrackedUrl = referralCode
     ? `https://www.eliteprimehub.com.br?ref=${referralCode}&utm_source=workout_share&utm_medium=qrcode&utm_campaign=student_referral`
     : "https://www.eliteprimehub.com.br";
@@ -167,12 +176,27 @@ export default function WorkoutShareCard({
           </button>
         </div>
 
-        {/* Card 4:5 */}
+        {/* Toggle: Dilema da Carga — opt-in explícito, sempre off por padrão */}
+        <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
+          <div className="flex items-center gap-2">
+            {showLoad ? (
+              <Eye className="w-4 h-4" style={{ color: GOLD }} />
+            ) : (
+              <EyeOff className="w-4 h-4 text-white/40" />
+            )}
+            <span className="text-xs font-bold text-white/70 uppercase tracking-wide">
+              Exibir cargas (kg) na imagem
+            </span>
+          </div>
+          <Switch checked={showLoad} onCheckedChange={setShowLoad} />
+        </div>
+
+        {/* Card 9:16 — formato nativo do Instagram Stories */}
         <div
           ref={cardRef}
           style={{
             width: "100%",
-            aspectRatio: "4 / 5",
+            aspectRatio: "9 / 16",
             background: BG,
             borderRadius: "20px",
             overflow: "hidden",
@@ -189,11 +213,18 @@ export default function WorkoutShareCard({
               position: "absolute",
               inset: 0,
               pointerEvents: "none",
-              background: `radial-gradient(ellipse 80% 50% at 50% 0%, rgba(201,168,76,0.18) 0%, transparent 70%)`,
+              background: `radial-gradient(ellipse 80% 45% at 50% 0%, rgba(197,160,89,0.16) 0%, transparent 70%)`,
             }}
           />
-
-          {/* Linha de brilho */}
+          {/* Glow inferior em vermelho — assinatura de marca sutil */}
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              pointerEvents: "none",
+              background: `radial-gradient(ellipse 70% 35% at 50% 100%, rgba(177,18,38,0.14) 0%, transparent 70%)`,
+            }}
+          />
           <div
             style={{
               position: "absolute",
@@ -205,59 +236,54 @@ export default function WorkoutShareCard({
             }}
           />
 
-          {/* Conteúdo */}
+          {/* Conteúdo — padding vertical generoso cria as Safe Zones do Stories:
+              ~14% no topo (nome/foto do usuário do IG) e ~18% embaixo (barra de
+              mensagem/reações do IG) ficam livres de qualquer elemento crítico. */}
           <div
             style={{
               position: "relative",
               flex: 1,
               display: "flex",
               flexDirection: "column",
-              padding: "28px 24px 24px",
+              padding: "14% 7% 18%",
             }}
           >
-            {/* Header: marca + data */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                justifyContent: "space-between",
-              }}
-            >
+            {/* Topo: marca + data */}
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
               <div>
-                <p
-                  style={{
-                    color: GOLD,
-                    fontSize: "10px",
-                    letterSpacing: "0.22em",
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    marginBottom: "2px",
-                  }}
-                >
+                <p style={{ color: GOLD, fontSize: "11px", letterSpacing: "0.22em", fontWeight: 700, textTransform: "uppercase", marginBottom: "2px" }}>
                   ELITE PRIME HUB
                 </p>
-                <p
-                  style={{
-                    color: "rgba(255,255,255,0.7)",
-                    fontSize: "12px",
-                    fontWeight: 700,
-                  }}
-                >
+                <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "12px", fontWeight: 700 }}>
                   Performance
                 </p>
               </div>
-              <p
-                style={{
-                  color: "rgba(255,255,255,0.3)",
-                  fontSize: "10px",
-                  textAlign: "right",
-                }}
-              >
+              <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "10px", textAlign: "right" }}>
                 {today}
               </p>
             </div>
 
-            {/* Centro: troféu + stats */}
+            {/* Tag "Treino Concluído" — em Red, o selo de status */}
+            <div style={{ marginTop: "18px" }}>
+              <span
+                style={{
+                  display: "inline-block",
+                  padding: "6px 14px",
+                  borderRadius: "999px",
+                  background: `${RED}22`,
+                  border: `1px solid ${RED}88`,
+                  color: "#FF5C6C",
+                  fontSize: "10px",
+                  fontWeight: 900,
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                }}
+              >
+                ✓ Treino Concluído
+              </span>
+            </div>
+
+            {/* Centro: aluno + treino + troféu */}
             <div
               style={{
                 flex: 1,
@@ -266,182 +292,118 @@ export default function WorkoutShareCard({
                 alignItems: "center",
                 justifyContent: "center",
                 textAlign: "center",
-                gap: "16px",
+                gap: "18px",
+                marginTop: "8px",
               }}
             >
-              {/* Troféu */}
               <div
                 style={{
-                  width: "100px",
-                  height: "100px",
+                  width: "84px",
+                  height: "84px",
                   borderRadius: "50%",
                   border: `2px solid ${GOLD}`,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: "48px",
+                  fontSize: "40px",
                   boxShadow: `0 0 30px ${GOLD}33`,
                 }}
               >
                 🏆
               </div>
 
-              {/* Título */}
               <div>
-                <p
-                  style={{
-                    color: "rgba(255,255,255,0.5)",
-                    fontSize: "11px",
-                    letterSpacing: "0.15em",
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    marginBottom: "4px",
-                  }}
-                >
+                <p style={{ color: "#fff", fontSize: "20px", fontWeight: 800, lineHeight: 1.2, marginBottom: "6px" }}>
+                  {studentName}
+                </p>
+                <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "11px", letterSpacing: "0.15em", fontWeight: 600, textTransform: "uppercase", marginBottom: "4px" }}>
                   Treino
                 </p>
-                <p
-                  style={{
-                    color: "#fff",
-                    fontSize: "42px",
-                    fontWeight: 900,
-                    lineHeight: 1,
-                    letterSpacing: "-1px",
-                  }}
-                >
+                <p style={{ color: "#fff", fontSize: "32px", fontWeight: 900, lineHeight: 1, letterSpacing: "-1px" }}>
                   {workoutName}
                 </p>
               </div>
 
-              {/* Motivação */}
-              <p
-                style={{
-                  color: GOLD,
-                  fontSize: "15px",
-                  fontWeight: 800,
-                  fontStyle: "italic",
-                  letterSpacing: "0.02em",
-                  maxWidth: "220px",
-                  lineHeight: 1.4,
-                }}
-              >
+              <p style={{ color: GOLD, fontSize: "14px", fontWeight: 800, fontStyle: "italic", maxWidth: "240px", lineHeight: 1.4 }}>
                 {prs && prs.length > 0 ? "Você superou seus próprios limites." : "Consistência é o único atalho."}
               </p>
 
-              {/* Streak */}
               {streak && streak >= 2 && (
                 <div
                   style={{
                     padding: "6px 16px",
                     border: `1px solid #FF6B35`,
                     borderRadius: "999px",
-                    background: `rgba(255,107,53,0.1)`,
+                    background: "rgba(255,107,53,0.1)",
                     display: "flex",
                     alignItems: "center",
                     gap: "6px",
                   }}
                 >
-                  <span
-                    style={{
-                      color: "#FF6B35",
-                      fontSize: "11px",
-                      fontWeight: 900,
-                      textTransform: "uppercase",
-                    }}
-                  >
+                  <span style={{ color: "#FF6B35", fontSize: "11px", fontWeight: 900, textTransform: "uppercase" }}>
                     🔥 {streak} dias
                   </span>
                 </div>
               )}
+
+              {/* Recordes Pessoais — o fato do recorde é sempre exibido;
+                  o número (kg) só aparece se o aluno ativar o toggle acima. */}
+              {prs && prs.length > 0 && (
+                <div style={{ width: "100%" }}>
+                  <div
+                    style={{
+                      padding: "12px 16px",
+                      borderRadius: "14px",
+                      background: "linear-gradient(135deg, rgba(197,160,89,0.18), rgba(197,160,89,0.04))",
+                      border: `1px solid ${GOLD}55`,
+                    }}
+                  >
+                    <p style={{ color: GOLD, fontSize: "9px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: "6px" }}>
+                      🏆 {prs.length === 1 ? "Recorde Pessoal Batido" : `${prs.length} Recordes Pessoais Batidos`}
+                    </p>
+                    {prs.slice(0, 2).map((pr, i) => (
+                      <p key={i} style={{ color: "#fff", fontSize: "13px", fontWeight: 800 }}>
+                        {pr.exerciseName}
+                        {showLoad ? (
+                          <>
+                            : <span style={{ color: GOLD }}>{pr.weightKg}kg</span> × {pr.reps}
+                          </>
+                        ) : (
+                          <span style={{ color: GOLD }}> · novo recorde</span>
+                        )}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Recordes Pessoais — o gancho de orgulho que gera compartilhamento espontâneo */}
-            {prs && prs.length > 0 && (
-              <div style={{ marginTop: "12px" }}>
-                <div
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: "14px",
-                    background: "linear-gradient(135deg, rgba(201,168,76,0.18), rgba(201,168,76,0.04))",
-                    border: `1px solid ${GOLD}55`,
-                  }}
-                >
-                  <p style={{ color: GOLD, fontSize: "9px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: "6px" }}>
-                    🏆 {prs.length === 1 ? "Recorde Pessoal Batido" : `${prs.length} Recordes Pessoais Batidos`}
-                  </p>
-                  {prs.slice(0, 2).map((pr, i) => (
-                    <p key={i} style={{ color: "#fff", fontSize: "13px", fontWeight: 800 }}>
-                      {pr.exerciseName}: <span style={{ color: GOLD }}>{pr.weightKg}kg</span> × {pr.reps}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Stats Grid */}
+            {/* Stats Grid — Volume Total substitui exposição de carga isolada */}
             <div style={{ marginTop: "12px" }}>
-              <div
-                style={{
-                  height: "1px",
-                  marginBottom: "14px",
-                  background: `linear-gradient(90deg, transparent, ${GOLD}33, transparent)`,
-                }}
-              />
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr 1fr",
-                  gap: "8px",
-                }}
-              >
+              <div style={{ height: "1px", marginBottom: "14px", background: `linear-gradient(90deg, transparent, ${GOLD}33, transparent)` }} />
+              <div style={{ display: "grid", gridTemplateColumns: totalVolumeKg ? "1fr 1fr 1fr 1fr" : "1fr 1fr 1fr", gap: "8px" }}>
                 {[
-                  {
-                    label: "DURAÇÃO",
-                    value: fmtDuration(durationSec),
-                    accent: true,
-                  },
+                  { label: "DURAÇÃO", value: fmtDuration(durationSec), accent: true },
                   { label: "SÉRIES", value: String(totalSets), accent: false },
-                  {
-                    label: "EXERCÍCIOS",
-                    value: `${completedExercises}/${totalExercises}`,
-                    accent: false,
-                  },
+                  { label: "EXERCÍCIOS", value: `${completedExercises}/${totalExercises}`, accent: false },
+                  ...(totalVolumeKg
+                    ? [{ label: "VOLUME", value: fmtVolume(totalVolumeKg), accent: false }]
+                    : []),
                 ].map((stat, i) => (
                   <div
                     key={i}
                     style={{
-                      padding: "10px 8px",
-                      background: stat.accent
-                        ? `${GOLD}22`
-                        : "rgba(255,255,255,0.05)",
+                      padding: "10px 6px",
+                      background: stat.accent ? `${GOLD}22` : "rgba(255,255,255,0.05)",
                       border: `1px solid ${stat.accent ? `${GOLD}44` : "rgba(255,255,255,0.1)"}`,
                       borderRadius: "10px",
                       textAlign: "center",
                     }}
                   >
-                    <p
-                      style={{
-                        color: stat.accent
-                          ? GOLD
-                          : "rgba(255,255,255,0.4)",
-                        fontSize: "8px",
-                        fontWeight: 700,
-                        letterSpacing: "0.1em",
-                        textTransform: "uppercase",
-                        marginBottom: "3px",
-                      }}
-                    >
+                    <p style={{ color: stat.accent ? GOLD : "rgba(255,255,255,0.4)", fontSize: "8px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "3px" }}>
                       {stat.label}
                     </p>
-                    <p
-                      style={{
-                        color: "#fff",
-                        fontSize: "14px",
-                        fontWeight: 900,
-                        lineHeight: 1,
-                      }}
-                    >
+                    <p style={{ color: "#fff", fontSize: "13px", fontWeight: 900, lineHeight: 1 }}>
                       {stat.value}
                     </p>
                   </div>
@@ -449,24 +411,12 @@ export default function WorkoutShareCard({
               </div>
             </div>
 
-            {/* Rodapé */}
-            <div
-              style={{
-                marginTop: "16px",
-                paddingTop: "12px",
-                borderTop: `1px solid ${BORDER}`,
-                textAlign: "center",
-              }}
-            >
-              <p
-                style={{
-                  color: "rgba(255,255,255,0.3)",
-                  fontSize: "9px",
-                  fontWeight: 600,
-                  letterSpacing: "0.15em",
-                  textTransform: "uppercase",
-                }}
-              >
+            {/* Rodapé — Coach + marca, dentro da área segura inferior */}
+            <div style={{ marginTop: "18px", paddingTop: "14px", borderTop: `1px solid ${BORDER}`, textAlign: "center" }}>
+              <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", marginBottom: "4px" }}>
+                Coach <span style={{ color: GOLD }}>{coachName}</span>
+              </p>
+              <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "9px", fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase" }}>
                 www.eliteprimehub.com.br
               </p>
             </div>
@@ -501,11 +451,7 @@ export default function WorkoutShareCard({
             disabled={busy}
             className="w-full h-12 rounded-2xl font-black uppercase italic tracking-tighter bg-primary text-black hover:bg-primary/90 gap-2 shadow-lg shadow-primary/30"
           >
-            {busy ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <Share2 className="w-5 h-5" />
-            )}
+            {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Share2 className="w-5 h-5" />}
             Compartilhar
           </Button>
           <Button
@@ -514,11 +460,7 @@ export default function WorkoutShareCard({
             variant="secondary"
             className="w-full h-12 rounded-2xl font-black uppercase italic tracking-tighter gap-2"
           >
-            {busy ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <Download className="w-5 h-5" />
-            )}
+            {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
             Guardar Imagem
           </Button>
           <Button
