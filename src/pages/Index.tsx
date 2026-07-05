@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect } from "react"; 
 import { Button } from "@/components/ui/button";
 import { Users, Dumbbell, UtensilsCrossed, ArrowRight, Zap, Shield, TrendingUp, Sparkles, Key } from "lucide-react";
 import { motion } from "framer-motion";
