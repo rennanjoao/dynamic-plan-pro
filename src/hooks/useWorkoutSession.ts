@@ -40,6 +40,46 @@ interface FinishSessionParams {
   periodizationWeek?: number;
 }
 
+/* ── Helpers puros (fora do hook — sem dependência de estado/closures) ───────── */
+
+// Monta a linha para `workout_sets`. Extraído para ser reaproveitado tanto no
+// registro imediato (registerSet) quanto na sincronização de pendências
+// (syncPendingSets), evitando que as duas lógicas divirjam com o tempo.
+function buildSetRow(sessionId: string, userId: string, params: RegisterSetParams) {
+  return {
+    session_id:       sessionId,
+    user_id:          userId,
+    exercise_name:    params.exerciseName,
+    exercise_key:     toExerciseKey(params.exerciseName),
+    set_number:       params.setNumber,
+    weight_kg:        params.weightKg ?? null,
+    reps:             params.reps ?? null,
+    reps_target_min:  params.repsTargetMin ?? null,
+    reps_target_max:  params.repsTargetMax ?? null,
+    perceived_effort: params.perceivedEffort ?? null,
+    completed:        params.completed ?? true,
+    skipped:          params.skipped ?? false,
+    notes:            params.notes ?? null,
+    executed_at:      new Date().toISOString(),
+  };
+}
+
+// Lê a fila de séries pendentes (offline) de uma chave de rascunho.
+// Usado ao retomar/iniciar sessão para não perder de vista séries que já
+// estavam no buffer local de uma sessão anterior (ex.: app fechado antes de
+// sincronizar).
+function loadPendingSetsFromStorage(key: string): RegisterSetParams[] {
+  if (!key) return [];
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 /* ── Hook ────────────────────────────────────────────────────────────────────── */
 
 export function useWorkoutSession() {
@@ -65,6 +105,10 @@ export function useWorkoutSession() {
     (params: { sessionId: string; userId: string; workoutKey: string; startedAt: number }) => {
       userIdRef.current = params.userId;
       localDraftKey.current = `workout_session_draft_${params.userId}_${params.workoutKey}`;
+      // Recupera séries que ficaram no buffer local (offline) de uma sessão
+      // anterior sob a mesma chave — sem isso, elas ficam órfãs no
+      // localStorage e nunca são reenviadas ao servidor.
+      pendingSetsRef.current = loadPendingSetsFromStorage(localDraftKey.current);
       setSessionId(params.sessionId);
       setIsActive(true);
       startTimeRef.current = new Date(params.startedAt);
@@ -112,6 +156,10 @@ export function useWorkoutSession() {
   const startSession = useCallback(async (params: StartSessionParams) => {
     userIdRef.current = params.userId;
     localDraftKey.current = `workout_session_draft_${params.userId}_${params.workoutKey}`;
+    // Mesma recuperação de pendências que resumeSession — cobre o caso de uma
+    // sessão local (offline) anterior não ter sido encontrada no Supabase e
+    // uma nova estar sendo criada em cima da mesma chave de rascunho.
+    pendingSetsRef.current = loadPendingSetsFromStorage(localDraftKey.current);
 
     const { data, error } = await (supabase as any)
       .from("workout_sessions")
@@ -155,22 +203,7 @@ export function useWorkoutSession() {
     async (params: RegisterSetParams) => {
       if (!sessionId) return;
 
-      const setData = {
-        session_id:      sessionId,
-        user_id:         userIdRef.current,
-        exercise_name:   params.exerciseName,
-        exercise_key:    toExerciseKey(params.exerciseName),
-        set_number:      params.setNumber,
-        weight_kg:       params.weightKg ?? null,
-        reps:            params.reps ?? null,
-        reps_target_min: params.repsTargetMin ?? null,
-        reps_target_max: params.repsTargetMax ?? null,
-        perceived_effort: params.perceivedEffort ?? null,
-        completed:       params.completed ?? true,
-        skipped:         params.skipped ?? false,
-        notes:           params.notes ?? null,
-        executed_at:     new Date().toISOString(),
-      };
+      const setData = buildSetRow(sessionId, userIdRef.current, params);
 
       // Salva no buffer local primeiro (offline safety)
       pendingSetsRef.current.push(params);
@@ -194,6 +227,16 @@ export function useWorkoutSession() {
           pendingSetsRef.current = pendingSetsRef.current.filter(
             (p) => p !== params
           );
+          // Persiste a fila já sem este item — sem isto, o localStorage ficava
+          // com séries já sincronizadas, que seriam reenviadas à toa numa
+          // futura recuperação de pendências.
+          try {
+            if (pendingSetsRef.current.length > 0) {
+              localStorage.setItem(localDraftKey.current, JSON.stringify(pendingSetsRef.current));
+            } else {
+              localStorage.removeItem(localDraftKey.current);
+            }
+          } catch { /* noop */ }
         } else {
           console.error("[registerSet] Falha ao salvar série no Supabase:", error.message);
           // Os dados já estão no buffer local (pendingSetsRef/localStorage) então
@@ -204,6 +247,87 @@ export function useWorkoutSession() {
     },
     [sessionId]
   );
+
+  // ── Sincroniza séries pendentes salvas localmente (fila offline) ───────────
+  // Reenvia ao servidor qualquer série que ficou no buffer local (rede caiu,
+  // app foi fechado antes de sincronizar etc.). É o mecanismo de retry que
+  // faltava: sem ele, dados no localStorage só eram sincronizados se o aluno
+  // completasse manualmente outra série depois de a conexão voltar.
+  const syncInFlightRef = useRef<Promise<void> | null>(null);
+  const syncPendingSets = useCallback(async () => {
+    if (!sessionId || sessionId.startsWith("local_")) return;
+
+    // Se já existe uma sincronização em andamento, espera ela terminar em vez
+    // de desistir. Isso importa porque finishSession chama esta função como
+    // última tentativa antes de encerrar a sessão — se ela apenas desistisse
+    // por já haver uma sync em curso (disparada, por exemplo, pelo evento
+    // "online" um instante antes), o encerramento seguiria em frente sem
+    // esperar essa sync realmente terminar.
+    if (syncInFlightRef.current) {
+      await syncInFlightRef.current;
+      return;
+    }
+
+    if (pendingSetsRef.current.length === 0) return;
+
+    const run = (async () => {
+      const toSync = [...pendingSetsRef.current];
+      const succeeded: RegisterSetParams[] = [];
+
+      for (const params of toSync) {
+        try {
+          const { error } = await (supabase as any)
+            .from("workout_sets")
+            .upsert(buildSetRow(sessionId, userIdRef.current, params), {
+              onConflict: "session_id,exercise_key,set_number",
+            });
+          if (error) {
+            console.warn("[syncPendingSets] Ainda sem sucesso ao sincronizar série:", error.message);
+          } else {
+            succeeded.push(params);
+          }
+        } catch (err) {
+          console.warn("[syncPendingSets] Falha de rede ao sincronizar série:", err);
+        }
+      }
+
+      if (succeeded.length === 0) return;
+
+      // Remove da fila apenas os itens confirmados, filtrando o estado ATUAL
+      // de pendingSetsRef — nunca sobrescrevendo com a lista antiga
+      // (`toSync`). O loop acima faz `await` por item: enquanto espera a
+      // resposta de um item antigo, um registerSet concorrente pode ter
+      // empurrado uma série nova para a fila, e ela não pode ser descartada.
+      const succeededSet = new Set(succeeded);
+      pendingSetsRef.current = pendingSetsRef.current.filter((p) => !succeededSet.has(p));
+      try {
+        if (pendingSetsRef.current.length > 0) {
+          localStorage.setItem(localDraftKey.current, JSON.stringify(pendingSetsRef.current));
+        } else {
+          localStorage.removeItem(localDraftKey.current);
+        }
+      } catch { /* noop */ }
+    })();
+
+    syncInFlightRef.current = run;
+    try {
+      await run;
+    } finally {
+      syncInFlightRef.current = null;
+    }
+  }, [sessionId]);
+
+  // Tenta sincronizar pendências assim que a sessão fica disponível e sempre
+  // que a conexão for reestabelecida — cobre o caso de reabrir o app com
+  // séries que ficaram sem sincronizar de uma sessão anterior.
+  useEffect(() => {
+    if (!sessionId || sessionId.startsWith("local_")) return;
+    void syncPendingSets();
+
+    const handleOnline = () => { void syncPendingSets(); };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [sessionId, syncPendingSets]);
 
   // ── Buscar séries já salvas de uma sessão (para reconstruir o progresso local) ──
   // Necessário quando a sessão é recuperada via findActiveSession (fallback do
@@ -259,6 +383,10 @@ export function useWorkoutSession() {
 
       if (timerRef.current) clearInterval(timerRef.current);
 
+      // Última tentativa de sincronizar séries pendentes antes de encerrar —
+      // reduz a chance de a sessão fechar com dados presos só no localStorage.
+      await syncPendingSets();
+
       if (!sessionId.startsWith("local_")) {
         const { error } = await (supabase as any)
           .from("workout_sessions")
@@ -308,12 +436,21 @@ export function useWorkoutSession() {
         }
       }
 
-      // Limpa buffer local
-      try { localStorage.removeItem(localDraftKey.current); } catch { /* noop */ }
+      // Limpa buffer local — mas só se não sobrou nada pendente de fato. Se
+      // syncPendingSets não conseguiu confirmar tudo (ex.: uma série cujo
+      // próprio registerSet ainda estava em voo e falhou bem na janela do
+      // encerramento), preserva o rascunho: apagar aqui destruiria a única
+      // cópia restante daquele dado. Uma futura sessão para o mesmo treino
+      // recarrega esta chave (via loadPendingSetsFromStorage) e tenta de novo.
+      try {
+        if (pendingSetsRef.current.length === 0) {
+          localStorage.removeItem(localDraftKey.current);
+        }
+      } catch { /* noop */ }
 
       setIsActive(false);
     },
-    [sessionId]
+    [sessionId, syncPendingSets]
   );
 
   // ── Buscar histórico de um exercício ────────────────────────────────────────
