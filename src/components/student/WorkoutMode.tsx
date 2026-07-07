@@ -389,8 +389,121 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
 
   const [activeWeight, setActiveWeight] = useState(0);
   const [activeReps, setActiveReps] = useState(0);
+  // Hook de incremento adaptativo (hold-to-step 1 → 2.5 → 5 → 10 kg)
+  const weightDec = useAdaptiveWeightStep(setActiveWeight);
+  const weightInc = useAdaptiveWeightStep(setActiveWeight);
+  const [editingSetIdx, setEditingSetIdx] = useState<number | null>(null);
+  const [editWeight, setEditWeight] = useState(0);
+  const [editReps, setEditReps] = useState(0);
   const doneSets = (setDataMap[currentExKey] ?? []).filter(s => s.done);
   const todasFeitas = doneSets.length >= setsMax;
+
+  // Pré-preencher carga/reps do histórico ao trocar de exercício,
+  // apenas se ainda não há nenhuma série feita neste exercício nesta sessão.
+  useEffect(() => {
+    const currentSets = setDataMap[currentExKey] ?? [];
+    if (currentSets.some((s: any) => s.done)) return;
+    const history = historyMap[currentEx?.name] ?? [];
+    if (history.length > 0) {
+      const last = history[0];
+      if (last?.weightKg && !activeWeight) setActiveWeight(last.weightKg);
+      if (last?.reps && !activeReps) setActiveReps(last.reps);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentExKey, historyMap]);
+
+  /** Desfaz a última série marcada: remove localmente, restaura inputs,
+   * zera o timer de descanso e deleta no backend. */
+  const handleUndoLastSet = useCallback(async () => {
+    const currentSets = setDataMap[currentExKey] ?? [];
+    let lastIdx = -1;
+    for (let i = currentSets.length - 1; i >= 0; i--) {
+      if (currentSets[i]?.done) { lastIdx = i; break; }
+    }
+    if (lastIdx < 0) return;
+    const removed = currentSets[lastIdx];
+    const next = currentSets.slice(0, lastIdx).concat(currentSets.slice(lastIdx + 1));
+    setSetDataMap((prev) => ({ ...prev, [currentExKey]: next }));
+    if (typeof removed?.weight === "number") setActiveWeight(removed.weight);
+    if (typeof removed?.reps === "number") setActiveReps(removed.reps);
+    setRestBaseSec(0);
+    setRestSegStartedAt(null);
+    try {
+      await session.deleteSet(lastIdx + 1, currentEx?.name ?? "—");
+    } catch (err) {
+      console.warn("[WorkoutMode] deleteSet falhou no undo:", err);
+    }
+  }, [setDataMap, currentExKey, session, currentEx]);
+
+  /** Marca a série atual como pulada e persiste no backend. */
+  const handlePularSerie = useCallback(async () => {
+    if (isRegisteringSetRef.current || isFinishingRef.current) return;
+    const currentSets = setDataMap[currentExKey] ?? [];
+    const setIdx = currentSets.filter((s) => s.done).length;
+    if (setIdx >= setsMax) return;
+    const newSets = [...currentSets];
+    newSets[setIdx] = { weight: 0, reps: 0, effort: null, done: true, skipped: true };
+    setSetDataMap((prev) => ({ ...prev, [currentExKey]: newSets }));
+    setRestBaseSec(0);
+    setRestSegStartedAt(Date.now());
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10);
+    try {
+      await session.registerSet({
+        exerciseName: currentEx?.name ?? "—",
+        setNumber: setIdx + 1,
+        weightKg: 0,
+        reps: 0,
+        completed: false,
+        skipped: true,
+      });
+    } catch (err) {
+      console.warn("[WorkoutMode] Falha ao registrar série pulada:", err);
+    }
+    toast("Série pulada", { icon: "⏭️", duration: 1800 });
+  }, [setDataMap, currentExKey, setsMax, session, currentEx]);
+
+  /** Salva a edição de uma série já registrada (do Dialog de edição). */
+  const handleSaveEditSet = useCallback(async () => {
+    if (editingSetIdx == null) return;
+    const currentSets = setDataMap[currentExKey] ?? [];
+    const target = currentSets[editingSetIdx];
+    if (!target) { setEditingSetIdx(null); return; }
+    const nextSet = { ...target, weight: editWeight, reps: editReps };
+    const nextArr = currentSets.map((s, i) => (i === editingSetIdx ? nextSet : s));
+    setSetDataMap((prev) => ({ ...prev, [currentExKey]: nextArr }));
+    try {
+      await session.registerSet({
+        exerciseName: currentEx?.name ?? "—",
+        setNumber: editingSetIdx + 1,
+        weightKg: editWeight,
+        reps: editReps,
+        perceivedEffort: target.effort ?? undefined,
+        completed: !target.skipped,
+        skipped: !!target.skipped,
+      });
+    } catch (err) {
+      console.warn("[WorkoutMode] Falha ao editar série:", err);
+    }
+    setEditingSetIdx(null);
+  }, [editingSetIdx, editWeight, editReps, setDataMap, currentExKey, session, currentEx]);
+
+  /** Remove uma série do Dialog. */
+  const handleRemoveSet = useCallback(async () => {
+    if (editingSetIdx == null) return;
+    const currentSets = setDataMap[currentExKey] ?? [];
+    const target = currentSets[editingSetIdx];
+    const nextArr = currentSets.slice(0, editingSetIdx).concat(currentSets.slice(editingSetIdx + 1));
+    setSetDataMap((prev) => ({ ...prev, [currentExKey]: nextArr }));
+    try {
+      await session.deleteSet(editingSetIdx + 1, currentEx?.name ?? "—");
+    } catch (err) {
+      console.warn("[WorkoutMode] deleteSet falhou no remove:", err);
+    }
+    if (typeof target?.weight === "number") setActiveWeight(target.weight);
+    if (typeof target?.reps === "number") setActiveReps(target.reps);
+    setEditingSetIdx(null);
+  }, [editingSetIdx, setDataMap, currentExKey, session, currentEx]);
+
   const progressPct = Math.round((Object.values(completed).flat().length / (exercises.reduce((acc: number, ex: any) => acc + parseSetsMin(ex.sets), 0))) * 100);
 
   // Status de cada exercício para o "Mapa do Treino" (drawer) — estava sendo
