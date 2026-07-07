@@ -228,6 +228,12 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   // Tenta retomar (rascunho local ou sessão aberta no banco) antes de criar uma
   // nova, para não duplicar linha em workout_sessions nem "zerar" o progresso.
   const [isFinishing, setIsFinishing] = useState(false);
+  // Modal de métricas pós-treino: qualidade de sono + sensação. Só depois do
+  // "Confirmar e Finalizar" (com persistência ok) é que a tela de conclusão
+  // aparece — evita perder o contexto fisiológico que o coach precisa ver.
+  const [showPostWorkoutMetrics, setShowPostWorkoutMetrics] = useState(false);
+  const [pwSleep, setPwSleep] = useState<1 | 2 | 3 | 4 | null>(null);
+  const [pwFeeling, setPwFeeling] = useState<1 | 2 | 3 | 4 | null>(null);
   // Declarado aqui (não junto de handleFinishWorkout) porque handleFizASerie,
   // definido mais acima na árvore de closures do componente, também precisa
   // checar essa ref para não registrar uma série exatamente durante a janela
