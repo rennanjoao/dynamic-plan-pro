@@ -194,6 +194,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     if (restElapsed === restRange.min && lastAlertRef.current !== restRange.min) {
       playBeep("warn");
       lastAlertRef.current = restRange.min;
+      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(25);
       toast.success("Janela de descanso aberta! Pode iniciar.", { icon: "🔥", duration: 2000 });
     }
     
@@ -201,6 +202,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     if (restElapsed >= restRange.max && lastAlertRef.current !== restRange.max) {
       playBeep("end");
       lastAlertRef.current = restRange.max;
+      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate([50, 40, 50]);
       setRestSegStartedAt(null);
       setRestBaseSec(restRange.max);
 
