@@ -28,7 +28,7 @@ import {
   TrendingUp, Activity, Calendar, AlertTriangle,
   CheckCircle2, Dumbbell, Clock, Moon, Smile,
   BellOff, Loader2, ChevronDown, ChevronUp,
-  Target, TrendingDown, BarChart2,
+  Target, TrendingDown, BarChart2, Flame,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -108,8 +108,21 @@ function durationMinutes(startedAt: string, endedAt: string | null): number | nu
   return m > 0 ? m : null;
 }
 
-const FEELING_EMOJI: Record<number, string> = { 1: "😓", 2: "😊", 3: "💪" };
-const SLEEP_EMOJI:   Record<number, string> = { 1: "😴", 2: "😊", 3: "🌙" };
+// Novas escalas 1..4 (compatíveis com o modal pós-treino).
+// Cores seguem o padrão premium: vermelho (ruim/exaurido) → amarelo →
+// azul → esmeralda (excelente/disposto).
+const FEELING_META: Record<number, { label: string; emoji: string; cls: string }> = {
+  1: { label: "Cansado",  emoji: "🥱", cls: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20" },
+  2: { label: "Normal",   emoji: "😐", cls: "bg-blue-500/10 text-blue-500 border-blue-500/20" },
+  3: { label: "Disposto", emoji: "🔥", cls: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" },
+  4: { label: "Exaurido", emoji: "💀", cls: "bg-red-500/10 text-red-500 border-red-500/20" },
+};
+const SLEEP_META: Record<number, { label: string; emoji: string; cls: string }> = {
+  1: { label: "Ruim",      emoji: "🔴", cls: "bg-red-500/10 text-red-500 border-red-500/20" },
+  2: { label: "Regular",   emoji: "🟡", cls: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20" },
+  3: { label: "Boa",       emoji: "🟢", cls: "bg-blue-500/10 text-blue-500 border-blue-500/20" },
+  4: { label: "Excelente", emoji: "✨", cls: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" },
+};
 
 const ALERT_META: Record<string, { label: string; icon: string }> = {
   high_rpe:      { label: "RPE alto",      icon: "🔥" },
