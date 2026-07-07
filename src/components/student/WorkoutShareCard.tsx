@@ -1,14 +1,17 @@
 // src/components/student/WorkoutShareCard.tsx
-// Card de Compartilhamento — Elite Prime Hub (Sprint 12 — Refactor Stories 9:16)
+// Card de Compartilhamento — Elite Prime Hub
+// Sprint 13 — Formatos adaptativos (Story 9:16 / Feed 4:5 / Quadrado 1:1)
+// + mensagem motivacional dinâmica (src/lib/quotes.ts)
 
-import { useEffect, useRef, useState } from "react";
-import { Download, Share2, X, Loader2, Eye, EyeOff } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Download, Share2, X, Loader2, Eye, EyeOff, Smartphone, Image as ImageIcon, Square } from "lucide-react";
 import html2canvas from "html2canvas";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
+import { getRandomWorkoutQuote } from "@/lib/quotes";
 
 interface Props {
   studentName?: string;
@@ -48,6 +51,58 @@ const GOLD = "#C5A059";
 const RED = "#B11226";
 const BORDER = "#2A2A2A";
 
+// ── DEMANDA 3: Formatos de exportação ──────────────────────────────
+// Cada formato define a proporção do card (aspect-ratio) e o padding
+// vertical/horizontal que funciona como "zona segura" — área livre de
+// elementos críticos para não ser coberta pela UI do Instagram.
+type ShareFormat = "story" | "feed" | "square";
+
+interface FormatConfig {
+  label: string;
+  shortLabel: string;
+  ratio: string; // valor CSS de aspect-ratio
+  padding: string; // shorthand CSS padding (top right/left bottom)
+  safeZoneHint: string;
+  filenameSuffix: string;
+  Icon: typeof Smartphone;
+}
+
+const FORMAT_CONFIG: Record<ShareFormat, FormatConfig> = {
+  story: {
+    label: "Instagram Story",
+    shortLabel: "Story 9:16",
+    ratio: "9 / 16",
+    // Stories: ~14% no topo (nome/foto do usuário do IG) e ~18% embaixo
+    // (barra de mensagem/reações) ficam livres de qualquer elemento crítico.
+    padding: "14% 7% 18%",
+    safeZoneHint: "Margens ajustadas para o nome do perfil (topo) e a barra de reações (rodapé) do Stories.",
+    filenameSuffix: "story",
+    Icon: Smartphone,
+  },
+  feed: {
+    label: "Feed",
+    shortLabel: "Feed 4:5",
+    ratio: "4 / 5",
+    // No Feed a UI do Instagram fica FORA da imagem (like/comentário abaixo,
+    // usuário acima) — o padding aqui é só respiro estético, não zona segura.
+    padding: "9% 8% 9%",
+    safeZoneHint: "Formato vertical otimizado para ocupar o máximo de espaço no Feed.",
+    filenameSuffix: "feed",
+    Icon: ImageIcon,
+  },
+  square: {
+    label: "Quadrado",
+    shortLabel: "Quadrado 1:1",
+    ratio: "1 / 1",
+    padding: "8% 8% 8%",
+    safeZoneHint: "Formato clássico 1:1 — compatível com Feed, WhatsApp e outras redes.",
+    filenameSuffix: "quadrado",
+    Icon: Square,
+  },
+};
+
+const FORMAT_ORDER: ShareFormat[] = ["story", "feed", "square"];
+
 export default function WorkoutShareCard({
   studentName = "Membro Elite Prime Hub",
   workoutName,
@@ -69,6 +124,14 @@ export default function WorkoutShareCard({
   const [referralCode, setReferralCode] = useState<string | null>(null);
   // Dilema da Carga: opt-in explícito do aluno, off por padrão.
   const [showLoad, setShowLoad] = useState(false);
+  // DEMANDA 3: formato de exportação selecionado pelo aluno.
+  const [format, setFormat] = useState<ShareFormat>("story");
+  const cfg = FORMAT_CONFIG[format];
+
+  const hasPR = !!(prs && prs.length > 0);
+  // DEMANDA 2: escolhida uma única vez por sessão de compartilhamento —
+  // não deve trocar quando o aluno só troca o formato do card.
+  const quote = useMemo(() => getRandomWorkoutQuote(hasPR), [hasPR]);
 
   useEffect(() => {
     if (!studentId) return;
@@ -107,12 +170,14 @@ export default function WorkoutShareCard({
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "") || "treino";
 
+  const filename = `${slug}-treino-${cfg.filenameSuffix}.png`;
+
   const handleShare = async () => {
     try {
       setBusy(true);
       const blob = await generateBlob();
       if (!blob) throw new Error();
-      const file = new File([blob], `${slug}-treino.png`, { type: "image/png" });
+      const file = new File([blob], filename, { type: "image/png" });
       const nav = navigator as unknown as { canShare?: (d: object) => boolean };
       if (nav.canShare?.({ files: [file] })) {
         await (navigator as unknown as { share: (d: object) => Promise<void> }).share({
@@ -123,7 +188,7 @@ export default function WorkoutShareCard({
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `${slug}-treino.png`;
+        a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
         toast.info("Imagem salva — abra no Instagram para compartilhar.");
@@ -143,7 +208,7 @@ export default function WorkoutShareCard({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${slug}-treino.png`;
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
       toast.success("Imagem salva!");
@@ -176,6 +241,36 @@ export default function WorkoutShareCard({
           </button>
         </div>
 
+        {/* DEMANDA 3: Seletor de formato — troca aspect-ratio + safe zone do card ANTES da exportação */}
+        <div className="space-y-1.5">
+          <div className="grid grid-cols-3 gap-1.5 bg-white/5 border border-white/10 rounded-2xl p-1.5">
+            {FORMAT_ORDER.map((key) => {
+              const opt = FORMAT_CONFIG[key];
+              const active = format === key;
+              const OptIcon = opt.Icon;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setFormat(key)}
+                  aria-pressed={active}
+                  className={`flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 transition ${
+                    active ? "bg-primary text-black shadow-lg shadow-primary/30" : "text-white/50 hover:text-white/80"
+                  }`}
+                >
+                  <OptIcon className="w-4 h-4" />
+                  <span className="text-[9px] font-black uppercase tracking-wide leading-none">
+                    {opt.shortLabel}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-white/35 text-center px-2 leading-snug">
+            {cfg.safeZoneHint}
+          </p>
+        </div>
+
         {/* Toggle: Dilema da Carga — opt-in explícito, sempre off por padrão */}
         <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
           <div className="flex items-center gap-2">
@@ -191,12 +286,12 @@ export default function WorkoutShareCard({
           <Switch checked={showLoad} onCheckedChange={setShowLoad} />
         </div>
 
-        {/* Card 9:16 — formato nativo do Instagram Stories */}
+        {/* Card — proporção e zona segura mudam conforme o formato selecionado acima */}
         <div
           ref={cardRef}
           style={{
             width: "100%",
-            aspectRatio: "9 / 16",
+            aspectRatio: cfg.ratio,
             background: BG,
             borderRadius: "20px",
             overflow: "hidden",
@@ -236,16 +331,17 @@ export default function WorkoutShareCard({
             }}
           />
 
-          {/* Conteúdo — padding vertical generoso cria as Safe Zones do Stories:
-              ~14% no topo (nome/foto do usuário do IG) e ~18% embaixo (barra de
-              mensagem/reações do IG) ficam livres de qualquer elemento crítico. */}
+          {/* Conteúdo — padding vertical definido por FORMAT_CONFIG[format].padding,
+              que funciona como Safe Zone: no Story, libera espaço para a UI nativa
+              do Instagram sobreposta à imagem; no Feed/Quadrado, essa UI fica fora
+              da imagem, então o padding é só respiro estético. */}
           <div
             style={{
               position: "relative",
               flex: 1,
               display: "flex",
               flexDirection: "column",
-              padding: "14% 7% 18%",
+              padding: cfg.padding,
             }}
           >
             {/* Topo: marca + data */}
@@ -324,8 +420,11 @@ export default function WorkoutShareCard({
                 </p>
               </div>
 
+              {/* DEMANDA 2: frase motivacional dinâmica (src/lib/quotes.ts) —
+                  sorteada uma vez por sessão de compartilhamento, focada em
+                  consistência/adesão/disciplina (ou reforço de recorde). */}
               <p style={{ color: GOLD, fontSize: "14px", fontWeight: 800, fontStyle: "italic", maxWidth: "240px", lineHeight: 1.4 }}>
-                {prs && prs.length > 0 ? "Você superou seus próprios limites." : "Consistência é o único atalho."}
+                {quote}
               </p>
 
               {streak && streak >= 2 && (
