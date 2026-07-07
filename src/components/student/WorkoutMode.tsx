@@ -381,6 +381,8 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         setNumber: setIdx + 1,
         weightKg: activeWeight,
         reps: activeReps,
+        repsTargetMin: parseRepsMin(currentEx?.reps),
+        repsTargetMax: parseRepsMax(currentEx?.reps),
         perceivedEffort: effort,
         completed: true,
       });
@@ -466,6 +468,8 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         setNumber: setIdx + 1,
         weightKg: 0,
         reps: 0,
+        repsTargetMin: parseRepsMin(currentEx?.reps),
+        repsTargetMax: parseRepsMax(currentEx?.reps),
         completed: false,
         skipped: true,
       });
@@ -490,6 +494,8 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         setNumber: editingSetIdx + 1,
         weightKg: editWeight,
         reps: editReps,
+        repsTargetMin: parseRepsMin(currentEx?.reps),
+        repsTargetMax: parseRepsMax(currentEx?.reps),
         perceivedEffort: target.effort ?? undefined,
         completed: !target.skipped,
         skipped: !!target.skipped,
