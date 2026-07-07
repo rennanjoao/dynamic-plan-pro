@@ -1022,16 +1022,24 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {s.general_feeling && (
-                          <span title={`Sentimento: ${["", "Pesado", "Bom", "Top"][s.general_feeling]}`} className="text-base">
-                            {FEELING_EMOJI[s.general_feeling]}
-                          </span>
+                      <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end max-w-[45%]">
+                        {s.sleep_quality != null && SLEEP_META[s.sleep_quality] && (
+                          <Badge
+                            variant="outline"
+                            className={`gap-1 text-[10px] font-bold px-2 py-0.5 ${SLEEP_META[s.sleep_quality].cls}`}
+                            title={`Sono: ${SLEEP_META[s.sleep_quality].label}`}
+                          >
+                            <Moon className="w-3 h-3" /> {SLEEP_META[s.sleep_quality].label}
+                          </Badge>
                         )}
-                        {s.sleep_quality && (
-                          <span title={`Sono: ${["", "Mal", "Normal", "Bem"][s.sleep_quality]}`} className="text-base">
-                            {SLEEP_EMOJI[s.sleep_quality]}
-                          </span>
+                        {s.general_feeling != null && FEELING_META[s.general_feeling] && (
+                          <Badge
+                            variant="outline"
+                            className={`gap-1 text-[10px] font-bold px-2 py-0.5 ${FEELING_META[s.general_feeling].cls}`}
+                            title={`Sensação: ${FEELING_META[s.general_feeling].label}`}
+                          >
+                            <Flame className="w-3 h-3" /> {FEELING_META[s.general_feeling].label}
+                          </Badge>
                         )}
                         {s.ended_at
                           ? <CheckCircle2 className="w-4 h-4" style={{ color: GREEN }} />
