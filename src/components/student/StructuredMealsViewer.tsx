@@ -479,6 +479,14 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
   const safeData = payload || {};
   const meals: any[] = Array.isArray(safeData.meals) ? safeData.meals : [];
 
+  // Sessão do aluno para gravar meal_checkins do dia.
+  const [uid, setUid] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setUid(data.session?.user?.id ?? null));
+  }, []);
+  const dayKey = new Date().toISOString().slice(0, 10);
+  const { checked, toggle, doneCount, progressPct } = useMealCheckins(uid, dayKey, meals.length);
+
   // ── Contexto do dia ─────────────────────────────────────────────────────
   const strip = buildWeekStrip(safeData);
   const todayInfo = strip.find((d) => d.isToday)!;
@@ -589,6 +597,10 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
         onCookedChange={setIsCooked}
         hasCarbCycle={hasCarbCycle}
         hasCookable={hasCookable}
+        totalMeals={meals.length}
+        doneCount={doneCount}
+        progressPct={progressPct}
+        checked={checked}
       />
 
       {/* Grid de refeições */}
@@ -603,6 +615,8 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
             highPct={highPct}
             lowPct={lowPct}
             supplements={safeData.supplements}
+            isChecked={!!checked[i]}
+            onToggleChecked={uid ? toggle : undefined}
           />
         ))}
       </div>
