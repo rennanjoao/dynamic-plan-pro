@@ -219,6 +219,7 @@ export type Database = {
           body_fat: number | null
           coach_feedback: string | null
           coach_id: string | null
+          coach_reaction: string | null
           created_at: string
           current_metrics: Json
           edit_count: number
@@ -236,6 +237,7 @@ export type Database = {
           body_fat?: number | null
           coach_feedback?: string | null
           coach_id?: string | null
+          coach_reaction?: string | null
           created_at?: string
           current_metrics?: Json
           edit_count?: number
@@ -253,6 +255,7 @@ export type Database = {
           body_fat?: number | null
           coach_feedback?: string | null
           coach_id?: string | null
+          coach_reaction?: string | null
           created_at?: string
           current_metrics?: Json
           edit_count?: number
@@ -718,6 +721,30 @@ export type Database = {
           display_name?: string | null
           exercise_key?: string
           file_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      meal_checkins: {
+        Row: {
+          checked: boolean
+          date: string
+          meal_index: number
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          checked?: boolean
+          date: string
+          meal_index: number
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          checked?: boolean
+          date?: string
+          meal_index?: number
+          student_id?: string
           updated_at?: string
         }
         Relationships: []
@@ -1486,6 +1513,7 @@ export type Database = {
       }
     }
     Functions: {
+      get_checkin_streak: { Args: { p_student_id: string }; Returns: number }
       get_coach_by_invite_code: {
         Args: { p_code: string }
         Returns: {
