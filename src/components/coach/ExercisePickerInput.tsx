@@ -84,6 +84,7 @@ export function ExercisePickerInput({
   };
 
   return (
+    <div className="flex flex-col">
     <Popover open={showList} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <div className="relative">
@@ -151,5 +152,6 @@ export function ExercisePickerInput({
         ))}
       </div>
     )}
+    </div>
   );
 }
