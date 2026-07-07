@@ -3,7 +3,7 @@
 // Sprint 13 — Formatos adaptativos (Story 9:16 / Feed 4:5 / Quadrado 1:1)
 // + mensagem motivacional dinâmica (src/lib/quotes.ts)
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Download, Share2, X, Loader2, Eye, EyeOff, Smartphone, Image as ImageIcon, Square } from "lucide-react";
 import html2canvas from "html2canvas";
 import { Button } from "@/components/ui/button";
@@ -60,8 +60,9 @@ type ShareFormat = "story" | "feed" | "square";
 interface FormatConfig {
   label: string;
   shortLabel: string;
-  ratio: string; // valor CSS de aspect-ratio
-  padding: string; // shorthand CSS padding (top right/left bottom)
+  ratio: string; // valor CSS de aspect-ratio (usado só como fallback visual no 1º paint)
+  ratioValue: number; // largura/altura numérico — usado para calcular a altura real em px
+  padding: string; // shorthand CSS padding (top right/left bottom) — zona segura
   safeZoneHint: string;
   filenameSuffix: string;
   Icon: typeof Smartphone;
@@ -72,6 +73,7 @@ const FORMAT_CONFIG: Record<ShareFormat, FormatConfig> = {
     label: "Instagram Story",
     shortLabel: "Story 9:16",
     ratio: "9 / 16",
+    ratioValue: 9 / 16,
     // Stories: ~14% no topo (nome/foto do usuário do IG) e ~18% embaixo
     // (barra de mensagem/reações) ficam livres de qualquer elemento crítico.
     padding: "14% 7% 18%",
@@ -83,6 +85,7 @@ const FORMAT_CONFIG: Record<ShareFormat, FormatConfig> = {
     label: "Feed",
     shortLabel: "Feed 4:5",
     ratio: "4 / 5",
+    ratioValue: 4 / 5,
     // No Feed a UI do Instagram fica FORA da imagem (like/comentário abaixo,
     // usuário acima) — o padding aqui é só respiro estético, não zona segura.
     padding: "9% 8% 9%",
@@ -94,6 +97,7 @@ const FORMAT_CONFIG: Record<ShareFormat, FormatConfig> = {
     label: "Quadrado",
     shortLabel: "Quadrado 1:1",
     ratio: "1 / 1",
+    ratioValue: 1,
     padding: "8% 8% 8%",
     safeZoneHint: "Formato clássico 1:1 — compatível com Feed, WhatsApp e outras redes.",
     filenameSuffix: "quadrado",
@@ -120,6 +124,8 @@ export default function WorkoutShareCard({
   onClose,
 }: Props) {
   const cardRef = useRef<HTMLDivElement | null>(null);
+  const contentBoxRef = useRef<HTMLDivElement | null>(null);
+  const innerContentRef = useRef<HTMLDivElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   // Dilema da Carga: opt-in explícito do aluno, off por padrão.
@@ -132,6 +138,59 @@ export default function WorkoutShareCard({
   // DEMANDA 2: escolhida uma única vez por sessão de compartilhamento —
   // não deve trocar quando o aluno só troca o formato do card.
   const quote = useMemo(() => getRandomWorkoutQuote(hasPR), [hasPR]);
+
+  // ── FIX 1: altura explícita em px ──────────────────────────────────
+  // O html2canvas (biblioteca usada para exportar a imagem) NÃO interpreta
+  // a propriedade CSS `aspect-ratio` — é uma limitação conhecida da lib.
+  // Sem isso, a imagem exportada saía fora da proporção escolhida (o 9:16
+  // virava quase quadrado) e o Instagram fazia letterbox nela. A correção:
+  // medir a largura real do card e calcular a altura em px via JS, sempre
+  // que o formato mudar — tanto a prévia na tela quanto o PNG exportado
+  // passam a usar a mesma altura real, sem depender de aspect-ratio.
+  const [cardHeightPx, setCardHeightPx] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+
+    const recompute = () => {
+      const width = el.clientWidth;
+      if (!width) return;
+      setCardHeightPx(Math.round(width / cfg.ratioValue));
+    };
+
+    recompute();
+    const ro = new ResizeObserver(recompute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [format, cfg.ratioValue]);
+
+  // ── FIX 2: auto-encaixe do conteúdo (evita corte ao trocar formato) ──
+  // Feed (4:5) e Quadrado (1:1) têm menos altura disponível que o Story
+  // (9:16) na mesma largura. O conteúdo do card tem tamanho fixo, então
+  // ao trocar para um formato mais baixo ele podia estourar a área e ser
+  // cortado pelo overflow:hidden do card. A correção: medir a altura que
+  // o conteúdo realmente precisa (scrollHeight) contra a altura disponível
+  // (clientHeight) e, se necessário, aplicar um único transform: scale()
+  // proporcional para caber inteiro — sem cortar nada em nenhum formato.
+  // Quando o conteúdo já cabe (caso comum do Story), a escala fica em 1 e
+  // nada muda visualmente.
+  const [contentScale, setContentScale] = useState(1);
+
+  useLayoutEffect(() => {
+    const inner = innerContentRef.current;
+    if (!inner || !cardHeightPx) return;
+
+    const naturalHeight = inner.scrollHeight;
+    const availableHeight = inner.clientHeight;
+
+    const next =
+      availableHeight > 0 && naturalHeight > availableHeight
+        ? availableHeight / naturalHeight
+        : 1;
+
+    setContentScale(next);
+  }, [format, cardHeightPx, workoutName, studentName, coachName, streak, totalVolumeKg, completedExercises, totalExercises, totalSets, showLoad, prs, quote]);
 
   useEffect(() => {
     if (!studentId) return;
@@ -271,33 +330,41 @@ export default function WorkoutShareCard({
           </p>
         </div>
 
-        {/* Toggle: Dilema da Carga — opt-in explícito, sempre off por padrão */}
-        <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
-          <div className="flex items-center gap-2">
-            {showLoad ? (
-              <Eye className="w-4 h-4" style={{ color: GOLD }} />
-            ) : (
-              <EyeOff className="w-4 h-4 text-white/40" />
-            )}
-            <span className="text-xs font-bold text-white/70 uppercase tracking-wide">
-              Exibir cargas (kg) na imagem
-            </span>
+        {/* Toggle: Dilema da Carga — só aparece quando há recorde para revelar.
+            Antes ficava sempre visível mesmo sem nenhum PR na sessão, e como
+            o valor de carga só é usado dentro do bloco de Recordes Pessoais,
+            o aluno via o botão mas nada mudava ao tocar nele. */}
+        {hasPR && (
+          <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
+            <div className="flex items-center gap-2">
+              {showLoad ? (
+                <Eye className="w-4 h-4" style={{ color: GOLD }} />
+              ) : (
+                <EyeOff className="w-4 h-4 text-white/40" />
+              )}
+              <span className="text-xs font-bold text-white/70 uppercase tracking-wide">
+                Exibir cargas (kg) na imagem
+              </span>
+            </div>
+            <Switch checked={showLoad} onCheckedChange={setShowLoad} />
           </div>
-          <Switch checked={showLoad} onCheckedChange={setShowLoad} />
-        </div>
+        )}
 
         {/* Card — proporção e zona segura mudam conforme o formato selecionado acima */}
         <div
           ref={cardRef}
           style={{
             width: "100%",
+            // aspectRatio fica como fallback só para o 1º frame antes do
+            // useLayoutEffect medir e aplicar a altura real em px — que é
+            // o valor que efetivamente manda, tanto na tela quanto no
+            // html2canvas (ver FIX 1 acima).
             aspectRatio: cfg.ratio,
+            height: cardHeightPx ? `${cardHeightPx}px` : undefined,
             background: BG,
             borderRadius: "20px",
             overflow: "hidden",
             position: "relative",
-            display: "flex",
-            flexDirection: "column",
             fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
             border: `1px solid ${BORDER}`,
           }}
@@ -331,19 +398,35 @@ export default function WorkoutShareCard({
             }}
           />
 
-          {/* Conteúdo — padding vertical definido por FORMAT_CONFIG[format].padding,
-              que funciona como Safe Zone: no Story, libera espaço para a UI nativa
-              do Instagram sobreposta à imagem; no Feed/Quadrado, essa UI fica fora
-              da imagem, então o padding é só respiro estético. */}
+          {/* Zona segura — padding definido por FORMAT_CONFIG[format].padding:
+              no Story, libera espaço para a UI nativa do Instagram sobreposta
+              à imagem; no Feed/Quadrado, essa UI fica fora da imagem, então o
+              padding é só respiro estético. overflow:hidden aqui é apenas uma
+              rede de segurança — quem garante que nada seja cortado é o
+              transform: scale() do wrapper interno logo abaixo (FIX 2). */}
           <div
+            ref={contentBoxRef}
             style={{
               position: "relative",
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
+              height: "100%",
+              boxSizing: "border-box",
               padding: cfg.padding,
+              overflow: "hidden",
             }}
           >
+            {/* Wrapper com auto-encaixe: mede a altura natural do conteúdo
+                contra a altura disponível e aplica um único scale() se
+                precisar comprimir — nunca corta, só reduz proporcionalmente. */}
+            <div
+              ref={innerContentRef}
+              style={{
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+                transform: `scale(${contentScale})`,
+                transformOrigin: "top center",
+              }}
+            >
             {/* Topo: marca + data */}
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
               <div>
@@ -518,6 +601,7 @@ export default function WorkoutShareCard({
               <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "9px", fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase" }}>
                 www.eliteprimehub.com.br
               </p>
+            </div>
             </div>
           </div>
         </div>
