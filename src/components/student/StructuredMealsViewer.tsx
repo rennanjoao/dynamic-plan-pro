@@ -346,7 +346,7 @@ function MacroSection({
 const MEAL_ICONS = ["☀️", "🥗", "💪", "🍽️", "🌙", "⚡", "🥤", "🌿"];
 
 function MealCard({
-  meal, index, mode, isCooked, highPct, lowPct, supplements,
+  meal, index, mode, isCooked, highPct, lowPct, supplements, isChecked, onToggleChecked,
 }: {
   meal: any;
   index: number;
@@ -355,6 +355,8 @@ function MealCard({
   highPct: number;
   lowPct: number;
   supplements?: any[];
+  isChecked?: boolean;
+  onToggleChecked?: (index: number) => void;
 }) {
   const [open, setOpen] = useState(index === 0);
 
@@ -385,6 +387,25 @@ function MealCard({
         className="w-full flex items-center justify-between px-5 py-4 text-left"
       >
         <div className="flex items-center gap-3 min-w-0">
+          {onToggleChecked && (
+            <motion.button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onToggleChecked(index); }}
+              whileTap={{ scale: 0.85 }}
+              animate={isChecked ? { scale: [1, 1.2, 1] } : { scale: 1 }}
+              transition={{ duration: 0.25 }}
+              aria-pressed={!!isChecked}
+              aria-label={isChecked ? "Marcar como não feita" : "Marcar refeição como feita"}
+              className={cn(
+                "w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
+                isChecked
+                  ? "bg-emerald-500 border-emerald-500 text-black"
+                  : "border-white/20 text-white/40 hover:border-emerald-500/60",
+              )}
+            >
+              {isChecked ? <Check className="w-4 h-4" strokeWidth={3} /> : null}
+            </motion.button>
+          )}
           <span className="text-xl leading-none shrink-0">{icon}</span>
           <div className="min-w-0">
             <p className="font-bold text-foreground text-sm leading-tight truncate">
