@@ -9,13 +9,16 @@
  * se a refeição participa do ciclo e dimensionando resíduos (proteína/gordura) da fonte de carbo.
  */
 
-import { useState, useMemo } from "react";
-import { Clock, Flame, Dna, Wheat, Droplets, Salad } from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
+import { motion } from "framer-motion";
+import { Clock, Flame, Dna, Wheat, Droplets, Salad, Check } from "lucide-react";
 import { type CarbMode } from "@/components/student/CarbCycleSelector";
 import StickyDietBar from "@/components/student/StickyDietBar";
 import { calcItemMacros } from "@/lib/macroCalc";
 import { buildWeekStrip, CARB_LABEL, CARB_COLOR, todayKey, tomorrowKey } from "@/lib/weekCycle";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { useMealCheckins } from "@/hooks/useMealCheckins";
 
 // ─── Math engine ──────────────────────────────────────────────────────────────
 /** Retorna saudação de acordo com o horário local do dispositivo */
