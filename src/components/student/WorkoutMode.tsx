@@ -380,13 +380,10 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
       });
       // Toast com ação "Desfazer" — reduz o custo de um clique errado
       if (!isPR) {
-        toast.success(`Série ${setIdx + 1} registrada`, {
-          duration: 4000,
-          action: {
-            label: "Desfazer",
-            onClick: () => { void handleUndoLastSet(); },
-          },
-        });
+        // Toast enxuto: sem ação "Desfazer" — a edição/remoção fica disponível
+        // clicando no círculo da série. Durante o treino, um botão "Desfazer"
+        // sobre o toast poluía a interface e atrapalhava o fluxo rápido.
+        toast.success(`Série ${setIdx + 1} registrada`, { duration: 2200 });
       }
     } catch (err) {
       console.warn("[WorkoutMode] Falha ao registrar série no servidor (mantida localmente):", err);
