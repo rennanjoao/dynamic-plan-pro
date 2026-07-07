@@ -228,6 +228,12 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   // Tenta retomar (rascunho local ou sessão aberta no banco) antes de criar uma
   // nova, para não duplicar linha em workout_sessions nem "zerar" o progresso.
   const [isFinishing, setIsFinishing] = useState(false);
+  // Modal de métricas pós-treino: qualidade de sono + sensação. Só depois do
+  // "Confirmar e Finalizar" (com persistência ok) é que a tela de conclusão
+  // aparece — evita perder o contexto fisiológico que o coach precisa ver.
+  const [showPostWorkoutMetrics, setShowPostWorkoutMetrics] = useState(false);
+  const [pwSleep, setPwSleep] = useState<1 | 2 | 3 | 4 | null>(null);
+  const [pwFeeling, setPwFeeling] = useState<1 | 2 | 3 | 4 | null>(null);
   // Declarado aqui (não junto de handleFinishWorkout) porque handleFizASerie,
   // definido mais acima na árvore de closures do componente, também precisa
   // checar essa ref para não registrar uma série exatamente durante a janela
@@ -380,13 +386,10 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
       });
       // Toast com ação "Desfazer" — reduz o custo de um clique errado
       if (!isPR) {
-        toast.success(`Série ${setIdx + 1} registrada`, {
-          duration: 4000,
-          action: {
-            label: "Desfazer",
-            onClick: () => { void handleUndoLastSet(); },
-          },
-        });
+        // Toast enxuto: sem ação "Desfazer" — a edição/remoção fica disponível
+        // clicando no círculo da série. Durante o treino, um botão "Desfazer"
+        // sobre o toast poluía a interface e atrapalhava o fluxo rápido.
+        toast.success(`Série ${setIdx + 1} registrada`, { duration: 2200 });
       }
     } catch (err) {
       console.warn("[WorkoutMode] Falha ao registrar série no servidor (mantida localmente):", err);
@@ -533,23 +536,43 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   // (em vez de só trocar o estado visual). Isso elimina a janela de corrida em
   // que o aluno podia fechar o modal antes do encerramento ser salvo — quando
   // chegamos à tela de conclusão, o encerramento já foi tentado.
-  const handleFinishWorkout = async () => {
-    // `isFinishing` (estado) só reflete no próximo render — dois cliques quase
-    // simultâneos podem ler o valor antigo antes de o botão desabilitar de
-    // fato. O ref é checado e travado de forma síncrona, então cobre essa janela.
+  // Abre o modal de métricas — só finaliza de verdade depois que o aluno
+  // responde sono + sensação. Fica separado de `confirmFinishWorkout` para
+  // que qualquer botão "Finalizar" (barra inferior, Mapa do Treino, etc.)
+  // caia no mesmo funil sem duplicar lógica.
+  const handleFinishWorkout = () => {
     if (isFinishingRef.current) return;
+    setPwSleep(null);
+    setPwFeeling(null);
+    setShowPostWorkoutMetrics(true);
+  };
+
+  const confirmFinishWorkout = async () => {
+    if (isFinishingRef.current) return;
+    if (pwSleep == null || pwFeeling == null) {
+      toast.error("Responda como foi o sono e a sensação antes de finalizar.");
+      return;
+    }
     isFinishingRef.current = true;
     setIsFinishing(true);
     try {
-      await session.finishSession({ periodizationWeek: isPeriodizationOn ? activeWeek : undefined });
+      await session.finishSession({
+        periodizationWeek: isPeriodizationOn ? activeWeek : undefined,
+        sleepQuality: pwSleep,
+        generalFeeling: pwFeeling,
+      });
       try { localStorage.removeItem(storageKey); } catch { /* noop */ }
+      setShowPostWorkoutMetrics(false);
+      setPhase("conclusion");
     } catch (err) {
       console.warn("[WorkoutMode] Falha ao finalizar sessão:", err);
       toast.error("Não foi possível confirmar o encerramento no servidor. Seu progresso foi mantido localmente.");
+      // Mesmo com falha no server, libera a tela de resumo — dados estão salvos localmente.
+      setShowPostWorkoutMetrics(false);
+      setPhase("conclusion");
     } finally {
       isFinishingRef.current = false;
       setIsFinishing(false);
-      setPhase("conclusion");
     }
   };
 
@@ -877,6 +900,84 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
               className="w-full h-12 rounded-2xl font-black uppercase italic tracking-tighter bg-primary text-black hover:bg-primary/90"
             >{isFinishing ? "Salvando..." : "Finalizar Treino Agora"}</Button>
             <Button onClick={() => setShowExList(false)} variant="ghost" className="w-full font-bold uppercase text-[10px] tracking-widest">Fechar Mapa</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal pós-treino: métricas obrigatórias antes do resumo/compartilhamento */}
+      <Dialog open={showPostWorkoutMetrics} onOpenChange={(o) => { if (!o && !isFinishing) setShowPostWorkoutMetrics(false); }}>
+        <DialogContent className="max-w-md bg-black/90 backdrop-blur-md border border-white/10 rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black italic uppercase tracking-tight">
+              Como foi este treino?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 mt-2">
+            <div className="space-y-3">
+              <p className="text-[10px] uppercase tracking-widest font-black text-white/50">Qualidade do sono</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { v: 1, emoji: "🔴", label: "Ruim",       color: "#ef4444", bg: "rgba(239,68,68,0.10)" },
+                  { v: 2, emoji: "🟡", label: "Regular",    color: "#eab308", bg: "rgba(234,179,8,0.10)" },
+                  { v: 3, emoji: "🟢", label: "Boa",        color: "#3b82f6", bg: "rgba(59,130,246,0.10)" },
+                  { v: 4, emoji: "✨", label: "Excelente",  color: "#10b981", bg: "rgba(16,185,129,0.12)" },
+                ].map((opt) => {
+                  const active = pwSleep === opt.v;
+                  return (
+                    <button
+                      key={opt.v}
+                      type="button"
+                      onClick={() => setPwSleep(opt.v as 1 | 2 | 3 | 4)}
+                      className="flex items-center gap-2 h-14 rounded-2xl border-2 px-3 text-left transition-all active:scale-95"
+                      style={{
+                        borderColor: active ? opt.color : "rgba(255,255,255,0.10)",
+                        background: active ? opt.bg : "rgba(255,255,255,0.03)",
+                        color: active ? opt.color : "rgba(255,255,255,0.75)",
+                      }}
+                    >
+                      <span className="text-2xl">{opt.emoji}</span>
+                      <span className="text-sm font-black uppercase tracking-tight">{opt.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="space-y-3">
+              <p className="text-[10px] uppercase tracking-widest font-black text-white/50">Sensação no treino</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { v: 1, emoji: "🥱", label: "Cansado",  color: "#eab308", bg: "rgba(234,179,8,0.10)" },
+                  { v: 2, emoji: "😐", label: "Normal",   color: "#3b82f6", bg: "rgba(59,130,246,0.10)" },
+                  { v: 3, emoji: "🔥", label: "Disposto", color: "#10b981", bg: "rgba(16,185,129,0.12)" },
+                  { v: 4, emoji: "💀", label: "Exaurido", color: "#ef4444", bg: "rgba(239,68,68,0.10)" },
+                ].map((opt) => {
+                  const active = pwFeeling === opt.v;
+                  return (
+                    <button
+                      key={opt.v}
+                      type="button"
+                      onClick={() => setPwFeeling(opt.v as 1 | 2 | 3 | 4)}
+                      className="flex items-center gap-2 h-14 rounded-2xl border-2 px-3 text-left transition-all active:scale-95"
+                      style={{
+                        borderColor: active ? opt.color : "rgba(255,255,255,0.10)",
+                        background: active ? opt.bg : "rgba(255,255,255,0.03)",
+                        color: active ? opt.color : "rgba(255,255,255,0.75)",
+                      }}
+                    >
+                      <span className="text-2xl">{opt.emoji}</span>
+                      <span className="text-sm font-black uppercase tracking-tight">{opt.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <Button
+              onClick={confirmFinishWorkout}
+              disabled={isFinishing || pwSleep == null || pwFeeling == null}
+              className="w-full h-14 rounded-2xl font-black uppercase italic tracking-tighter bg-primary text-black hover:bg-primary/90 disabled:opacity-40"
+            >
+              {isFinishing ? "Salvando..." : "Confirmar e Finalizar"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -28,7 +28,7 @@ import {
   TrendingUp, Activity, Calendar, AlertTriangle,
   CheckCircle2, Dumbbell, Clock, Moon, Smile,
   BellOff, Loader2, ChevronDown, ChevronUp,
-  Target, TrendingDown, BarChart2,
+  Target, TrendingDown, BarChart2, Flame,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -108,8 +108,21 @@ function durationMinutes(startedAt: string, endedAt: string | null): number | nu
   return m > 0 ? m : null;
 }
 
-const FEELING_EMOJI: Record<number, string> = { 1: "😓", 2: "😊", 3: "💪" };
-const SLEEP_EMOJI:   Record<number, string> = { 1: "😴", 2: "😊", 3: "🌙" };
+// Novas escalas 1..4 (compatíveis com o modal pós-treino).
+// Cores seguem o padrão premium: vermelho (ruim/exaurido) → amarelo →
+// azul → esmeralda (excelente/disposto).
+const FEELING_META: Record<number, { label: string; emoji: string; cls: string }> = {
+  1: { label: "Cansado",  emoji: "🥱", cls: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20" },
+  2: { label: "Normal",   emoji: "😐", cls: "bg-blue-500/10 text-blue-500 border-blue-500/20" },
+  3: { label: "Disposto", emoji: "🔥", cls: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" },
+  4: { label: "Exaurido", emoji: "💀", cls: "bg-red-500/10 text-red-500 border-red-500/20" },
+};
+const SLEEP_META: Record<number, { label: string; emoji: string; cls: string }> = {
+  1: { label: "Ruim",      emoji: "🔴", cls: "bg-red-500/10 text-red-500 border-red-500/20" },
+  2: { label: "Regular",   emoji: "🟡", cls: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20" },
+  3: { label: "Boa",       emoji: "🟢", cls: "bg-blue-500/10 text-blue-500 border-blue-500/20" },
+  4: { label: "Excelente", emoji: "✨", cls: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" },
+};
 
 const ALERT_META: Record<string, { label: string; icon: string }> = {
   high_rpe:      { label: "RPE alto",      icon: "🔥" },
@@ -573,13 +586,13 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
             <StatCard
               icon={<Smile className="w-3.5 h-3.5" />}
               label="Sentimento"
-              value={feelingAvg !== "—" ? `${FEELING_EMOJI[Math.round(Number(feelingAvg))]} ${feelingAvg}` : "—"}
+              value={feelingAvg !== "—" ? `${FEELING_META[Math.round(Number(feelingAvg))]?.emoji ?? ""} ${feelingAvg}` : "—"}
               sub="média das sessões"
             />
             <StatCard
               icon={<Moon className="w-3.5 h-3.5" />}
               label="Sono"
-              value={sleepAvg !== "—" ? `${SLEEP_EMOJI[Math.round(Number(sleepAvg))]} ${sleepAvg}` : "—"}
+              value={sleepAvg !== "—" ? `${SLEEP_META[Math.round(Number(sleepAvg))]?.emoji ?? ""} ${sleepAvg}` : "—"}
               sub="média das sessões"
             />
           </div>
@@ -1009,16 +1022,24 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {s.general_feeling && (
-                          <span title={`Sentimento: ${["", "Pesado", "Bom", "Top"][s.general_feeling]}`} className="text-base">
-                            {FEELING_EMOJI[s.general_feeling]}
-                          </span>
+                      <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end max-w-[45%]">
+                        {s.sleep_quality != null && SLEEP_META[s.sleep_quality] && (
+                          <Badge
+                            variant="outline"
+                            className={`gap-1 text-[10px] font-bold px-2 py-0.5 ${SLEEP_META[s.sleep_quality].cls}`}
+                            title={`Sono: ${SLEEP_META[s.sleep_quality].label}`}
+                          >
+                            <Moon className="w-3 h-3" /> {SLEEP_META[s.sleep_quality].label}
+                          </Badge>
                         )}
-                        {s.sleep_quality && (
-                          <span title={`Sono: ${["", "Mal", "Normal", "Bem"][s.sleep_quality]}`} className="text-base">
-                            {SLEEP_EMOJI[s.sleep_quality]}
-                          </span>
+                        {s.general_feeling != null && FEELING_META[s.general_feeling] && (
+                          <Badge
+                            variant="outline"
+                            className={`gap-1 text-[10px] font-bold px-2 py-0.5 ${FEELING_META[s.general_feeling].cls}`}
+                            title={`Sensação: ${FEELING_META[s.general_feeling].label}`}
+                          >
+                            <Flame className="w-3 h-3" /> {FEELING_META[s.general_feeling].label}
+                          </Badge>
                         )}
                         {s.ended_at
                           ? <CheckCircle2 className="w-4 h-4" style={{ color: GREEN }} />
