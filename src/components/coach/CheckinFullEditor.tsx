@@ -44,6 +44,7 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
   const [metrics, setMetrics] = useState<Record<string, string>>({});
   const [fotos, setFotos] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState<string>("");
+  const [reaction, setReaction] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -74,7 +75,7 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
       setLoading(true);
       const { data: row } = await sb
         .from("check_ins")
-        .select("id, payload, current_metrics, coach_feedback")
+        .select("id, payload, current_metrics, coach_feedback, coach_reaction")
         .eq("id", rowId)
         .maybeSingle();
       if (cancelled || !row) { setLoading(false); return; }
@@ -89,6 +90,7 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
       setMetrics(m);
       setFotos((p.fotos as Record<string, string>) || {});
       setFeedback((row.coach_feedback as string) || "");
+      setReaction((row.coach_reaction as string) || null);
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -123,6 +125,7 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
           payload,
           current_metrics,
           coach_feedback: feedback || null,
+          coach_reaction: reaction || null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", rowId);
@@ -250,6 +253,27 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
               <h3 className="text-xs font-bold uppercase tracking-wider text-primary mb-2">
                 Retorno do Coach (visível para o aluno)
               </h3>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
+                  Reação rápida
+                </span>
+                {["💪", "🔥", "👏"].map((e) => (
+                  <button
+                    key={e}
+                    type="button"
+                    onClick={() => setReaction((prev) => (prev === e ? null : e))}
+                    className={`w-9 h-9 rounded-full border text-lg leading-none transition-all ${
+                      reaction === e
+                        ? "bg-primary/20 border-primary scale-110"
+                        : "border-border hover:border-primary/40"
+                    }`}
+                    aria-pressed={reaction === e}
+                    aria-label={`Reagir com ${e}`}
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
               <Textarea
                 rows={4}
                 value={feedback}

@@ -96,9 +96,20 @@ return [...checkIns].sort((a, b) => new Date(a.submitted_at).getTime() - new Dat
                       <span className="text-xs font-semibold text-foreground">
                         {new Date(c.submitted_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}
                       </span>
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                        Check-in #{checkIns.length - i}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {(c as unknown as { coach_reaction?: string | null }).coach_reaction && (
+                          <span
+                            className="text-base leading-none"
+                            title="Reação do seu coach"
+                            aria-label="Reação do coach"
+                          >
+                            {(c as unknown as { coach_reaction?: string }).coach_reaction}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                          Check-in #{checkIns.length - i}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-3 gap-3 mb-3">

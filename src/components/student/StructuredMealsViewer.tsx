@@ -9,13 +9,16 @@
  * se a refeição participa do ciclo e dimensionando resíduos (proteína/gordura) da fonte de carbo.
  */
 
-import { useState, useMemo } from "react";
-import { Clock, Flame, Dna, Wheat, Droplets, Salad } from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
+import { motion } from "framer-motion";
+import { Clock, Flame, Dna, Wheat, Droplets, Salad, Check } from "lucide-react";
 import { type CarbMode } from "@/components/student/CarbCycleSelector";
 import StickyDietBar from "@/components/student/StickyDietBar";
 import { calcItemMacros } from "@/lib/macroCalc";
 import { buildWeekStrip, CARB_LABEL, CARB_COLOR, todayKey, tomorrowKey } from "@/lib/weekCycle";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { useMealCheckins } from "@/hooks/useMealCheckins";
 
 // ─── Math engine ──────────────────────────────────────────────────────────────
 /** Retorna saudação de acordo com o horário local do dispositivo */
@@ -343,7 +346,7 @@ function MacroSection({
 const MEAL_ICONS = ["☀️", "🥗", "💪", "🍽️", "🌙", "⚡", "🥤", "🌿"];
 
 function MealCard({
-  meal, index, mode, isCooked, highPct, lowPct, supplements,
+  meal, index, mode, isCooked, highPct, lowPct, supplements, isChecked, onToggleChecked,
 }: {
   meal: any;
   index: number;
@@ -352,6 +355,8 @@ function MealCard({
   highPct: number;
   lowPct: number;
   supplements?: any[];
+  isChecked?: boolean;
+  onToggleChecked?: (index: number) => void;
 }) {
   const [open, setOpen] = useState(index === 0);
 
@@ -382,6 +387,25 @@ function MealCard({
         className="w-full flex items-center justify-between px-5 py-4 text-left"
       >
         <div className="flex items-center gap-3 min-w-0">
+          {onToggleChecked && (
+            <motion.button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onToggleChecked(index); }}
+              whileTap={{ scale: 0.85 }}
+              animate={isChecked ? { scale: [1, 1.2, 1] } : { scale: 1 }}
+              transition={{ duration: 0.25 }}
+              aria-pressed={!!isChecked}
+              aria-label={isChecked ? "Marcar como não feita" : "Marcar refeição como feita"}
+              className={cn(
+                "w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
+                isChecked
+                  ? "bg-emerald-500 border-emerald-500 text-black"
+                  : "border-white/20 text-white/40 hover:border-emerald-500/60",
+              )}
+            >
+              {isChecked ? <Check className="w-4 h-4" strokeWidth={3} /> : null}
+            </motion.button>
+          )}
           <span className="text-xl leading-none shrink-0">{icon}</span>
           <div className="min-w-0">
             <p className="font-bold text-foreground text-sm leading-tight truncate">
@@ -454,6 +478,14 @@ function MealCard({
 export default function StructuredMealsViewer({ payload, studentName }: { payload: any; studentName?: string }) {
   const safeData = payload || {};
   const meals: any[] = Array.isArray(safeData.meals) ? safeData.meals : [];
+
+  // Sessão do aluno para gravar meal_checkins do dia.
+  const [uid, setUid] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setUid(data.session?.user?.id ?? null));
+  }, []);
+  const dayKey = new Date().toISOString().slice(0, 10);
+  const { checked, toggle, doneCount, progressPct } = useMealCheckins(uid, dayKey, meals.length);
 
   // ── Contexto do dia ─────────────────────────────────────────────────────
   const strip = buildWeekStrip(safeData);
@@ -565,6 +597,10 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
         onCookedChange={setIsCooked}
         hasCarbCycle={hasCarbCycle}
         hasCookable={hasCookable}
+        totalMeals={meals.length}
+        doneCount={doneCount}
+        progressPct={progressPct}
+        checked={checked}
       />
 
       {/* Grid de refeições */}
@@ -579,6 +615,8 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
             highPct={highPct}
             lowPct={lowPct}
             supplements={safeData.supplements}
+            isChecked={!!checked[i]}
+            onToggleChecked={uid ? toggle : undefined}
           />
         ))}
       </div>

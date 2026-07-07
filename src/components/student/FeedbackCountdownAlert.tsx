@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { Clock, CalendarCheck, AlertTriangle, TrendingUp, ArrowRight, X } from "lucide-react";
+import { Clock, CalendarCheck, AlertTriangle, TrendingUp, ArrowRight, X, Flame } from "lucide-react";
 
 interface Props {
   userId: string;
@@ -65,7 +65,20 @@ export default function FeedbackCountdownAlert({ userId, dismissed, onDismiss }:
 
   // Conta a partir do último feedback OU da anamnese se ainda não houver feedback.
   const days = daysSince(data.lastCheckin) ?? daysAna;
-  if (days < 13) return null;
+
+  // Renderização positiva: se ainda não é dia de feedback (days < 13) mas o
+  // aluno tem sequência (streak >= 2) e já está na reta final (>= 10 dias),
+  // reforça o gatilho de "não quebrar a série" antes de virar cobrança.
+  if (days < 13) {
+    return (
+      <StreakEncouragement
+        userId={userId}
+        days={days}
+        dismissed={dismissed}
+        onDismiss={onDismiss}
+      />
+    );
+  }
 
   // Bucket
   type Bucket = "pre" | "today" | "late" | "critical";
@@ -150,6 +163,55 @@ export default function FeedbackCountdownAlert({ userId, dismissed, onDismiss }:
           >
             {cfg.cta} <ArrowRight className="w-3.5 h-3.5" />
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Elogia o aluno que está mantendo a sequência de check-ins.
+ * Usa a função `get_checkin_streak` do banco.
+ */
+function StreakEncouragement({
+  userId, days, dismissed, onDismiss,
+}: {
+  userId: string; days: number; dismissed: string[]; onDismiss: (id: string) => void;
+}) {
+  const { data: streak } = useQuery({
+    queryKey: ["checkin-streak", userId],
+    enabled: !!userId,
+    staleTime: 60_000 * 30,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any).rpc("get_checkin_streak", { p_student_id: userId });
+      return typeof data === "number" ? data : 0;
+    },
+  });
+
+  if (!streak || streak < 2 || days < 10) return null;
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const id = `fb-streak-${todayKey}`;
+  if (dismissed.includes(id)) return null;
+
+  return (
+    <div className="rounded-xl border p-4 relative shadow-sm bg-emerald-500/10 border-emerald-500/25 text-emerald-700 dark:text-emerald-300">
+      <button
+        onClick={() => onDismiss(id)}
+        className="absolute top-3 right-3 opacity-70 hover:opacity-100"
+        aria-label="Fechar"
+      >
+        <X className="w-4 h-4" />
+      </button>
+      <div className="flex items-start gap-3">
+        <Flame className="w-5 h-5 shrink-0 mt-0.5 text-emerald-500" />
+        <div className="flex-1 min-w-0 pr-4">
+          <h3 className="text-sm font-bold">
+            {streak} check-ins seguidos 🔥
+          </h3>
+          <p className="text-xs mt-1 opacity-90 leading-relaxed">
+            Você está construindo uma sequência forte. Faltam poucos dias pro próximo feedback — não deixe a série cair agora.
+          </p>
         </div>
       </div>
     </div>

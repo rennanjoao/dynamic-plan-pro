@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import WorkoutShareCard from "./WorkoutShareCard";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { useWorkoutSession } from "@/hooks/useWorkoutSession";
+import { useAdaptiveWeightStep } from "@/hooks/useAdaptiveWeightStep";
 import { supabase } from "@/integrations/supabase/client";
 import type { ExerciseHistory } from "@/lib/workoutTypes";
 import { effortLabel, toExerciseKey } from "@/lib/workoutTypes";
@@ -193,6 +194,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     if (restElapsed === restRange.min && lastAlertRef.current !== restRange.min) {
       playBeep("warn");
       lastAlertRef.current = restRange.min;
+      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(25);
       toast.success("Janela de descanso aberta! Pode iniciar.", { icon: "🔥", duration: 2000 });
     }
     
@@ -200,6 +202,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     if (restElapsed >= restRange.max && lastAlertRef.current !== restRange.max) {
       playBeep("end");
       lastAlertRef.current = restRange.max;
+      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate([50, 40, 50]);
       setRestSegStartedAt(null);
       setRestBaseSec(restRange.max);
 
@@ -375,6 +378,16 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         perceivedEffort: effort,
         completed: true,
       });
+      // Toast com ação "Desfazer" — reduz o custo de um clique errado
+      if (!isPR) {
+        toast.success(`Série ${setIdx + 1} registrada`, {
+          duration: 4000,
+          action: {
+            label: "Desfazer",
+            onClick: () => { void handleUndoLastSet(); },
+          },
+        });
+      }
     } catch (err) {
       console.warn("[WorkoutMode] Falha ao registrar série no servidor (mantida localmente):", err);
       toast.error("Sem conexão — série salva localmente e será sincronizada depois.", { duration: 2500 });
@@ -386,8 +399,121 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
 
   const [activeWeight, setActiveWeight] = useState(0);
   const [activeReps, setActiveReps] = useState(0);
+  // Hook de incremento adaptativo (hold-to-step 1 → 2.5 → 5 → 10 kg)
+  const weightDec = useAdaptiveWeightStep(setActiveWeight);
+  const weightInc = useAdaptiveWeightStep(setActiveWeight);
+  const [editingSetIdx, setEditingSetIdx] = useState<number | null>(null);
+  const [editWeight, setEditWeight] = useState(0);
+  const [editReps, setEditReps] = useState(0);
   const doneSets = (setDataMap[currentExKey] ?? []).filter(s => s.done);
   const todasFeitas = doneSets.length >= setsMax;
+
+  // Pré-preencher carga/reps do histórico ao trocar de exercício,
+  // apenas se ainda não há nenhuma série feita neste exercício nesta sessão.
+  useEffect(() => {
+    const currentSets = setDataMap[currentExKey] ?? [];
+    if (currentSets.some((s: any) => s.done)) return;
+    const history = historyMap[currentEx?.name] ?? [];
+    if (history.length > 0) {
+      const last = history[0];
+      if (last?.weightKg && !activeWeight) setActiveWeight(last.weightKg);
+      if (last?.reps && !activeReps) setActiveReps(last.reps);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentExKey, historyMap]);
+
+  /** Desfaz a última série marcada: remove localmente, restaura inputs,
+   * zera o timer de descanso e deleta no backend. */
+  const handleUndoLastSet = useCallback(async () => {
+    const currentSets = setDataMap[currentExKey] ?? [];
+    let lastIdx = -1;
+    for (let i = currentSets.length - 1; i >= 0; i--) {
+      if (currentSets[i]?.done) { lastIdx = i; break; }
+    }
+    if (lastIdx < 0) return;
+    const removed = currentSets[lastIdx];
+    const next = currentSets.slice(0, lastIdx).concat(currentSets.slice(lastIdx + 1));
+    setSetDataMap((prev) => ({ ...prev, [currentExKey]: next }));
+    if (typeof removed?.weight === "number") setActiveWeight(removed.weight);
+    if (typeof removed?.reps === "number") setActiveReps(removed.reps);
+    setRestBaseSec(0);
+    setRestSegStartedAt(null);
+    try {
+      await session.deleteSet(lastIdx + 1, currentEx?.name ?? "—");
+    } catch (err) {
+      console.warn("[WorkoutMode] deleteSet falhou no undo:", err);
+    }
+  }, [setDataMap, currentExKey, session, currentEx]);
+
+  /** Marca a série atual como pulada e persiste no backend. */
+  const handlePularSerie = useCallback(async () => {
+    if (isRegisteringSetRef.current || isFinishingRef.current) return;
+    const currentSets = setDataMap[currentExKey] ?? [];
+    const setIdx = currentSets.filter((s) => s.done).length;
+    if (setIdx >= setsMax) return;
+    const newSets = [...currentSets];
+    newSets[setIdx] = { weight: 0, reps: 0, effort: null, done: true, skipped: true };
+    setSetDataMap((prev) => ({ ...prev, [currentExKey]: newSets }));
+    setRestBaseSec(0);
+    setRestSegStartedAt(Date.now());
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10);
+    try {
+      await session.registerSet({
+        exerciseName: currentEx?.name ?? "—",
+        setNumber: setIdx + 1,
+        weightKg: 0,
+        reps: 0,
+        completed: false,
+        skipped: true,
+      });
+    } catch (err) {
+      console.warn("[WorkoutMode] Falha ao registrar série pulada:", err);
+    }
+    toast("Série pulada", { icon: "⏭️", duration: 1800 });
+  }, [setDataMap, currentExKey, setsMax, session, currentEx]);
+
+  /** Salva a edição de uma série já registrada (do Dialog de edição). */
+  const handleSaveEditSet = useCallback(async () => {
+    if (editingSetIdx == null) return;
+    const currentSets = setDataMap[currentExKey] ?? [];
+    const target = currentSets[editingSetIdx];
+    if (!target) { setEditingSetIdx(null); return; }
+    const nextSet = { ...target, weight: editWeight, reps: editReps };
+    const nextArr = currentSets.map((s, i) => (i === editingSetIdx ? nextSet : s));
+    setSetDataMap((prev) => ({ ...prev, [currentExKey]: nextArr }));
+    try {
+      await session.registerSet({
+        exerciseName: currentEx?.name ?? "—",
+        setNumber: editingSetIdx + 1,
+        weightKg: editWeight,
+        reps: editReps,
+        perceivedEffort: target.effort ?? undefined,
+        completed: !target.skipped,
+        skipped: !!target.skipped,
+      });
+    } catch (err) {
+      console.warn("[WorkoutMode] Falha ao editar série:", err);
+    }
+    setEditingSetIdx(null);
+  }, [editingSetIdx, editWeight, editReps, setDataMap, currentExKey, session, currentEx]);
+
+  /** Remove uma série do Dialog. */
+  const handleRemoveSet = useCallback(async () => {
+    if (editingSetIdx == null) return;
+    const currentSets = setDataMap[currentExKey] ?? [];
+    const target = currentSets[editingSetIdx];
+    const nextArr = currentSets.slice(0, editingSetIdx).concat(currentSets.slice(editingSetIdx + 1));
+    setSetDataMap((prev) => ({ ...prev, [currentExKey]: nextArr }));
+    try {
+      await session.deleteSet(editingSetIdx + 1, currentEx?.name ?? "—");
+    } catch (err) {
+      console.warn("[WorkoutMode] deleteSet falhou no remove:", err);
+    }
+    if (typeof target?.weight === "number") setActiveWeight(target.weight);
+    if (typeof target?.reps === "number") setActiveReps(target.reps);
+    setEditingSetIdx(null);
+  }, [editingSetIdx, setDataMap, currentExKey, session, currentEx]);
+
   const progressPct = Math.round((Object.values(completed).flat().length / (exercises.reduce((acc: number, ex: any) => acc + parseSetsMin(ex.sets), 0))) * 100);
 
   // Status de cada exercício para o "Mapa do Treino" (drawer) — estava sendo
@@ -538,16 +664,40 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                 </div>
               </div>
               <div className="flex gap-2">
-                {/* Círculos maiores (44px, antes 36px) + "pop" ao marcar — recompensa imediata em toda série, não só no PR */}
-                {Array.from({ length: setsMax }).map((_, i) => (
-                  <motion.div
-                    key={i}
-                    initial={false}
-                    animate={doneSets[i] ? { scale: [1, 1.25, 1] } : { scale: 1 }}
-                    transition={{ duration: 0.35 }}
-                    className={`w-11 h-11 rounded-full border-2 flex items-center justify-center font-black text-sm transition-all ${doneSets[i] ? "bg-green-500 border-green-500 text-black" : i === doneSets.length ? "border-primary text-primary scale-110" : "border-white/15 text-white/30"}`}
-                  >{doneSets[i] ? <Check className="w-5 h-5" strokeWidth={3} /> : i + 1}</motion.div>
-                ))}
+                {/* Círculos interativos: clique numa série feita abre o Dialog de edição/remoção.
+                    Séries puladas ficam com borda tracejada; séries feitas em verde. */}
+                {Array.from({ length: setsMax }).map((_, i) => {
+                  const s = doneSets[i];
+                  const isCurrent = i === doneSets.length;
+                  const isSkipped = s?.skipped;
+                  const cls = s
+                    ? isSkipped
+                      ? "bg-transparent border-white/40 border-dashed text-white/50"
+                      : "bg-green-500 border-green-500 text-black"
+                    : isCurrent
+                      ? "border-primary text-primary scale-110"
+                      : "border-white/15 text-white/30";
+                  return (
+                    <motion.button
+                      key={i}
+                      type="button"
+                      initial={false}
+                      animate={s && !isSkipped ? { scale: [1, 1.25, 1] } : { scale: 1 }}
+                      transition={{ duration: 0.35 }}
+                      disabled={!s}
+                      onClick={() => {
+                        if (!s) return;
+                        setEditingSetIdx(i);
+                        setEditWeight(s.weight ?? 0);
+                        setEditReps(s.reps ?? 0);
+                      }}
+                      className={`w-11 h-11 rounded-full border-2 flex items-center justify-center font-black text-sm transition-all disabled:cursor-default ${cls}`}
+                      aria-label={s ? `Editar série ${i + 1}` : `Série ${i + 1} pendente`}
+                    >
+                      {s ? (isSkipped ? "–" : <Check className="w-5 h-5" strokeWidth={3} />) : i + 1}
+                    </motion.button>
+                  );
+                })}
               </div>
             </div>
 
@@ -586,9 +736,23 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                   <div className="flex-1 space-y-1">
                     <label className="text-[10px] uppercase font-black text-white/60 ml-1">Carga (kg)</label>
                     <div className="flex items-stretch gap-1.5">
-                      <button type="button" onClick={() => setActiveWeight(w => Math.max(0, w - 2.5))} className="w-12 h-14 shrink-0 rounded-2xl bg-white/5 border border-white/10 text-xl font-black text-white/70 active:bg-white/10 active:scale-95 transition-all">–</button>
+                      <button
+                        type="button"
+                        onPointerDown={weightDec.onPointerDown(-1)}
+                        onPointerUp={weightDec.onPointerUp}
+                        onPointerLeave={weightDec.onPointerLeave}
+                        className="w-12 h-14 shrink-0 rounded-2xl bg-white/5 border border-white/10 text-xl font-black text-white/70 active:bg-white/10 active:scale-95 transition-all"
+                        aria-label="Diminuir carga (mantenha pressionado para acelerar)"
+                      >–</button>
                       <input type="text" inputMode="numeric" value={activeWeight || ""} onChange={e => setActiveWeight(parseFloat(e.target.value.replace(/[^0-9.]/g, "")) || 0)} className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl text-center text-2xl font-black outline-none focus:border-primary/50" />
-                      <button type="button" onClick={() => setActiveWeight(w => w + 2.5)} className="w-12 h-14 shrink-0 rounded-2xl bg-white/5 border border-white/10 text-xl font-black text-white/70 active:bg-white/10 active:scale-95 transition-all">+</button>
+                      <button
+                        type="button"
+                        onPointerDown={weightInc.onPointerDown(1)}
+                        onPointerUp={weightInc.onPointerUp}
+                        onPointerLeave={weightInc.onPointerLeave}
+                        className="w-12 h-14 shrink-0 rounded-2xl bg-white/5 border border-white/10 text-xl font-black text-white/70 active:bg-white/10 active:scale-95 transition-all"
+                        aria-label="Aumentar carga (mantenha pressionado para acelerar)"
+                      >+</button>
                     </div>
                   </div>
                   <div className="flex-1 space-y-1">
@@ -606,6 +770,15 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                     <button key={opt.value} onClick={() => handleFizASerie(opt.value)} disabled={isRegisteringSet || isFinishing} className="flex flex-col items-center justify-center min-h-20 rounded-2xl border-2 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none" style={{ borderColor: opt.color, backgroundColor: opt.bg, color: opt.color }}><span className="text-2xl">{opt.emoji}</span><span className="text-[10px] font-black uppercase mt-1">{opt.label}</span></button>
                   ))}
                 </div>
+                {/* Pular série — mesma altura visual dos botões primários, mas visual secundário */}
+                <button
+                  type="button"
+                  onClick={handlePularSerie}
+                  disabled={isRegisteringSet || isFinishing}
+                  className="w-full flex items-center justify-center gap-2 h-11 rounded-2xl border border-white/15 text-white/60 text-xs font-black uppercase tracking-wider hover:text-white hover:border-white/30 active:scale-95 transition-all disabled:opacity-50"
+                >
+                  <SkipForward className="w-4 h-4" /> Pular série
+                </button>
                 {/* Microcopy apenas na primeiríssima série do treino — orienta o iniciante sem infantilizar a UI nas séries seguintes */}
                 {currentExIdx === 0 && doneSets.length === 0 && (
                   <p className="text-center text-[10px] text-white/40 font-medium -mt-1">Ajuste carga e reps, depois toque em como foi a série</p>
@@ -615,6 +788,48 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
           </motion.div>
         )}
       </main>
+
+      {/* Dialog de edição/remoção de série já registrada */}
+      <Dialog open={editingSetIdx !== null} onOpenChange={(o) => { if (!o) setEditingSetIdx(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              Série {editingSetIdx != null ? editingSetIdx + 1 : ""} · {currentEx?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            <div className="flex gap-3">
+              <div className="flex-1 space-y-1">
+                <label className="text-[10px] uppercase font-black text-white/60">Carga (kg)</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  value={editWeight || ""}
+                  onChange={(e) => setEditWeight(parseFloat(e.target.value) || 0)}
+                  className="w-full h-12 bg-white/5 border border-white/10 rounded-xl text-center text-lg font-black outline-none focus:border-primary/50"
+                />
+              </div>
+              <div className="flex-1 space-y-1">
+                <label className="text-[10px] uppercase font-black text-white/60">Reps</label>
+                <input
+                  type="number"
+                  value={editReps || ""}
+                  onChange={(e) => setEditReps(parseFloat(e.target.value) || 0)}
+                  className="w-full h-12 bg-white/5 border border-white/10 rounded-xl text-center text-lg font-black outline-none focus:border-primary/50"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button variant="destructive" onClick={handleRemoveSet} className="flex-1">
+                Remover
+              </Button>
+              <Button onClick={handleSaveEditSet} className="flex-1">
+                Salvar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Navegação Inferior Fixa */}
       <div className="fixed bottom-0 left-0 right-0 z-30 bg-background/95 backdrop-blur border-t border-white/10 p-4 pb-8">

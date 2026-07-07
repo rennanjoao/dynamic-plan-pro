@@ -147,7 +147,7 @@ export const GlobalAIAssistant = () => {
   // Não roda em rotas ocultas e dispara só uma vez por sessão (guarda no effect).
   const hidden = HIDDEN_ROUTES.has(pathname);
   const { data: proactiveCheck } = useQuery({
-    queryKey: ["ai-proactive-feedback"],
+    queryKey: ["ai-proactive-triggers"],
     enabled: !hidden && !sessionStorage.getItem("ai-proactive-seen"),
     staleTime: 5 * 60_000,
     queryFn: async () => {
@@ -156,14 +156,41 @@ export const GlobalAIAssistant = () => {
       if (!uid) return null;
       const { data: role } = await supabase.from("user_roles").select("role").eq("user_id", uid).maybeSingle();
       if (role?.role === "coach" || role?.role === "admin") return null;
-      const { data } = await supabase
-        .from("check_ins")
-        .select("coach_feedback, submitted_at")
-        .eq("student_id", uid)
-        .order("submitted_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      return data ?? null;
+      const [ciRes, streakRes, wsRes] = await Promise.all([
+        supabase
+          .from("check_ins")
+          .select("coach_feedback, submitted_at")
+          .eq("student_id", uid)
+          .order("submitted_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any).rpc("get_checkin_streak", { p_student_id: uid }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("workout_sessions")
+          .select("ended_at")
+          .eq("user_id", uid)
+          .not("ended_at", "is", null)
+          .order("ended_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      const lastCheckin = ciRes.data?.submitted_at ? new Date(ciRes.data.submitted_at) : null;
+      const lastWorkout = wsRes.data?.ended_at ? new Date(wsRes.data.ended_at) : null;
+      const daysSinceLastCheckin = lastCheckin
+        ? Math.floor((Date.now() - lastCheckin.getTime()) / 86_400_000)
+        : null;
+      const daysSinceLastWorkout = lastWorkout
+        ? Math.floor((Date.now() - lastWorkout.getTime()) / 86_400_000)
+        : null;
+      return {
+        coachFeedback: ciRes.data?.coach_feedback ?? null,
+        checkinSubmittedAt: ciRes.data?.submitted_at ?? null,
+        checkinStreak: typeof streakRes.data === "number" ? streakRes.data : 0,
+        daysSinceLastCheckin,
+        daysSinceLastWorkout,
+      };
     },
   });
 
@@ -171,9 +198,27 @@ export const GlobalAIAssistant = () => {
     if (!proactiveCheck) return;
     const seenKey = "ai-proactive-seen";
     if (sessionStorage.getItem(seenKey)) return;
-    if (proactiveCheck.coach_feedback) {
+
+    // Ordem de prioridade: feedback novo > reforço positivo > recuperação
+    const {
+      coachFeedback,
+      checkinStreak = 0,
+      daysSinceLastCheckin,
+      daysSinceLastWorkout,
+    } = proactiveCheck;
+
+    let msg: string | null = null;
+    if (coachFeedback) {
+      msg = "Seu coach deixou um feedback no seu último check-in! Quer que eu faça um resumo pra você?";
+    } else if (checkinStreak >= 3 && daysSinceLastCheckin != null && daysSinceLastCheckin >= 12) {
+      msg = `Você já tem ${checkinStreak} check-ins seguidos 🔥 Falta pouco pro próximo — quer que eu revise o que ajustar agora?`;
+    } else if (daysSinceLastWorkout != null && daysSinceLastWorkout >= 3) {
+      msg = `Faz ${daysSinceLastWorkout} dias sem treino registrado. Quer ajuda pra remontar a semana e voltar sem sobrecarregar?`;
+    }
+
+    if (msg) {
       sessionStorage.setItem(seenKey, "1");
-      setProactiveMessage("Seu coach deixou um feedback no seu último check-in! Quer que eu faça um resumo pra você?");
+      setProactiveMessage(msg);
     }
   }, [proactiveCheck]);
 
