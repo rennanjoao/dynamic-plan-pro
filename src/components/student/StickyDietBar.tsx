@@ -13,6 +13,7 @@
  */
 
 import { TrendingUp, TrendingDown, Minus, Scale } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { type CarbMode } from "@/components/student/CarbCycleSelector";
 
 interface StickyDietBarProps {
@@ -22,6 +23,11 @@ interface StickyDietBarProps {
   onCookedChange: (v: boolean) => void;
   hasCarbCycle: boolean;
   hasCookable: boolean;
+  /** Progresso opcional de refeições feitas (pérolas à direita). */
+  totalMeals?: number;
+  doneCount?: number;
+  progressPct?: number;
+  checked?: Record<number, boolean>;
 }
 
 const CARB_OPTIONS = [
@@ -58,12 +64,17 @@ export default function StickyDietBar({
   onCookedChange,
   hasCarbCycle,
   hasCookable,
+  totalMeals = 0,
+  doneCount = 0,
+  progressPct = 0,
+  checked = {},
 }: StickyDietBarProps) {
   // Normaliza "low" → "off" para compatibilidade com dados antigos
   const effectiveMode: CarbMode = carbMode === "low" ? "off" : carbMode;
 
+  const hasProgress = totalMeals > 0;
   // Se não há nenhum controle para mostrar, não renderiza a barra
-  if (!hasCarbCycle && !hasCookable) return null;
+  if (!hasCarbCycle && !hasCookable && !hasProgress) return null;
 
   return (
     <div
@@ -132,6 +143,30 @@ export default function StickyDietBar({
                 </button>
               );
             })}
+          </div>
+        )}
+
+        {/* ── Pérolas de progresso de refeições ── */}
+        {hasProgress && (
+          <div
+            className="flex items-center gap-1 shrink-0 ml-auto pl-2"
+            title={`${doneCount}/${totalMeals} refeições feitas (${progressPct}%)`}
+            aria-label={`Progresso de refeições: ${doneCount} de ${totalMeals}`}
+          >
+            {Array.from({ length: totalMeals }).map((_, i) => (
+              <span
+                key={i}
+                className={cn(
+                  "w-2 h-2 rounded-full border transition-colors",
+                  checked[i]
+                    ? "bg-emerald-500 border-emerald-500"
+                    : "bg-transparent border-white/25",
+                )}
+              />
+            ))}
+            <span className="text-[10px] font-bold text-emerald-400 tabular-nums ml-1">
+              {doneCount}/{totalMeals}
+            </span>
           </div>
         )}
       </div>
