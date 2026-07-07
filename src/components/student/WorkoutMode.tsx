@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import WorkoutShareCard from "./WorkoutShareCard";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { useWorkoutSession } from "@/hooks/useWorkoutSession";
+import { useAdaptiveWeightStep } from "@/hooks/useAdaptiveWeightStep";
 import { supabase } from "@/integrations/supabase/client";
 import type { ExerciseHistory } from "@/lib/workoutTypes";
 import { effortLabel, toExerciseKey } from "@/lib/workoutTypes";
