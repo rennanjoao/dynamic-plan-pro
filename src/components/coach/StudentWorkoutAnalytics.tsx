@@ -586,13 +586,13 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
             <StatCard
               icon={<Smile className="w-3.5 h-3.5" />}
               label="Sentimento"
-              value={feelingAvg !== "—" ? `${FEELING_EMOJI[Math.round(Number(feelingAvg))]} ${feelingAvg}` : "—"}
+              value={feelingAvg !== "—" ? `${FEELING_META[Math.round(Number(feelingAvg))]?.emoji ?? ""} ${feelingAvg}` : "—"}
               sub="média das sessões"
             />
             <StatCard
               icon={<Moon className="w-3.5 h-3.5" />}
               label="Sono"
-              value={sleepAvg !== "—" ? `${SLEEP_EMOJI[Math.round(Number(sleepAvg))]} ${sleepAvg}` : "—"}
+              value={sleepAvg !== "—" ? `${SLEEP_META[Math.round(Number(sleepAvg))]?.emoji ?? ""} ${sleepAvg}` : "—"}
               sub="média das sessões"
             />
           </div>
