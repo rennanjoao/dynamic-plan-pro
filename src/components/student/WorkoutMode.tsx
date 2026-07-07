@@ -536,23 +536,43 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   // (em vez de só trocar o estado visual). Isso elimina a janela de corrida em
   // que o aluno podia fechar o modal antes do encerramento ser salvo — quando
   // chegamos à tela de conclusão, o encerramento já foi tentado.
-  const handleFinishWorkout = async () => {
-    // `isFinishing` (estado) só reflete no próximo render — dois cliques quase
-    // simultâneos podem ler o valor antigo antes de o botão desabilitar de
-    // fato. O ref é checado e travado de forma síncrona, então cobre essa janela.
+  // Abre o modal de métricas — só finaliza de verdade depois que o aluno
+  // responde sono + sensação. Fica separado de `confirmFinishWorkout` para
+  // que qualquer botão "Finalizar" (barra inferior, Mapa do Treino, etc.)
+  // caia no mesmo funil sem duplicar lógica.
+  const handleFinishWorkout = () => {
     if (isFinishingRef.current) return;
+    setPwSleep(null);
+    setPwFeeling(null);
+    setShowPostWorkoutMetrics(true);
+  };
+
+  const confirmFinishWorkout = async () => {
+    if (isFinishingRef.current) return;
+    if (pwSleep == null || pwFeeling == null) {
+      toast.error("Responda como foi o sono e a sensação antes de finalizar.");
+      return;
+    }
     isFinishingRef.current = true;
     setIsFinishing(true);
     try {
-      await session.finishSession({ periodizationWeek: isPeriodizationOn ? activeWeek : undefined });
+      await session.finishSession({
+        periodizationWeek: isPeriodizationOn ? activeWeek : undefined,
+        sleepQuality: pwSleep,
+        generalFeeling: pwFeeling,
+      });
       try { localStorage.removeItem(storageKey); } catch { /* noop */ }
+      setShowPostWorkoutMetrics(false);
+      setPhase("conclusion");
     } catch (err) {
       console.warn("[WorkoutMode] Falha ao finalizar sessão:", err);
       toast.error("Não foi possível confirmar o encerramento no servidor. Seu progresso foi mantido localmente.");
+      // Mesmo com falha no server, libera a tela de resumo — dados estão salvos localmente.
+      setShowPostWorkoutMetrics(false);
+      setPhase("conclusion");
     } finally {
       isFinishingRef.current = false;
       setIsFinishing(false);
-      setPhase("conclusion");
     }
   };
 
