@@ -664,16 +664,40 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                 </div>
               </div>
               <div className="flex gap-2">
-                {/* Círculos maiores (44px, antes 36px) + "pop" ao marcar — recompensa imediata em toda série, não só no PR */}
-                {Array.from({ length: setsMax }).map((_, i) => (
-                  <motion.div
-                    key={i}
-                    initial={false}
-                    animate={doneSets[i] ? { scale: [1, 1.25, 1] } : { scale: 1 }}
-                    transition={{ duration: 0.35 }}
-                    className={`w-11 h-11 rounded-full border-2 flex items-center justify-center font-black text-sm transition-all ${doneSets[i] ? "bg-green-500 border-green-500 text-black" : i === doneSets.length ? "border-primary text-primary scale-110" : "border-white/15 text-white/30"}`}
-                  >{doneSets[i] ? <Check className="w-5 h-5" strokeWidth={3} /> : i + 1}</motion.div>
-                ))}
+                {/* Círculos interativos: clique numa série feita abre o Dialog de edição/remoção.
+                    Séries puladas ficam com borda tracejada; séries feitas em verde. */}
+                {Array.from({ length: setsMax }).map((_, i) => {
+                  const s = doneSets[i];
+                  const isCurrent = i === doneSets.length;
+                  const isSkipped = s?.skipped;
+                  const cls = s
+                    ? isSkipped
+                      ? "bg-transparent border-white/40 border-dashed text-white/50"
+                      : "bg-green-500 border-green-500 text-black"
+                    : isCurrent
+                      ? "border-primary text-primary scale-110"
+                      : "border-white/15 text-white/30";
+                  return (
+                    <motion.button
+                      key={i}
+                      type="button"
+                      initial={false}
+                      animate={s && !isSkipped ? { scale: [1, 1.25, 1] } : { scale: 1 }}
+                      transition={{ duration: 0.35 }}
+                      disabled={!s}
+                      onClick={() => {
+                        if (!s) return;
+                        setEditingSetIdx(i);
+                        setEditWeight(s.weight ?? 0);
+                        setEditReps(s.reps ?? 0);
+                      }}
+                      className={`w-11 h-11 rounded-full border-2 flex items-center justify-center font-black text-sm transition-all disabled:cursor-default ${cls}`}
+                      aria-label={s ? `Editar série ${i + 1}` : `Série ${i + 1} pendente`}
+                    >
+                      {s ? (isSkipped ? "–" : <Check className="w-5 h-5" strokeWidth={3} />) : i + 1}
+                    </motion.button>
+                  );
+                })}
               </div>
             </div>
 
