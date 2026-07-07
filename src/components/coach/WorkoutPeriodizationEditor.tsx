@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Calendar, BookmarkPlus, Library, Loader2, Trash2,
-  Eye, Copy, RefreshCcw, AlertCircle, History, ChevronDown, Minimize2,
+  Eye, Copy, RefreshCcw, AlertCircle, History, ChevronDown, Minimize2, Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
