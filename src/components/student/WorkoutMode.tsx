@@ -904,6 +904,84 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         </DialogContent>
       </Dialog>
 
+      {/* Modal pós-treino: métricas obrigatórias antes do resumo/compartilhamento */}
+      <Dialog open={showPostWorkoutMetrics} onOpenChange={(o) => { if (!o && !isFinishing) setShowPostWorkoutMetrics(false); }}>
+        <DialogContent className="max-w-md bg-black/90 backdrop-blur-md border border-white/10 rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black italic uppercase tracking-tight">
+              Como foi este treino?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 mt-2">
+            <div className="space-y-3">
+              <p className="text-[10px] uppercase tracking-widest font-black text-white/50">Qualidade do sono</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { v: 1, emoji: "🔴", label: "Ruim",       color: "#ef4444", bg: "rgba(239,68,68,0.10)" },
+                  { v: 2, emoji: "🟡", label: "Regular",    color: "#eab308", bg: "rgba(234,179,8,0.10)" },
+                  { v: 3, emoji: "🟢", label: "Boa",        color: "#3b82f6", bg: "rgba(59,130,246,0.10)" },
+                  { v: 4, emoji: "✨", label: "Excelente",  color: "#10b981", bg: "rgba(16,185,129,0.12)" },
+                ].map((opt) => {
+                  const active = pwSleep === opt.v;
+                  return (
+                    <button
+                      key={opt.v}
+                      type="button"
+                      onClick={() => setPwSleep(opt.v as 1 | 2 | 3 | 4)}
+                      className="flex items-center gap-2 h-14 rounded-2xl border-2 px-3 text-left transition-all active:scale-95"
+                      style={{
+                        borderColor: active ? opt.color : "rgba(255,255,255,0.10)",
+                        background: active ? opt.bg : "rgba(255,255,255,0.03)",
+                        color: active ? opt.color : "rgba(255,255,255,0.75)",
+                      }}
+                    >
+                      <span className="text-2xl">{opt.emoji}</span>
+                      <span className="text-sm font-black uppercase tracking-tight">{opt.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="space-y-3">
+              <p className="text-[10px] uppercase tracking-widest font-black text-white/50">Sensação no treino</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { v: 1, emoji: "🥱", label: "Cansado",  color: "#eab308", bg: "rgba(234,179,8,0.10)" },
+                  { v: 2, emoji: "😐", label: "Normal",   color: "#3b82f6", bg: "rgba(59,130,246,0.10)" },
+                  { v: 3, emoji: "🔥", label: "Disposto", color: "#10b981", bg: "rgba(16,185,129,0.12)" },
+                  { v: 4, emoji: "💀", label: "Exaurido", color: "#ef4444", bg: "rgba(239,68,68,0.10)" },
+                ].map((opt) => {
+                  const active = pwFeeling === opt.v;
+                  return (
+                    <button
+                      key={opt.v}
+                      type="button"
+                      onClick={() => setPwFeeling(opt.v as 1 | 2 | 3 | 4)}
+                      className="flex items-center gap-2 h-14 rounded-2xl border-2 px-3 text-left transition-all active:scale-95"
+                      style={{
+                        borderColor: active ? opt.color : "rgba(255,255,255,0.10)",
+                        background: active ? opt.bg : "rgba(255,255,255,0.03)",
+                        color: active ? opt.color : "rgba(255,255,255,0.75)",
+                      }}
+                    >
+                      <span className="text-2xl">{opt.emoji}</span>
+                      <span className="text-sm font-black uppercase tracking-tight">{opt.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <Button
+              onClick={confirmFinishWorkout}
+              disabled={isFinishing || pwSleep == null || pwFeeling == null}
+              className="w-full h-14 rounded-2xl font-black uppercase italic tracking-tighter bg-primary text-black hover:bg-primary/90 disabled:opacity-40"
+            >
+              {isFinishing ? "Salvando..." : "Confirmar e Finalizar"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Modal GIF */}
       <Dialog open={showGifDialog} onOpenChange={setShowGifDialog}>
         <DialogContent className="max-w-sm p-2 bg-black border-white/10 rounded-3xl overflow-hidden">
