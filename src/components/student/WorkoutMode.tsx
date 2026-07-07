@@ -736,9 +736,23 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                   <div className="flex-1 space-y-1">
                     <label className="text-[10px] uppercase font-black text-white/60 ml-1">Carga (kg)</label>
                     <div className="flex items-stretch gap-1.5">
-                      <button type="button" onClick={() => setActiveWeight(w => Math.max(0, w - 2.5))} className="w-12 h-14 shrink-0 rounded-2xl bg-white/5 border border-white/10 text-xl font-black text-white/70 active:bg-white/10 active:scale-95 transition-all">–</button>
+                      <button
+                        type="button"
+                        onPointerDown={weightDec.onPointerDown(-1)}
+                        onPointerUp={weightDec.onPointerUp}
+                        onPointerLeave={weightDec.onPointerLeave}
+                        className="w-12 h-14 shrink-0 rounded-2xl bg-white/5 border border-white/10 text-xl font-black text-white/70 active:bg-white/10 active:scale-95 transition-all"
+                        aria-label="Diminuir carga (mantenha pressionado para acelerar)"
+                      >–</button>
                       <input type="text" inputMode="numeric" value={activeWeight || ""} onChange={e => setActiveWeight(parseFloat(e.target.value.replace(/[^0-9.]/g, "")) || 0)} className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl text-center text-2xl font-black outline-none focus:border-primary/50" />
-                      <button type="button" onClick={() => setActiveWeight(w => w + 2.5)} className="w-12 h-14 shrink-0 rounded-2xl bg-white/5 border border-white/10 text-xl font-black text-white/70 active:bg-white/10 active:scale-95 transition-all">+</button>
+                      <button
+                        type="button"
+                        onPointerDown={weightInc.onPointerDown(1)}
+                        onPointerUp={weightInc.onPointerUp}
+                        onPointerLeave={weightInc.onPointerLeave}
+                        className="w-12 h-14 shrink-0 rounded-2xl bg-white/5 border border-white/10 text-xl font-black text-white/70 active:bg-white/10 active:scale-95 transition-all"
+                        aria-label="Aumentar carga (mantenha pressionado para acelerar)"
+                      >+</button>
                     </div>
                   </div>
                   <div className="flex-1 space-y-1">
@@ -756,6 +770,15 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                     <button key={opt.value} onClick={() => handleFizASerie(opt.value)} disabled={isRegisteringSet || isFinishing} className="flex flex-col items-center justify-center min-h-20 rounded-2xl border-2 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none" style={{ borderColor: opt.color, backgroundColor: opt.bg, color: opt.color }}><span className="text-2xl">{opt.emoji}</span><span className="text-[10px] font-black uppercase mt-1">{opt.label}</span></button>
                   ))}
                 </div>
+                {/* Pular série — mesma altura visual dos botões primários, mas visual secundário */}
+                <button
+                  type="button"
+                  onClick={handlePularSerie}
+                  disabled={isRegisteringSet || isFinishing}
+                  className="w-full flex items-center justify-center gap-2 h-11 rounded-2xl border border-white/15 text-white/60 text-xs font-black uppercase tracking-wider hover:text-white hover:border-white/30 active:scale-95 transition-all disabled:opacity-50"
+                >
+                  <SkipForward className="w-4 h-4" /> Pular série
+                </button>
                 {/* Microcopy apenas na primeiríssima série do treino — orienta o iniciante sem infantilizar a UI nas séries seguintes */}
                 {currentExIdx === 0 && doneSets.length === 0 && (
                   <p className="text-center text-[10px] text-white/40 font-medium -mt-1">Ajuste carga e reps, depois toque em como foi a série</p>
@@ -765,6 +788,48 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
           </motion.div>
         )}
       </main>
+
+      {/* Dialog de edição/remoção de série já registrada */}
+      <Dialog open={editingSetIdx !== null} onOpenChange={(o) => { if (!o) setEditingSetIdx(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              Série {editingSetIdx != null ? editingSetIdx + 1 : ""} · {currentEx?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            <div className="flex gap-3">
+              <div className="flex-1 space-y-1">
+                <label className="text-[10px] uppercase font-black text-white/60">Carga (kg)</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  value={editWeight || ""}
+                  onChange={(e) => setEditWeight(parseFloat(e.target.value) || 0)}
+                  className="w-full h-12 bg-white/5 border border-white/10 rounded-xl text-center text-lg font-black outline-none focus:border-primary/50"
+                />
+              </div>
+              <div className="flex-1 space-y-1">
+                <label className="text-[10px] uppercase font-black text-white/60">Reps</label>
+                <input
+                  type="number"
+                  value={editReps || ""}
+                  onChange={(e) => setEditReps(parseFloat(e.target.value) || 0)}
+                  className="w-full h-12 bg-white/5 border border-white/10 rounded-xl text-center text-lg font-black outline-none focus:border-primary/50"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button variant="destructive" onClick={handleRemoveSet} className="flex-1">
+                Remover
+              </Button>
+              <Button onClick={handleSaveEditSet} className="flex-1">
+                Salvar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Navegação Inferior Fixa */}
       <div className="fixed bottom-0 left-0 right-0 z-30 bg-background/95 backdrop-blur border-t border-white/10 p-4 pb-8">
