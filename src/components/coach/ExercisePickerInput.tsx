@@ -3,6 +3,11 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { searchExerciseLibrary } from "@/lib/exerciseLibrary";
 import { cn } from "@/lib/utils";
+import {
+  getLastPrescription,
+  QUICK_SET_PRESETS,
+  type RememberedPrescription,
+} from "@/lib/prescriptionMemory";
 
 interface Suggestion {
   key: string;
@@ -16,6 +21,12 @@ interface Props {
   onChange: (patch: { name: string; gifKey?: string }) => void;
   placeholder?: string;
   className?: string;
+  /** Coach atual — habilita memória de prescrição por exercício. */
+  coachId?: string | null;
+  /** Se fornecido, ao selecionar exercício restaura Sets/Reps/Cadência/Descanso. */
+  onPrescriptionRestore?: (rx: RememberedPrescription) => void;
+  /** Habilita chips de preset (4x8-12 etc). O callback recebe {sets, reps}. */
+  onQuickPreset?: (preset: { sets: string; reps: string }) => void;
 }
 
 /**
@@ -25,7 +36,10 @@ interface Props {
  * para não deixar um gif errado grudado num nome diferente.
  * Se digitar livremente e não bater com nada, salva sem gifKey (fallback por nome).
  */
-export function ExercisePickerInput({ value, gifKey, onChange, placeholder, className }: Props) {
+export function ExercisePickerInput({
+  value, gifKey, onChange, placeholder, className,
+  coachId, onPrescriptionRestore, onQuickPreset,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [highlight, setHighlight] = useState(0);
@@ -61,6 +75,12 @@ export function ExercisePickerInput({ value, gifKey, onChange, placeholder, clas
     setSuggestions([]);
     setOpen(false);
     inputRef.current?.blur();
+    if (coachId && onPrescriptionRestore) {
+      const rx = getLastPrescription(coachId, s.displayName);
+      if (rx && (rx.sets || rx.reps || rx.cadence || rx.rest)) {
+        onPrescriptionRestore(rx);
+      }
+    }
   };
 
   return (
@@ -117,5 +137,19 @@ export function ExercisePickerInput({ value, gifKey, onChange, placeholder, clas
         ))}
       </PopoverContent>
     </Popover>
+    {onQuickPreset && (
+      <div className="flex flex-wrap gap-1 mt-1">
+        {QUICK_SET_PRESETS.map((p) => (
+          <button
+            key={p.label}
+            type="button"
+            onClick={() => onQuickPreset({ sets: p.sets, reps: p.reps })}
+            className="text-[10px] px-2 py-0.5 rounded-full border border-border/60 text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors"
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+    )}
   );
 }
