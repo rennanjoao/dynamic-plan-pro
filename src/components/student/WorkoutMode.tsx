@@ -378,6 +378,16 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         perceivedEffort: effort,
         completed: true,
       });
+      // Toast com ação "Desfazer" — reduz o custo de um clique errado
+      if (!isPR) {
+        toast.success(`Série ${setIdx + 1} registrada`, {
+          duration: 4000,
+          action: {
+            label: "Desfazer",
+            onClick: () => { void handleUndoLastSet(); },
+          },
+        });
+      }
     } catch (err) {
       console.warn("[WorkoutMode] Falha ao registrar série no servidor (mantida localmente):", err);
       toast.error("Sem conexão — série salva localmente e será sincronizada depois.", { duration: 2500 });
