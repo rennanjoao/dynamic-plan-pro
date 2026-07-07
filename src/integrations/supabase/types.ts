@@ -266,6 +266,39 @@ export type Database = {
         }
         Relationships: []
       }
+      checkin_reminder_log: {
+        Row: {
+          coach_id: string | null
+          created_at: string
+          days_since_feedback: number | null
+          email_type: string
+          id: string
+          reference_date: string
+          student_id: string
+          variant_index: number | null
+        }
+        Insert: {
+          coach_id?: string | null
+          created_at?: string
+          days_since_feedback?: number | null
+          email_type: string
+          id?: string
+          reference_date?: string
+          student_id: string
+          variant_index?: number | null
+        }
+        Update: {
+          coach_id?: string | null
+          created_at?: string
+          days_since_feedback?: number | null
+          email_type?: string
+          id?: string
+          reference_date?: string
+          student_id?: string
+          variant_index?: number | null
+        }
+        Relationships: []
+      }
       coach_fatigue_alerts: {
         Row: {
           alert_type: string
