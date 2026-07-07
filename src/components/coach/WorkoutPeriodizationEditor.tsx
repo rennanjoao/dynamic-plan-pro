@@ -147,6 +147,29 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
     setPayload({ ...payload, periodization: { ...p, overrides: next } });
   };
 
+  /**
+   * Aplica em massa um valor (sets/reps/cadence/rest) para todos os
+   * exercícios da semana informada, sobrescrevendo apenas o campo escolhido.
+   */
+  const bulkApplyWeek = (
+    weekIdx: number,
+    field: "sets" | "reps" | "cadence" | "rest",
+    value: string,
+  ) => {
+    if (!value.trim()) return;
+    const key = String(weekIdx);
+    const next = { ...(p.overrides || {}) } as Record<string, Record<string, any>>;
+    next[key] = { ...(next[key] || {}) };
+    (payload.workouts || []).forEach((day) => {
+      (day.exercises || []).forEach((_ex, ei) => {
+        const id = exId(day.key, ei);
+        next[key][id] = { ...(next[key][id] || {}), [field]: value };
+      });
+    });
+    setPayload({ ...payload, periodization: { ...p, overrides: next } });
+    toast.success(`${field} aplicado em massa na semana ${weekIdx + 1}`);
+  };
+
   function duplicateWeek(from: number, to: number) {
     if (from === to) return;
     const weeks = p.weeks.map((w, idx) => (idx === to ? { ...p.weeks[from], label: w.label } : w));
@@ -442,6 +465,12 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
                   Substituições — {w.label || `Semana ${weekIdx + 1}`}
                 </AccordionTrigger>
                 <AccordionContent className="px-3 pb-3 space-y-3 pt-2 border-t border-border/40">
+                  <div className="flex items-center justify-end -mt-1 mb-1">
+                    <BulkApplyPopover
+                      onApply={(field, value) => bulkApplyWeek(weekIdx, field, value)}
+                      weekLabel={w.label || `Semana ${weekIdx + 1}`}
+                    />
+                  </div>
                   {payload.workouts.length === 0 && (
                     <p className="text-[11px] text-muted-foreground italic">Nenhum exercício na aba Treino ainda.</p>
                   )}
