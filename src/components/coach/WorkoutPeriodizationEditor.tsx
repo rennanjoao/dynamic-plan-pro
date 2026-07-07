@@ -659,6 +659,71 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
 
 // ─── Subcomponente: Biblioteca de templates (hooks isolados) ───
 const DIVISIONS = ["todos", "AB", "ABC", "ABCD", "ABCDE"] as const;
+
+// ─── Popover de aplicação em massa por semana ───
+function BulkApplyPopover({
+  onApply,
+  weekLabel,
+}: {
+  onApply: (field: "sets" | "reps" | "cadence" | "rest", value: string) => void;
+  weekLabel: string;
+}) {
+  const [field, setField] = useState<"sets" | "reps" | "cadence" | "rest">("reps");
+  const [value, setValue] = useState("");
+  const [open, setOpen] = useState(false);
+  const fieldLabel = { sets: "Séries", reps: "Reps", cadence: "Cadência", rest: "Descanso" } as const;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button size="sm" variant="ghost" className="h-6 text-[10px] px-2 text-primary">
+          <Wand2 className="w-3 h-3 mr-1" /> Aplicar em massa
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64 p-3 space-y-2">
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
+          Aplicar em toda a {weekLabel}
+        </p>
+        <div className="grid grid-cols-4 gap-1">
+          {(Object.keys(fieldLabel) as Array<keyof typeof fieldLabel>).map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setField(k)}
+              className={cn(
+                "text-[10px] font-bold px-2 py-1 rounded border transition",
+                field === k
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "border-border text-muted-foreground hover:border-primary/50",
+              )}
+            >
+              {fieldLabel[k]}
+            </button>
+          ))}
+        </div>
+        <Input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={field === "reps" ? "Ex: 8-12" : field === "rest" ? "Ex: 60s" : ""}
+          className="h-8 text-xs"
+        />
+        <Button
+          size="sm"
+          className="w-full h-8 text-xs"
+          onClick={() => {
+            onApply(field, value);
+            setValue("");
+            setOpen(false);
+          }}
+          disabled={!value.trim()}
+        >
+          Aplicar em todos os exercícios
+        </Button>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 const PROFILES: { value: string; label: string }[] = [
   { value: "todos",                  label: "Todos os perfis" },
   { value: "masculino_geral",        label: "Masculino Geral" },
