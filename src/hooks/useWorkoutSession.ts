@@ -34,8 +34,8 @@ interface RegisterSetParams {
 }
 
 interface FinishSessionParams {
-  generalFeeling?: 1 | 2 | 3;
-  sleepQuality?: 1 | 2 | 3;
+  generalFeeling?: 1 | 2 | 3 | 4;
+  sleepQuality?: 1 | 2 | 3 | 4;
   notes?: string;
   periodizationWeek?: number;
 }
