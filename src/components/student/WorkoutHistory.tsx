@@ -3,7 +3,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Trophy, Dumbbell, Clock, TrendingUp, Zap } from "lucide-react";
+import { Trophy, Dumbbell, Clock, TrendingUp, Zap, Moon, Activity } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { effortLabel } from "@/lib/workoutTypes";
 
 /* ── Helpers ─────────────────────────────────────────────────────────────────── */
@@ -25,8 +26,20 @@ function fmtDuration(seconds?: number): string {
   return rem > 0 ? `${h}h${rem}min` : `${h}h`;
 }
 
-const FEELING_EMOJI: Record<number, string> = { 1: "😓", 2: "😊", 3: "💪" };
-const SLEEP_EMOJI:   Record<number, string> = { 1: "😴", 2: "😊", 3: "🌙" };
+// Escalas alinhadas ao modal pós-treino (1..4).
+// Fallback para o legado 3-níveis: reaproveita a cor "boa" quando o valor for 3.
+const FEELING_META: Record<number, { label: string; emoji: string; cls: string }> = {
+  1: { label: "Cansado",  emoji: "🥱", cls: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20" },
+  2: { label: "Normal",   emoji: "😐", cls: "bg-blue-500/10 text-blue-500 border-blue-500/20" },
+  3: { label: "Disposto", emoji: "🔥", cls: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" },
+  4: { label: "Exaurido", emoji: "💀", cls: "bg-red-500/10 text-red-500 border-red-500/20" },
+};
+const SLEEP_META: Record<number, { label: string; emoji: string; cls: string }> = {
+  1: { label: "Ruim",      emoji: "🔴", cls: "bg-red-500/10 text-red-500 border-red-500/20" },
+  2: { label: "Regular",   emoji: "🟡", cls: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20" },
+  3: { label: "Boa",       emoji: "🟢", cls: "bg-blue-500/10 text-blue-500 border-blue-500/20" },
+  4: { label: "Excelente", emoji: "✨", cls: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" },
+};
 
 /* ── Tipos ─────────────────────────────────────────────────────────────────── */
 
@@ -187,16 +200,24 @@ export default function WorkoutHistory({ userId }: { userId: string }) {
                   {fmtDate(session.started_at)}
                 </p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {session.general_feeling && (
-                  <span title="Como foi o treino" className="text-base">
-                    {FEELING_EMOJI[session.general_feeling]}
-                  </span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {session.sleep_quality != null && SLEEP_META[session.sleep_quality] && (
+                  <Badge
+                    variant="outline"
+                    className={`gap-1 text-[10px] font-bold px-2 py-0.5 ${SLEEP_META[session.sleep_quality].cls}`}
+                    title={`Sono: ${SLEEP_META[session.sleep_quality].label}`}
+                  >
+                    <Moon className="w-3 h-3" /> {SLEEP_META[session.sleep_quality].label}
+                  </Badge>
                 )}
-                {session.sleep_quality && (
-                  <span title="Qualidade do sono" className="text-base">
-                    {SLEEP_EMOJI[session.sleep_quality]}
-                  </span>
+                {session.general_feeling != null && FEELING_META[session.general_feeling] && (
+                  <Badge
+                    variant="outline"
+                    className={`gap-1 text-[10px] font-bold px-2 py-0.5 ${FEELING_META[session.general_feeling].cls}`}
+                    title={`Sensação: ${FEELING_META[session.general_feeling].label}`}
+                  >
+                    <Activity className="w-3 h-3" /> {FEELING_META[session.general_feeling].label}
+                  </Badge>
                 )}
               </div>
             </div>
