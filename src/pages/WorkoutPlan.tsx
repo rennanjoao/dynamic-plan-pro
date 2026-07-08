@@ -125,6 +125,21 @@ export default function WorkoutPlan() {
     },
   });
 
+  // Nome do próprio aluno (para o WorkoutShareCard). Sem isto, o card de
+  // compartilhamento cai para o rótulo genérico "Membro Elite Prime Hub".
+  const { data: studentProfile } = useQuery({
+    queryKey: ["student-profile-name", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", userId)
+        .maybeSingle();
+      return data ?? null;
+    },
+  });
+
   if (isLoading) return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -342,6 +357,7 @@ export default function WorkoutPlan() {
           coachId={(planData as any)?.coach_id ?? undefined}
           coachName={(coachProfile as any)?.full_name ?? undefined}
           teamName={(coachProfile as any)?.team_name ?? undefined}
+          studentName={(studentProfile as any)?.full_name ?? undefined}
           initialDay={workoutModeDay}
           initialWeek={workoutModeWeek}
           periodization={safePayload?.periodization}
