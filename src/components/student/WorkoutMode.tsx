@@ -121,7 +121,7 @@ function playBeep(type: "warn" | "end" = "end") {
 }
 
 /* ── Main Component ── */
-export default function WorkoutMode({ workouts, userId, coachId, coachName, teamName, initialDay, initialWeek, periodization, onClose }: any) {
+export default function WorkoutMode({ workouts, userId, coachId, coachName, teamName, studentName, initialDay, initialWeek, periodization, onClose }: any) {
   const confirm = useConfirm();
   const session = useWorkoutSession();
   const storageKey = `workout_session_${userId}_${initialDay ?? workouts[0]?.key ?? "A"}`;
@@ -147,6 +147,21 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
       if (doneIdx.length) map[key] = doneIdx;
     }
     return map;
+  }, [setDataMap]);
+  // Volume total (kg) da sessão atual — soma peso×reps das séries com
+  // done=true e skipped=false. Alimenta a 4ª métrica do WorkoutShareCard.
+  const totalVolumeKg = useMemo(() => {
+    let total = 0;
+    for (const key of Object.keys(setDataMap)) {
+      for (const s of setDataMap[key] ?? []) {
+        if (s?.done && !s?.skipped) {
+          const w = Number(s?.weight) || 0;
+          const r = Number(s?.reps) || 0;
+          total += w * r;
+        }
+      }
+    }
+    return Math.round(total);
   }, [setDataMap]);
   const [startedAt, setStartedAt] = useState<number>(_saved?.startedAt ?? Date.now());
   const [now, setNow] = useState(Date.now());
@@ -609,7 +624,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
           <Button onClick={() => setShowShare(true)} className="w-full h-14 rounded-2xl gap-2 text-lg font-black uppercase italic shadow-[0_0_20px_rgba(201,168,76,0.3)] border-2 border-primary/50"><Zap className="w-5 h-5" /> Compartilhar</Button>
           <Button onClick={onClose} variant="ghost" className="w-full text-white/40">Fechar</Button>
         </motion.div>
-        {showShare && <WorkoutShareCard workoutName={day?.key} durationSec={elapsedSec} totalSets={Object.values(completed).flat().length} completedExercises={Object.keys(completed).length} totalExercises={exercises.length} coachName={coachName} teamName={teamName} streak={realStreak} coachId={coachId} studentId={userId} prs={sessionPRs} onClose={() => setShowShare(false)} />}
+        {showShare && <WorkoutShareCard workoutName={day?.key} durationSec={elapsedSec} totalSets={Object.values(completed).flat().length} completedExercises={Object.keys(completed).length} totalExercises={exercises.length} coachName={coachName} teamName={teamName} studentName={studentName} totalVolumeKg={totalVolumeKg} streak={realStreak} coachId={coachId} studentId={userId} prs={sessionPRs} onClose={() => setShowShare(false)} />}
       </div>
     );
   }

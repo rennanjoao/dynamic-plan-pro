@@ -117,6 +117,13 @@ const FEELING_META: Record<number, { label: string; emoji: string; cls: string }
   3: { label: "Disposto", emoji: "🔥", cls: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" },
   4: { label: "Exaurido", emoji: "💀", cls: "bg-red-500/10 text-red-500 border-red-500/20" },
 };
+// Os códigos brutos gravados em general_feeling seguem a ORDEM DOS BOTÕES no
+// modal pós-treino (1=Cansado, 2=Normal, 3=Disposto, 4=Exaurido) — NÃO uma
+// escala de gravidade. Para calcular a média corretamente, convertemos cada
+// código bruto para um rank real (1=pior … 4=melhor) e, no fim, achamos o
+// código bruto mais próximo do rank médio só para exibir o emoji/label.
+const FEELING_SEVERITY_RANK: Record<number, number> = { 4: 1, 1: 2, 2: 3, 3: 4 };
+const FEELING_RANK_TO_RAW: Record<number, number> = { 1: 4, 2: 1, 3: 2, 4: 3 };
 const SLEEP_META: Record<number, { label: string; emoji: string; cls: string }> = {
   1: { label: "Ruim",      emoji: "🔴", cls: "bg-red-500/10 text-red-500 border-red-500/20" },
   2: { label: "Regular",   emoji: "🟡", cls: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20" },
@@ -415,10 +422,16 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
   const totalSetsCount   = completedSets.length;
   const totalVolume      = completedSets.reduce((a, s) => a + ((s.weight_kg ?? 0) * (s.reps ?? 0)), 0);
 
-  const feelingSessions  = sessions.filter((s) => s.general_feeling);
-  const feelingAvg       = feelingSessions.length > 0
-    ? (feelingSessions.reduce((a, s) => a + (s.general_feeling ?? 0), 0) / feelingSessions.length).toFixed(1)
-    : "—";
+  // Média calculada sobre o RANK de severidade (1=pior, 4=melhor), não sobre
+  // os códigos brutos. Ver comentário em FEELING_SEVERITY_RANK.
+  const feelingSessions   = sessions.filter((s) => s.general_feeling != null && FEELING_SEVERITY_RANK[s.general_feeling as number] != null);
+  const feelingAvgRank    = feelingSessions.length > 0
+    ? feelingSessions.reduce((a, s) => a + (FEELING_SEVERITY_RANK[s.general_feeling as number] ?? 0), 0) / feelingSessions.length
+    : null;
+  const feelingAvg        = feelingAvgRank != null ? feelingAvgRank.toFixed(1) : "—";
+  const feelingAvgRawKey  = feelingAvgRank != null
+    ? FEELING_RANK_TO_RAW[Math.min(4, Math.max(1, Math.round(feelingAvgRank)))]
+    : null;
 
   const sleepSessions    = sessions.filter((s) => s.sleep_quality);
   const sleepAvg         = sleepSessions.length > 0
@@ -586,7 +599,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
             <StatCard
               icon={<Smile className="w-3.5 h-3.5" />}
               label="Sentimento"
-              value={feelingAvg !== "—" ? `${FEELING_META[Math.round(Number(feelingAvg))]?.emoji ?? ""} ${feelingAvg}` : "—"}
+              value={feelingAvgRawKey != null ? `${FEELING_META[feelingAvgRawKey]?.emoji ?? ""} ${feelingAvg}` : "—"}
               sub="média das sessões"
             />
             <StatCard
