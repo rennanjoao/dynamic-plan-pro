@@ -121,7 +121,7 @@ function playBeep(type: "warn" | "end" = "end") {
 }
 
 /* ── Main Component ── */
-export default function WorkoutMode({ workouts, userId, coachId, coachName, teamName, initialDay, initialWeek, periodization, onClose }: any) {
+export default function WorkoutMode({ workouts, userId, coachId, coachName, teamName, studentName, initialDay, initialWeek, periodization, onClose }: any) {
   const confirm = useConfirm();
   const session = useWorkoutSession();
   const storageKey = `workout_session_${userId}_${initialDay ?? workouts[0]?.key ?? "A"}`;
