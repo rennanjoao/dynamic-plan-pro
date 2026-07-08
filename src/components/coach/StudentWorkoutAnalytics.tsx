@@ -117,6 +117,13 @@ const FEELING_META: Record<number, { label: string; emoji: string; cls: string }
   3: { label: "Disposto", emoji: "🔥", cls: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" },
   4: { label: "Exaurido", emoji: "💀", cls: "bg-red-500/10 text-red-500 border-red-500/20" },
 };
+// Os códigos brutos gravados em general_feeling seguem a ORDEM DOS BOTÕES no
+// modal pós-treino (1=Cansado, 2=Normal, 3=Disposto, 4=Exaurido) — NÃO uma
+// escala de gravidade. Para calcular a média corretamente, convertemos cada
+// código bruto para um rank real (1=pior … 4=melhor) e, no fim, achamos o
+// código bruto mais próximo do rank médio só para exibir o emoji/label.
+const FEELING_SEVERITY_RANK: Record<number, number> = { 4: 1, 1: 2, 2: 3, 3: 4 };
+const FEELING_RANK_TO_RAW: Record<number, number> = { 1: 4, 2: 1, 3: 2, 4: 3 };
 const SLEEP_META: Record<number, { label: string; emoji: string; cls: string }> = {
   1: { label: "Ruim",      emoji: "🔴", cls: "bg-red-500/10 text-red-500 border-red-500/20" },
   2: { label: "Regular",   emoji: "🟡", cls: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20" },
