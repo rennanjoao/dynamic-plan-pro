@@ -624,7 +624,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
           <Button onClick={() => setShowShare(true)} className="w-full h-14 rounded-2xl gap-2 text-lg font-black uppercase italic shadow-[0_0_20px_rgba(201,168,76,0.3)] border-2 border-primary/50"><Zap className="w-5 h-5" /> Compartilhar</Button>
           <Button onClick={onClose} variant="ghost" className="w-full text-white/40">Fechar</Button>
         </motion.div>
-        {showShare && <WorkoutShareCard workoutName={day?.key} durationSec={elapsedSec} totalSets={Object.values(completed).flat().length} completedExercises={Object.keys(completed).length} totalExercises={exercises.length} coachName={coachName} teamName={teamName} streak={realStreak} coachId={coachId} studentId={userId} prs={sessionPRs} onClose={() => setShowShare(false)} />}
+        {showShare && <WorkoutShareCard workoutName={day?.key} durationSec={elapsedSec} totalSets={Object.values(completed).flat().length} completedExercises={Object.keys(completed).length} totalExercises={exercises.length} coachName={coachName} teamName={teamName} studentName={studentName} totalVolumeKg={totalVolumeKg} streak={realStreak} coachId={coachId} studentId={userId} prs={sessionPRs} onClose={() => setShowShare(false)} />}
       </div>
     );
   }
