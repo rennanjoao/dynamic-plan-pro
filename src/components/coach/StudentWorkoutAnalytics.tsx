@@ -599,7 +599,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
             <StatCard
               icon={<Smile className="w-3.5 h-3.5" />}
               label="Sentimento"
-              value={feelingAvg !== "—" ? `${FEELING_META[Math.round(Number(feelingAvg))]?.emoji ?? ""} ${feelingAvg}` : "—"}
+              value={feelingAvgRawKey != null ? `${FEELING_META[feelingAvgRawKey]?.emoji ?? ""} ${feelingAvg}` : "—"}
               sub="média das sessões"
             />
             <StatCard
