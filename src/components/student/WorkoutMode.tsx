@@ -148,6 +148,21 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     }
     return map;
   }, [setDataMap]);
+  // Volume total (kg) da sessão atual — soma peso×reps das séries com
+  // done=true e skipped=false. Alimenta a 4ª métrica do WorkoutShareCard.
+  const totalVolumeKg = useMemo(() => {
+    let total = 0;
+    for (const key of Object.keys(setDataMap)) {
+      for (const s of setDataMap[key] ?? []) {
+        if (s?.done && !s?.skipped) {
+          const w = Number(s?.weight) || 0;
+          const r = Number(s?.reps) || 0;
+          total += w * r;
+        }
+      }
+    }
+    return Math.round(total);
+  }, [setDataMap]);
   const [startedAt, setStartedAt] = useState<number>(_saved?.startedAt ?? Date.now());
   const [now, setNow] = useState(Date.now());
   const [showShare, setShowShare] = useState(false);
