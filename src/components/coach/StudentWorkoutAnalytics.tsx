@@ -422,10 +422,16 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
   const totalSetsCount   = completedSets.length;
   const totalVolume      = completedSets.reduce((a, s) => a + ((s.weight_kg ?? 0) * (s.reps ?? 0)), 0);
 
-  const feelingSessions  = sessions.filter((s) => s.general_feeling);
-  const feelingAvg       = feelingSessions.length > 0
-    ? (feelingSessions.reduce((a, s) => a + (s.general_feeling ?? 0), 0) / feelingSessions.length).toFixed(1)
-    : "—";
+  // Média calculada sobre o RANK de severidade (1=pior, 4=melhor), não sobre
+  // os códigos brutos. Ver comentário em FEELING_SEVERITY_RANK.
+  const feelingSessions   = sessions.filter((s) => s.general_feeling != null && FEELING_SEVERITY_RANK[s.general_feeling as number] != null);
+  const feelingAvgRank    = feelingSessions.length > 0
+    ? feelingSessions.reduce((a, s) => a + (FEELING_SEVERITY_RANK[s.general_feeling as number] ?? 0), 0) / feelingSessions.length
+    : null;
+  const feelingAvg        = feelingAvgRank != null ? feelingAvgRank.toFixed(1) : "—";
+  const feelingAvgRawKey  = feelingAvgRank != null
+    ? FEELING_RANK_TO_RAW[Math.min(4, Math.max(1, Math.round(feelingAvgRank)))]
+    : null;
 
   const sleepSessions    = sessions.filter((s) => s.sleep_quality);
   const sleepAvg         = sleepSessions.length > 0
