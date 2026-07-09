@@ -270,8 +270,8 @@ const Anamnesis = () => {
       
       setCoach({ id: data.coach_id, name: data.coach_name, email: data.notification_email });
       setStep("form"); // Avança para a Anamnese
-    } catch (e: any) {
-      showToast(e.message || "Erro ao validar código.");
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : "Erro ao validar código.");
     } finally {
       setValidating(false);
     }
