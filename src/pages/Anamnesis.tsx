@@ -422,9 +422,9 @@ const Anamnesis = () => {
         if (studentId) localStorage.removeItem(ANAMNESIS_DRAFT_KEY(studentId));
         localStorage.removeItem(ANAMNESIS_ANON_DRAFT_KEY);
       } catch { /* noop */ }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
-      showToast(e.message || "Erro ao processar cadastro.");
+      showToast(e instanceof Error ? e.message : "Erro ao processar cadastro.");
     } finally {
       setSaving(false);
     }
