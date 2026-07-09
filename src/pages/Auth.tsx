@@ -96,8 +96,8 @@ const Auth = () => {
       toast.success("Enviamos um link de redefinição para o seu e-mail");
       setMode("login");
       setRecoverEmail("");
-    } catch (err: any) {
-      toast.error(err?.message || "Erro ao enviar link de recuperação");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Erro ao enviar link de recuperação");
     } finally {
       setIsLoading(false);
     }
