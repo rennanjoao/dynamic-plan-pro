@@ -17,6 +17,7 @@ import {
 import { Loader2, TrendingDown, TrendingUp, Minus, FileText, ArrowLeft, ZoomIn } from "lucide-react";
 import { CHECKIN_METRICS } from "@/lib/checkInSchema";
 import { estimateBF } from "@/lib/bfEstimate";
+import CheckinPayloadAnswers from "@/components/coach/CheckinPayloadAnswers";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -39,6 +40,7 @@ interface Timepoint {
   metrics: Record<string, number | undefined>;
   fotos: Record<string, string>;
   feedback: string | null;
+  payload: Record<string, unknown> | null;
 }
 
 function fmt(iso: string) {
@@ -94,7 +96,7 @@ export default function EvolutionComparison({
           kind: "anamnese",
           date: anam.submitted_at,
           label: `Anamnese · ${fmt(anam.submitted_at)}`,
-          metrics, fotos, feedback: null,
+          metrics, fotos, feedback: null, payload: payload,
         });
       }
 
@@ -115,7 +117,7 @@ export default function EvolutionComparison({
           kind: "checkin",
           date: c.submitted_at,
           label: `Feedback ${idx === 0 ? "atual" : `#${(cis.length - idx)}`} · ${fmt(c.submitted_at)}`,
-          metrics, fotos, feedback: c.coach_feedback,
+          metrics, fotos, feedback: c.coach_feedback, payload: payload,
         });
       });
 
@@ -210,6 +212,8 @@ export default function EvolutionComparison({
               );
             })}
           </div>
+
+          <CheckinPayloadAnswers payload={fb.payload} />
 
           {fb.feedback && (
             <div className="border-t border-border pt-3">
