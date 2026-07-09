@@ -107,6 +107,30 @@ serve(async (req: Request) => {
     const coachEmail = coachProfile?.notification_email || coachProfile?.email || null;
     const coachName = coachProfile?.full_name || "Coach";
 
+    // Grava notificação persistente no sininho do coach (mesmo padrão do fluxo
+    // de "dúvida do aluno"). Fazemos isso ANTES do e-mail para garantir que,
+    // mesmo se o Resend falhar ou não houver e-mail configurado, o coach ainda
+    // veja o alerta ao entrar no painel.
+    const contextLabel =
+      body.kind === "anamnesis" ? "Anamnese"
+      : body.kind === "checkin" ? "Check-in"
+      : "Dúvida do aluno";
+    const persistedMessage = (body.summary && body.summary.trim())
+      || (body.kind === "anamnesis" ? "Nova anamnese enviada."
+          : body.kind === "checkin" ? "Novo check-in enviado."
+          : "Nova dúvida.");
+    try {
+      await admin.from("coach_notifications").insert({
+        coach_id: link.coach_id,
+        student_id: user.id,
+        student_name: body.studentName || "Aluno",
+        context: contextLabel,
+        message: persistedMessage,
+      });
+    } catch (persistErr) {
+      console.warn("[notify-coach] persist coach_notifications falhou", persistErr);
+    }
+
     if (!coachEmail) {
       return new Response(JSON.stringify({ ok: false, reason: "coach_without_email" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
