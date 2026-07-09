@@ -3,8 +3,8 @@
 Já investiguei o que está deployado agora:
 
 1. **Edge functions de chat respondem 200**
-   - `POST /info-chat` → 200, resposta OK do Gemini.
-   - `POST /fitness-chat` → 200, stream SSE chega com `gemini-2.5-flash`.
+   - `POST /info-chat` → 200, resposta OK da Groq (`llama-3.3-70b-versatile`).
+   - `POST /fitness-chat` → 200, stream SSE chega com `llama-3.3-70b-versatile` via Groq.
    - Logs das funções: só `booted` / `shutdown`, sem erros.
 
 2. **RLS pós-migrations 2026-06-21 está correta para admin**
@@ -38,14 +38,14 @@ Vou seguir nesta ordem só depois das respostas:
 2. **Service Worker servindo bundle antigo** (já tivemos isso na correção de evolução): hard reload + bump de versão do `public/sw.js`.
 3. **CORS bloqueando origem que mudou** (`_shared/cors.ts` só libera `*.lovable.app` + `app.eliteprimehub.com.br`). Se o domínio do produto ou um preview novo passou a usar outro host, ajustar `ALLOWED_ORIGINS`.
 4. **Regressão nas RLS** (improvável — checado acima). Se Network mostrar 401/403 em `/rest/v1/profiles?...`, revisar políticas pontuais.
-5. **GEMINI_API_KEY com quota/erro 4xx** mascarado: adicionar log do `response.status` e do body de erro nas duas edge functions; redeploy só dessas duas.
+5. **GROQ_API_KEY com quota/erro 4xx** mascarado: adicionar log do `response.status` e do body de erro nas duas edge functions; redeploy só dessas duas.
 
 ## Etapa 3 – Ações de código (somente as hipóteses confirmadas)
 
 - Se hipótese 2: incrementar versão do cache em `public/sw.js` para forçar update.
 - Se hipótese 3: adicionar o(s) origin(s) faltante(s) em `supabase/functions/_shared/cors.ts` e redeployar todas as edge functions afetadas.
 - Se hipótese 4: ajustar policy específica via nova migration (com `GRANT` revisado).
-- Se hipótese 5: melhorar o log de erro em `fitness-chat/index.ts` e `info-chat/index.ts`; relatório com o erro real do Gemini.
+- Se hipótese 5: melhorar o log de erro em `fitness-chat/index.ts` e `info-chat/index.ts`; relatório com o erro real da Groq.
 
 ## Etapa 4 – Verificação
 
