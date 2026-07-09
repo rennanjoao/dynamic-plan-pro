@@ -73,11 +73,12 @@ const Auth = () => {
         registerAccessLog(data.user.id);
         await routeByRole(data.user.id);
       }
-    } catch (error: any) {
-      if (error.message.includes("Invalid login credentials")) {
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Erro ao fazer login";
+      if (msg.includes("Invalid login credentials")) {
         toast.error("Email ou senha incorretos");
       } else {
-        toast.error(error.message || "Erro ao fazer login");
+        toast.error(msg);
       }
     } finally {
       setIsLoading(false);
