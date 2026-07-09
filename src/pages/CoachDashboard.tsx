@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CHECKIN_SECTIONS } from "@/lib/checkInSchema";
+import CheckinPayloadAnswers from "@/components/coach/CheckinPayloadAnswers";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
