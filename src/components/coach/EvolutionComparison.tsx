@@ -213,6 +213,8 @@ export default function EvolutionComparison({
             })}
           </div>
 
+          <CheckinPayloadAnswers payload={fb.payload} />
+
           {fb.feedback && (
             <div className="border-t border-border pt-3">
               <p className="text-[10px] font-bold uppercase text-primary mb-1">Feedback do Coach</p>
