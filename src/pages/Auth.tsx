@@ -73,11 +73,12 @@ const Auth = () => {
         registerAccessLog(data.user.id);
         await routeByRole(data.user.id);
       }
-    } catch (error: any) {
-      if (error.message.includes("Invalid login credentials")) {
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Erro ao fazer login";
+      if (msg.includes("Invalid login credentials")) {
         toast.error("Email ou senha incorretos");
       } else {
-        toast.error(error.message || "Erro ao fazer login");
+        toast.error(msg);
       }
     } finally {
       setIsLoading(false);
@@ -95,8 +96,8 @@ const Auth = () => {
       toast.success("Enviamos um link de redefinição para o seu e-mail");
       setMode("login");
       setRecoverEmail("");
-    } catch (err: any) {
-      toast.error(err?.message || "Erro ao enviar link de recuperação");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Erro ao enviar link de recuperação");
     } finally {
       setIsLoading(false);
     }

@@ -42,7 +42,6 @@ export default function CoachNotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  const [checkinCount, setCheckinCount] = useState(0);
   const [fatigueCount, setFatigueCount] = useState(0);
   const [replyOpen, setReplyOpen] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
@@ -113,7 +112,11 @@ export default function CoachNotificationBell() {
           (payload) => {
             const n = payload.new as Notification;
             setNotifications((prev) => [n, ...prev]);
-            toast(`Nova dúvida de ${n.student_name}`, {
+            const title =
+              n.context === "Anamnese" ? `📋 ${n.student_name} enviou uma anamnese`
+              : n.context === "Check-in" ? `✅ ${n.student_name} enviou um check-in`
+              : `Nova dúvida de ${n.student_name}`;
+            toast(title, {
               description: `${n.context}: "${n.message.substring(0, 60)}${n.message.length > 60 ? "…" : ""}"`,
               icon: <Bell className="w-4 h-4 text-primary" />,
               duration: 6000,
@@ -123,7 +126,9 @@ export default function CoachNotificationBell() {
         )
         .subscribe();
 
-      // Sem alunos vinculados: nada para escutar em check_ins.
+      // Toast transiente de check-ins (feedback ao vivo). A contagem persistente
+      // do sininho já vem via coach_notifications (insert feito no notify-coach),
+      // então NÃO incrementamos badge aqui — evita contagem duplicada.
       if (hasStudents) {
         checkinsChannel = supabase
           .channel(`coach-checkins-realtime-${coachId}`)
@@ -146,7 +151,6 @@ export default function CoachNotificationBell() {
                 duration: 8000,
                 action: { label: "Ver", onClick: () => setOpen(true) },
               });
-              setCheckinCount((prev) => prev + 1);
             }
           )
           .subscribe();
@@ -215,11 +219,11 @@ export default function CoachNotificationBell() {
   };
 
   const unreadCount = notifications.length;
-  const totalBadge = unreadCount + checkinCount + fatigueCount;
+  const totalBadge = unreadCount + fatigueCount;
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
-    if (next) { setCheckinCount(0); setFatigueCount(0); }
+    if (next) { setFatigueCount(0); }
   };
 
   return (
@@ -246,11 +250,6 @@ export default function CoachNotificationBell() {
         </SheetHeader>
 
         <div className="mt-4 space-y-3">
-          {checkinCount > 0 && (
-            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-400">
-              {checkinCount} novo(s) check-in(s) recebido(s) — acesse o painel de alunos para visualizar.
-            </div>
-          )}
           {fatigueCount > 0 && (
             <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />

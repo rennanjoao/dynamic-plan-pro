@@ -1,12 +1,13 @@
-import { Link } from "react-router-dom";
-import { useEffect } from "react"; 
+import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Users, Dumbbell, UtensilsCrossed, ArrowRight, Zap, Shield, TrendingUp, Sparkles, Key } from "lucide-react";
+import { Users, Dumbbell, UtensilsCrossed, ArrowRight, Zap, Shield, TrendingUp, Sparkles, Key, type LucideIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import { InfoChatBot } from "@/components/landing/InfoChatBot";
 import { captureReferralFromUrl } from "@/lib/referralCapture";
 
-const FeatureCard = ({ icon: Icon, title, description, delay }: { icon: any; title: string; description: string; delay: number }) => (
+const FeatureCard = ({ icon: Icon, title, description, delay }: { icon: LucideIcon; title: string; description: string; delay: number }) => (
   <motion.div
     initial={{ opacity: 0, y: 30 }}
     animate={{ opacity: 1, y: 0 }}
@@ -29,10 +30,42 @@ const StatBlock = ({ value, label, noTranslate }: { value: string; label: string
 );
 
 const Index = () => {
+  const navigate = useNavigate();
+  // Enquanto verificamos a sessão, escondemos a landing/splash pra evitar o
+  // "flash" da tela inicial quando o usuário já está logado (voltar do
+  // navegador ou navegação interna caindo em "/").
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (cancelled) return;
+      if (!session?.user) { setCheckingSession(false); return; }
+      const uid = session.user.id;
+      const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: uid, _role: "admin" });
+      if (cancelled) return;
+      if (isAdmin) { navigate("/admin", { replace: true }); return; }
+      const { data: isCoach } = await supabase.rpc("has_role", { _user_id: uid, _role: "coach" });
+      if (cancelled) return;
+      if (isCoach) { navigate("/coach", { replace: true }); return; }
+      navigate("/student-area", { replace: true });
+    })();
+    return () => { cancelled = true; };
+  }, [navigate]);
+
   // Captura ?ref= do QR code do WorkoutShareCard (efeito rede / referral loop)
   useEffect(() => {
     captureReferralFromUrl();
   }, []);
+
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background relative">
