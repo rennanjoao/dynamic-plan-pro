@@ -27,6 +27,7 @@ import { SimpleProfileDialog } from "@/components/SimpleProfileDialog";
 import { toast } from "sonner";
 import FeedbackCountdownAlert from "@/components/student/FeedbackCountdownAlert";
 import { TrainerAlert } from "@/components/student/TrainerAlert";
+import CoachUpdatesCard from "@/components/student/CoachUpdatesCard";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { buildPixBrCode } from "@/lib/pixBrCode";
 import QRCode from "qrcode";
@@ -241,27 +242,6 @@ export default function StudentArea() {
         .eq("user_id", link.coach_id)
         .maybeSingle();
       return coach ? { ...coach, coachId: link.coach_id } : null;
-    },
-  });
-
-  // ─── ALERTA 1: Protocolo ───
-  const { data: protocolAlert } = useQuery({
-    queryKey: ["student-protocol-alert", userId],
-    enabled: !!userId,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("protocols")
-        .select("id, name, updated_at")
-        .eq("student_id", userId)
-        .eq("is_template", false)
-        .eq("active", true)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!data) return null;
-      const diffHours = (Date.now() - new Date(data.updated_at).getTime()) / 3600000;
-      if (diffHours < 72) return { id: `proto-${data.id}-${data.updated_at}`, name: data.name, date: data.updated_at };
-      return null;
     },
   });
 
@@ -530,22 +510,7 @@ export default function StudentArea() {
         )}
         <TrainerAlert />
 
-        {protocolAlert && !dismissedAlerts.includes(protocolAlert.id) && (
-          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 relative shadow-sm">
-            <button onClick={() => dismissAlert(protocolAlert.id)} className="absolute top-3 right-3 text-emerald-600 hover:text-emerald-700" aria-label="Fechar">
-              <X className="w-4 h-4" />
-            </button>
-            <div className="flex items-start gap-3">
-              <Sparkles className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-              <div className="space-y-1 w-full">
-                <h3 className="text-sm font-bold text-emerald-700 dark:text-emerald-500">Protocolo Atualizado!</h3>
-                <p className="text-xs text-emerald-600/80 dark:text-emerald-400/80 pr-4">
-                  Seu treinador atualizou seu protocolo em {new Date(protocolAlert.date).toLocaleDateString("pt-BR")}. Confira abaixo.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+        <CoachUpdatesCard />
 
         {billingAlert && !dismissedAlerts.includes(billingAlert.id) && (
           <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 relative shadow-sm">
