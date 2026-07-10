@@ -65,7 +65,11 @@ import ProtocolImportHistory from "./ProtocolImportHistory";
 import WorkoutPeriodizationEditor from "./WorkoutPeriodizationEditor";
 import StudentProtocolPreview from "./StudentProtocolPreview";
 import { calcMealMacros, calcDayMacros, tacoGroupToKind, parseWeightString, optionMacros, compareOptions, type SubstitutionSeverity } from "@/lib/macroCalc";
-import { buildProtocolChanges, type ProtocolChange } from "@/lib/protocolDiff";
+import {
+  detectProtocolChanges,
+  summarizeProtocolChanges,
+  type ProtocolChange,
+} from "@/lib/protocolChangeDetector";
 
 import { TACO_FOODS } from "@/data/tacoFoods";
 const TACO_DATA = TACO_FOODS.map((t, i) => ({ ...t, id: String(i), cookFactor: t.cookFactor ?? 1 }));
@@ -238,29 +242,13 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       if (isEditMode && protocolId && coachId && !opts.asDraft && publishActive) {
         try {
           const wasInactive = previousActiveRef.current === false;
-          let changes: ProtocolChange[];
-          if (wasInactive) {
-            changes = [{
-              category: "geral",
-              importance: "alta",
-              label: "Seu protocolo foi liberado pelo seu coach",
-              target_tab: null,
-              target_anchor: null,
-            }];
-          } else {
-            const raw = buildProtocolChanges(previousPayloadRef.current, parsed);
-            if (raw.length > 8) {
-              changes = [{
-                category: "geral",
-                importance: "alta",
-                label: "Seu protocolo foi totalmente atualizado pelo seu coach",
-                target_tab: null,
-                target_anchor: null,
-              }];
-            } else {
-              changes = raw;
-            }
-          }
+          const raw = wasInactive
+            ? []
+            : detectProtocolChanges(previousPayloadRef.current, parsed);
+          const changes: ProtocolChange[] = summarizeProtocolChanges({
+            wasInactive,
+            changes: raw,
+          });
           if (changes.length > 0) {
             const { data: openRow } = await sb
               .from("protocol_change_events")

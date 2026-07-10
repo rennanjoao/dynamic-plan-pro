@@ -1,13 +1,26 @@
 /**
- * protocolDiff.ts
+ * protocolChangeDetector.ts
  *
- * Compara o payload de um protocolo ANTES x DEPOIS de uma edição do coach e
- * produz uma lista de eventos (`ProtocolChange[]`) já com mensagens em
- * português prontas para exibir para o aluno. É consumido pelo save() do
- * `ProtocolBuilder` para popular `protocol_change_events.changes`.
+ * Regras puras (síncronas, sem I/O) para detectar as mudanças que um coach
+ * fez em um protocolo entre um estado ANTERIOR e um POSTERIOR, e para
+ * decidir a mensagem final que o aluno vê em `protocol_change_events`.
  *
- * Regras completas: ver docstring de `buildProtocolChanges` e a spec da tela
- * do aluno.
+ * A responsabilidade está separada em duas funções:
+ *
+ * - `detectProtocolChanges(prev, next)` → comparador puro. Recebe dois
+ *   payloads de protocolo e devolve o array bruto de mudanças, sem casos
+ *   especiais. É o que os testes unitários cobrem célula a célula.
+ *
+ * - `summarizeProtocolChanges({ wasInactive, changes })` → aplica os casos
+ *   especiais que dependem de contexto externo ao diff:
+ *     • se o protocolo estava inativo e agora foi liberado, o aluno recebe
+ *       um único evento "protocolo foi liberado";
+ *     • se o diff produziu >8 itens, colapsa em um único evento
+ *       "protocolo foi totalmente atualizado";
+ *     • caso contrário devolve o array como está.
+ *
+ * Toda a lógica de gramática/labels em português continua aqui — o
+ * `ProtocolBuilder` só chama essas duas funções e grava o resultado.
  */
 import { slug } from "./slug";
 
@@ -29,11 +42,13 @@ const n = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ?
 type AnyRec = Record<string, any>;
 
 /**
- * Compara dois payloads de protocolo e retorna a lista de mudanças
- * relevantes para o aluno. Não aplica os cortes de "primeira ativação" nem
- * o teto de >8 itens — quem chama decide o que fazer com a lista bruta.
+ * Comparador puro. Não conhece "primeira ativação" nem o teto de >8 itens
+ * — quem chama decide como resumir o resultado (ver `summarizeProtocolChanges`).
  */
-export function buildProtocolChanges(prev: AnyRec | null | undefined, next: AnyRec | null | undefined): ProtocolChange[] {
+export function detectProtocolChanges(
+  prev: AnyRec | null | undefined,
+  next: AnyRec | null | undefined
+): ProtocolChange[] {
   const out: ProtocolChange[] = [];
   if (!prev || !next) return out;
 
@@ -364,4 +379,39 @@ export function buildProtocolChanges(prev: AnyRec | null | undefined, next: AnyR
   }
 
   return out;
+}
+
+/**
+ * Aplica os dois casos especiais que não pertencem ao comparador puro:
+ *
+ * - `wasInactive: true` → o protocolo estava desativado e acabou de ser
+ *   liberado; o aluno recebe um único evento "geral" e não a lista de
+ *   diffs, porque para ele é a primeira versão que existe.
+ * - Caso contrário, se o diff produziu **mais de 8** itens, colapsa em um
+ *   único evento "geral" (mudou tanto que listar cada item vira ruído).
+ * - Caso contrário devolve o array recebido, sem tocar.
+ */
+export function summarizeProtocolChanges(args: {
+  wasInactive: boolean;
+  changes: ProtocolChange[];
+}): ProtocolChange[] {
+  if (args.wasInactive) {
+    return [{
+      category: "geral",
+      importance: "alta",
+      label: "Seu protocolo foi liberado pelo seu coach",
+      target_tab: null,
+      target_anchor: null,
+    }];
+  }
+  if (args.changes.length > 8) {
+    return [{
+      category: "geral",
+      importance: "alta",
+      label: "Seu protocolo foi totalmente atualizado pelo seu coach",
+      target_tab: null,
+      target_anchor: null,
+    }];
+  }
+  return args.changes;
 }
