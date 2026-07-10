@@ -20,7 +20,7 @@
  * Fix: FoodRow agora utiliza fallback robusto com .normalize("NFD") e camadas z-[60]/z-[70] mapeadas.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -65,6 +65,7 @@ import ProtocolImportHistory from "./ProtocolImportHistory";
 import WorkoutPeriodizationEditor from "./WorkoutPeriodizationEditor";
 import StudentProtocolPreview from "./StudentProtocolPreview";
 import { calcMealMacros, calcDayMacros, tacoGroupToKind, parseWeightString, optionMacros, compareOptions, type SubstitutionSeverity } from "@/lib/macroCalc";
+import { buildProtocolChanges, type ProtocolChange } from "@/lib/protocolDiff";
 
 import { TACO_FOODS } from "@/data/tacoFoods";
 const TACO_DATA = TACO_FOODS.map((t, i) => ({ ...t, id: String(i), cookFactor: t.cookFactor ?? 1 }));
@@ -113,6 +114,11 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [name, setName] = useState("");
   const [payload, setPayload] = useState<ProtocolPayload | null>(null);
   const [isDirty, setIsDirty] = useState(false);
+  // Snapshot IMUTÁVEL do protocolo como estava quando a página carregou.
+  // Usado pelo comparador de mudanças (protocol_change_events) para diffar
+  // "antes x depois" sem ser afetado por revalidações da query em background.
+  const previousPayloadRef = useRef<any>(null);
+  const previousActiveRef = useRef<boolean | null>(null);
   const updatePayload = (p: ProtocolPayload) => {
     setPayload(p);
     setIsDirty(true);
@@ -172,6 +178,12 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       setActive(existing.active ?? true);
       const parsed = ProtocolPayloadSchema.safeParse(existing.payload);
       setPayload(parsed.success ? parsed.data : buildBasePayload({ split: "ABC", mealsCount: 5, carbCycle: false }));
+      // Só grava o snapshot na primeira vez que carregamos este protocolo.
+      // Ignora revalidações posteriores para não corromper a comparação.
+      if (previousPayloadRef.current == null) {
+        previousPayloadRef.current = existing.payload ?? null;
+        previousActiveRef.current = existing.active ?? true;
+      }
     } else if (!isLoading && existing === null) {
       setSetupOpen(true);
     }
@@ -218,6 +230,74 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
           if (planError) toast.error("Protocolo salvo, mas sincronização com aluno falhou", { description: planError.message, duration: 9000 });
           else toast.success("Dieta e Treino sincronizados com o aluno");
         } catch (syncErr) { console.error(syncErr); }
+      }
+      // ─── Geração best-effort de eventos de mudança do protocolo ───
+      // Só roda em UPDATE (protocolo já existia), publicação real (não rascunho),
+      // e com o protocolo efetivamente ativo depois do save. Falhas aqui não
+      // desfazem o UPDATE em `protocols` e não bloqueiam o fluxo.
+      if (isEditMode && protocolId && coachId && !opts.asDraft && publishActive) {
+        try {
+          const wasInactive = previousActiveRef.current === false;
+          let changes: ProtocolChange[];
+          if (wasInactive) {
+            changes = [{
+              category: "geral",
+              importance: "alta",
+              label: "Seu protocolo foi liberado pelo seu coach",
+              target_tab: null,
+              target_anchor: null,
+            }];
+          } else {
+            const raw = buildProtocolChanges(previousPayloadRef.current, parsed);
+            if (raw.length > 8) {
+              changes = [{
+                category: "geral",
+                importance: "alta",
+                label: "Seu protocolo foi totalmente atualizado pelo seu coach",
+                target_tab: null,
+                target_anchor: null,
+              }];
+            } else {
+              changes = raw;
+            }
+          }
+          if (changes.length > 0) {
+            const { data: openRow } = await sb
+              .from("protocol_change_events")
+              .select("id, changes")
+              .eq("protocol_id", protocolId)
+              .is("seen_at", null)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (openRow) {
+              const existingArr: ProtocolChange[] = Array.isArray(openRow.changes) ? openRow.changes : [];
+              const seenLabels = new Set(existingArr.map((c) => c?.label));
+              const merged = [...existingArr, ...changes.filter((c) => !seenLabels.has(c.label))];
+              const { error: updErr } = await sb
+                .from("protocol_change_events")
+                .update({ changes: merged })
+                .eq("id", openRow.id);
+              if (updErr) throw updErr;
+            } else {
+              const { error: insErr } = await sb
+                .from("protocol_change_events")
+                .insert({
+                  protocol_id: protocolId,
+                  student_id: studentId,
+                  coach_id: coachId,
+                  changes,
+                });
+              if (insErr) throw insErr;
+            }
+          }
+          // Atualiza o snapshot para que edições subsequentes na MESMA sessão
+          // (sem recarregar a página) sejam diffadas contra o estado publicado.
+          previousPayloadRef.current = parsed;
+          previousActiveRef.current = publishActive;
+        } catch (evtErr) {
+          console.error("[protocol_change_events] best-effort falhou", evtErr);
+        }
       }
       qc.invalidateQueries({ queryKey: ["protocol-builder", studentId] });
       qc.invalidateQueries({ queryKey: ["protocol", studentId] });
