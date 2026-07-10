@@ -510,22 +510,7 @@ export default function StudentArea() {
         )}
         <TrainerAlert />
 
-        {protocolAlert && !dismissedAlerts.includes(protocolAlert.id) && (
-          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 relative shadow-sm">
-            <button onClick={() => dismissAlert(protocolAlert.id)} className="absolute top-3 right-3 text-emerald-600 hover:text-emerald-700" aria-label="Fechar">
-              <X className="w-4 h-4" />
-            </button>
-            <div className="flex items-start gap-3">
-              <Sparkles className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-              <div className="space-y-1 w-full">
-                <h3 className="text-sm font-bold text-emerald-700 dark:text-emerald-500">Protocolo Atualizado!</h3>
-                <p className="text-xs text-emerald-600/80 dark:text-emerald-400/80 pr-4">
-                  Seu treinador atualizou seu protocolo em {new Date(protocolAlert.date).toLocaleDateString("pt-BR")}. Confira abaixo.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+        <CoachUpdatesCard />
 
         {billingAlert && !dismissedAlerts.includes(billingAlert.id) && (
           <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 relative shadow-sm">
