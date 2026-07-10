@@ -20,7 +20,7 @@
  * Fix: FoodRow agora utiliza fallback robusto com .normalize("NFD") e camadas z-[60]/z-[70] mapeadas.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -65,6 +65,7 @@ import ProtocolImportHistory from "./ProtocolImportHistory";
 import WorkoutPeriodizationEditor from "./WorkoutPeriodizationEditor";
 import StudentProtocolPreview from "./StudentProtocolPreview";
 import { calcMealMacros, calcDayMacros, tacoGroupToKind, parseWeightString, optionMacros, compareOptions, type SubstitutionSeverity } from "@/lib/macroCalc";
+import { buildProtocolChanges, type ProtocolChange } from "@/lib/protocolDiff";
 
 import { TACO_FOODS } from "@/data/tacoFoods";
 const TACO_DATA = TACO_FOODS.map((t, i) => ({ ...t, id: String(i), cookFactor: t.cookFactor ?? 1 }));
@@ -113,6 +114,11 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [name, setName] = useState("");
   const [payload, setPayload] = useState<ProtocolPayload | null>(null);
   const [isDirty, setIsDirty] = useState(false);
+  // Snapshot IMUTÁVEL do protocolo como estava quando a página carregou.
+  // Usado pelo comparador de mudanças (protocol_change_events) para diffar
+  // "antes x depois" sem ser afetado por revalidações da query em background.
+  const previousPayloadRef = useRef<any>(null);
+  const previousActiveRef = useRef<boolean | null>(null);
   const updatePayload = (p: ProtocolPayload) => {
     setPayload(p);
     setIsDirty(true);
@@ -172,6 +178,12 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       setActive(existing.active ?? true);
       const parsed = ProtocolPayloadSchema.safeParse(existing.payload);
       setPayload(parsed.success ? parsed.data : buildBasePayload({ split: "ABC", mealsCount: 5, carbCycle: false }));
+      // Só grava o snapshot na primeira vez que carregamos este protocolo.
+      // Ignora revalidações posteriores para não corromper a comparação.
+      if (previousPayloadRef.current == null) {
+        previousPayloadRef.current = existing.payload ?? null;
+        previousActiveRef.current = existing.active ?? true;
+      }
     } else if (!isLoading && existing === null) {
       setSetupOpen(true);
     }
