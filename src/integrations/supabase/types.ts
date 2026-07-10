@@ -935,6 +935,47 @@ export type Database = {
         }
         Relationships: []
       }
+      protocol_change_events: {
+        Row: {
+          changes: Json
+          coach_id: string
+          created_at: string
+          id: string
+          protocol_id: string
+          seen_at: string | null
+          seen_item_indexes: Json
+          student_id: string
+        }
+        Insert: {
+          changes?: Json
+          coach_id: string
+          created_at?: string
+          id?: string
+          protocol_id: string
+          seen_at?: string | null
+          seen_item_indexes?: Json
+          student_id: string
+        }
+        Update: {
+          changes?: Json
+          coach_id?: string
+          created_at?: string
+          id?: string
+          protocol_id?: string
+          seen_at?: string | null
+          seen_item_indexes?: Json
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "protocol_change_events_protocol_id_fkey"
+            columns: ["protocol_id"]
+            isOneToOne: false
+            referencedRelation: "protocols"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       protocol_import_logs: {
         Row: {
           anomalies_count: number
