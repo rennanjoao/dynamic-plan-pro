@@ -131,6 +131,9 @@ export function useStudentData(explicitStudentId?: string) {
         qc.invalidateQueries({ queryKey: ["workout-plan", studentId] });
         qc.invalidateQueries({ queryKey: ["plan-macros", studentId] });
       })
+      .on("postgres_changes" as never, { event: "*", schema: "public", table: "protocol_change_events", filter: `student_id=eq.${studentId}` }, () => {
+        qc.invalidateQueries({ queryKey: ["coach-updates", studentId] });
+      })
       .subscribe();
     return () => {
       sb.removeChannel(ch);
