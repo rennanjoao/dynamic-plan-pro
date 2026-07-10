@@ -7,7 +7,7 @@ import {
 
 // Fábrica minimalista de payloads: 2 dias de treino, 1-2 refeições,
 // 1-2 suplementos. Suficiente para as regras de negócio deste módulo.
-function basePayload() {
+function basePayload(): any {
   return {
     macros: { calories: 2500, protein: 180, carbs: 280, fat: 70, water: 3, goal: "hipertrofia" },
     showGuidelines: true,
