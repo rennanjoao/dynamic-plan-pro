@@ -27,6 +27,7 @@ import { SimpleProfileDialog } from "@/components/SimpleProfileDialog";
 import { toast } from "sonner";
 import FeedbackCountdownAlert from "@/components/student/FeedbackCountdownAlert";
 import { TrainerAlert } from "@/components/student/TrainerAlert";
+import CoachUpdatesCard from "@/components/student/CoachUpdatesCard";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { buildPixBrCode } from "@/lib/pixBrCode";
 import QRCode from "qrcode";
@@ -241,27 +242,6 @@ export default function StudentArea() {
         .eq("user_id", link.coach_id)
         .maybeSingle();
       return coach ? { ...coach, coachId: link.coach_id } : null;
-    },
-  });
-
-  // ─── ALERTA 1: Protocolo ───
-  const { data: protocolAlert } = useQuery({
-    queryKey: ["student-protocol-alert", userId],
-    enabled: !!userId,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("protocols")
-        .select("id, name, updated_at")
-        .eq("student_id", userId)
-        .eq("is_template", false)
-        .eq("active", true)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!data) return null;
-      const diffHours = (Date.now() - new Date(data.updated_at).getTime()) / 3600000;
-      if (diffHours < 72) return { id: `proto-${data.id}-${data.updated_at}`, name: data.name, date: data.updated_at };
-      return null;
     },
   });
 
