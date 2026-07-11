@@ -238,13 +238,14 @@ function AlertBadge({ level }: { level: AlertLevel }) {
 }
 
 function StudentRow({
-  student, onAnamnesis, onProtocol, onUnlink, onHistory, onLatestFeedback, onSettings,
+  student, onAnamnesis, onProtocol, onUnlink, onHistory, onChangeHistory, onLatestFeedback, onSettings,
 }: {
   student: StudentStatus;
   onAnamnesis: (s: StudentStatus) => void;
   onProtocol: (s: StudentStatus) => void;
   onUnlink: (s: StudentStatus) => void;
   onHistory: (s: StudentStatus) => void;
+  onChangeHistory: (s: StudentStatus) => void;
   onLatestFeedback: (s: StudentStatus) => void;
   onSettings: (s: StudentStatus) => void;
 }) {
@@ -318,6 +319,9 @@ function StudentRow({
         </button>
         <button onClick={() => onHistory(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Histórico de Check-ins">
           <History className="w-4 h-4" />
+        </button>
+        <button onClick={() => onChangeHistory(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Histórico de Alterações">
+          <Sparkles className="w-4 h-4" />
         </button>
         <button onClick={() => onSettings(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Configurar feedback do aluno">
           <Settings2 className="w-4 h-4" />
