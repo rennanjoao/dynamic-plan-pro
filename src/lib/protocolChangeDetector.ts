@@ -468,7 +468,7 @@ export function detectProtocolChanges(
  * - `wasInactive: true` → o protocolo estava desativado e acabou de ser
  *   liberado; o aluno recebe um único evento "geral" e não a lista de
  *   diffs, porque para ele é a primeira versão que existe.
- * - Caso contrário, se o diff produziu **mais de 8** itens, colapsa em um
+ * - Caso contrário, se o diff produziu **mais de 20** itens, colapsa em um
  *   único evento "geral" (mudou tanto que listar cada item vira ruído).
  * - Caso contrário devolve o array recebido, sem tocar.
  */
@@ -486,7 +486,7 @@ export function summarizeProtocolChanges(args: {
       detail: null,
     }];
   }
-  if (args.changes.length > 8) {
+  if (args.changes.length > 20) {
     return [{
       category: "geral",
       importance: "alta",
