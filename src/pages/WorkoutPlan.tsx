@@ -146,12 +146,6 @@ export default function WorkoutPlan() {
     },
   });
 
-  if (isLoading) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <Loader2 className="w-8 h-8 animate-spin text-primary" />
-    </div>
-  );
-
   const rawPayload = planData?.workout_periodization_json || {};
   const parsed = ProtocolPayloadSchema.safeParse(rawPayload);
   const safePayload: any = parsed.success ? parsed.data : rawPayload;
@@ -171,6 +165,13 @@ export default function WorkoutPlan() {
     workoutKeys
   );
   const currentWeek = currentWeekRaw ?? 0;
+
+  if (isLoading) return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+    </div>
+  );
+
 
   const handleStartWorkout = (dayKey: string, week?: number) => {
     setWorkoutModeDay(dayKey);
