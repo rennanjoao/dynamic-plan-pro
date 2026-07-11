@@ -399,9 +399,9 @@ describe("summarizeProtocolChanges", () => {
     ]);
   });
 
-  it("mais de 8 mudanças reais → colapsa em 1 item 'totalmente atualizado'", () => {
-    const nine = Array.from({ length: 9 }, (_, i) => makeChange(i));
-    const res = summarizeProtocolChanges({ wasInactive: false, changes: nine });
+  it("mais de 20 mudanças reais → colapsa em 1 item 'totalmente atualizado'", () => {
+    const twentyOne = Array.from({ length: 21 }, (_, i) => makeChange(i));
+    const res = summarizeProtocolChanges({ wasInactive: false, changes: twentyOne });
     expect(res).toEqual([
       expect.objectContaining({
         category: "geral",
@@ -411,8 +411,31 @@ describe("summarizeProtocolChanges", () => {
     ]);
   });
 
-  it("até 8 mudanças e não estava inativo → passa direto", () => {
-    const eight = Array.from({ length: 8 }, (_, i) => makeChange(i));
-    expect(summarizeProtocolChanges({ wasInactive: false, changes: eight })).toEqual(eight);
+  it("10-15 mudanças espalhadas entre treino/dieta/diretriz → não colapsa", () => {
+    const mixed: ProtocolChange[] = [
+      ...Array.from({ length: 6 }, (_, i) => makeChange(i)),
+      ...Array.from({ length: 5 }, (_, i) => ({
+        category: "dieta" as const,
+        importance: "media" as const,
+        label: `Ajuste dieta ${i}`,
+        target_tab: "dieta" as const,
+        target_anchor: null,
+        detail: null,
+      })),
+      ...Array.from({ length: 4 }, (_, i) => ({
+        category: "diretriz" as const,
+        importance: "media" as const,
+        label: `Diretriz ${i}`,
+        target_tab: "treino" as const,
+        target_anchor: null,
+        detail: null,
+      })),
+    ];
+    expect(summarizeProtocolChanges({ wasInactive: false, changes: mixed })).toEqual(mixed);
+  });
+
+  it("até 20 mudanças e não estava inativo → passa direto", () => {
+    const twenty = Array.from({ length: 20 }, (_, i) => makeChange(i));
+    expect(summarizeProtocolChanges({ wasInactive: false, changes: twenty })).toEqual(twenty);
   });
 });
