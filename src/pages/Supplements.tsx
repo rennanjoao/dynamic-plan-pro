@@ -7,10 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ProtocolPayloadSchema } from "@/lib/protocolSchema";
 import ProtocolQuestionButton from "@/components/student/ProtocolQuestionButton";
+import { useHighlightTarget } from "@/hooks/useHighlightTarget";
+import { slug } from "@/lib/slug";
 
 export default function Supplements() {
   const navigate = useNavigate();
   const [userId, setUserId] = useState("");
+  useHighlightTarget();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -142,7 +145,11 @@ export default function Supplements() {
                   </div>
                   <ul className="space-y-2 pt-1">
                     {groups[timing].map((s: any, i: number) => (
-                      <li key={i} className="border-b border-border/40 last:border-0 pb-2 last:pb-0">
+                      <li
+                        key={i}
+                        id={`supplement-${slug(s.name)}`}
+                        className="border-b border-border/40 last:border-0 pb-2 last:pb-0"
+                      >
                         <p className="text-sm text-foreground">
                           <span className="text-primary">•</span>{" "}
                           <span className="font-bold">{s.name}</span>
