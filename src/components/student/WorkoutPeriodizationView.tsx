@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AlertTriangle, MoreVertical, Pencil, Check, Play } from "lucide-react";
+import { DEFAULT_WEEKS, type WeekMeta } from "@/lib/periodizationDefaults";
 
 /* ---------- Tipos ---------- */
 interface Exercise {
@@ -22,21 +23,6 @@ interface WorkoutDay {
   focus?: string;
   exercises?: Exercise[];
 }
-interface WeekMeta {
-  label: string;
-  sets: string;
-  reps: string;
-  rest: string;
-  cadence: string;
-}
-
-const DEFAULT_WEEKS: WeekMeta[] = [
-  { label: "Semana 1", sets: "4 a 5 séries", reps: "5 a 8 reps",   rest: "120s",      cadence: "Excêntrica 2s" },
-  { label: "Semana 2", sets: "3 a 4 séries", reps: "10 a 12 reps", rest: "60s a 90s", cadence: "—" },
-  { label: "Semana 3", sets: "3 a 4 séries", reps: "10 a 12 reps", rest: "60s a 90s", cadence: "—" },
-  { label: "Semana 4", sets: "2 a 4 séries", reps: "15 a 20 reps", rest: "30-45s",    cadence: "1s / 1s" },
-];
-
 const BANNER_TEXT =
   "A falha mecânica total ou o uso de técnicas avançadas é restrito a exatamente 1 exercício por sessão. Os demais exercícios do bloco operar de 1 a 2 repetições na reserva (RIR), priorizando o controle motor e a estabilidade da cadência.";
 
@@ -49,6 +35,7 @@ interface Props {
   onStartWorkout?: (dayKey: string, week?: number) => void;
   /** Controla se a Diretriz/Banner é exibida para o aluno */
   showGuidelines?: boolean;
+  initialWeek?: number;
   periodization?: {
     enabled?: boolean;
     weeks?: WeekMeta[];
@@ -68,6 +55,7 @@ export default function WorkoutPeriodizationView({
   allowEdit = false,
   onStartWorkout,
   showGuidelines = false,
+  initialWeek,
   periodization,
 }: Props) {
   const incomingWeeks =
@@ -88,7 +76,7 @@ export default function WorkoutPeriodizationView({
     : periodization?.enabled ?? true;
 
   const [periodizationOn, setPeriodizationOn] = useState(initialOn);
-  const [activeWeek, setActiveWeek] = useState(0);
+  const [activeWeek, setActiveWeek] = useState(initialWeek ?? 0);
   const [editMode, setEditMode] = useState(false);
   const [weeks, setWeeks] = useState<WeekMeta[]>(incomingWeeks);
   const [overrides, setOverrides] = useState<Overrides>(incomingOverrides);

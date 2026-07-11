@@ -37,15 +37,10 @@ import type { ExerciseHistory } from "@/lib/workoutTypes";
 import { effortLabel, toExerciseKey } from "@/lib/workoutTypes";
 import { useExerciseGif } from "@/hooks/useExerciseGif";
 import { CompactWeekSelector } from "./CompactWeekSelector";
+import { DEFAULT_WEEKS, parseRepsMin, parseRepsMax } from "@/lib/periodizationDefaults";
 
 /* ── Constantes ─────────────────────────────────────────────────────────────── */
 const GOLD = "#C9A84C";
-const DEFAULT_WEEKS = [
-  { label: "Semana 1 — Carga Máxima",            sets: "4 a 5 séries", reps: "5 a 8 reps",   rest: "2 min",     cadence: "1s conc / 2s exc" },
-  { label: "Semana 2 — Qualidade Neuromuscular", sets: "3 a 4 séries", reps: "10 a 12 reps", rest: "60s a 90s", cadence: "1s conc / 1-2s exc" },
-  { label: "Semana 3 — Qualidade Neuromuscular", sets: "3 a 4 séries", reps: "10 a 12 reps", rest: "60s a 90s", cadence: "1s conc / 1-2s exc" },
-  { label: "Semana 4 — Estresse Metabólico",     sets: "2 a 4 séries", reps: "15 a 20 reps", rest: "30s a 45s", cadence: "1s conc / 1s exc" },
-];
 
 const EFFORT_OPTIONS: { value: 1 | 2 | 3; label: string; emoji: string; color: string; bg: string }[] = [
   { value: 1, label: "Limpo",  emoji: "✅", color: "#22c55e", bg: "rgba(34,197,94,0.14)" },
@@ -61,14 +56,6 @@ function parseSetsMax(s?: string): number {
 function parseSetsMin(s?: string): number {
   const nums = String(s || "3").match(/\d+/g);
   return nums ? Math.max(1, Math.min(...nums.map(Number))) : 3;
-}
-function parseRepsMin(s?: string): number {
-  const nums = String(s || "0").match(/\d+/g);
-  return nums ? Math.min(...nums.map(Number)) : 0;
-}
-function parseRepsMax(s?: string): number {
-  const nums = String(s || "0").match(/\d+/g);
-  return nums ? Math.max(...nums.map(Number)) : 0;
 }
 function parseRestRange(rest?: string) {
   const nums = String(rest || "60-90").match(/\d+/g);

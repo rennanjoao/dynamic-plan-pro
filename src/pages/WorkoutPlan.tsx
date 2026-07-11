@@ -17,6 +17,9 @@ import WorkoutHistory from "@/components/student/WorkoutHistory";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useHighlightTarget } from "@/hooks/useHighlightTarget";
 import { slug } from "@/lib/slug";
+import WorkoutStrategyHeader from "@/components/student/WorkoutStrategyHeader";
+import { useCurrentPeriodizationWeek } from "@/hooks/useCurrentPeriodizationWeek";
+import { DEFAULT_WEEKS } from "@/lib/periodizationDefaults";
 
 const WEEKDAYS_LABEL: Record<string, string> = {
   seg: "Segunda", ter: "Terça", qua: "Quarta",
@@ -156,6 +159,18 @@ export default function WorkoutPlan() {
   const trainingGuideline = safePayload?.guidelines?.training;
   const showGuidelines: boolean = (safePayload as any)?.showGuidelines ?? false;
   const periodizationEnabled: boolean = safePayload?.periodization?.enabled ?? false;
+  const workoutKeys = workouts.map((w: any) => w.key);
+  const weeks =
+    safePayload?.periodization?.weeks?.length === 4
+      ? safePayload.periodization.weeks
+      : DEFAULT_WEEKS;
+  const { data: currentWeekRaw } = useCurrentPeriodizationWeek(
+    userId,
+    periodizationEnabled,
+    weeks.length,
+    workoutKeys
+  );
+  const currentWeek = currentWeekRaw ?? 0;
 
   const handleStartWorkout = (dayKey: string, week?: number) => {
     setWorkoutModeDay(dayKey);
@@ -288,6 +303,14 @@ export default function WorkoutPlan() {
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
 
+        <WorkoutStrategyHeader
+          payload={safePayload}
+          studentName={(studentProfile as any)?.full_name ?? undefined}
+          periodizationEnabled={periodizationEnabled}
+          weeks={weeks}
+          currentWeek={currentWeek}
+        />
+
         {showGuidelines && trainingGuideline && (
           <div
             id="guideline-training"
@@ -322,6 +345,7 @@ export default function WorkoutPlan() {
             onStartWorkout={handleStartWorkout}
             showGuidelines={showGuidelines}
             allowEdit={false}
+            initialWeek={currentWeek}
             renderLegacy={() => workoutAccordion}
           />
         ) : (
