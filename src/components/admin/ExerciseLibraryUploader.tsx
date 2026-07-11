@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { EXERCISE_GIFS_BUCKET } from "@/lib/exerciseLibrary";
+import { EXERCISE_GIFS_BUCKET, invalidateExerciseLibraryCache } from "@/lib/exerciseLibrary";
 import { toExerciseKey } from "@/lib/workoutTypes";
 import { classifyExerciseByName } from "@/lib/muscleGroupClassifier";
 
@@ -89,18 +89,11 @@ export function ExerciseLibraryUploader() {
           // file_name salvo aqui é o mesmo usado como caminho no storage.
           const baseName = file.name.replace(/\.webp$/i, "");
           const exerciseKey = toExerciseKey(baseName);
-          const classification = classifyExerciseByName(baseName);
-          // Não sobrescreve classificação manual já existente: só grava
-          // campos de grupo muscular quando o classificador reconheceu o nome.
-          const classificationPayload =
-            classification.confidence === "auto"
-              ? {
-                  primary_muscle_group: classification.primary,
-                  secondary_muscle_groups: classification.secondary,
-                  classification_source: "auto" as const,
-                }
-              : {};
           try {
+            // 1) Grava só file_name/display_name — nunca mexe em classificação de
+            // grupo muscular aqui. Se fizesse upsert com os campos de classificação
+            // juntos, um re-upload de gif podia sobrescrever uma classificação
+            // "manual" que o coach já tivesse definido pelo picker.
             const { error: libError } = await sb
               .from("exercise_library")
               .upsert(
@@ -108,13 +101,29 @@ export function ExerciseLibraryUploader() {
                   exercise_key: exerciseKey,
                   file_name: storageKey,
                   display_name: baseName,
-                  ...classificationPayload,
                   updated_at: new Date().toISOString(),
                 },
                 { onConflict: "exercise_key" }
               );
             if (libError) {
               errs.push(`${file.name}: enviado, mas falhou ao registrar na biblioteca (${libError.message})`);
+            } else {
+              // 2) Classificação automática pelo nome do arquivo, via RPC — que
+              // respeita a prioridade manual > auto > unclassified e não derruba
+              // uma classificação manual já existente.
+              const classification = classifyExerciseByName(baseName);
+              if (classification.confidence === "auto" && classification.primary) {
+                const { error: classError } = await sb.rpc("classify_exercise_library_entry", {
+                  p_exercise_key: exerciseKey,
+                  p_display_name: baseName,
+                  p_primary_group: classification.primary,
+                  p_secondary_groups: classification.secondary,
+                  p_source: "auto",
+                });
+                if (classError) {
+                  errs.push(`${file.name}: gif enviado, mas falhou classificação automática (${classError.message})`);
+                }
+              }
             }
           } catch (err) {
             errs.push(
@@ -134,6 +143,9 @@ export function ExerciseLibraryUploader() {
     } finally {
       // Roda sempre, mesmo se algo escapar dos try/catch acima — garante que
       // a tela nunca fica travada em "Enviando..." sem explicação.
+      // Invalida o cache da biblioteca para que buscas/matches nesta mesma aba
+      // já enxerguem os gifs recém-enviados, sem precisar dar F5 na página.
+      invalidateExerciseLibraryCache();
       setFailed(errs);
       setUploading(false);
       const okCount = files.length - errs.length;
