@@ -438,15 +438,15 @@ function MealCard({
       {open && (
         <div className="px-4 pb-4 space-y-2.5 border-t border-white/5 pt-3">
           {!isHidden("carb") && (
-            <MacroSection kind="carb" opts={carbOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} />
+            <MacroSection kind="carb" opts={carbOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} mealName={mealName} />
           )}
           {!isHidden("protein") && (
-            <MacroSection kind="protein" opts={proteinOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} />
+            <MacroSection kind="protein" opts={proteinOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} mealName={mealName} />
           )}
           {!isHidden("fat") && (
-            <MacroSection kind="fat" opts={fatOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} />
+            <MacroSection kind="fat" opts={fatOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} mealName={mealName} />
           )}
-          <MacroSection kind="veg" opts={vegOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} />
+          <MacroSection kind="veg" opts={vegOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} mealName={mealName} />
 
           {linkedSupps.length > 0 && (
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5 space-y-1">
