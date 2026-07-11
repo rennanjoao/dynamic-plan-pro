@@ -1563,6 +1563,16 @@ export type Database = {
       }
     }
     Functions: {
+      classify_exercise_library_entry: {
+        Args: {
+          p_display_name: string
+          p_exercise_key: string
+          p_primary_group: string
+          p_secondary_groups: string[]
+          p_source: string
+        }
+        Returns: undefined
+      }
       get_checkin_streak: { Args: { p_student_id: string }; Returns: number }
       get_coach_by_invite_code: {
         Args: { p_code: string }
