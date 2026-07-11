@@ -1272,6 +1272,14 @@ export default function CoachDashboard() {
           onClose={() => setHistoryStudent(null)}
         />
 
+        <Suspense fallback={null}>
+          <ProtocolChangeHistoryDialog
+            student={changeHistoryStudent}
+            open={!!changeHistoryStudent}
+            onClose={() => setChangeHistoryStudent(null)}
+          />
+        </Suspense>
+
         <EvolutionDialog
           student={evoStudent}
           open={!!evoStudent}
