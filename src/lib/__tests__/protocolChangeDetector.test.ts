@@ -335,6 +335,7 @@ describe("summarizeProtocolChanges", () => {
     label: `Mudança ${i}`,
     target_tab: "treino",
     target_anchor: null,
+    detail: null,
   });
 
   it("array vazio → array vazio", () => {
