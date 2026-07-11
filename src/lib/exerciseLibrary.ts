@@ -1,5 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
 import { toExerciseKey } from "@/lib/workoutTypes";
+import type { MuscleGroup } from "@/lib/muscleGroupClassifier";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const sb = supabase as any;
 
 export const EXERCISE_GIFS_BUCKET = "exercicios-gifs";
 
@@ -93,4 +97,63 @@ export async function searchExerciseLibrary(
   }
   results.sort((a, b) => b.score - a.score || a.displayName.localeCompare(b.displayName));
   return results.slice(0, limit).map(({ key, displayName, url }) => ({ key, displayName, url }));
+}
+
+/**
+ * Upsert de classificação de grupo muscular para um exercício. Usado pelo
+ * picker do coach (quando o coach digita um exercício novo, silenciosamente)
+ * e pelo prompt inline de "grupo muscular" (quando o coach preenche a
+ * pergunta opcional). Nunca sobrescreve uma classificação `manual`
+ * existente com um valor menos confiável (`auto` ou `unclassified`).
+ *
+ * Este é o único caminho que grava exercícios sem `file_name` — o campo
+ * foi tornado opcional na mesma migration que criou as colunas de grupo
+ * muscular, justamente para permitir esse cadastro leve.
+ */
+export async function upsertExerciseClassification(params: {
+  exerciseKey: string;
+  displayName: string;
+  primaryMuscleGroup: MuscleGroup | null;
+  secondaryMuscleGroups: MuscleGroup[];
+  source: "auto" | "manual" | "unclassified";
+}): Promise<{ ok: boolean; error?: string }> {
+  try {
+    // Não rebaixar uma classificação manual já salva.
+    const { data: existing } = await sb
+      .from("exercise_library")
+      .select("classification_source")
+      .eq("exercise_key", params.exerciseKey)
+      .maybeSingle();
+
+    if (existing?.classification_source === "manual" && params.source !== "manual") {
+      return { ok: true };
+    }
+    if (existing?.classification_source === "auto" && params.source === "unclassified") {
+      return { ok: true };
+    }
+
+    const payload: Record<string, unknown> = {
+      exercise_key: params.exerciseKey,
+      display_name: params.displayName,
+      updated_at: new Date().toISOString(),
+    };
+    if (params.source !== "unclassified" || !existing) {
+      payload.primary_muscle_group = params.primaryMuscleGroup;
+      payload.secondary_muscle_groups = params.secondaryMuscleGroups;
+      payload.classification_source = params.source;
+    }
+
+    const { error } = await sb
+      .from("exercise_library")
+      .upsert(payload, { onConflict: "exercise_key" });
+
+    // Invalida cache local para próximas buscas verem o novo item.
+    if (!error) {
+      cache = null;
+      inflight = null;
+    }
+    return { ok: !error, error: error?.message };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "erro desconhecido" };
+  }
 }
