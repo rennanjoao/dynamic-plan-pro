@@ -5,6 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { EXERCISE_GIFS_BUCKET } from "@/lib/exerciseLibrary";
 import { toExerciseKey } from "@/lib/workoutTypes";
+import { classifyExerciseByName } from "@/lib/muscleGroupClassifier";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb = supabase as any;
@@ -88,11 +89,28 @@ export function ExerciseLibraryUploader() {
           // file_name salvo aqui é o mesmo usado como caminho no storage.
           const baseName = file.name.replace(/\.webp$/i, "");
           const exerciseKey = toExerciseKey(baseName);
+          const classification = classifyExerciseByName(baseName);
+          // Não sobrescreve classificação manual já existente: só grava
+          // campos de grupo muscular quando o classificador reconheceu o nome.
+          const classificationPayload =
+            classification.confidence === "auto"
+              ? {
+                  primary_muscle_group: classification.primary,
+                  secondary_muscle_groups: classification.secondary,
+                  classification_source: "auto" as const,
+                }
+              : {};
           try {
             const { error: libError } = await sb
               .from("exercise_library")
               .upsert(
-                { exercise_key: exerciseKey, file_name: storageKey, updated_at: new Date().toISOString() },
+                {
+                  exercise_key: exerciseKey,
+                  file_name: storageKey,
+                  display_name: baseName,
+                  ...classificationPayload,
+                  updated_at: new Date().toISOString(),
+                },
                 { onConflict: "exercise_key" }
               );
             if (libError) {
