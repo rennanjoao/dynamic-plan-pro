@@ -20,7 +20,7 @@ import {
   AlertTriangle, CheckCircle2, Search, Filter, Users,
   Dumbbell, ClipboardList, ArrowLeft,
   Loader2, Plus, Trash2, DollarSign, Calendar, X, User, LogOut,
-  MessageSquare, History, FileDown, Settings2, Activity
+  MessageSquare, History, FileDown, Settings2, Activity, Sparkles
 } from "lucide-react";
 import CoachNotificationBell from "@/components/coach/CoachNotificationBell";
 import { Input } from "@/components/ui/input";
@@ -53,6 +53,7 @@ const EvolutionComparisonLazy = lazy(() => import("@/components/coach/EvolutionC
 const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
 const CheckinFeedbackPanel = lazy(() => import("@/components/coach/CheckinFeedbackPanel"));
 const StudentWorkoutAnalytics = lazy(() => import("@/components/coach/StudentWorkoutAnalytics"));
+const ProtocolChangeHistoryDialog = lazy(() => import("@/components/coach/ProtocolChangeHistoryDialog"));
 
 // CheckinPayloadAnswers foi extraído para src/components/coach/CheckinPayloadAnswers.tsx
 // e é compartilhado com EvolutionComparison (modo "Ver Feedback Completo").
