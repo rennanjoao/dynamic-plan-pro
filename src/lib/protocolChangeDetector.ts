@@ -34,12 +34,27 @@ export interface ProtocolChange {
   label: string;
   target_tab: ChangeTargetTab;
   target_anchor: string | null;
+  /**
+   * Texto secundário exibido quando o aluno expande o item no card de
+   * atualizações. Descreve o que exatamente mudou (ex: "Séries: 3 → 4"),
+   * ou `null` quando não há detalhe adicional útil (ex: refeição removida).
+   */
+  detail: string | null;
 }
 
 const s = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 const n = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
 type AnyRec = Record<string, any>;
+
+// Rótulos e unidades espelhados do ProtocolBuilder (aba de Macros).
+const MACRO_LABEL: Record<string, { label: string; unit: string }> = {
+  calories: { label: "Calorias", unit: "kcal" },
+  protein:  { label: "Proteína", unit: "g" },
+  carbs:    { label: "Carbo",    unit: "g" },
+  fat:      { label: "Gordura",  unit: "g" },
+  water:    { label: "Água",     unit: "L" },
+};
 
 /**
  * Comparador puro. Não conhece "primeira ativação" nem o teto de >8 itens
@@ -56,14 +71,21 @@ export function detectProtocolChanges(
   const pm: AnyRec = prev.macros ?? {};
   const nm: AnyRec = next.macros ?? {};
   const macroFields = ["calories", "protein", "carbs", "fat", "water"] as const;
-  const macrosChanged = macroFields.some((k) => n(pm[k]) !== n(nm[k]));
-  if (macrosChanged) {
+  const changedMacroParts: string[] = [];
+  for (const k of macroFields) {
+    if (n(pm[k]) !== n(nm[k])) {
+      const meta = MACRO_LABEL[k];
+      changedMacroParts.push(`${meta.label}: ${n(pm[k])}${meta.unit} → ${n(nm[k])}${meta.unit}`);
+    }
+  }
+  if (changedMacroParts.length > 0) {
     out.push({
       category: "dieta",
       importance: "media",
       label: "Suas metas de calorias e macros foram ajustadas",
       target_tab: "dieta",
       target_anchor: null,
+      detail: changedMacroParts.join(" · "),
     });
   }
   if (s(pm.goal) !== s(nm.goal)) {
@@ -73,6 +95,7 @@ export function detectProtocolChanges(
       label: "Seu objetivo foi atualizado",
       target_tab: "dieta",
       target_anchor: null,
+      detail: `Antes: ${s(pm.goal) || "—"} · Agora: ${s(nm.goal) || "—"}`,
     });
   }
 
@@ -88,6 +111,7 @@ export function detectProtocolChanges(
       label: "Novas diretrizes de treino foram liberadas para você",
       target_tab: "treino",
       target_anchor: "guideline-training",
+      detail: nTraining,
     });
   } else if (pTraining !== nTraining) {
     out.push({
@@ -96,6 +120,7 @@ export function detectProtocolChanges(
       label: "A diretriz de treino foi atualizada",
       target_tab: "treino",
       target_anchor: "guideline-training",
+      detail: nTraining || null,
     });
   }
 
@@ -107,12 +132,16 @@ export function detectProtocolChanges(
 
   for (const [key, day] of nDays) {
     if (!pDays.has(key)) {
+      const exNames = (Array.isArray(day.exercises) ? day.exercises : [])
+        .map((e: AnyRec) => s(e.name))
+        .filter(Boolean);
       out.push({
         category: "treino",
         importance: "alta",
         label: `Um novo dia de treino foi adicionado: ${s(day.focus) || key}`,
         target_tab: "treino",
         target_anchor: null,
+        detail: exNames.length > 0 ? exNames.join(", ") : null,
       });
     }
   }
@@ -124,6 +153,7 @@ export function detectProtocolChanges(
         label: `O treino de ${s(day.focus) || key} foi removido`,
         target_tab: "treino",
         target_anchor: null,
+        detail: null,
       });
     }
   }
@@ -149,6 +179,7 @@ export function detectProtocolChanges(
         label: `${removed[0]} foi substituído por ${added[0]}`,
         target_tab: "treino",
         target_anchor: anchorFor(added[0]),
+        detail: `Antes: ${removed[0]} · Agora: ${added[0]}`,
       });
     } else {
       for (const nm of removed) {
@@ -158,15 +189,26 @@ export function detectProtocolChanges(
           label: `${nm} foi removido do treino`,
           target_tab: "treino",
           target_anchor: null,
+          detail: null,
         });
       }
       for (const nm of added) {
+        const eNew = newEx.find((e) => s(e.name) === nm);
+        const sets = s(eNew?.sets);
+        const reps = s(eNew?.reps);
+        const rest = s(eNew?.rest);
+        let addedDetail: string | null = null;
+        if (sets || reps) {
+          addedDetail = `${sets || "?"}x${reps || "?"}`;
+          if (rest) addedDetail += ` · descanso ${rest}`;
+        }
         out.push({
           category: "treino",
           importance: "media",
           label: `Novo exercício adicionado: ${nm}`,
           target_tab: "treino",
           target_anchor: anchorFor(nm),
+          detail: addedDetail,
         });
       }
     }
@@ -179,10 +221,23 @@ export function detectProtocolChanges(
       if (!eOld || !eNew) continue;
 
       const parts: string[] = [];
-      if (s(eOld.sets) !== s(eNew.sets)) parts.push("sets");
-      if (s(eOld.reps) !== s(eNew.reps)) parts.push("reps");
-      if (s(eOld.rest) !== s(eNew.rest)) parts.push("descanso");
-      if (s(eOld.cadence) !== s(eNew.cadence)) parts.push("cadência");
+      const detailParts: string[] = [];
+      if (s(eOld.sets) !== s(eNew.sets)) {
+        parts.push("sets");
+        detailParts.push(`Séries: ${s(eOld.sets) || "—"} → ${s(eNew.sets) || "—"}`);
+      }
+      if (s(eOld.reps) !== s(eNew.reps)) {
+        parts.push("reps");
+        detailParts.push(`Reps: ${s(eOld.reps) || "—"} → ${s(eNew.reps) || "—"}`);
+      }
+      if (s(eOld.rest) !== s(eNew.rest)) {
+        parts.push("descanso");
+        detailParts.push(`Descanso: ${s(eOld.rest) || "—"} → ${s(eNew.rest) || "—"}`);
+      }
+      if (s(eOld.cadence) !== s(eNew.cadence)) {
+        parts.push("cadência");
+        detailParts.push(`Cadência: ${s(eOld.cadence) || "—"} → ${s(eNew.cadence) || "—"}`);
+      }
       if (parts.length > 0) {
         out.push({
           category: "treino",
@@ -190,6 +245,7 @@ export function detectProtocolChanges(
           label: `${parts.join("/")} de ${nm} foi ajustado`,
           target_tab: "treino",
           target_anchor: anchorFor(nm),
+          detail: detailParts.join(" · "),
         });
       }
       if (s(eOld.notes) !== s(eNew.notes)) {
@@ -199,6 +255,7 @@ export function detectProtocolChanges(
           label: `Nova observação em ${nm}`,
           target_tab: "treino",
           target_anchor: anchorFor(nm),
+          detail: s(eNew.notes) || null,
         });
       }
     }
@@ -212,7 +269,7 @@ export function detectProtocolChanges(
   for (const m of pMeals) { const k = s(m.name); if (k) pMealByName.set(k, m); }
   for (const m of nMeals) { const k = s(m.name); if (k) nMealByName.set(k, m); }
 
-  for (const [nm, meal] of nMealByName) {
+  for (const [nm] of nMealByName) {
     if (!pMealByName.has(nm)) {
       out.push({
         category: "dieta",
@@ -220,6 +277,7 @@ export function detectProtocolChanges(
         label: `Uma nova refeição foi adicionada: ${nm}`,
         target_tab: "dieta",
         target_anchor: `meal-${slug(nm)}`,
+        detail: null,
       });
     }
   }
@@ -231,6 +289,7 @@ export function detectProtocolChanges(
         label: `A refeição ${nm} foi removida do seu plano`,
         target_tab: "dieta",
         target_anchor: null,
+        detail: null,
       });
     }
   }
@@ -246,6 +305,7 @@ export function detectProtocolChanges(
         label: `O horário da refeição ${mealName} foi ajustado`,
         target_tab: "dieta",
         target_anchor: `meal-${slug(mealName)}`,
+        detail: `Antes: ${s(mOld.time) || "—"} · Agora: ${s(mNew.time) || "—"}`,
       });
     }
     if (s(mOld.notes) !== s(mNew.notes)) {
@@ -255,6 +315,7 @@ export function detectProtocolChanges(
         label: `Nova observação na refeição ${mealName}`,
         target_tab: "dieta",
         target_anchor: `meal-${slug(mealName)}`,
+        detail: s(mNew.notes) || null,
       });
     }
 
@@ -270,6 +331,7 @@ export function detectProtocolChanges(
         label: `Uma opção da refeição ${mealName} deixou de estar disponível`,
         target_tab: "dieta",
         target_anchor: `meal-${slug(mealName)}`,
+        detail: null,
       });
     }
 
@@ -293,12 +355,14 @@ export function detectProtocolChanges(
 
       for (const it of newNames) {
         if (!oldSet.has(it)) {
+          const added = newItems.find((x) => s(x.name) === it);
           out.push({
             category: "dieta",
             importance: "media",
             label: `${it} foi adicionado na refeição ${mealName}`,
             target_tab: "dieta",
             target_anchor: `${anchorBase}-item-${slug(it)}`,
+            detail: s(added?.weight) || null,
           });
         }
       }
@@ -310,6 +374,7 @@ export function detectProtocolChanges(
             label: `${it} foi removido da refeição ${mealName}`,
             target_tab: "dieta",
             target_anchor: null,
+            detail: null,
           });
         }
       }
@@ -324,6 +389,7 @@ export function detectProtocolChanges(
             label: `A quantidade de ${nm} na refeição ${mealName} foi ajustada`,
             target_tab: "dieta",
             target_anchor: `${anchorBase}-item-${slug(nm)}`,
+            detail: `Antes: ${s(iOld?.weight) || "—"} · Agora: ${s(iNew?.weight) || "—"}`,
           });
         }
       }
@@ -338,14 +404,24 @@ export function detectProtocolChanges(
   for (const it of pSup) { const k = s(it.name); if (k) pSupByName.set(k, it); }
   for (const it of nSup) { const k = s(it.name); if (k) nSupByName.set(k, it); }
 
-  for (const [nm] of nSupByName) {
+  for (const [nm, sNew] of nSupByName) {
     if (!pSupByName.has(nm)) {
+      const dose = s(sNew.dose);
+      const timing = s(sNew.timing);
+      let addedDetail: string | null = null;
+      if (dose) {
+        addedDetail = dose;
+        if (timing) addedDetail += ` · ${timing}`;
+      } else if (timing) {
+        addedDetail = timing;
+      }
       out.push({
         category: "suplemento",
         importance: "alta",
         label: `Novo suplemento adicionado: ${nm}`,
         target_tab: "suplementos",
         target_anchor: `supplement-${slug(nm)}`,
+        detail: addedDetail,
       });
     }
   }
@@ -357,23 +433,28 @@ export function detectProtocolChanges(
         label: `${nm} foi removido dos suplementos`,
         target_tab: "suplementos",
         target_anchor: null,
+        detail: null,
       });
     }
   }
   for (const [nm, sOld] of pSupByName) {
     const sNew = nSupByName.get(nm);
     if (!sNew) continue;
-    if (
-      s(sOld.dose) !== s(sNew.dose) ||
-      s(sOld.timing) !== s(sNew.timing) ||
-      s(sOld.notes) !== s(sNew.notes)
-    ) {
+    const doseChanged = s(sOld.dose) !== s(sNew.dose);
+    const timingChanged = s(sOld.timing) !== s(sNew.timing);
+    const notesChanged = s(sOld.notes) !== s(sNew.notes);
+    if (doseChanged || timingChanged || notesChanged) {
+      const parts: string[] = [];
+      if (doseChanged) parts.push(`Dose: ${s(sOld.dose) || "—"} → ${s(sNew.dose) || "—"}`);
+      if (timingChanged) parts.push(`Horário: ${s(sOld.timing) || "—"} → ${s(sNew.timing) || "—"}`);
+      if (notesChanged && s(sNew.notes)) parts.push(s(sNew.notes));
       out.push({
         category: "suplemento",
         importance: "baixa",
         label: `${nm} teve dose ou horário ajustado`,
         target_tab: "suplementos",
         target_anchor: `supplement-${slug(nm)}`,
+        detail: parts.length > 0 ? parts.join(" · ") : null,
       });
     }
   }
@@ -402,6 +483,7 @@ export function summarizeProtocolChanges(args: {
       label: "Seu protocolo foi liberado pelo seu coach",
       target_tab: null,
       target_anchor: null,
+      detail: null,
     }];
   }
   if (args.changes.length > 8) {
@@ -411,6 +493,7 @@ export function summarizeProtocolChanges(args: {
       label: "Seu protocolo foi totalmente atualizado pelo seu coach",
       target_tab: null,
       target_anchor: null,
+      detail: null,
     }];
   }
   return args.changes;

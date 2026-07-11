@@ -326,6 +326,51 @@ describe("detectProtocolChanges", () => {
     next2.showGuidelines = false;
     expect(detectProtocolChanges(prev2, next2)).toEqual([]);
   });
+
+  // ─── detail: coberturas por regra ───────────────────────────────────────
+  it("detail: substituição de exercício vira 'Antes: X · Agora: Y'", () => {
+    const prev = basePayload();
+    const next = clone(prev);
+    next.workouts[0].exercises[1] = {
+      name: "Peck Deck", sets: "3", reps: "12", rest: "60s", cadence: "2010", notes: "",
+    };
+    const res = detectProtocolChanges(prev, next);
+    expect(res[0].detail).toBe("Antes: Crucifixo · Agora: Peck Deck");
+  });
+
+  it("detail: nova observação em exercício → detail é o texto novo", () => {
+    const prev = basePayload();
+    const next = clone(prev);
+    next.workouts[0].exercises[0].notes = "Aumentar 2kg por semana";
+    const res = detectProtocolChanges(prev, next);
+    expect(res[0].detail).toBe("Aumentar 2kg por semana");
+  });
+
+  it("detail: nova observação em refeição → detail é o texto novo", () => {
+    const prev = basePayload();
+    const next = clone(prev);
+    next.meals[0].notes = "Comer devagar";
+    const res = detectProtocolChanges(prev, next);
+    expect(res[0].detail).toBe("Comer devagar");
+  });
+
+  it("detail: ajuste de sets/reps vira 'Séries: A → B · Reps: A → B'", () => {
+    const prev = basePayload();
+    const next = clone(prev);
+    next.workouts[0].exercises[0].sets = "5";
+    next.workouts[0].exercises[0].reps = "6";
+    const res = detectProtocolChanges(prev, next);
+    expect(res).toHaveLength(1);
+    expect(res[0].detail).toBe("Séries: 4 → 5 · Reps: 8-10 → 6");
+  });
+
+  it("detail: refeição removida → detail null", () => {
+    const prev = basePayload();
+    const next = clone(prev);
+    next.meals = [];
+    const res = detectProtocolChanges(prev, next);
+    expect(res[0].detail).toBeNull();
+  });
 });
 
 describe("summarizeProtocolChanges", () => {
@@ -335,6 +380,7 @@ describe("summarizeProtocolChanges", () => {
     label: `Mudança ${i}`,
     target_tab: "treino",
     target_anchor: null,
+    detail: null,
   });
 
   it("array vazio → array vazio", () => {

@@ -18,10 +18,16 @@ import { MemoryRouter } from "react-router-dom";
 // ─── Mocks compartilhados ─────────────────────────────────────────────
 let pendingRow: any = null;
 const updateCalls: Array<{ patch: any; id: string }> = [];
+const navigateSpy = vi.fn();
 
 vi.mock("@/hooks/useStudentData", () => ({
   useStudentData: () => ({ studentId: "student-1" }),
 }));
+
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
+  return { ...actual, useNavigate: () => navigateSpy };
+});
 
 vi.mock("@/integrations/supabase/client", () => {
   const selectChain = () => {
@@ -73,6 +79,7 @@ async function renderCard() {
 beforeEach(() => {
   pendingRow = null;
   updateCalls.length = 0;
+  navigateSpy.mockReset();
   cleanup();
 });
 
@@ -137,5 +144,125 @@ describe("CoachUpdatesCard", () => {
     await waitFor(() => {
       expect(container.querySelector("button[aria-label='Ver atualizações do coach']")).toBeNull();
     });
+  });
+
+  it("clicar num item com detail → mostra o detail, sheet continua aberto, marcou como visto", async () => {
+    pendingRow = {
+      id: "evt-detail",
+      created_at: new Date().toISOString(),
+      seen_item_indexes: [],
+      changes: [
+        {
+          category: "treino", importance: "alta",
+          label: "Supino Reto foi substituído por Peck Deck",
+          target_tab: "treino", target_anchor: "workout-seg-exercise-peck-deck",
+          detail: "Antes: Supino Reto · Agora: Peck Deck",
+        },
+      ],
+    };
+    await renderCard();
+    await userEvent.click(await screen.findByRole("button", { name: /atualizações do coach/i }));
+    const itemBtn = await screen.findByRole("button", { name: /supino reto/i });
+    await userEvent.click(itemBtn);
+
+    // Detail aparece
+    expect(await screen.findByText(/Antes: Supino Reto · Agora: Peck Deck/i)).toBeInTheDocument();
+    // Sheet continua aberto (o título ainda está no DOM)
+    expect(screen.getByText(/Atualizações do coach/i)).toBeInTheDocument();
+    // Nenhuma navegação até aqui
+    expect(navigateSpy).not.toHaveBeenCalled();
+    // Marcou como visto (index 0)
+    await waitFor(() => expect(updateCalls.length).toBe(1));
+    expect(updateCalls[0].patch.seen_item_indexes).toEqual([0]);
+  });
+
+  it("expandir item, depois 'Ir para...' → navega no segundo clique, sem duplicar markItemSeen", async () => {
+    pendingRow = {
+      id: "evt-nav",
+      created_at: new Date().toISOString(),
+      seen_item_indexes: [],
+      changes: [
+        {
+          category: "dieta", importance: "alta",
+          label: "Nova refeição: Ceia",
+          target_tab: "dieta", target_anchor: "meal-ceia",
+          detail: "Refeição adicionada ao seu plano",
+        },
+      ],
+    };
+    await renderCard();
+    await userEvent.click(await screen.findByRole("button", { name: /atualizações do coach/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /ceia/i }));
+    await waitFor(() => expect(updateCalls.length).toBe(1));
+
+    const goBtn = await screen.findByRole("button", { name: /ir para a dieta/i });
+    await userEvent.click(goBtn);
+
+    // Não duplicou a marcação — continua 1 chamada
+    expect(updateCalls.length).toBe(1);
+    // Navegou apenas agora, com o highlight correto
+    expect(navigateSpy).toHaveBeenCalledTimes(1);
+    expect(navigateSpy).toHaveBeenCalledWith("/routine?highlight=meal-ceia");
+  });
+
+  it("expandir item 1, depois clicar no item 2 → só o detail do item 2 fica visível", async () => {
+    pendingRow = {
+      id: "evt-acc",
+      created_at: new Date().toISOString(),
+      seen_item_indexes: [],
+      changes: [
+        {
+          category: "treino", importance: "alta",
+          label: "Item Um",
+          target_tab: "treino", target_anchor: null,
+          detail: "Detalhe do item um",
+        },
+        {
+          category: "dieta", importance: "alta",
+          label: "Item Dois",
+          target_tab: "dieta", target_anchor: null,
+          detail: "Detalhe do item dois",
+        },
+      ],
+    };
+    await renderCard();
+    await userEvent.click(await screen.findByRole("button", { name: /atualizações do coach/i }));
+
+    await userEvent.click(await screen.findByRole("button", { name: /item um/i }));
+    expect(await screen.findByText(/Detalhe do item um/i)).toBeInTheDocument();
+
+    await userEvent.click(await screen.findByRole("button", { name: /item dois/i }));
+    expect(await screen.findByText(/Detalhe do item dois/i)).toBeInTheDocument();
+    // O detail do item 1 saiu do DOM (accordion fecha o anterior)
+    await waitFor(() => {
+      expect(screen.queryByText(/Detalhe do item um/i)).toBeNull();
+    });
+  });
+
+  it("item sem detail e sem target_tab (categoria geral) → clique marca como visto, não expande nada", async () => {
+    pendingRow = {
+      id: "evt-geral",
+      created_at: new Date().toISOString(),
+      seen_item_indexes: [],
+      changes: [
+        {
+          category: "geral", importance: "alta",
+          label: "Seu protocolo foi liberado pelo seu coach",
+          target_tab: null, target_anchor: null,
+          detail: null,
+        },
+      ],
+    };
+    await renderCard();
+    await userEvent.click(await screen.findByRole("button", { name: /atualizações do coach/i }));
+    const itemBtn = await screen.findByRole("button", { name: /protocolo foi liberado/i });
+    // Não há chevron/aria-expanded — o item não é expansível
+    expect(itemBtn).not.toHaveAttribute("aria-expanded");
+    await userEvent.click(itemBtn);
+    // Sem detail e sem botão "Ir para"
+    expect(screen.queryByRole("button", { name: /ir para/i })).toBeNull();
+    // Marcou como visto
+    await waitFor(() => expect(updateCalls.length).toBe(1));
+    expect(updateCalls[0].patch.seen_item_indexes).toEqual([0]);
   });
 });
