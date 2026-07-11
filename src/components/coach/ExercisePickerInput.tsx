@@ -53,6 +53,7 @@ export function ExercisePickerInput({
   const [highlight, setHighlight] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const skipNextSearch = useRef(false);
+  const skipNextBlur = useRef(false);
   // Prompt inline de grupo muscular — só aparece quando o coach digita um
   // nome novo que o classificador não reconheceu. Nunca bloqueia salvar.
   const [needsGroupPrompt, setNeedsGroupPrompt] = useState<string | null>(null);
@@ -83,6 +84,7 @@ export function ExercisePickerInput({
 
   const handlePick = (s: Suggestion) => {
     skipNextSearch.current = true;
+    skipNextBlur.current = true;
     onChange({ name: s.displayName, gifKey: s.key });
     setSuggestions([]);
     setOpen(false);
@@ -101,6 +103,10 @@ export function ExercisePickerInput({
   // classificador reconhecer, grava direto. Se não, oferece um seletor
   // opcional (com botão "Pular") logo abaixo do input.
   const handleBlur = async () => {
+    if (skipNextBlur.current) {
+      skipNextBlur.current = false;
+      return;
+    }
     const name = value.trim();
     if (!name || name.length < 3) return;
     if (gifKey) return; // já tem match na biblioteca via seleção
@@ -109,23 +115,29 @@ export function ExercisePickerInput({
     const key = toExerciseKey(name);
     const classification = classifyExerciseByName(name);
     if (classification.confidence === "auto" && classification.primary) {
-      await upsertExerciseClassification({
+      const result = await upsertExerciseClassification({
         exerciseKey: key,
         displayName: name,
         primaryMuscleGroup: classification.primary,
         secondaryMuscleGroups: classification.secondary,
         source: "auto",
       });
+      if (!result.ok) {
+        console.warn("[classificacao-grupo-muscular] falha ao salvar:", result.error);
+      }
       setNeedsGroupPrompt(null);
     } else {
       // Registra como unclassified (silencioso) e mostra o prompt inline.
-      await upsertExerciseClassification({
+      const result = await upsertExerciseClassification({
         exerciseKey: key,
         displayName: name,
         primaryMuscleGroup: null,
         secondaryMuscleGroups: [],
         source: "unclassified",
       });
+      if (!result.ok) {
+        console.warn("[classificacao-grupo-muscular] falha ao salvar:", result.error);
+      }
       setNeedsGroupPrompt(key);
     }
   };
@@ -133,13 +145,16 @@ export function ExercisePickerInput({
   const resolveGroupPrompt = async (group: MuscleGroup | null) => {
     if (!needsGroupPrompt) return;
     if (group) {
-      await upsertExerciseClassification({
+      const result = await upsertExerciseClassification({
         exerciseKey: needsGroupPrompt,
         displayName: value.trim(),
         primaryMuscleGroup: group,
         secondaryMuscleGroups: [],
         source: "manual",
       });
+      if (!result.ok) {
+        console.warn("[classificacao-grupo-muscular] falha ao salvar:", result.error);
+      }
     }
     setNeedsGroupPrompt(null);
   };

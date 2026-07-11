@@ -12,6 +12,8 @@ export interface LibraryEntry {
   displayName: string;
   aliases: string[];
   url: string;
+  primaryMuscleGroup: MuscleGroup | null;
+  secondaryMuscleGroups: MuscleGroup[];
 }
 
 let cache: Map<string, LibraryEntry> | null = null;
@@ -25,10 +27,17 @@ async function loadLibrary(): Promise<Map<string, LibraryEntry>> {
     const map = new Map<string, LibraryEntry>();
     const { data, error } = await supabase
       .from("exercise_library")
-      // display_name/aliases foram adicionados via migration aditiva; usamos any-cast porque
-      // os types gerados podem ainda não conter as novas colunas.
-      .select("exercise_key, file_name, display_name, aliases") as unknown as {
-        data: Array<{ exercise_key: string; file_name: string; display_name: string | null; aliases: string[] | null }> | null;
+      // display_name/aliases/grupos foram adicionados via migrations aditivas; usamos any-cast
+      // porque os types gerados podem ainda não conter as novas colunas.
+      .select("exercise_key, file_name, display_name, aliases, primary_muscle_group, secondary_muscle_groups") as unknown as {
+        data: Array<{
+          exercise_key: string;
+          file_name: string;
+          display_name: string | null;
+          aliases: string[] | null;
+          primary_muscle_group: string | null;
+          secondary_muscle_groups: string[] | null;
+        }> | null;
         error: unknown;
       };
 
@@ -42,6 +51,8 @@ async function loadLibrary(): Promise<Map<string, LibraryEntry>> {
           displayName: row.display_name?.trim() || row.exercise_key.replace(/_/g, " "),
           aliases: row.aliases ?? [],
           url: pub.publicUrl,
+          primaryMuscleGroup: (row.primary_muscle_group as MuscleGroup | null) ?? null,
+          secondaryMuscleGroups: (row.secondary_muscle_groups as MuscleGroup[] | null) ?? [],
         });
       }
     }
@@ -118,34 +129,17 @@ export async function upsertExerciseClassification(params: {
   source: "auto" | "manual" | "unclassified";
 }): Promise<{ ok: boolean; error?: string }> {
   try {
-    // Não rebaixar uma classificação manual já salva.
-    const { data: existing } = await sb
-      .from("exercise_library")
-      .select("classification_source")
-      .eq("exercise_key", params.exerciseKey)
-      .maybeSingle();
-
-    if (existing?.classification_source === "manual" && params.source !== "manual") {
-      return { ok: true };
-    }
-    if (existing?.classification_source === "auto" && params.source === "unclassified") {
-      return { ok: true };
-    }
-
-    const payload: Record<string, unknown> = {
-      exercise_key: params.exerciseKey,
-      display_name: params.displayName,
-      updated_at: new Date().toISOString(),
-    };
-    if (params.source !== "unclassified" || !existing) {
-      payload.primary_muscle_group = params.primaryMuscleGroup;
-      payload.secondary_muscle_groups = params.secondaryMuscleGroups;
-      payload.classification_source = params.source;
-    }
-
-    const { error } = await sb
-      .from("exercise_library")
-      .upsert(payload, { onConflict: "exercise_key" });
+    // A prioridade manual > auto > unclassified é resolvida atomicamente
+    // dentro da função de banco (SECURITY DEFINER), que também é o único
+    // caminho de escrita autorizado para coaches (role user) — INSERT/UPDATE
+    // direto na tabela exige role admin via RLS.
+    const { error } = await sb.rpc("classify_exercise_library_entry", {
+      p_exercise_key: params.exerciseKey,
+      p_display_name: params.displayName,
+      p_primary_group: params.primaryMuscleGroup,
+      p_secondary_groups: params.secondaryMuscleGroups,
+      p_source: params.source,
+    });
 
     // Invalida cache local para próximas buscas verem o novo item.
     if (!error) {
