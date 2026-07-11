@@ -35,6 +35,7 @@ interface Props {
   onStartWorkout?: (dayKey: string, week?: number) => void;
   /** Controla se a Diretriz/Banner é exibida para o aluno */
   showGuidelines?: boolean;
+  initialWeek?: number;
   periodization?: {
     enabled?: boolean;
     weeks?: WeekMeta[];
@@ -54,6 +55,7 @@ export default function WorkoutPeriodizationView({
   allowEdit = false,
   onStartWorkout,
   showGuidelines = false,
+  initialWeek,
   periodization,
 }: Props) {
   const incomingWeeks =
@@ -74,7 +76,7 @@ export default function WorkoutPeriodizationView({
     : periodization?.enabled ?? true;
 
   const [periodizationOn, setPeriodizationOn] = useState(initialOn);
-  const [activeWeek, setActiveWeek] = useState(0);
+  const [activeWeek, setActiveWeek] = useState(initialWeek ?? 0);
   const [editMode, setEditMode] = useState(false);
   const [weeks, setWeeks] = useState<WeekMeta[]>(incomingWeeks);
   const [overrides, setOverrides] = useState<Overrides>(incomingOverrides);
