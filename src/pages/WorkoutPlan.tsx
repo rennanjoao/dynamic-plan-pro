@@ -15,6 +15,8 @@ import WorkoutPeriodizationView from "@/components/student/WorkoutPeriodizationV
 import WorkoutMode from "@/components/student/WorkoutMode";
 import WorkoutHistory from "@/components/student/WorkoutHistory";
 import { useWakeLock } from "@/hooks/useWakeLock";
+import { useHighlightTarget } from "@/hooks/useHighlightTarget";
+import { slug } from "@/lib/slug";
 
 const WEEKDAYS_LABEL: Record<string, string> = {
   seg: "Segunda", ter: "Terça", qua: "Quarta",
@@ -54,6 +56,7 @@ export default function WorkoutPlan() {
   const [workoutModeWeek, setWorkoutModeWeek] = useState<number>(0);
   const [showHistory, setShowHistory] = useState(false);
   useWakeLock(showWorkoutMode);
+  useHighlightTarget();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -187,7 +190,11 @@ export default function WorkoutPlan() {
           <AccordionContent className="px-4 pb-4 border-t border-border/40">
             <div className="space-y-4 mt-4">
               {Array.isArray(day.exercises) && day.exercises.map((ex: any, idx: number) => (
-                <div key={idx} className="bg-background border border-border/50 rounded-lg p-3">
+                <div
+                  key={idx}
+                  id={`workout-${day.key}-exercise-${slug(ex.name)}`}
+                  className="bg-background border border-border/50 rounded-lg p-3"
+                >
                   <h4 className="font-bold text-sm text-primary mb-2 flex items-start gap-2">
                     <span className="mt-0.5">•</span> {ex.name}
                   </h4>
@@ -282,7 +289,10 @@ export default function WorkoutPlan() {
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
 
         {showGuidelines && trainingGuideline && (
-          <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl shadow-sm">
+          <div
+            id="guideline-training"
+            className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl shadow-sm"
+          >
             <h3 className="text-amber-600 font-bold flex items-center gap-2 mb-2">
               <AlertTriangle className="w-5 h-5" /> Atenção — Diretriz do Treinador
             </h3>

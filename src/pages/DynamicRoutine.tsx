@@ -17,11 +17,13 @@ import ProtocolQuestionButton from "@/components/student/ProtocolQuestionButton"
 import StructuredMealsViewer from "@/components/student/StructuredMealsViewer";
 import { ProtocolPayloadSchema } from "@/lib/protocolSchema";
 import { useWakeLock } from "@/hooks/useWakeLock";
+import { useHighlightTarget } from "@/hooks/useHighlightTarget";
 
 export default function DynamicRoutine() {
   const navigate = useNavigate();
   const [userId, setUserId] = useState("");
   useWakeLock();
+  useHighlightTarget();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {

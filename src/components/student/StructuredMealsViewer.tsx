@@ -19,6 +19,7 @@ import { buildWeekStrip, CARB_LABEL, CARB_COLOR, todayKey, tomorrowKey } from "@
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useMealCheckins } from "@/hooks/useMealCheckins";
+import { slug } from "@/lib/slug";
 
 // ─── Math engine ──────────────────────────────────────────────────────────────
 /** Retorna saudação de acordo com o horário local do dispositivo */
@@ -265,9 +266,9 @@ function humanizeUnit(weight: string): string {
 
 // ─── MacroSection ─────────────────────────────────────────────────────────────
 function MacroSection({
-  kind, opts, mode, isCooked, highPct, lowPct,
+  kind, opts, mode, isCooked, highPct, lowPct, mealName,
 }: {
-  kind: Kind; opts: any[]; mode: CarbMode; isCooked: boolean; highPct: number; lowPct: number;
+  kind: Kind; opts: any[]; mode: CarbMode; isCooked: boolean; highPct: number; lowPct: number; mealName: string;
 }) {
   const cfg = KIND_META[kind];
   const isCarb = kind === "carb";
@@ -308,6 +309,8 @@ function MacroSection({
           if (!items.length) return null;
 
           const showLabel = filledOpts.length > 1;
+          const optTitle = String(opt?.title || `Opção ${optIdx + 1}`);
+          const anchorBase = `meal-${slug(mealName)}-${kind}-${slug(optTitle)}`;
           return (
             <div key={optIdx} className={optIdx > 0 ? "pt-3 border-t border-white/5" : ""}>
               {showLabel && (
@@ -317,7 +320,11 @@ function MacroSection({
               )}
               <ul className="space-y-1">
                 {items.map((item, i) => (
-                  <li key={i} className="flex items-baseline justify-between gap-3 px-1">
+                  <li
+                    key={i}
+                    id={`${anchorBase}-item-${slug(item.name)}`}
+                    className="flex items-baseline justify-between gap-3 px-1"
+                  >
                     <span className="text-sm leading-snug text-foreground/90 break-words min-w-0 flex-1">
                       {item.name}
                     </span>
@@ -431,15 +438,15 @@ function MealCard({
       {open && (
         <div className="px-4 pb-4 space-y-2.5 border-t border-white/5 pt-3">
           {!isHidden("carb") && (
-            <MacroSection kind="carb" opts={carbOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} />
+            <MacroSection kind="carb" opts={carbOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} mealName={mealName} />
           )}
           {!isHidden("protein") && (
-            <MacroSection kind="protein" opts={proteinOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} />
+            <MacroSection kind="protein" opts={proteinOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} mealName={mealName} />
           )}
           {!isHidden("fat") && (
-            <MacroSection kind="fat" opts={fatOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} />
+            <MacroSection kind="fat" opts={fatOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} mealName={mealName} />
           )}
-          <MacroSection kind="veg" opts={vegOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} />
+          <MacroSection kind="veg" opts={vegOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} mealName={mealName} />
 
           {linkedSupps.length > 0 && (
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5 space-y-1">
