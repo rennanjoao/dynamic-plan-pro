@@ -994,6 +994,7 @@ export default function CoachDashboard() {
   const [studentPage, setStudentPage] = useState(0);
   const STUDENTS_PER_PAGE = 20;
   const [activeTab, setActiveTab] = useState<"students" | "finances" | "treinos">("students");
+  const [treinoSearch, setTreinoSearch] = useState("");
   const qc = useQueryClient();
 
   const { data: coachProfile } = useQuery({
