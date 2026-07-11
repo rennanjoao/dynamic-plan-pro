@@ -1199,8 +1199,23 @@ export default function CoachDashboard() {
 
           <TabsContent value="treinos" className="space-y-4">
             {/* Seletor de aluno */}
+            {allStudents.length > 8 && (
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input
+                  value={treinoSearch}
+                  onChange={(e) => setTreinoSearch(e.target.value)}
+                  placeholder="Buscar aluno..."
+                  className="pl-8 h-9 text-sm"
+                />
+              </div>
+            )}
             <div className="flex gap-2 flex-wrap">
-              {allStudents.map((s) => (
+              {(() => {
+                const norm = (v: string) => (v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                const q = norm(treinoSearch.trim());
+                const list = q ? allStudents.filter((s) => norm(s.name || "").includes(q)) : allStudents;
+                return list.map((s) => (
                 <button
                   key={s.id}
                   type="button"
@@ -1214,7 +1229,8 @@ export default function CoachDashboard() {
                 >
                   {s.name}
                 </button>
-              ))}
+                ));
+              })()}
             </div>
             {selectedStudent && coachId ? (
               <Suspense fallback={<div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>}>
