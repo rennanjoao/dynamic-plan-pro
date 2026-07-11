@@ -20,7 +20,7 @@ import {
   AlertTriangle, CheckCircle2, Search, Filter, Users,
   Dumbbell, ClipboardList, ArrowLeft,
   Loader2, Plus, Trash2, DollarSign, Calendar, X, User, LogOut,
-  MessageSquare, History, FileDown, Settings2, Activity
+  MessageSquare, History, FileDown, Settings2, Activity, Sparkles
 } from "lucide-react";
 import CoachNotificationBell from "@/components/coach/CoachNotificationBell";
 import { Input } from "@/components/ui/input";
@@ -53,6 +53,7 @@ const EvolutionComparisonLazy = lazy(() => import("@/components/coach/EvolutionC
 const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
 const CheckinFeedbackPanel = lazy(() => import("@/components/coach/CheckinFeedbackPanel"));
 const StudentWorkoutAnalytics = lazy(() => import("@/components/coach/StudentWorkoutAnalytics"));
+const ProtocolChangeHistoryDialog = lazy(() => import("@/components/coach/ProtocolChangeHistoryDialog"));
 
 // CheckinPayloadAnswers foi extraído para src/components/coach/CheckinPayloadAnswers.tsx
 // e é compartilhado com EvolutionComparison (modo "Ver Feedback Completo").
@@ -237,13 +238,14 @@ function AlertBadge({ level }: { level: AlertLevel }) {
 }
 
 function StudentRow({
-  student, onAnamnesis, onProtocol, onUnlink, onHistory, onLatestFeedback, onSettings,
+  student, onAnamnesis, onProtocol, onUnlink, onHistory, onChangeHistory, onLatestFeedback, onSettings,
 }: {
   student: StudentStatus;
   onAnamnesis: (s: StudentStatus) => void;
   onProtocol: (s: StudentStatus) => void;
   onUnlink: (s: StudentStatus) => void;
   onHistory: (s: StudentStatus) => void;
+  onChangeHistory: (s: StudentStatus) => void;
   onLatestFeedback: (s: StudentStatus) => void;
   onSettings: (s: StudentStatus) => void;
 }) {
@@ -317,6 +319,9 @@ function StudentRow({
         </button>
         <button onClick={() => onHistory(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Histórico de Check-ins">
           <History className="w-4 h-4" />
+        </button>
+        <button onClick={() => onChangeHistory(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Histórico de Alterações">
+          <Sparkles className="w-4 h-4" />
         </button>
         <button onClick={() => onSettings(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Configurar feedback do aluno">
           <Settings2 className="w-4 h-4" />
@@ -982,12 +987,14 @@ export default function CoachDashboard() {
   const [showProfile, setShowProfile] = useState(false);
   const [unlinkTarget, setUnlinkTarget] = useState<StudentStatus | null>(null);
   const [historyStudent, setHistoryStudent] = useState<StudentStatus | null>(null);
+  const [changeHistoryStudent, setChangeHistoryStudent] = useState<StudentStatus | null>(null);
   const [evoStudent, setEvoStudent] = useState<StudentStatus | null>(null);
   const [latestFbStudent, setLatestFbStudent] = useState<StudentStatus | null>(null);
   const [settingsStudent, setSettingsStudent] = useState<StudentStatus | null>(null);
   const [studentPage, setStudentPage] = useState(0);
   const STUDENTS_PER_PAGE = 20;
   const [activeTab, setActiveTab] = useState<"students" | "finances" | "treinos">("students");
+  const [treinoSearch, setTreinoSearch] = useState("");
   const qc = useQueryClient();
 
   const { data: coachProfile } = useQuery({
@@ -1154,6 +1161,7 @@ export default function CoachDashboard() {
                     onProtocol={(st) => { setSelectedStudent(st); setView("protocol"); }}
                     onUnlink={setUnlinkTarget}
                     onHistory={setHistoryStudent}
+                    onChangeHistory={setChangeHistoryStudent}
                     onLatestFeedback={(st) => setLatestFbStudent(st)}
                     onSettings={(st) => setSettingsStudent(st)}
                   />
@@ -1191,8 +1199,23 @@ export default function CoachDashboard() {
 
           <TabsContent value="treinos" className="space-y-4">
             {/* Seletor de aluno */}
+            {allStudents.length > 8 && (
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input
+                  value={treinoSearch}
+                  onChange={(e) => setTreinoSearch(e.target.value)}
+                  placeholder="Buscar aluno..."
+                  className="pl-8 h-9 text-sm"
+                />
+              </div>
+            )}
             <div className="flex gap-2 flex-wrap">
-              {allStudents.map((s) => (
+              {(() => {
+                const norm = (v: string) => (v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                const q = norm(treinoSearch.trim());
+                const list = q ? allStudents.filter((s) => norm(s.name || "").includes(q)) : allStudents;
+                return list.map((s) => (
                 <button
                   key={s.id}
                   type="button"
@@ -1206,7 +1229,8 @@ export default function CoachDashboard() {
                 >
                   {s.name}
                 </button>
-              ))}
+                ));
+              })()}
             </div>
             {selectedStudent && coachId ? (
               <Suspense fallback={<div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>}>
@@ -1247,6 +1271,14 @@ export default function CoachDashboard() {
           open={!!historyStudent}
           onClose={() => setHistoryStudent(null)}
         />
+
+        <Suspense fallback={null}>
+          <ProtocolChangeHistoryDialog
+            student={changeHistoryStudent}
+            open={!!changeHistoryStudent}
+            onClose={() => setChangeHistoryStudent(null)}
+          />
+        </Suspense>
 
         <EvolutionDialog
           student={evoStudent}
