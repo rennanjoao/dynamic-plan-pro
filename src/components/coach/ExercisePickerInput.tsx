@@ -1,13 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { searchExerciseLibrary } from "@/lib/exerciseLibrary";
+import { searchExerciseLibrary, upsertExerciseClassification } from "@/lib/exerciseLibrary";
 import { cn } from "@/lib/utils";
 import {
   getLastPrescription,
   QUICK_SET_PRESETS,
   type RememberedPrescription,
 } from "@/lib/prescriptionMemory";
+import {
+  classifyExerciseByName,
+  MUSCLE_GROUP_LABELS,
+  MUSCLE_GROUP_OPTIONS,
+  type MuscleGroup,
+} from "@/lib/muscleGroupClassifier";
+import { toExerciseKey } from "@/lib/workoutTypes";
+import { X } from "lucide-react";
 
 interface Suggestion {
   key: string;
@@ -45,6 +53,10 @@ export function ExercisePickerInput({
   const [highlight, setHighlight] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const skipNextSearch = useRef(false);
+  // Prompt inline de grupo muscular — só aparece quando o coach digita um
+  // nome novo que o classificador não reconheceu. Nunca bloqueia salvar.
+  const [needsGroupPrompt, setNeedsGroupPrompt] = useState<string | null>(null);
+  const lastHandledName = useRef<string>("");
 
   useEffect(() => {
     if (skipNextSearch.current) {
@@ -74,6 +86,7 @@ export function ExercisePickerInput({
     onChange({ name: s.displayName, gifKey: s.key });
     setSuggestions([]);
     setOpen(false);
+    setNeedsGroupPrompt(null);
     inputRef.current?.blur();
     if (coachId && onPrescriptionRestore) {
       const rx = getLastPrescription(coachId, s.displayName);
@@ -81,6 +94,54 @@ export function ExercisePickerInput({
         onPrescriptionRestore(rx);
       }
     }
+  };
+
+  // Ao sair do campo, se o coach digitou um nome livre que não bate com
+  // nenhum item da biblioteca, tenta classificar silenciosamente. Se o
+  // classificador reconhecer, grava direto. Se não, oferece um seletor
+  // opcional (com botão "Pular") logo abaixo do input.
+  const handleBlur = async () => {
+    const name = value.trim();
+    if (!name || name.length < 3) return;
+    if (gifKey) return; // já tem match na biblioteca via seleção
+    if (name === lastHandledName.current) return;
+    lastHandledName.current = name;
+    const key = toExerciseKey(name);
+    const classification = classifyExerciseByName(name);
+    if (classification.confidence === "auto" && classification.primary) {
+      await upsertExerciseClassification({
+        exerciseKey: key,
+        displayName: name,
+        primaryMuscleGroup: classification.primary,
+        secondaryMuscleGroups: classification.secondary,
+        source: "auto",
+      });
+      setNeedsGroupPrompt(null);
+    } else {
+      // Registra como unclassified (silencioso) e mostra o prompt inline.
+      await upsertExerciseClassification({
+        exerciseKey: key,
+        displayName: name,
+        primaryMuscleGroup: null,
+        secondaryMuscleGroups: [],
+        source: "unclassified",
+      });
+      setNeedsGroupPrompt(key);
+    }
+  };
+
+  const resolveGroupPrompt = async (group: MuscleGroup | null) => {
+    if (!needsGroupPrompt) return;
+    if (group) {
+      await upsertExerciseClassification({
+        exerciseKey: needsGroupPrompt,
+        displayName: value.trim(),
+        primaryMuscleGroup: group,
+        secondaryMuscleGroups: [],
+        source: "manual",
+      });
+    }
+    setNeedsGroupPrompt(null);
   };
 
   return (
@@ -104,6 +165,7 @@ export function ExercisePickerInput({
               else if (e.key === "Enter") { e.preventDefault(); handlePick(suggestions[highlight]); }
               else if (e.key === "Escape") { setOpen(false); }
             }}
+            onBlur={handleBlur}
             placeholder={placeholder}
             className={cn("h-8 text-xs", gifKey && "border-primary/40", className)}
             title={gifKey ? `GIF vinculado: ${gifKey}` : "Digite para buscar na biblioteca de exercícios"}
@@ -150,6 +212,32 @@ export function ExercisePickerInput({
             {p.label}
           </button>
         ))}
+      </div>
+    )}
+    {needsGroupPrompt && (
+      <div className="mt-1 flex items-center gap-1 rounded-md border border-dashed border-border/60 bg-muted/30 px-2 py-1">
+        <span className="text-[10px] text-muted-foreground shrink-0">Grupo muscular?</span>
+        <select
+          className="h-6 text-[10px] rounded border border-border/60 bg-background px-1 flex-1 min-w-0"
+          defaultValue=""
+          onChange={(e) => {
+            const v = e.target.value as MuscleGroup | "";
+            if (v) resolveGroupPrompt(v);
+          }}
+        >
+          <option value="" disabled>Selecionar…</option>
+          {MUSCLE_GROUP_OPTIONS.map((g) => (
+            <option key={g} value={g}>{MUSCLE_GROUP_LABELS[g]}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => resolveGroupPrompt(null)}
+          title="Pular — revisar depois"
+          className="text-[10px] text-muted-foreground hover:text-foreground px-1"
+        >
+          <X className="w-3 h-3" />
+        </button>
       </div>
     )}
     </div>
