@@ -90,6 +90,16 @@ export function ExerciseLibraryUploader() {
           const baseName = file.name.replace(/\.webp$/i, "");
           const exerciseKey = toExerciseKey(baseName);
           const classification = classifyExerciseByName(baseName);
+          // Não sobrescreve classificação manual já existente: só grava
+          // campos de grupo muscular quando o classificador reconheceu o nome.
+          const classificationPayload =
+            classification.confidence === "auto"
+              ? {
+                  primary_muscle_group: classification.primary,
+                  secondary_muscle_groups: classification.secondary,
+                  classification_source: "auto" as const,
+                }
+              : {};
           try {
             const { error: libError } = await sb
               .from("exercise_library")
@@ -98,9 +108,7 @@ export function ExerciseLibraryUploader() {
                   exercise_key: exerciseKey,
                   file_name: storageKey,
                   display_name: baseName,
-                  primary_muscle_group: classification.primary,
-                  secondary_muscle_groups: classification.secondary,
-                  classification_source: classification.confidence,
+                  ...classificationPayload,
                   updated_at: new Date().toISOString(),
                 },
                 { onConflict: "exercise_key" }
