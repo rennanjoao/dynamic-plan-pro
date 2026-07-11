@@ -19,6 +19,17 @@ export interface LibraryEntry {
 let cache: Map<string, LibraryEntry> | null = null;
 let inflight: Promise<Map<string, LibraryEntry>> | null = null;
 
+/**
+ * Limpa o cache em memória da biblioteca. Precisa ser chamada depois de
+ * qualquer escrita em `exercise_library` (upload de gif novo, classificação),
+ * senão buscas/matches na mesma aba continuam usando os dados antigos até
+ * o próximo reload da página.
+ */
+export function invalidateExerciseLibraryCache(): void {
+  cache = null;
+  inflight = null;
+}
+
 async function loadLibrary(): Promise<Map<string, LibraryEntry>> {
   if (cache) return cache;
   if (inflight) return inflight;
@@ -29,7 +40,12 @@ async function loadLibrary(): Promise<Map<string, LibraryEntry>> {
       .from("exercise_library")
       // display_name/aliases/grupos foram adicionados via migrations aditivas; usamos any-cast
       // porque os types gerados podem ainda não conter as novas colunas.
-      .select("exercise_key, file_name, display_name, aliases, primary_muscle_group, secondary_muscle_groups") as unknown as {
+      .select("exercise_key, file_name, display_name, aliases, primary_muscle_group, secondary_muscle_groups")
+      // Exclui linhas "só classificação" — criadas pelo RPC classify_exercise_library_entry
+      // (disparado no onBlur do picker para registrar grupo muscular) quando o exercício
+      // ainda não tem gif de verdade. Sem esse filtro, essas linhas entram no mapa com
+      // file_name nulo e getPublicUrl(null) gera uma URL quebrada em vez de "sem gif".
+      .not("file_name", "is", null) as unknown as {
         data: Array<{
           exercise_key: string;
           file_name: string;
@@ -43,6 +59,9 @@ async function loadLibrary(): Promise<Map<string, LibraryEntry>> {
 
     if (!error && data) {
       for (const row of data) {
+        // Segunda trava (defensiva): mesmo que o filtro acima falhe por algum motivo,
+        // nunca registra entrada sem file_name real no mapa.
+        if (!row.file_name) continue;
         const { data: pub } = supabase.storage
           .from(EXERCISE_GIFS_BUCKET)
           .getPublicUrl(row.file_name);
@@ -143,8 +162,7 @@ export async function upsertExerciseClassification(params: {
 
     // Invalida cache local para próximas buscas verem o novo item.
     if (!error) {
-      cache = null;
-      inflight = null;
+      invalidateExerciseLibraryCache();
     }
     return { ok: !error, error: error?.message };
   } catch (err) {
