@@ -1160,6 +1160,7 @@ export default function CoachDashboard() {
                     onProtocol={(st) => { setSelectedStudent(st); setView("protocol"); }}
                     onUnlink={setUnlinkTarget}
                     onHistory={setHistoryStudent}
+                    onChangeHistory={setChangeHistoryStudent}
                     onLatestFeedback={(st) => setLatestFbStudent(st)}
                     onSettings={(st) => setSettingsStudent(st)}
                   />
