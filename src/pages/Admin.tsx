@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { TrainerManagement } from "@/components/admin/TrainerManagement";
 import { ExerciseLibraryUploader } from "@/components/admin/ExerciseLibraryUploader";
+import { ExerciseMuscleGroupReviewQueue } from "@/components/admin/ExerciseMuscleGroupReviewQueue";
 import { StudentLinksManagement } from "@/components/admin/StudentLinksManagement";
 import { PlansSettings } from "@/components/admin/PlansSettings";
 import { AccessLogPanel } from "@/components/admin/AccessLogPanel";
@@ -105,6 +106,14 @@ const Admin = () => {
             <div className="rounded-xl border border-border bg-card p-6">
               <h2 className="text-lg font-semibold mb-4">Biblioteca de GIFs de Exercícios</h2>
               <ExerciseLibraryUploader />
+            </div>
+            <div className="rounded-xl border border-border bg-card p-6">
+              <h2 className="text-lg font-semibold mb-1">Fila de revisão de grupo muscular</h2>
+              <p className="text-xs text-muted-foreground mb-4">
+                Exercícios que o classificador automático não reconheceu, ou que o coach clicou em "Pular".
+                Escolher o grupo aqui resolve o exercício para todos os protocolos futuros.
+              </p>
+              <ExerciseMuscleGroupReviewQueue />
             </div>
           </TabsContent>
         </Tabs>
