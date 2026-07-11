@@ -987,6 +987,7 @@ export default function CoachDashboard() {
   const [showProfile, setShowProfile] = useState(false);
   const [unlinkTarget, setUnlinkTarget] = useState<StudentStatus | null>(null);
   const [historyStudent, setHistoryStudent] = useState<StudentStatus | null>(null);
+  const [changeHistoryStudent, setChangeHistoryStudent] = useState<StudentStatus | null>(null);
   const [evoStudent, setEvoStudent] = useState<StudentStatus | null>(null);
   const [latestFbStudent, setLatestFbStudent] = useState<StudentStatus | null>(null);
   const [settingsStudent, setSettingsStudent] = useState<StudentStatus | null>(null);
