@@ -3,11 +3,15 @@
  *
  * Card discreto na área do aluno que aparece quando existe uma linha em
  * `protocol_change_events` para este aluno com `seen_at` nulo. Ao tocar,
- * abre um Sheet listando cada item de `changes` — o aluno vai clicando
- * e cada item é marcado como visto (`seen_item_indexes`), navegando para
- * a aba/âncora correspondente. Quando todos os itens forem vistos (ou o
- * aluno tocar em "Marcar tudo como visto"), o backend preenche `seen_at`
- * e o card some sozinho.
+ * abre um Sheet listando cada item de `changes`. Cada item expande em
+ * cascata (accordion, no máximo 1 aberto) mostrando um "detail" com o
+ * que mudou. Um botão dentro da área expandida navega para a tela real.
+ *
+ * Snapshot estável: enquanto o Sheet estiver aberto, o conteúdo vem de
+ * `sheetSnapshot` — assim, marcar o último item como visto (e portanto
+ * preencher `seen_at`) não faz o Sheet desmontar por baixo do aluno. O
+ * botão-trigger fora do Sheet segue a query ao vivo e some quando não
+ * houver mais linha pendente.
  *
  * Invalidação em tempo real: o listener de `protocol_change_events` é
  * adicionado no MESMO canal realtime já existente em `useStudentData`,
@@ -16,6 +20,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useStudentData } from "@/hooks/useStudentData";
 import {
@@ -31,6 +36,8 @@ import {
   Pill,
   ClipboardList,
   ChevronRight,
+  ChevronDown,
+  ArrowRight,
 } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -42,6 +49,7 @@ export interface CoachChangeItem {
   label: string;
   target_tab: "treino" | "dieta" | "suplementos" | null;
   target_anchor: string | null;
+  detail: string | null;
 }
 
 interface EventRow {
@@ -55,6 +63,18 @@ const IMPORTANCE_ORDER: Record<CoachChangeItem["importance"], number> = {
   alta: 0,
   media: 1,
   baixa: 2,
+};
+
+const NAVIGATE_LABEL: Record<NonNullable<CoachChangeItem["target_tab"]>, string> = {
+  treino: "Ir para o treino",
+  dieta: "Ir para a dieta",
+  suplementos: "Ir para os suplementos",
+};
+
+const ROUTE_MAP: Record<NonNullable<CoachChangeItem["target_tab"]>, string> = {
+  treino: "/workout-plan",
+  dieta: "/routine",
+  suplementos: "/supplements",
 };
 
 function iconForCategory(cat: CoachChangeItem["category"]) {
@@ -88,6 +108,8 @@ export default function CoachUpdatesCard() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [sheetSnapshot, setSheetSnapshot] = useState<EventRow | null>(null);
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
   const { data: event } = useQuery({
     queryKey: ["coach-updates", studentId],
@@ -107,26 +129,48 @@ export default function CoachUpdatesCard() {
     },
   });
 
+  // Fonte de verdade DENTRO do Sheet: uma foto estável. Assim, quando o
+  // último item é marcado como visto (o backend preenche `seen_at` e a
+  // query devolve null), o conteúdo já aberto não some.
+  const activeEvent: EventRow | null = open ? sheetSnapshot : event ?? null;
+
   const orderedItems = useMemo(() => {
-    if (!event?.changes) return [] as Array<{ item: CoachChangeItem; originalIndex: number }>;
-    return event.changes
+    if (!activeEvent?.changes) return [] as Array<{ item: CoachChangeItem; originalIndex: number }>;
+    return activeEvent.changes
       .map((item, originalIndex) => ({ item, originalIndex }))
       .sort((a, b) => IMPORTANCE_ORDER[a.item.importance] - IMPORTANCE_ORDER[b.item.importance]);
-  }, [event]);
+  }, [activeEvent]);
 
-  if (!event) return null;
+  function handleOpenSheet() {
+    if (!event) return;
+    setSheetSnapshot(event);
+    setExpandedIndex(null);
+    setOpen(true);
+  }
+
+  function handleSheetOpenChange(next: boolean) {
+    setOpen(next);
+    if (!next) {
+      setSheetSnapshot(null);
+      setExpandedIndex(null);
+    }
+  }
 
   async function markItemSeen(originalIndex: number) {
-    if (!event) return;
-    const nextSeen = Array.from(new Set([...(event.seen_item_indexes ?? []), originalIndex]));
-    const total = event.changes?.length ?? 0;
+    const src = sheetSnapshot;
+    if (!src) return;
+    const nextSeen = Array.from(new Set([...(src.seen_item_indexes ?? []), originalIndex]));
+    const total = src.changes?.length ?? 0;
     const allSeen = total > 0 && nextSeen.length >= total;
     const patch: Record<string, unknown> = { seen_item_indexes: nextSeen };
     if (allSeen) patch.seen_at = new Date().toISOString();
+    // Reflete no snapshot local antes do round-trip — mantém o Sheet
+    // coerente mesmo se a query invalidar depois.
+    setSheetSnapshot({ ...src, seen_item_indexes: nextSeen });
     const { error } = await sb
       .from("protocol_change_events")
       .update(patch)
-      .eq("id", event.id);
+      .eq("id", src.id);
     if (error) {
       console.error("[coach-updates] falha ao marcar item como visto", error);
       return;
@@ -135,30 +179,42 @@ export default function CoachUpdatesCard() {
   }
 
   async function markAllSeen() {
-    if (!event) return;
-    const allIdx = (event.changes ?? []).map((_, i) => i);
+    const src = sheetSnapshot ?? event;
+    if (!src) return;
+    const allIdx = (src.changes ?? []).map((_, i) => i);
     const { error } = await sb
       .from("protocol_change_events")
       .update({ seen_item_indexes: allIdx, seen_at: new Date().toISOString() })
-      .eq("id", event.id);
+      .eq("id", src.id);
     if (error) {
       console.error("[coach-updates] falha ao marcar tudo como visto", error);
       return;
     }
-    setOpen(false);
+    handleSheetOpenChange(false);
     qc.invalidateQueries({ queryKey: ["coach-updates", studentId] });
   }
 
-  async function handleItemClick(item: CoachChangeItem, originalIndex: number) {
-    await markItemSeen(originalIndex);
-    setOpen(false);
+  function handleItemToggle(item: CoachChangeItem, originalIndex: number) {
+    const isExpandable = !!(item.detail || item.target_tab);
+    if (!isExpandable) {
+      // Item sem detalhe e sem destino (categoria "geral"): não há o que
+      // expandir — apenas marca como visto e segue.
+      void markItemSeen(originalIndex);
+      return;
+    }
+    if (expandedIndex === originalIndex) {
+      // Segundo clique no mesmo item recolhe (sem re-marcar).
+      setExpandedIndex(null);
+      return;
+    }
+    void markItemSeen(originalIndex);
+    setExpandedIndex(originalIndex);
+  }
+
+  function handleNavigateTo(item: CoachChangeItem) {
+    handleSheetOpenChange(false);
     if (!item.target_tab) return;
-    const routeMap: Record<NonNullable<CoachChangeItem["target_tab"]>, string> = {
-      treino: "/workout-plan",
-      dieta: "/routine",
-      suplementos: "/supplements",
-    };
-    const base = routeMap[item.target_tab];
+    const base = ROUTE_MAP[item.target_tab];
     if (!base) return;
     const url = item.target_anchor
       ? `${base}?highlight=${encodeURIComponent(item.target_anchor)}`
@@ -166,48 +222,96 @@ export default function CoachUpdatesCard() {
     navigate(url);
   }
 
+  // O gatilho segue a query ao vivo — some quando não houver mais linha
+  // pendente, mesmo com o Sheet ainda aberto exibindo o snapshot.
+  if (!event && !open) return null;
+
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="w-full text-left bg-primary/10 border border-primary/20 rounded-xl p-4 shadow-sm hover:bg-primary/15 transition-colors flex items-center gap-3"
-        aria-label="Ver atualizações do coach"
-      >
-        <Sparkles className="w-5 h-5 text-primary shrink-0" />
-        <div className="flex-1 space-y-0.5 min-w-0">
-          <h3 className="text-sm font-bold text-primary">Seu coach preparou atualizações</h3>
-          <p className="text-xs text-primary/80">Toque para ver o que mudou</p>
-        </div>
-        <ChevronRight className="w-4 h-4 text-primary shrink-0" />
-      </button>
+      {event && (
+        <button
+          type="button"
+          onClick={handleOpenSheet}
+          className="w-full text-left bg-primary/10 border border-primary/20 rounded-xl p-4 shadow-sm hover:bg-primary/15 transition-colors flex items-center gap-3"
+          aria-label="Ver atualizações do coach"
+        >
+          <Sparkles className="w-5 h-5 text-primary shrink-0" />
+          <div className="flex-1 space-y-0.5 min-w-0">
+            <h3 className="text-sm font-bold text-primary">Seu coach preparou atualizações</h3>
+            <p className="text-xs text-primary/80">Toque para ver o que mudou</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-primary shrink-0" />
+        </button>
+      )}
 
-      <Sheet open={open} onOpenChange={setOpen}>
+      <Sheet open={open} onOpenChange={handleSheetOpenChange}>
         <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
           <SheetHeader className="mb-4">
             <SheetTitle>Atualizações do coach</SheetTitle>
-            <p className="text-xs text-muted-foreground mt-1">
-              {formatRelativeDateTime(event.created_at)}
-            </p>
+            {activeEvent && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {formatRelativeDateTime(activeEvent.created_at)}
+              </p>
+            )}
           </SheetHeader>
 
           <ul className="space-y-2">
             {orderedItems.map(({ item, originalIndex }) => {
               const Icon = iconForCategory(item.category);
-              const alreadySeen = (event.seen_item_indexes ?? []).includes(originalIndex);
+              const alreadySeen = (activeEvent?.seen_item_indexes ?? []).includes(originalIndex);
+              const isExpandable = !!(item.detail || item.target_tab);
+              const isExpanded = expandedIndex === originalIndex;
               return (
                 <li key={originalIndex}>
                   <button
                     type="button"
-                    onClick={() => handleItemClick(item, originalIndex)}
+                    onClick={() => handleItemToggle(item, originalIndex)}
                     className={`w-full text-left flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:bg-accent/40 transition-colors ${
-                      alreadySeen ? "opacity-60" : ""
+                      alreadySeen && !isExpanded ? "opacity-60" : ""
                     }`}
+                    aria-expanded={isExpandable ? isExpanded : undefined}
                   >
                     <Icon className="w-4 h-4 text-primary shrink-0" />
                     <span className="flex-1 text-sm text-foreground min-w-0">{item.label}</span>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                    {isExpandable ? (
+                      <ChevronDown
+                        className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${
+                          isExpanded ? "rotate-180" : ""
+                        }`}
+                      />
+                    ) : null}
                   </button>
+
+                  <AnimatePresence initial={false}>
+                    {isExpandable && isExpanded && (
+                      <motion.div
+                        key="detail"
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-2 ml-7 pl-3 border-l-2 border-primary/30 space-y-3 pb-1">
+                          {item.detail && (
+                            <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                              {item.detail}
+                            </p>
+                          )}
+                          {item.target_tab && (
+                            <button
+                              type="button"
+                              onClick={() => handleNavigateTo(item)}
+                              className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                            >
+                              {NAVIGATE_LABEL[item.target_tab]}
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </li>
               );
             })}
