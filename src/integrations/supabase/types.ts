@@ -701,26 +701,35 @@ export type Database = {
       exercise_library: {
         Row: {
           aliases: string[]
+          classification_source: string
           created_at: string
           display_name: string | null
           exercise_key: string
-          file_name: string
+          file_name: string | null
+          primary_muscle_group: string | null
+          secondary_muscle_groups: string[]
           updated_at: string
         }
         Insert: {
           aliases?: string[]
+          classification_source?: string
           created_at?: string
           display_name?: string | null
           exercise_key: string
-          file_name: string
+          file_name?: string | null
+          primary_muscle_group?: string | null
+          secondary_muscle_groups?: string[]
           updated_at?: string
         }
         Update: {
           aliases?: string[]
+          classification_source?: string
           created_at?: string
           display_name?: string | null
           exercise_key?: string
-          file_name?: string
+          file_name?: string | null
+          primary_muscle_group?: string | null
+          secondary_muscle_groups?: string[]
           updated_at?: string
         }
         Relationships: []
