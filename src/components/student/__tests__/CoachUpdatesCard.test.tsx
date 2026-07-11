@@ -18,10 +18,16 @@ import { MemoryRouter } from "react-router-dom";
 // ─── Mocks compartilhados ─────────────────────────────────────────────
 let pendingRow: any = null;
 const updateCalls: Array<{ patch: any; id: string }> = [];
+const navigateSpy = vi.fn();
 
 vi.mock("@/hooks/useStudentData", () => ({
   useStudentData: () => ({ studentId: "student-1" }),
 }));
+
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
+  return { ...actual, useNavigate: () => navigateSpy };
+});
 
 vi.mock("@/integrations/supabase/client", () => {
   const selectChain = () => {
@@ -73,6 +79,7 @@ async function renderCard() {
 beforeEach(() => {
   pendingRow = null;
   updateCalls.length = 0;
+  navigateSpy.mockReset();
   cleanup();
 });
 
