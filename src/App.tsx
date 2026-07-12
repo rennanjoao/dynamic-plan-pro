@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,6 +13,7 @@ import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ConfirmProvider } from "@/components/ConfirmProvider";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
+import { supabase } from "@/integrations/supabase/client";
 
 const Index        = lazyWithRetry(() => import("./pages/Index"));
 const Admin        = lazyWithRetry(() => import("./pages/Admin"));
@@ -47,6 +48,21 @@ const queryClient = new QueryClient({
   },
 });
 
+function AuthCacheGuard() {
+  useEffect(() => {
+    let knownUserId: string | null | undefined;
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      const uid = session?.user?.id ?? null;
+      if (knownUserId !== undefined && uid !== knownUserId) {
+        queryClient.clear();
+      }
+      knownUserId = uid;
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+  return null;
+}
+
 function PageLoader() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
@@ -58,6 +74,7 @@ function PageLoader() {
 const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
+      <AuthCacheGuard />
       <TooltipProvider>
         <ConfirmProvider>
           <Toaster />

@@ -966,7 +966,7 @@ function ProfileDialog({ coachId, open, onClose }: { coachId: string; open: bool
       if (error) throw error;
       toast.success("Perfil atualizado com sucesso!");
       qc.invalidateQueries({ queryKey: ["coach-profile", coachId] });
-      qc.invalidateQueries({ queryKey: ["coach-students"] });
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("coach-students") });
       onClose();
     } catch (e: any) { toast.error(e.message); } finally { loadingRef.current = false; setLoading(false); }
   };
@@ -1115,7 +1115,7 @@ export default function CoachDashboard() {
     try {
       const { error } = await supabase.from("coach_students").update({ status: "inactive" }).eq("coach_id", coachId).eq("student_id", unlinkTarget.id);
       if (error) throw error;
-      qc.invalidateQueries({ queryKey: ["coach-students"] });
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("coach-students") });
       toast.success("Aluno desvinculado");
       setUnlinkTarget(null);
     } catch (e) {
@@ -1216,7 +1216,7 @@ export default function CoachDashboard() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => qc.invalidateQueries({ queryKey: ["coach-students"] })}
+                onClick={() => qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("coach-students") })}
                 className="h-9"
                 title="Atualizar lista"
               >
@@ -1380,7 +1380,7 @@ export default function CoachDashboard() {
           coachId={coachId}
           open={!!settingsStudent}
           onClose={() => setSettingsStudent(null)}
-          onSaved={() => qc.invalidateQueries({ queryKey: ["coach-students"] })}
+          onSaved={() => qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("coach-students") })}
         />
       </main>
     </div>
