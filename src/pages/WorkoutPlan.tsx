@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, AlertTriangle, Activity, Info, History } from "lucide-react";
+import { ArrowLeft, Loader2, AlertTriangle, Activity, Info, History, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -327,14 +327,38 @@ export default function WorkoutPlan() {
         )}
 
         <div className="bg-blue-500/10 border border-blue-500/30 p-4 rounded-xl shadow-sm">
-          <h3 className="text-blue-600 font-bold flex items-center gap-2 mb-2 text-sm">
-            <AlertTriangle className="w-4 h-4" /> O que fazer se precisar faltar ao treino?
-          </h3>
-          <p className="text-sm text-foreground/90 leading-relaxed">
-            Marque o dia como <strong>descanso</strong> no seu calendário e empurre o treino que faltou para o
-            dia seguinte — a dieta continua normalmente junto com o treino reprogramado.{" "}
-            <strong>Nunca pule sem reprogramar.</strong> Consistência ao longo das semanas é o que gera resultado.
-          </p>
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-lg bg-blue-500/15 flex items-center justify-center shrink-0">
+              <CalendarClock className="w-5 h-5 text-blue-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-blue-600 font-bold text-sm leading-tight">
+                O que fazer se precisar faltar ao treino?
+              </h3>
+              <ol className="mt-3 space-y-2">
+                <li className="flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-600 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                    1
+                  </span>
+                  <span className="text-sm text-foreground/90 leading-snug">
+                    Marque o dia como <strong>descanso</strong> no seu calendário.
+                  </span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-600 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                    2
+                  </span>
+                  <span className="text-sm text-foreground/90 leading-snug">
+                    Empurre o treino que faltou para o dia seguinte{" "}
+                    <span className="text-foreground/70">(a dieta continua normal)</span>.
+                  </span>
+                </li>
+              </ol>
+              <p className="mt-3 text-xs italic text-blue-700/90 dark:text-blue-300/90 leading-snug">
+                <strong className="not-italic">Nunca pule sem reprogramar.</strong> Consistência ao longo das semanas é o que gera resultado.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Se periodização ativa → usa WorkoutPeriodizationView (sem allowEdit) */}
