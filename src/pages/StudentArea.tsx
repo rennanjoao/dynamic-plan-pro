@@ -315,6 +315,25 @@ export default function StudentArea() {
     },
   });
 
+  // ─── Feedback não lido do coach (último check-in) ───
+  const { data: hasUnreadFeedback } = useQuery({
+    queryKey: ["student-unread-coach-feedback", userId],
+    enabled: !!userId,
+    staleTime: 30 * 1000,
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("check_ins")
+        .select("coach_feedback, feedback_read_at")
+        .eq("student_id", userId)
+        .order("submitted_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!data) return false;
+      const fb = typeof data.coach_feedback === "string" ? data.coach_feedback.trim() : "";
+      return !!fb && !data.feedback_read_at;
+    },
+  });
+
   const firstName      = profile?.full_name ? profile.full_name.split(" ")[0] : "Aluno";
   const anamnesisEdits = Number(anamnesisMeta?.student_edit_count ?? 0);
   const canEditAnamnesis = !!anamnesisMeta?.submitted_at && anamnesisEdits < 2;
@@ -629,7 +648,7 @@ export default function StudentArea() {
           {secondaryModules.map((mod) => (
             <Card
               key={mod.title}
-              className={`hover:shadow-md transition-all bg-card/60 border ${mod.border} cursor-pointer`}
+              className={`hover:shadow-md transition-all bg-card/60 border ${mod.border} cursor-pointer ${mod.title === "Evolução" && hasUnreadFeedback ? "animate-pulse ring-2 ring-emerald-500/40" : ""}`}
               onClick={() => navigate(mod.route)}
             >
               <CardContent className="p-4">
@@ -637,7 +656,13 @@ export default function StudentArea() {
                   <mod.icon className={`w-5 h-5 ${mod.color}`} />
                 </div>
                 <h3 className="font-bold text-foreground text-sm">{mod.title}</h3>
-                <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{mod.description}</p>
+                {mod.title === "Evolução" && hasUnreadFeedback ? (
+                  <p className="text-[11px] font-bold text-emerald-500 mt-0.5 leading-relaxed">
+                    Você teve um feedback do seu coach!
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{mod.description}</p>
+                )}
                 {(mod as any).showAnamnesisEdit && anamnesisMeta?.submitted_at && canEditAnamnesis && (
                   <button
                     className="mt-2 flex items-center gap-1 text-[10px] text-rose-400 hover:text-rose-500 transition-colors"
