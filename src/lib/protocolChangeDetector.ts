@@ -44,6 +44,10 @@ export interface ProtocolChange {
 
 const s = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 const n = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+// Chave de identidade insensível a caixa/acentos-livres — usada para decidir
+// "isto é o mesmo item" ao comparar exercícios, refeições, itens e suplementos.
+// O texto exibido continua vindo de s(item.name) preservando a caixa original.
+const nameKey = (v: unknown): string => s(v).toLowerCase();
 
 type AnyRec = Record<string, any>;
 
