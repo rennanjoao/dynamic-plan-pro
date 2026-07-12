@@ -67,12 +67,6 @@ export default function CheckinFeedbackPanel({ studentId, studentName, open, onC
       const row = (data as CheckinRow) || null;
       setCi(row);
       setFeedback(row?.coach_feedback ?? "");
-      if (row?.id && !row.feedback_read_at) {
-        sb.from("check_ins")
-          .update({ feedback_read_at: new Date().toISOString() })
-          .eq("id", row.id)
-          .then(() => {});
-      }
       setLoading(false);
     })();
     return () => { cancelled = true; };
