@@ -592,6 +592,13 @@ function CheckinHistoryDialog({
                 </div>
               );
             })}
+            {hasMore && (
+              <div className="flex justify-center pt-2">
+                <Button size="sm" variant="outline" onClick={loadMore} disabled={loadingMore}>
+                  {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : "Carregar mais"}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </DialogContent>
