@@ -20,10 +20,17 @@ import { Button } from "@/components/ui/button";
 import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Loader2, Send, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Send, ChevronDown, ChevronUp, FileDown, CheckSquare, Square } from "lucide-react";
 import { toast } from "sonner";
+import { exportCheckinPDF, exportCheckinsBatchPDF } from "@/lib/coachPdfExport";
+import { CHECKIN_SECTIONS } from "@/lib/checkInSchema";
 
 const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
+
+const CHECKIN_PDF_SECTIONS = CHECKIN_SECTIONS.map((s) => ({
+  title: s.title,
+  fields: (s.fields || []).map((f) => ({ key: f.key, label: f.label })),
+}));
 
 interface CheckinRow {
   id: string;
@@ -47,6 +54,8 @@ interface Props {
 export default function CheckinFeedbackPanel({ studentId, studentName, open, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [ci, setCi] = useState<CheckinRow | null>(null);
+  const [history, setHistory] = useState<CheckinRow[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [feedback, setFeedback] = useState("");
   const [sending, setSending] = useState(false);
   const [showAnamnesis, setShowAnamnesis] = useState(false);
@@ -60,11 +69,12 @@ export default function CheckinFeedbackPanel({ studentId, studentName, open, onC
         .from("check_ins")
         .select("id, submitted_at, current_metrics, payload, coach_feedback, photo_url, feedback_read_at")
         .eq("student_id", studentId)
-        .order("submitted_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .order("submitted_at", { ascending: false });
       if (cancelled) return;
-      const row = (data as CheckinRow) || null;
+      const rows = (data as CheckinRow[]) || [];
+      setHistory(rows);
+      setSelectedIds(new Set(rows.map((r) => r.id))); // por padrão, tudo selecionado (baixar todos de uma vez)
+      const row = rows[0] || null;
       setCi(row);
       setFeedback(row?.coach_feedback ?? "");
       setLoading(false);
@@ -123,6 +133,49 @@ export default function CheckinFeedbackPanel({ studentId, studentName, open, onC
     } finally {
       setSending(false);
     }
+  };
+
+  const toggleOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const allSelected = history.length > 0 && selectedIds.size === history.length;
+  const toggleSelectAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(history.map((r) => r.id)));
+  };
+
+  const handleDownloadSelected = () => {
+    const selected = history.filter((r) => selectedIds.has(r.id));
+    if (selected.length === 0) {
+      toast.error("Selecione ao menos um feedback para baixar.");
+      return;
+    }
+    if (selected.length === 1) {
+      const c = selected[0];
+      exportCheckinPDF({
+        studentName,
+        submittedAt: c.submitted_at,
+        currentMetrics: c.current_metrics,
+        payload: c.payload,
+        coachFeedback: c.coach_feedback,
+        sections: CHECKIN_PDF_SECTIONS,
+      });
+      return;
+    }
+    exportCheckinsBatchPDF({
+      studentName,
+      checkins: selected.map((c) => ({
+        submitted_at: c.submitted_at,
+        current_metrics: c.current_metrics,
+        payload: c.payload,
+        coach_feedback: c.coach_feedback,
+      })),
+      sections: CHECKIN_PDF_SECTIONS,
+    });
   };
 
   return (
@@ -196,6 +249,55 @@ export default function CheckinFeedbackPanel({ studentId, studentName, open, onC
                 </Button>
               </div>
             </div>
+
+            {history.length > 0 && (
+              <div className="space-y-2 border-t border-border pt-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-primary uppercase tracking-wider">
+                    Histórico de feedbacks ({history.length})
+                  </label>
+                  <button
+                    type="button"
+                    onClick={toggleSelectAll}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
+                  >
+                    {allSelected ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
+                    {allSelected ? "Desmarcar todos" : "Selecionar todos"}
+                  </button>
+                </div>
+
+                <div className="max-h-48 overflow-y-auto space-y-1 rounded-md border border-border p-2">
+                  {history.map((row) => (
+                    <label
+                      key={row.id}
+                      className="flex items-center gap-2 text-xs py-1 px-1 rounded hover:bg-muted/50 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(row.id)}
+                        onChange={() => toggleOne(row.id)}
+                        className="accent-primary"
+                      />
+                      <span className="flex-1">{fmtDate(row.submitted_at)}</span>
+                      <span className={row.coach_feedback ? "text-emerald-600" : "text-muted-foreground"}>
+                        {row.coach_feedback ? "com feedback" : "sem feedback"}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+
+                <Button
+                  onClick={handleDownloadSelected}
+                  disabled={selectedIds.size === 0}
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                >
+                  <FileDown className="w-4 h-4 mr-2" />
+                  Baixar selecionados ({selectedIds.size})
+                </Button>
+              </div>
+            )}
 
             <Collapsible open={showAnamnesis} onOpenChange={setShowAnamnesis}>
               <CollapsibleTrigger asChild>
