@@ -356,6 +356,11 @@ function CheckinHistoryDialog({
   const [items, setItems] = useState<CheckinRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [exportingAll, setExportingAll] = useState(false);
+  const PAGE = 30;
 
   useEffect(() => {
     if (!open || !student) return;
@@ -367,9 +372,12 @@ function CheckinHistoryDialog({
           .select("id, submitted_at, current_metrics, payload, coach_feedback, photo_url, feedback_read_at")
           .eq("student_id", student.id)
           .order("submitted_at", { ascending: false })
-          .limit(50); // teto de segurança — histórico ilimitado travava a UI
+          .range(0, PAGE - 1); // paginação — histórico ilimitado travava a UI ao renderizar muitos itens
         if (error) throw error;
-        setItems((data || []) as CheckinRow[]);
+        const rows = (data || []) as CheckinRow[];
+        setItems(rows);
+        setOffset(rows.length);
+        setHasMore(rows.length === PAGE);
         setExpanded({});
       } catch (e) {
         console.error("[CheckinHistoryDialog]", e instanceof Error ? e.message : e);
@@ -379,6 +387,29 @@ function CheckinHistoryDialog({
       }
     })();
   }, [open, student]);
+
+  const loadMore = async () => {
+    if (!student || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const { data, error } = await sb
+        .from("check_ins")
+        .select("id, submitted_at, current_metrics, payload, coach_feedback, photo_url, feedback_read_at")
+        .eq("student_id", student.id)
+        .order("submitted_at", { ascending: false })
+        .range(offset, offset + PAGE - 1);
+      if (error) throw error;
+      const rows = (data || []) as CheckinRow[];
+      setItems((prev) => [...prev, ...rows]);
+      setOffset(offset + rows.length);
+      setHasMore(rows.length === PAGE);
+    } catch (e) {
+      console.error("[CheckinHistoryDialog:loadMore]", e instanceof Error ? e.message : e);
+      toast.error("Erro ao carregar mais check-ins");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const fmtDate = (iso: string) =>
     new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -398,9 +429,23 @@ function CheckinHistoryDialog({
     const rows = Object.entries(metrics)
       .map(([k, v]) => `<div class="row"><span class="lbl">${k}</span><span class="val">${typeof v === "object" ? JSON.stringify(v) : String(v ?? "—")}</span></div>`)
       .join("");
+    const fotos = ((c.payload as Record<string, unknown> | null)?.fotos as Record<string, string> | undefined) || {};
+    const POSES: Array<[string, string]> = [
+      ["frente", "Frente"], ["lateral_dir", "Lado Dir."], ["lateral_esq", "Lado Esq."], ["costas", "Costas"],
+    ];
+    const photoImgs = POSES
+      .map(([key, label]) => {
+        const url = key === "frente"
+          ? (fotos.frente || fotos.front || c.photo_url || "")
+          : (fotos[key] || "");
+        if (!url) return "";
+        return `<figure class="photo"><img src="${url}" alt="${label}"/><figcaption>${label}</figcaption></figure>`;
+      })
+      .join("");
     return `
       <h2>Check-in — ${fmtDate(c.submitted_at)}</h2>
       ${rows}
+      ${photoImgs ? `<h3>Fotos</h3><div class="photos">${photoImgs}</div>` : ""}
       ${c.coach_feedback ? `<h3>Feedback do Coach</h3><p>${c.coach_feedback}</p>` : ""}
     `;
   };
@@ -417,6 +462,10 @@ function CheckinHistoryDialog({
       h3{font-size:13px;color:#444;margin-top:14px}
       .row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee;font-size:13px}
       .lbl{color:#555;font-weight:600;text-transform:capitalize}.val{max-width:55%;text-align:right}
+      .photos{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+      .photo{margin:0;page-break-inside:avoid}
+      .photo img{max-width:150px;max-height:220px;object-fit:cover;border:1px solid #ddd;display:block}
+      .photo figcaption{font-size:11px;color:#555;text-align:center;margin-top:2px}
       @media print{body{padding:0}}</style></head><body>
       <h1>Check-in — ${student.name}</h1>
       ${renderCheckinHTML(c)}
@@ -425,11 +474,23 @@ function CheckinHistoryDialog({
     w.document.close();
   };
 
-  const exportAll = () => {
-    if (!student || items.length === 0) return;
-    const w = window.open("", "_blank");
-    if (!w) { toast.error("Permita popups para exportar"); return; }
-    w.document.write(`
+  const exportAll = async () => {
+    if (!student || exportingAll) return;
+    setExportingAll(true);
+    const t = toast.loading("Buscando histórico completo…");
+    try {
+      const { data, error } = await sb
+        .from("check_ins")
+        .select("id, submitted_at, current_metrics, payload, coach_feedback, photo_url, feedback_read_at")
+        .eq("student_id", student.id)
+        .order("submitted_at", { ascending: false })
+        .limit(1000);
+      if (error) throw error;
+      const all = (data || []) as CheckinRow[];
+      if (all.length === 0) { toast.dismiss(t); toast.info("Nenhum check-in para exportar"); return; }
+      const w = window.open("", "_blank");
+      if (!w) { toast.dismiss(t); toast.error("Permita popups para exportar"); return; }
+      w.document.write(`
       <!doctype html><html><head><meta charset="utf-8"><title>Check-ins — ${student.name}</title>
       <style>body{font-family:Arial,sans-serif;padding:24px;max-width:780px;margin:auto;color:#111}
       h1{font-size:20px;border-bottom:2px solid #C0392B;padding-bottom:8px}
@@ -437,13 +498,25 @@ function CheckinHistoryDialog({
       h3{font-size:13px;color:#444;margin-top:14px}
       .row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee;font-size:13px}
       .lbl{color:#555;font-weight:600;text-transform:capitalize}.val{max-width:55%;text-align:right}
+      .photos{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+      .photo{margin:0;page-break-inside:avoid}
+      .photo img{max-width:150px;max-height:220px;object-fit:cover;border:1px solid #ddd;display:block}
+      .photo figcaption{font-size:11px;color:#555;text-align:center;margin-top:2px}
       .checkin{page-break-after:always;margin-bottom:30px}
       @media print{body{padding:0}}</style></head><body>
       <h1>Histórico de Check-ins — ${student.name}</h1>
-      ${items.map((c) => `<div class="checkin">${renderCheckinHTML(c)}</div>`).join("")}
+      ${all.map((c) => `<div class="checkin">${renderCheckinHTML(c)}</div>`).join("")}
       <script>window.onload=()=>setTimeout(()=>window.print(),300);</script>
       </body></html>`);
-    w.document.close();
+      w.document.close();
+      toast.dismiss(t);
+    } catch (e) {
+      toast.dismiss(t);
+      console.error("[CheckinHistoryDialog:exportAll]", e instanceof Error ? e.message : e);
+      toast.error("Erro ao exportar histórico completo");
+    } finally {
+      setExportingAll(false);
+    }
   };
 
   return (
@@ -460,7 +533,7 @@ function CheckinHistoryDialog({
         ) : (
           <div className="space-y-3">
             <div className="flex justify-end">
-              <Button size="sm" variant="outline" onClick={exportAll}>
+              <Button size="sm" variant="outline" onClick={exportAll} disabled={exportingAll}>
                 <FileDown className="w-4 h-4 mr-1.5" /> Exportar todos em PDF
               </Button>
             </div>
@@ -507,7 +580,7 @@ function CheckinHistoryDialog({
                           </span>
                         </div>
                       ))}
-                      <CheckinPayloadAnswers payload={c.payload as Record<string, unknown> | null} />
+                      <CheckinPayloadAnswers payload={c.payload as Record<string, unknown> | null} showPhotos />
                       {c.coach_feedback && (
                         <div className="mt-2 pt-2 border-t border-border">
                           <p className="text-xs font-semibold text-primary mb-1">Feedback do Coach</p>
@@ -519,6 +592,13 @@ function CheckinHistoryDialog({
                 </div>
               );
             })}
+            {hasMore && (
+              <div className="flex justify-center pt-2">
+                <Button size="sm" variant="outline" onClick={loadMore} disabled={loadingMore}>
+                  {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : "Carregar mais"}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </DialogContent>
