@@ -232,15 +232,15 @@ export default function CoachUpdatesCard() {
         <button
           type="button"
           onClick={handleOpenSheet}
-          className="w-full text-left bg-primary/10 border border-primary/20 rounded-xl p-4 shadow-sm hover:bg-primary/15 transition-colors flex items-center gap-3"
+          className="w-full text-left bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 shadow-sm hover:bg-emerald-500/15 transition-colors flex items-center gap-3"
           aria-label="Ver atualizações do coach"
         >
-          <Sparkles className="w-5 h-5 text-primary shrink-0" />
+          <Sparkles className="w-5 h-5 text-emerald-500 shrink-0" />
           <div className="flex-1 space-y-0.5 min-w-0">
-            <h3 className="text-sm font-bold text-primary">Seu coach preparou atualizações</h3>
-            <p className="text-xs text-primary/80">Toque para ver o que mudou</p>
+            <h3 className="text-sm font-bold text-emerald-500">Seu coach preparou atualizações</h3>
+            <p className="text-xs text-emerald-500/80">Toque para ver o que mudou</p>
           </div>
-          <ChevronRight className="w-4 h-4 text-primary shrink-0" />
+          <ChevronRight className="w-4 h-4 text-emerald-500 shrink-0" />
         </button>
       )}
 
