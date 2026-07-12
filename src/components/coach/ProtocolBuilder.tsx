@@ -260,8 +260,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
               .maybeSingle();
             if (openRow) {
               const existingArr: ProtocolChange[] = Array.isArray(openRow.changes) ? openRow.changes : [];
-              const seenLabels = new Set(existingArr.map((c) => c?.label));
-              const merged = [...existingArr, ...changes.filter((c) => !seenLabels.has(c.label))];
+              const merged = mergeProtocolChanges(existingArr, changes);
               const { error: updErr } = await sb
                 .from("protocol_change_events")
                 .update({ changes: merged })
