@@ -72,33 +72,36 @@ function kv(doc: jsPDF, label: string, value: string, y: number): number {
   return addWrappedText(doc, value, 14 + labelW, y, 196 - 14 - labelW);
 }
 
-export function exportCheckinPDF(params: {
-  studentName: string;
+interface CheckinPdfData {
   submittedAt: string;
   currentMetrics: Record<string, unknown> | null;
   payload: Record<string, unknown> | null;
   coachFeedback?: string | null;
-  sections: Array<{ title: string; fields: Array<{ key: string; label: string }> }>;
-}): void {
-  const { studentName, submittedAt, currentMetrics, payload, coachFeedback, sections } = params;
-  const doc = new jsPDF();
-  let y = header(doc, `Feedback / Check-in — ${studentName}`, `Enviado em ${fmtDate(submittedAt)}`);
+}
 
-  if (currentMetrics && Object.keys(currentMetrics).length > 0) {
+type CheckinSections = Array<{ title: string; fields: Array<{ key: string; label: string }> }>;
+
+// Desenha o conteúdo de UM check-in (métricas + respostas + feedback) a partir
+// da posição atual do doc. Usada tanto pelo export individual quanto pelo
+// export em lote (várias páginas no mesmo PDF).
+function renderCheckinBody(doc: jsPDF, studentName: string, ci: CheckinPdfData, sections: CheckinSections): void {
+  let y = header(doc, `Feedback / Check-in — ${studentName}`, `Enviado em ${fmtDate(ci.submittedAt)}`);
+
+  if (ci.currentMetrics && Object.keys(ci.currentMetrics).length > 0) {
     y = section(doc, "Métricas Atuais", y);
-    for (const [k, v] of Object.entries(currentMetrics)) {
+    for (const [k, v] of Object.entries(ci.currentMetrics)) {
       const val = typeof v === "object" && v !== null ? JSON.stringify(v) : String(v ?? "—");
       y = kv(doc, `${k}:`, val, y);
     }
     y += 2;
   }
 
-  if (payload) {
+  if (ci.payload) {
     const IGNORED = new Set(["metrics_raw", "fotos", "_updated"]);
     for (const sec of sections) {
       const filled = sec.fields
         .filter((f) => !IGNORED.has(f.key))
-        .map((f) => ({ label: f.label, value: (payload as Record<string, unknown>)[f.key] }))
+        .map((f) => ({ label: f.label, value: (ci.payload as Record<string, unknown>)[f.key] }))
         .filter(({ value }) => value !== undefined && value !== null && value !== "");
       if (filled.length === 0) continue;
       y = section(doc, sec.title, y);
@@ -110,12 +113,69 @@ export function exportCheckinPDF(params: {
     }
   }
 
-  if (coachFeedback) {
+  if (ci.coachFeedback) {
     y = section(doc, "Feedback do Coach", y);
-    y = addWrappedText(doc, coachFeedback, 14, y, 182);
+    y = addWrappedText(doc, ci.coachFeedback, 14, y, 182);
+  }
+}
+
+export function exportCheckinPDF(params: {
+  studentName: string;
+  submittedAt: string;
+  currentMetrics: Record<string, unknown> | null;
+  payload: Record<string, unknown> | null;
+  coachFeedback?: string | null;
+  sections: CheckinSections;
+}): void {
+  const { studentName, submittedAt, currentMetrics, payload, coachFeedback, sections } = params;
+  const doc = new jsPDF();
+  renderCheckinBody(doc, studentName, { submittedAt, currentMetrics, payload, coachFeedback }, sections);
+  doc.save(`feedback_${studentName.replace(/\s+/g, "_")}_${new Date(submittedAt).toISOString().slice(0, 10)}.pdf`);
+}
+
+// Exporta VÁRIOS check-ins (feedbacks) de um mesmo aluno em um único PDF,
+// um check-in por página, respeitando a ordem recebida em `checkins`.
+export function exportCheckinsBatchPDF(params: {
+  studentName: string;
+  checkins: Array<{
+    submitted_at: string;
+    current_metrics: Record<string, unknown> | null;
+    payload: Record<string, unknown> | null;
+    coach_feedback?: string | null;
+  }>;
+  sections: CheckinSections;
+}): void {
+  const { studentName, checkins, sections } = params;
+  if (checkins.length === 0) return;
+
+  // Só 1 selecionado: mesmo nome de arquivo do export individual.
+  if (checkins.length === 1) {
+    const c = checkins[0];
+    exportCheckinPDF({
+      studentName,
+      submittedAt: c.submitted_at,
+      currentMetrics: c.current_metrics,
+      payload: c.payload,
+      coachFeedback: c.coach_feedback,
+      sections,
+    });
+    return;
   }
 
-  doc.save(`feedback_${studentName.replace(/\s+/g, "_")}_${new Date(submittedAt).toISOString().slice(0, 10)}.pdf`);
+  const doc = new jsPDF();
+  checkins.forEach((c, idx) => {
+    if (idx > 0) doc.addPage();
+    renderCheckinBody(doc, studentName, {
+      submittedAt: c.submitted_at,
+      currentMetrics: c.current_metrics,
+      payload: c.payload,
+      coachFeedback: c.coach_feedback,
+    }, sections);
+  });
+
+  const dates = checkins.map((c) => new Date(c.submitted_at).toISOString().slice(0, 10)).sort();
+  const range = `${dates[0]}_a_${dates[dates.length - 1]}`;
+  doc.save(`feedbacks_${studentName.replace(/\s+/g, "_")}_${range}.pdf`);
 }
 
 export function exportAnamnesisPDF(params: {
