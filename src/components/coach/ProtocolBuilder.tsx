@@ -70,6 +70,7 @@ import {
   summarizeProtocolChanges,
   type ProtocolChange,
 } from "@/lib/protocolChangeDetector";
+import { mergeProtocolChanges } from "@/lib/protocolChangeMerge";
 
 import { TACO_FOODS } from "@/data/tacoFoods";
 const TACO_DATA = TACO_FOODS.map((t, i) => ({ ...t, id: String(i), cookFactor: t.cookFactor ?? 1 }));
