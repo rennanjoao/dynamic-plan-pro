@@ -167,61 +167,85 @@ export function detectProtocolChanges(
     if (!dNew) continue;
     const oldEx: AnyRec[] = Array.isArray(dOld.exercises) ? dOld.exercises : [];
     const newEx: AnyRec[] = Array.isArray(dNew.exercises) ? dNew.exercises : [];
-    const oldNames = oldEx.map((e) => s(e.name)).filter(Boolean);
-    const newNames = newEx.map((e) => s(e.name)).filter(Boolean);
-    const oldSet = new Set(oldNames);
-    const newSet = new Set(newNames);
-    const removed = oldNames.filter((nm) => !newSet.has(nm));
-    const added = newNames.filter((nm) => !oldSet.has(nm));
+    // Identidade case-insensitive; display preserva a caixa do coach.
+    const oldByKey = new Map<string, string>();
+    const newByKey = new Map<string, string>();
+    for (const e of oldEx) { const nm = s(e.name); if (nm) oldByKey.set(nameKey(nm), nm); }
+    for (const e of newEx) { const nm = s(e.name); if (nm) newByKey.set(nameKey(nm), nm); }
+
+    const removedKeys = new Set<string>();
+    for (const k of oldByKey.keys()) if (!newByKey.has(k)) removedKeys.add(k);
+    const addedKeys = new Set<string>();
+    for (const k of newByKey.keys()) if (!oldByKey.has(k)) addedKeys.add(k);
 
     const anchorFor = (nm: string) => `workout-${key}-exercise-${slug(nm)}`;
 
-    if (removed.length === 1 && added.length === 1) {
+    // Pareamento por posição: se old[i] foi removido e new[i] foi adicionado
+    // e ambas as chaves são distintas, tratamos como substituição naquela
+    // posição. Isso cobre o caso de reformulação de um dia inteiro.
+    const pairedRemoved = new Set<string>();
+    const pairedAdded = new Set<string>();
+    const maxLen = Math.max(oldEx.length, newEx.length);
+    for (let i = 0; i < maxLen; i++) {
+      const oldName = s(oldEx[i]?.name);
+      const newName = s(newEx[i]?.name);
+      if (!oldName || !newName) continue;
+      const oldK = nameKey(oldName);
+      const newK = nameKey(newName);
+      if (oldK === newK) continue;
+      if (!removedKeys.has(oldK) || !addedKeys.has(newK)) continue;
+      if (pairedRemoved.has(oldK) || pairedAdded.has(newK)) continue;
+      pairedRemoved.add(oldK);
+      pairedAdded.add(newK);
       out.push({
         category: "treino",
         importance: "alta",
-        label: `${removed[0]} foi substituído por ${added[0]}`,
+        label: `${oldName} foi substituído por ${newName}`,
         target_tab: "treino",
-        target_anchor: anchorFor(added[0]),
-        detail: `Antes: ${removed[0]} · Agora: ${added[0]}`,
+        target_anchor: anchorFor(newName),
+        detail: `Antes: ${oldName} · Agora: ${newName}`,
       });
-    } else {
-      for (const nm of removed) {
-        out.push({
-          category: "treino",
-          importance: "media",
-          label: `${nm} foi removido do treino`,
-          target_tab: "treino",
-          target_anchor: null,
-          detail: null,
-        });
-      }
-      for (const nm of added) {
-        const eNew = newEx.find((e) => s(e.name) === nm);
-        const sets = s(eNew?.sets);
-        const reps = s(eNew?.reps);
-        const rest = s(eNew?.rest);
-        let addedDetail: string | null = null;
-        if (sets || reps) {
-          addedDetail = `${sets || "?"}x${reps || "?"}`;
-          if (rest) addedDetail += ` · descanso ${rest}`;
-        }
-        out.push({
-          category: "treino",
-          importance: "media",
-          label: `Novo exercício adicionado: ${nm}`,
-          target_tab: "treino",
-          target_anchor: anchorFor(nm),
-          detail: addedDetail,
-        });
-      }
     }
 
-    // Ajustes em exercícios que continuam com o mesmo nome
-    const common = oldNames.filter((nm) => newSet.has(nm));
-    for (const nm of common) {
-      const eOld = oldEx.find((e) => s(e.name) === nm);
-      const eNew = newEx.find((e) => s(e.name) === nm);
+    for (const k of removedKeys) {
+      if (pairedRemoved.has(k)) continue;
+      const nm = oldByKey.get(k)!;
+      out.push({
+        category: "treino",
+        importance: "media",
+        label: `${nm} foi removido do treino`,
+        target_tab: "treino",
+        target_anchor: null,
+        detail: null,
+      });
+    }
+    for (const k of addedKeys) {
+      if (pairedAdded.has(k)) continue;
+      const nm = newByKey.get(k)!;
+      const eNew = newEx.find((e) => nameKey(e.name) === k);
+      const sets = s(eNew?.sets);
+      const reps = s(eNew?.reps);
+      const rest = s(eNew?.rest);
+      let addedDetail: string | null = null;
+      if (sets || reps) {
+        addedDetail = `${sets || "?"}x${reps || "?"}`;
+        if (rest) addedDetail += ` · descanso ${rest}`;
+      }
+      out.push({
+        category: "treino",
+        importance: "media",
+        label: `Novo exercício adicionado: ${nm}`,
+        target_tab: "treino",
+        target_anchor: anchorFor(nm),
+        detail: addedDetail,
+      });
+    }
+
+    // Ajustes em exercícios que continuam com a mesma chave nos dois lados
+    for (const [k, nm] of oldByKey) {
+      if (!newByKey.has(k)) continue;
+      const eOld = oldEx.find((e) => nameKey(e.name) === k);
+      const eNew = newEx.find((e) => nameKey(e.name) === k);
       if (!eOld || !eNew) continue;
 
       const parts: string[] = [];
