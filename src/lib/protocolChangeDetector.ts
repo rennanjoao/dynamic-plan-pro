@@ -44,6 +44,10 @@ export interface ProtocolChange {
 
 const s = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 const n = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+// Chave de identidade insensível a caixa/acentos-livres — usada para decidir
+// "isto é o mesmo item" ao comparar exercícios, refeições, itens e suplementos.
+// O texto exibido continua vindo de s(item.name) preservando a caixa original.
+const nameKey = (v: unknown): string => s(v).toLowerCase();
 
 type AnyRec = Record<string, any>;
 
@@ -163,61 +167,85 @@ export function detectProtocolChanges(
     if (!dNew) continue;
     const oldEx: AnyRec[] = Array.isArray(dOld.exercises) ? dOld.exercises : [];
     const newEx: AnyRec[] = Array.isArray(dNew.exercises) ? dNew.exercises : [];
-    const oldNames = oldEx.map((e) => s(e.name)).filter(Boolean);
-    const newNames = newEx.map((e) => s(e.name)).filter(Boolean);
-    const oldSet = new Set(oldNames);
-    const newSet = new Set(newNames);
-    const removed = oldNames.filter((nm) => !newSet.has(nm));
-    const added = newNames.filter((nm) => !oldSet.has(nm));
+    // Identidade case-insensitive; display preserva a caixa do coach.
+    const oldByKey = new Map<string, string>();
+    const newByKey = new Map<string, string>();
+    for (const e of oldEx) { const nm = s(e.name); if (nm) oldByKey.set(nameKey(nm), nm); }
+    for (const e of newEx) { const nm = s(e.name); if (nm) newByKey.set(nameKey(nm), nm); }
+
+    const removedKeys = new Set<string>();
+    for (const k of oldByKey.keys()) if (!newByKey.has(k)) removedKeys.add(k);
+    const addedKeys = new Set<string>();
+    for (const k of newByKey.keys()) if (!oldByKey.has(k)) addedKeys.add(k);
 
     const anchorFor = (nm: string) => `workout-${key}-exercise-${slug(nm)}`;
 
-    if (removed.length === 1 && added.length === 1) {
+    // Pareamento por posição: se old[i] foi removido e new[i] foi adicionado
+    // e ambas as chaves são distintas, tratamos como substituição naquela
+    // posição. Isso cobre o caso de reformulação de um dia inteiro.
+    const pairedRemoved = new Set<string>();
+    const pairedAdded = new Set<string>();
+    const maxLen = Math.max(oldEx.length, newEx.length);
+    for (let i = 0; i < maxLen; i++) {
+      const oldName = s(oldEx[i]?.name);
+      const newName = s(newEx[i]?.name);
+      if (!oldName || !newName) continue;
+      const oldK = nameKey(oldName);
+      const newK = nameKey(newName);
+      if (oldK === newK) continue;
+      if (!removedKeys.has(oldK) || !addedKeys.has(newK)) continue;
+      if (pairedRemoved.has(oldK) || pairedAdded.has(newK)) continue;
+      pairedRemoved.add(oldK);
+      pairedAdded.add(newK);
       out.push({
         category: "treino",
         importance: "alta",
-        label: `${removed[0]} foi substituído por ${added[0]}`,
+        label: `${oldName} foi substituído por ${newName}`,
         target_tab: "treino",
-        target_anchor: anchorFor(added[0]),
-        detail: `Antes: ${removed[0]} · Agora: ${added[0]}`,
+        target_anchor: anchorFor(newName),
+        detail: `Antes: ${oldName} · Agora: ${newName}`,
       });
-    } else {
-      for (const nm of removed) {
-        out.push({
-          category: "treino",
-          importance: "media",
-          label: `${nm} foi removido do treino`,
-          target_tab: "treino",
-          target_anchor: null,
-          detail: null,
-        });
-      }
-      for (const nm of added) {
-        const eNew = newEx.find((e) => s(e.name) === nm);
-        const sets = s(eNew?.sets);
-        const reps = s(eNew?.reps);
-        const rest = s(eNew?.rest);
-        let addedDetail: string | null = null;
-        if (sets || reps) {
-          addedDetail = `${sets || "?"}x${reps || "?"}`;
-          if (rest) addedDetail += ` · descanso ${rest}`;
-        }
-        out.push({
-          category: "treino",
-          importance: "media",
-          label: `Novo exercício adicionado: ${nm}`,
-          target_tab: "treino",
-          target_anchor: anchorFor(nm),
-          detail: addedDetail,
-        });
-      }
     }
 
-    // Ajustes em exercícios que continuam com o mesmo nome
-    const common = oldNames.filter((nm) => newSet.has(nm));
-    for (const nm of common) {
-      const eOld = oldEx.find((e) => s(e.name) === nm);
-      const eNew = newEx.find((e) => s(e.name) === nm);
+    for (const k of removedKeys) {
+      if (pairedRemoved.has(k)) continue;
+      const nm = oldByKey.get(k)!;
+      out.push({
+        category: "treino",
+        importance: "media",
+        label: `${nm} foi removido do treino`,
+        target_tab: "treino",
+        target_anchor: null,
+        detail: null,
+      });
+    }
+    for (const k of addedKeys) {
+      if (pairedAdded.has(k)) continue;
+      const nm = newByKey.get(k)!;
+      const eNew = newEx.find((e) => nameKey(e.name) === k);
+      const sets = s(eNew?.sets);
+      const reps = s(eNew?.reps);
+      const rest = s(eNew?.rest);
+      let addedDetail: string | null = null;
+      if (sets || reps) {
+        addedDetail = `${sets || "?"}x${reps || "?"}`;
+        if (rest) addedDetail += ` · descanso ${rest}`;
+      }
+      out.push({
+        category: "treino",
+        importance: "media",
+        label: `Novo exercício adicionado: ${nm}`,
+        target_tab: "treino",
+        target_anchor: anchorFor(nm),
+        detail: addedDetail,
+      });
+    }
+
+    // Ajustes em exercícios que continuam com a mesma chave nos dois lados
+    for (const [k, nm] of oldByKey) {
+      if (!newByKey.has(k)) continue;
+      const eOld = oldEx.find((e) => nameKey(e.name) === k);
+      const eNew = newEx.find((e) => nameKey(e.name) === k);
       if (!eOld || !eNew) continue;
 
       const parts: string[] = [];
@@ -264,13 +292,14 @@ export function detectProtocolChanges(
   // ─────────── MEALS (por meal.name) ───────────
   const pMeals: AnyRec[] = Array.isArray(prev.meals) ? prev.meals : [];
   const nMeals: AnyRec[] = Array.isArray(next.meals) ? next.meals : [];
-  const pMealByName = new Map<string, AnyRec>();
-  const nMealByName = new Map<string, AnyRec>();
-  for (const m of pMeals) { const k = s(m.name); if (k) pMealByName.set(k, m); }
-  for (const m of nMeals) { const k = s(m.name); if (k) nMealByName.set(k, m); }
+  // Identidade case-insensitive; display preserva a caixa do coach.
+  const pMealByName = new Map<string, { display: string; meal: AnyRec }>();
+  const nMealByName = new Map<string, { display: string; meal: AnyRec }>();
+  for (const m of pMeals) { const d = s(m.name); const k = nameKey(m.name); if (k) pMealByName.set(k, { display: d, meal: m }); }
+  for (const m of nMeals) { const d = s(m.name); const k = nameKey(m.name); if (k) nMealByName.set(k, { display: d, meal: m }); }
 
-  for (const [nm] of nMealByName) {
-    if (!pMealByName.has(nm)) {
+  for (const [k, { display: nm }] of nMealByName) {
+    if (!pMealByName.has(k)) {
       out.push({
         category: "dieta",
         importance: "alta",
@@ -281,8 +310,8 @@ export function detectProtocolChanges(
       });
     }
   }
-  for (const [nm] of pMealByName) {
-    if (!nMealByName.has(nm)) {
+  for (const [k, { display: nm }] of pMealByName) {
+    if (!nMealByName.has(k)) {
       out.push({
         category: "dieta",
         importance: "alta",
@@ -294,9 +323,10 @@ export function detectProtocolChanges(
     }
   }
 
-  for (const [mealName, mOld] of pMealByName) {
-    const mNew = nMealByName.get(mealName);
-    if (!mNew) continue;
+  for (const [mk, { display: mealName, meal: mOld }] of pMealByName) {
+    const nEntry = nMealByName.get(mk);
+    if (!nEntry) continue;
+    const mNew = nEntry.meal;
 
     if (s(mOld.time) !== s(mNew.time)) {
       out.push({
@@ -347,41 +377,71 @@ export function detectProtocolChanges(
       if (!oNew) continue;
       const oldItems: AnyRec[] = Array.isArray(oOld.items) ? oOld.items : [];
       const newItems: AnyRec[] = Array.isArray(oNew.items) ? oNew.items : [];
-      const oldNames = oldItems.map((it) => s(it.name)).filter(Boolean);
-      const newNames = newItems.map((it) => s(it.name)).filter(Boolean);
-      const oldSet = new Set(oldNames);
-      const newSet = new Set(newNames);
+      const oldByKey = new Map<string, string>();
+      const newByKey = new Map<string, string>();
+      for (const it of oldItems) { const d = s(it.name); if (d) oldByKey.set(nameKey(d), d); }
+      for (const it of newItems) { const d = s(it.name); if (d) newByKey.set(nameKey(d), d); }
+      const removedKeys = new Set<string>();
+      for (const k of oldByKey.keys()) if (!newByKey.has(k)) removedKeys.add(k);
+      const addedKeys = new Set<string>();
+      for (const k of newByKey.keys()) if (!oldByKey.has(k)) addedKeys.add(k);
       const anchorBase = `meal-${slug(mealName)}-${oOld.kind}-${slug(oOld.title || "")}`;
 
-      for (const it of newNames) {
-        if (!oldSet.has(it)) {
-          const added = newItems.find((x) => s(x.name) === it);
-          out.push({
-            category: "dieta",
-            importance: "media",
-            label: `${it} foi adicionado na refeição ${mealName}`,
-            target_tab: "dieta",
-            target_anchor: `${anchorBase}-item-${slug(it)}`,
-            detail: s(added?.weight) || null,
-          });
-        }
+      // Pareamento por posição — reformular uma opção inteira gera
+      // "substituição" em vez de linhas soltas de add/remove.
+      const pairedRemoved = new Set<string>();
+      const pairedAdded = new Set<string>();
+      const maxLen = Math.max(oldItems.length, newItems.length);
+      for (let i = 0; i < maxLen; i++) {
+        const oldName = s(oldItems[i]?.name);
+        const newName = s(newItems[i]?.name);
+        if (!oldName || !newName) continue;
+        const oldK = nameKey(oldName);
+        const newK = nameKey(newName);
+        if (oldK === newK) continue;
+        if (!removedKeys.has(oldK) || !addedKeys.has(newK)) continue;
+        if (pairedRemoved.has(oldK) || pairedAdded.has(newK)) continue;
+        pairedRemoved.add(oldK);
+        pairedAdded.add(newK);
+        out.push({
+          category: "dieta",
+          importance: "media",
+          label: `${oldName} foi substituído por ${newName} na refeição ${mealName}`,
+          target_tab: "dieta",
+          target_anchor: `${anchorBase}-item-${slug(newName)}`,
+          detail: `Antes: ${oldName} · Agora: ${newName}`,
+        });
       }
-      for (const it of oldNames) {
-        if (!newSet.has(it)) {
-          out.push({
-            category: "dieta",
-            importance: "media",
-            label: `${it} foi removido da refeição ${mealName}`,
-            target_tab: "dieta",
-            target_anchor: null,
-            detail: null,
-          });
-        }
+
+      for (const k of addedKeys) {
+        if (pairedAdded.has(k)) continue;
+        const it = newByKey.get(k)!;
+        const added = newItems.find((x) => nameKey(x.name) === k);
+        out.push({
+          category: "dieta",
+          importance: "media",
+          label: `${it} foi adicionado na refeição ${mealName}`,
+          target_tab: "dieta",
+          target_anchor: `${anchorBase}-item-${slug(it)}`,
+          detail: s(added?.weight) || null,
+        });
       }
-      const common = oldNames.filter((nm) => newSet.has(nm));
-      for (const nm of common) {
-        const iOld = oldItems.find((it) => s(it.name) === nm);
-        const iNew = newItems.find((it) => s(it.name) === nm);
+      for (const k of removedKeys) {
+        if (pairedRemoved.has(k)) continue;
+        const it = oldByKey.get(k)!;
+        out.push({
+          category: "dieta",
+          importance: "media",
+          label: `${it} foi removido da refeição ${mealName}`,
+          target_tab: "dieta",
+          target_anchor: null,
+          detail: null,
+        });
+      }
+      for (const [k, nm] of oldByKey) {
+        if (!newByKey.has(k)) continue;
+        const iOld = oldItems.find((it) => nameKey(it.name) === k);
+        const iNew = newItems.find((it) => nameKey(it.name) === k);
         if (s(iOld?.weight) !== s(iNew?.weight)) {
           out.push({
             category: "dieta",
@@ -399,13 +459,13 @@ export function detectProtocolChanges(
   // ─────────── SUPLEMENTOS (por name) ───────────
   const pSup: AnyRec[] = Array.isArray(prev.supplements) ? prev.supplements : [];
   const nSup: AnyRec[] = Array.isArray(next.supplements) ? next.supplements : [];
-  const pSupByName = new Map<string, AnyRec>();
-  const nSupByName = new Map<string, AnyRec>();
-  for (const it of pSup) { const k = s(it.name); if (k) pSupByName.set(k, it); }
-  for (const it of nSup) { const k = s(it.name); if (k) nSupByName.set(k, it); }
+  const pSupByName = new Map<string, { display: string; item: AnyRec }>();
+  const nSupByName = new Map<string, { display: string; item: AnyRec }>();
+  for (const it of pSup) { const d = s(it.name); const k = nameKey(it.name); if (k) pSupByName.set(k, { display: d, item: it }); }
+  for (const it of nSup) { const d = s(it.name); const k = nameKey(it.name); if (k) nSupByName.set(k, { display: d, item: it }); }
 
-  for (const [nm, sNew] of nSupByName) {
-    if (!pSupByName.has(nm)) {
+  for (const [k, { display: nm, item: sNew }] of nSupByName) {
+    if (!pSupByName.has(k)) {
       const dose = s(sNew.dose);
       const timing = s(sNew.timing);
       let addedDetail: string | null = null;
@@ -425,8 +485,8 @@ export function detectProtocolChanges(
       });
     }
   }
-  for (const [nm] of pSupByName) {
-    if (!nSupByName.has(nm)) {
+  for (const [k, { display: nm }] of pSupByName) {
+    if (!nSupByName.has(k)) {
       out.push({
         category: "suplemento",
         importance: "media",
@@ -437,9 +497,10 @@ export function detectProtocolChanges(
       });
     }
   }
-  for (const [nm, sOld] of pSupByName) {
-    const sNew = nSupByName.get(nm);
-    if (!sNew) continue;
+  for (const [k, { display: nm, item: sOld }] of pSupByName) {
+    const nEntry = nSupByName.get(k);
+    if (!nEntry) continue;
+    const sNew = nEntry.item;
     const doseChanged = s(sOld.dose) !== s(sNew.dose);
     const timingChanged = s(sOld.timing) !== s(sNew.timing);
     const notesChanged = s(sOld.notes) !== s(sNew.notes);

@@ -371,6 +371,40 @@ describe("detectProtocolChanges", () => {
     const res = detectProtocolChanges(prev, next);
     expect(res[0].detail).toBeNull();
   });
+
+  it("nome de exercício mudando só de caixa (Leg press → Leg Press) → nenhuma mudança", () => {
+    const prev = basePayload();
+    prev.workouts[0].exercises[0].name = "Leg press";
+    const next = clone(prev);
+    next.workouts[0].exercises[0].name = "Leg Press";
+    expect(detectProtocolChanges(prev, next)).toEqual([]);
+  });
+
+  it("dia trocando 3 exercícios simultaneamente → 3 itens 'substituído por', não 6 soltos", () => {
+    const prev = basePayload();
+    prev.workouts[0].exercises = [
+      { name: "Supino Reto", sets: "4", reps: "8", rest: "90s", cadence: "2010", notes: "" },
+      { name: "Crucifixo",   sets: "3", reps: "12", rest: "60s", cadence: "2010", notes: "" },
+      { name: "Cross Over",  sets: "3", reps: "15", rest: "60s", cadence: "2010", notes: "" },
+    ];
+    const next = clone(prev);
+    next.workouts[0].exercises = [
+      { name: "Supino Inclinado", sets: "4", reps: "8", rest: "90s", cadence: "2010", notes: "" },
+      { name: "Peck Deck",        sets: "3", reps: "12", rest: "60s", cadence: "2010", notes: "" },
+      { name: "Voador",           sets: "3", reps: "15", rest: "60s", cadence: "2010", notes: "" },
+    ];
+    const res = detectProtocolChanges(prev, next);
+    expect(res).toHaveLength(3);
+    for (const item of res) {
+      expect(item.label).toMatch(/foi substituído por/);
+      expect(item.importance).toBe("alta");
+    }
+    expect(res.map((r) => r.label)).toEqual([
+      "Supino Reto foi substituído por Supino Inclinado",
+      "Crucifixo foi substituído por Peck Deck",
+      "Cross Over foi substituído por Voador",
+    ]);
+  });
 });
 
 describe("summarizeProtocolChanges", () => {
