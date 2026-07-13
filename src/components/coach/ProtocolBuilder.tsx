@@ -792,6 +792,15 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         setPayload={updatePayload}
         protocolName={name}
       />
+
+      <CopyProtocolDialog
+        open={copyOpen}
+        onOpenChange={setCopyOpen}
+        coachId={coachId}
+        payload={payload}
+        sourceStudentId={studentId}
+        protocolName={name}
+      />
     </div>
   );
 }
