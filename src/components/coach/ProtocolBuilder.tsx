@@ -66,6 +66,7 @@ import ProtocolImportHistory from "./ProtocolImportHistory";
 import WorkoutPeriodizationEditor from "./WorkoutPeriodizationEditor";
 import StudentProtocolPreview from "./StudentProtocolPreview";
 import ProtocolVersionHistoryDialog from "./ProtocolVersionHistoryDialog";
+import TemplateLibraryDialog from "./TemplateLibraryDialog";
 import { calcMealMacros, calcDayMacros, tacoGroupToKind, parseWeightString, optionMacros, compareOptions, type SubstitutionSeverity } from "@/lib/macroCalc";
 import {
   detectProtocolChanges,
@@ -141,6 +142,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"macros" | "guidelines" | "workouts" | "diet">("macros");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [lastAutosavedAt, setLastAutosavedAt] = useState<Date | null>(null);
   const [isAutosaving, setIsAutosaving] = useState(false);
   const [pendingOpen, setPendingOpen] = useState(false);
@@ -555,6 +557,16 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Nome do protocolo</Label>
               <div className="mt-1 flex items-center gap-2">
                 <Input value={name} onChange={(e) => setName(e.target.value)} className="h-9 text-sm flex-1" />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 text-xs"
+                  onClick={() => setLibraryOpen(true)}
+                  title="Biblioteca de templates"
+                >
+                  <Library className="w-3.5 h-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Templates</span>
+                </Button>
                 {isEditMode && (
                   <Button
                     size="sm"
@@ -677,10 +689,6 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
               </Card>
             )}
             <div className="flex flex-wrap items-center gap-2">
-              <Button onClick={saveAsTemplate} disabled={saving} size="lg" variant="ghost" className="shadow-lg mr-auto">
-                <BookmarkPlus className="w-4 h-4 mr-2" />
-                Salvar template
-              </Button>
               {isEditMode && (
                 <span className="text-[10px] text-muted-foreground px-1" aria-live="polite">
                   {isAutosaving
@@ -762,6 +770,15 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         onRestore={(p) => {
           updatePayload(p);
         }}
+      />
+
+      <TemplateLibraryDialog
+        open={libraryOpen}
+        onOpenChange={setLibraryOpen}
+        coachId={coachId}
+        payload={payload}
+        setPayload={updatePayload}
+        protocolName={name}
       />
     </div>
   );
