@@ -1314,7 +1314,9 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
                   title={`Carbo ${CARB_LABEL[carb]} — clique para alternar`}
                   className={cn(
                     "text-[8px] font-bold uppercase tracking-wider px-1 py-px rounded border leading-none mt-0.5",
-                    CARB_COLOR[carb].pill
+                    carb === "high"
+                      ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/40"
+                      : "bg-muted/40 text-muted-foreground border-border/50"
                   )}
                 >
                   {CARB_LABEL[carb]}
