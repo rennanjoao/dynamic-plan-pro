@@ -13,7 +13,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useStudentData } from "@/hooks/useStudentData";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info, X } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Info, X, ChevronRight } from "lucide-react";
 
 // ─── Persistência de dismiss ──────────────────────────────────────────────────
 const TRAINER_DISMISSED_KEY = (uid: string) => `trainer_alert_dismissed_${uid}`;
@@ -45,6 +46,7 @@ export const TrainerAlert = () => {
   } | null>(null);
 
   const [dismissed, setDismissed] = useState<string[]>([]);
+  const [expanded, setExpanded] = useState(false);
 
   // Carrega dismissed do localStorage assim que temos o studentId
   useEffect(() => {
@@ -158,43 +160,68 @@ export const TrainerAlert = () => {
         `}
       </style>
 
-      {/* ── Mensagem do coach — agora tem botão X ── */}
+      {/* ── Mensagem do coach — prévia pequena, expande ao tocar ── */}
       {messageVisible && (
-        <Alert
-          className="mb-6 border backdrop-blur-md animate-fade-in-down relative"
-          style={{
-            backgroundColor: "hsla(145, 63%, 42%, 0.1)",
-            borderColor: "hsla(145, 63%, 42%, 0.2)",
-          }}
-        >
-          <Info className="h-5 w-5 absolute left-4 top-4" style={{ color: "hsl(145, 63%, 49%)" }} />
-          {/* Botão fechar */}
-          <button
-            type="button"
-            onClick={handleDismissMessage}
-            className="absolute top-3 right-3 opacity-60 hover:opacity-100 transition-opacity"
-            aria-label="Fechar mensagem do treinador"
-            style={{ color: "hsl(145, 63%, 49%)" }}
+        <>
+          <Alert
+            className="mb-6 border backdrop-blur-md animate-fade-in-down relative cursor-pointer"
+            style={{
+              backgroundColor: "hsla(145, 63%, 42%, 0.1)",
+              borderColor: "hsla(145, 63%, 42%, 0.2)",
+            }}
+            onClick={() => setExpanded(true)}
           >
-            <X className="w-4 h-4" />
-          </button>
-          {/* Wrapper: garante que [&>svg~*]:pl-7 se aplique uma única vez ao div,
-              evitando sobreposição do ícone absoluto sobre o texto em mobile */}
-          <div className="pl-7 pr-8">
-            <AlertTitle
-              className="font-bold tracking-wide mb-1"
+            <Info className="h-5 w-5 absolute left-4 top-4" style={{ color: "hsl(145, 63%, 49%)" }} />
+            {/* Botão fechar */}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); handleDismissMessage(); }}
+              className="absolute top-3 right-3 opacity-60 hover:opacity-100 transition-opacity"
+              aria-label="Fechar mensagem do treinador"
               style={{ color: "hsl(145, 63%, 49%)" }}
             >
-              Mensagem do Treinador
-            </AlertTitle>
-            <AlertDescription
-              className="mt-1 text-sm break-words"
-              style={{ color: "hsla(145, 63%, 90%, 0.8)" }}
-            >
-              "{alertData!.message}"
-            </AlertDescription>
-          </div>
-        </Alert>
+              <X className="w-4 h-4" />
+            </button>
+            {/* Wrapper: garante que [&>svg~*]:pl-7 se aplique uma única vez ao div,
+                evitando sobreposição do ícone absoluto sobre o texto em mobile */}
+            <div className="pl-7 pr-8">
+              <AlertTitle
+                className="font-bold tracking-wide mb-1"
+                style={{ color: "hsl(145, 63%, 49%)" }}
+              >
+                Mensagem do Treinador
+              </AlertTitle>
+              <AlertDescription
+                className="mt-1 text-sm break-words line-clamp-1"
+                style={{ color: "hsla(145, 63%, 90%, 0.8)" }}
+              >
+                "{alertData!.message}"
+              </AlertDescription>
+              <div
+                className="flex items-center gap-1 mt-1 text-[11px] font-medium"
+                style={{ color: "hsl(145, 63%, 49%)" }}
+              >
+                Toque para ver completo <ChevronRight className="w-3 h-3" />
+              </div>
+            </div>
+          </Alert>
+
+          <Dialog open={expanded} onOpenChange={setExpanded}>
+            <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle
+                  className="flex items-center gap-2"
+                  style={{ color: "hsl(145, 63%, 42%)" }}
+                >
+                  <Info className="w-4 h-4" /> Mensagem do Treinador
+                </DialogTitle>
+              </DialogHeader>
+              <p className="text-sm whitespace-pre-wrap leading-relaxed break-words">
+                "{alertData!.message}"
+              </p>
+            </DialogContent>
+          </Dialog>
+        </>
       )}
     </>
   );
