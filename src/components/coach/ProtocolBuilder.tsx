@@ -752,6 +752,16 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
           section={activeTab}
         />
       )}
+
+      <ProtocolVersionHistoryDialog
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        protocolId={protocolId}
+        protocolName={name}
+        onRestore={(p) => {
+          updatePayload(p);
+        }}
+      />
     </div>
   );
 }
