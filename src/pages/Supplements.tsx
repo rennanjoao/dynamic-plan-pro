@@ -71,6 +71,7 @@ export default function Supplements() {
   const weekOrganization: string      = g.weekOrganization ?? "";
   const supplementationGuideline: string = g.supplementation ?? "";
   const supplements: any[]            = Array.isArray(safePayload?.supplements) ? safePayload.supplements : [];
+  const supplementCombos: any[]       = Array.isArray(safePayload?.supplementCombos) ? safePayload.supplementCombos : [];
 
   const hasAnything =
     dietGuideline.trim() ||
@@ -115,7 +116,13 @@ export default function Supplements() {
 
         {/* Suplementos agrupados por horário */}
         {supplements.length > 0 && (() => {
-          const groups = supplements.reduce((acc: Record<string, any[]>, s: any) => {
+          // Índices consumidos por combos → não aparecem soltos.
+          const boundSet = new Set<number>();
+          supplementCombos.forEach((c: any) =>
+            (Array.isArray(c?.supplementIndexes) ? c.supplementIndexes : []).forEach((i: number) => boundSet.add(i))
+          );
+          const unbound = supplements.filter((_: any, i: number) => !boundSet.has(i));
+          const groups = unbound.reduce((acc: Record<string, any[]>, s: any) => {
             const key = (s.timing && String(s.timing).trim()) || "Outros";
             (acc[key] = acc[key] || []).push(s);
             return acc;
@@ -130,11 +137,58 @@ export default function Supplements() {
             if (ib === -1) return -1;
             return ia - ib;
           });
+
+          const renderItem = (s: any, i: number) => (
+            <li
+              key={i}
+              id={`supplement-${slug(s.name)}`}
+              className="border-b border-border/40 last:border-0 pb-2 last:pb-0"
+            >
+              <p className="text-sm text-foreground">
+                <span className="text-primary">•</span>{" "}
+                <span className="font-bold">{s.name}</span>
+                {s.dose && <span className="font-bold"> — {s.dose}</span>}
+              </p>
+              {s.notes && (
+                <p className="text-xs text-muted-foreground italic mt-0.5 pl-3">{s.notes}</p>
+              )}
+            </li>
+          );
+
           return (
             <div className="space-y-3">
               <h2 className="font-bold text-sm text-foreground flex items-center gap-2">
                 <Pill className="w-4 h-4 text-primary" /> Suplementos
               </h2>
+
+              {/* Combos primeiro (nome do combo como cabeçalho) */}
+              {supplementCombos.map((c: any, ci: number) => {
+                const indexes: number[] = Array.isArray(c?.supplementIndexes) ? c.supplementIndexes : [];
+                const items = indexes
+                  .map((i) => supplements[i])
+                  .filter(Boolean);
+                if (items.length === 0) return null;
+                return (
+                  <div key={`combo-${ci}`} className="glass rounded-2xl p-4 border border-primary/20 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs border-primary/60 text-primary bg-primary/10 font-bold">
+                          {c.name || "Combo"}
+                        </Badge>
+                        {c.timing && (
+                          <span className="text-[10px] text-muted-foreground">{c.timing}</span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">{items.length} item(ns)</span>
+                    </div>
+                    <ul className="space-y-2 pt-1">
+                      {items.map((s: any, i: number) => renderItem(s, i))}
+                    </ul>
+                  </div>
+                );
+              })}
+
+              {/* Depois, os suplementos soltos agrupados por horário */}
               {keys.map((timing) => (
                 <div key={timing} className="glass rounded-2xl p-4 border border-white/[0.06] space-y-2">
                   <div className="flex items-center justify-between">
@@ -144,22 +198,7 @@ export default function Supplements() {
                     <span className="text-[10px] text-muted-foreground">{groups[timing].length} item(ns)</span>
                   </div>
                   <ul className="space-y-2 pt-1">
-                    {groups[timing].map((s: any, i: number) => (
-                      <li
-                        key={i}
-                        id={`supplement-${slug(s.name)}`}
-                        className="border-b border-border/40 last:border-0 pb-2 last:pb-0"
-                      >
-                        <p className="text-sm text-foreground">
-                          <span className="text-primary">•</span>{" "}
-                          <span className="font-bold">{s.name}</span>
-                          {s.dose && <span className="font-bold"> — {s.dose}</span>}
-                        </p>
-                        {s.notes && (
-                          <p className="text-xs text-muted-foreground italic mt-0.5 pl-3">{s.notes}</p>
-                        )}
-                      </li>
-                    ))}
+                    {groups[timing].map((s: any, i: number) => renderItem(s, i))}
                   </ul>
                 </div>
               ))}
