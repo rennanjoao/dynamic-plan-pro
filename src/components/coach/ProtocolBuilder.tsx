@@ -569,6 +569,16 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                   <Library className="w-3.5 h-3.5 sm:mr-1.5" />
                   <span className="hidden sm:inline">Templates</span>
                 </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 text-xs"
+                  onClick={() => setCopyOpen(true)}
+                  title="Copiar para outro aluno"
+                >
+                  <Copy className="w-3.5 h-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Copiar</span>
+                </Button>
                 {isEditMode && (
                   <Button
                     size="sm"
