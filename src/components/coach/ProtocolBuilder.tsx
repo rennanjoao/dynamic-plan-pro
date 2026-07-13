@@ -67,6 +67,7 @@ import WorkoutPeriodizationEditor from "./WorkoutPeriodizationEditor";
 import StudentProtocolPreview from "./StudentProtocolPreview";
 import ProtocolVersionHistoryDialog from "./ProtocolVersionHistoryDialog";
 import TemplateLibraryDialog from "./TemplateLibraryDialog";
+import CopyProtocolDialog from "./CopyProtocolDialog";
 import { calcMealMacros, calcDayMacros, tacoGroupToKind, parseWeightString, optionMacros, compareOptions, type SubstitutionSeverity } from "@/lib/macroCalc";
 import {
   detectProtocolChanges,
@@ -143,6 +144,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [activeTab, setActiveTab] = useState<"macros" | "guidelines" | "workouts" | "diet">("macros");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [copyOpen, setCopyOpen] = useState(false);
   const [lastAutosavedAt, setLastAutosavedAt] = useState<Date | null>(null);
   const [isAutosaving, setIsAutosaving] = useState(false);
   const [pendingOpen, setPendingOpen] = useState(false);
