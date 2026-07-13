@@ -87,6 +87,26 @@ function InitialsAvatar({ name }: { name: string }) {
   );
 }
 
+// Link permanente pro histórico de atualizações do coach (Fase 6).
+// Sempre visível, mesmo quando não há atualizações novas.
+function CoachUpdatesHistoryLink() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <div className="flex justify-end -mt-1">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-4"
+        >
+          Ver histórico de atualizações
+        </button>
+      </div>
+      <CoachUpdatesHistoryDialog open={open} onOpenChange={setOpen} />
+    </>
+  );
+}
+
 // ─── Streak badge ────────────────────────────────────────────────────────────
 function StreakBadge({ streak }: { streak: number }) {
   if (streak < 2) return null;
