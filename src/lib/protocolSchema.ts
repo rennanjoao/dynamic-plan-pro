@@ -94,7 +94,30 @@ export const SupplementSchema = z.object({
   timing: z.string().default(""),
   notes: z.string().default(""),
   mealRef: z.string().optional().default(""),
+  objective: z
+    .enum(["hipertrofia", "recuperacao", "emagrecimento", "performance", "saude_geral", "outro"])
+    .optional()
+    .default("outro"),
 });
+
+// Combo de suplementos — agrupa múltiplos itens com um nome + horário/momento único.
+// Referencia os itens pelos índices em ProtocolPayload.supplements.
+export const SupplementComboSchema = z.object({
+  name: z.string().default(""),
+  timing: z.string().default(""),
+  supplementIndexes: z.array(z.number()).default([]),
+});
+
+export type SupplementCombo = z.infer<typeof SupplementComboSchema>;
+
+export const SUPPLEMENT_OBJECTIVES = [
+  { value: "hipertrofia",    label: "Hipertrofia" },
+  { value: "recuperacao",    label: "Recuperação" },
+  { value: "emagrecimento",  label: "Emagrecimento" },
+  { value: "performance",    label: "Performance" },
+  { value: "saude_geral",    label: "Saúde geral" },
+  { value: "outro",          label: "Outro" },
+] as const;
 
 export const MealMacrosSchema = z.object({
   carbs: z.number().min(0).default(0),
@@ -287,6 +310,7 @@ export const ProtocolPayloadSchema = z.object({
   carbCycleLowPct: z.number().min(1).max(100).default(15),
   cardio: z.array(CardioSchema).default([]),
   supplements: z.array(SupplementSchema).default([]),
+  supplementCombos: z.array(SupplementComboSchema).default([]),
   periodization: PeriodizationSchema.default({} as any),
   // Map weekday key → workout key ("" or "rest" = sem treino)
   weekDays: z.record(z.string()).default({}),
