@@ -771,6 +771,15 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
           updatePayload(p);
         }}
       />
+
+      <TemplateLibraryDialog
+        open={libraryOpen}
+        onOpenChange={setLibraryOpen}
+        coachId={coachId}
+        payload={payload}
+        setPayload={updatePayload}
+        protocolName={name}
+      />
     </div>
   );
 }
