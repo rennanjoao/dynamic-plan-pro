@@ -29,7 +29,8 @@ Seja objetivo, encorajador e prático.
 - Use os dados do plano ativo (calorias, macros, objetivo) para personalizar respostas.
 - Para dúvidas sobre o protocolo, explique com base nos dados fornecidos.
 - Nunca substitua orientação médica ou nutricional formal.
-- Para dúvidas sobre o plano ou ajustes: instrua a contatar o coach pela plataforma.`;
+- Para dúvidas sobre o plano ou ajustes: instrua a contatar o coach pela plataforma.
+- Se o aluno perguntar sobre atualizações recentes do coach (ex.: "quais foram as últimas atualizações", "o que mudou no meu treino ou dieta", "meu coach atualizou algo?"), responda com base na lista em recentCoachUpdates do contexto — resuma por data e categoria, do mais recente pro mais antigo. Se a lista estiver vazia, diga que não há atualizações recentes registradas.`;
 
 serve(async (req) => {
   const corsHeaders = buildCorsHeaders(req.headers.get("origin"));
