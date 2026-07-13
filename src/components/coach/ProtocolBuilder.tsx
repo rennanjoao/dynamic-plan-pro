@@ -557,6 +557,16 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Nome do protocolo</Label>
               <div className="mt-1 flex items-center gap-2">
                 <Input value={name} onChange={(e) => setName(e.target.value)} className="h-9 text-sm flex-1" />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 text-xs"
+                  onClick={() => setLibraryOpen(true)}
+                  title="Biblioteca de templates"
+                >
+                  <Library className="w-3.5 h-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Templates</span>
+                </Button>
                 {isEditMode && (
                   <Button
                     size="sm"
