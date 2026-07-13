@@ -333,12 +333,6 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
               <RefreshCcw className="w-3 h-3 mr-1" /> Resetar tudo
             </Button>
           )}
-          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={openLoad}>
-            <Library className="w-3 h-3 mr-1" /> Carregar template
-          </Button>
-          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setSaveOpen(true)}>
-            <BookmarkPlus className="w-3 h-3 mr-1" /> Salvar template
-          </Button>
           <div className="flex items-center gap-2 pl-2 border-l border-border/40">
             <Switch
               id="periodization-enabled"
