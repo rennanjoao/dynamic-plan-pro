@@ -139,6 +139,14 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [consultOpen, setConsultOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"macros" | "guidelines" | "workouts" | "diet">("macros");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [lastAutosavedAt, setLastAutosavedAt] = useState<Date | null>(null);
+  const [isAutosaving, setIsAutosaving] = useState(false);
+  const [pendingOpen, setPendingOpen] = useState(false);
+  const [hasDraft, setHasDraft] = useState(false);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const payloadRef = useRef<ProtocolPayload | null>(null);
+  useEffect(() => { payloadRef.current = payload; }, [payload]);
 
   const tabLabel: Record<typeof activeTab, string> = {
     macros: "Macros",
