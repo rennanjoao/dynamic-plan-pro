@@ -115,6 +115,26 @@ async function fetchAthleteContext() {
     supabase.from("protocols").select("name,payload").eq("student_id", uid).eq("active", true).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
 
+  // Últimas atualizações do coach (protocol_change_events) — usadas pela IA
+  // pra responder "quais foram as últimas atualizações do meu coach".
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updatesRes = await (supabase as any)
+    .from("protocol_change_events")
+    .select("id, changes, created_at, seen_at")
+    .eq("student_id", uid)
+    .order("created_at", { ascending: false })
+    .limit(5);
+  const recentCoachUpdates = (updatesRes.data ?? []).flatMap((row: any) => {
+    const date = row.created_at ? row.created_at.slice(0, 10) : null;
+    const changes = Array.isArray(row.changes) ? row.changes : [];
+    return changes.map((c: any) => ({
+      date,
+      label: c?.label ?? "",
+      category: c?.category ?? "geral",
+      seen: !!row.seen_at,
+    }));
+  });
+
   return {
     name: profileRes.data?.full_name,
     isCoach: false,
@@ -126,6 +146,7 @@ async function fetchAthleteContext() {
     latestMeasurements: measure.data?.[0] ?? null,
     latestSkinfolds: skin.data?.[0] ?? null,
     activeProtocol: protocol.data ? { name: protocol.data.name, payload: protocol.data.payload } : null,
+    recentCoachUpdates,
   };
 }
 

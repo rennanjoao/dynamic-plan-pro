@@ -67,6 +67,7 @@ import WorkoutPeriodizationEditor from "./WorkoutPeriodizationEditor";
 import StudentProtocolPreview from "./StudentProtocolPreview";
 import ProtocolVersionHistoryDialog from "./ProtocolVersionHistoryDialog";
 import TemplateLibraryDialog from "./TemplateLibraryDialog";
+import CopyProtocolDialog from "./CopyProtocolDialog";
 import { calcMealMacros, calcDayMacros, tacoGroupToKind, parseWeightString, optionMacros, compareOptions, type SubstitutionSeverity } from "@/lib/macroCalc";
 import {
   detectProtocolChanges,
@@ -143,6 +144,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [activeTab, setActiveTab] = useState<"macros" | "guidelines" | "workouts" | "diet">("macros");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [copyOpen, setCopyOpen] = useState(false);
   const [lastAutosavedAt, setLastAutosavedAt] = useState<Date | null>(null);
   const [isAutosaving, setIsAutosaving] = useState(false);
   const [pendingOpen, setPendingOpen] = useState(false);
@@ -567,6 +569,16 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                   <Library className="w-3.5 h-3.5 sm:mr-1.5" />
                   <span className="hidden sm:inline">Templates</span>
                 </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 text-xs"
+                  onClick={() => setCopyOpen(true)}
+                  title="Copiar para outro aluno"
+                >
+                  <Copy className="w-3.5 h-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Copiar</span>
+                </Button>
                 {isEditMode && (
                   <Button
                     size="sm"
@@ -778,6 +790,15 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         coachId={coachId}
         payload={payload}
         setPayload={updatePayload}
+        protocolName={name}
+      />
+
+      <CopyProtocolDialog
+        open={copyOpen}
+        onOpenChange={setCopyOpen}
+        coachId={coachId}
+        payload={payload}
+        sourceStudentId={studentId}
         protocolName={name}
       />
     </div>

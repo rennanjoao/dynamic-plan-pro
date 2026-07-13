@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import FeedbackCountdownAlert from "@/components/student/FeedbackCountdownAlert";
 import { TrainerAlert } from "@/components/student/TrainerAlert";
 import CoachUpdatesCard from "@/components/student/CoachUpdatesCard";
+import CoachUpdatesHistoryDialog from "@/components/student/CoachUpdatesHistoryDialog";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { buildPixBrCode } from "@/lib/pixBrCode";
 import QRCode from "qrcode";
@@ -83,6 +84,26 @@ function InitialsAvatar({ name }: { name: string }) {
     <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${AVATAR_COLORS[colorIdx]}`}>
       {initials || "?"}
     </div>
+  );
+}
+
+// Link permanente pro histórico de atualizações do coach (Fase 6).
+// Sempre visível, mesmo quando não há atualizações novas.
+function CoachUpdatesHistoryLink() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <div className="flex justify-end -mt-1">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-4"
+        >
+          Ver histórico de atualizações
+        </button>
+      </div>
+      <CoachUpdatesHistoryDialog open={open} onOpenChange={setOpen} />
+    </>
   );
 }
 
@@ -530,6 +551,7 @@ export default function StudentArea() {
         <TrainerAlert />
 
         <CoachUpdatesCard />
+        <CoachUpdatesHistoryLink />
 
         {billingAlert && !dismissedAlerts.includes(billingAlert.id) && (
           <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 relative shadow-sm">
