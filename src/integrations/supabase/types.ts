@@ -1018,11 +1018,50 @@ export type Database = {
         }
         Relationships: []
       }
+      protocol_versions: {
+        Row: {
+          coach_id: string
+          created_at: string
+          id: string
+          payload: Json
+          protocol_id: string
+          student_id: string
+          version: number
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          id?: string
+          payload: Json
+          protocol_id: string
+          student_id: string
+          version: number
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          protocol_id?: string
+          student_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "protocol_versions_protocol_id_fkey"
+            columns: ["protocol_id"]
+            isOneToOne: false
+            referencedRelation: "protocols"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       protocols: {
         Row: {
           active: boolean | null
           coach_id: string | null
           created_at: string
+          draft_payload: Json | null
           id: string
           is_template: boolean | null
           name: string
@@ -1034,6 +1073,7 @@ export type Database = {
           active?: boolean | null
           coach_id?: string | null
           created_at?: string
+          draft_payload?: Json | null
           id?: string
           is_template?: boolean | null
           name: string
@@ -1045,6 +1085,7 @@ export type Database = {
           active?: boolean | null
           coach_id?: string | null
           created_at?: string
+          draft_payload?: Json | null
           id?: string
           is_template?: boolean | null
           name?: string

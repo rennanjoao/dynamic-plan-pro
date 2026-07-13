@@ -48,7 +48,7 @@ import {
   Loader2, Save, Plus, Trash2, FileText, Dumbbell, UtensilsCrossed,
   Calendar, Sparkles, BarChart3, Activity, Pill, TrendingUp, TrendingDown, Minus,
   CheckCircle2, ChevronDown, Copy, BookmarkPlus, Library, ClipboardList,
-  ArrowUp, ArrowDown, Eye, Settings2
+  ArrowUp, ArrowDown, Eye, Settings2, History, AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
 import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
@@ -64,6 +64,7 @@ import ProtocolImportExport from "./ProtocolImportExport";
 import ProtocolImportHistory from "./ProtocolImportHistory";
 import WorkoutPeriodizationEditor from "./WorkoutPeriodizationEditor";
 import StudentProtocolPreview from "./StudentProtocolPreview";
+import ProtocolVersionHistoryDialog from "./ProtocolVersionHistoryDialog";
 import { calcMealMacros, calcDayMacros, tacoGroupToKind, parseWeightString, optionMacros, compareOptions, type SubstitutionSeverity } from "@/lib/macroCalc";
 import {
   detectProtocolChanges,
@@ -93,6 +94,7 @@ interface ProtocolRow {
   name: string;
   is_template: boolean;
   payload: ProtocolPayload;
+  draft_payload: ProtocolPayload | null;
   active: boolean | null;
   updated_at: string;
 }
@@ -137,6 +139,14 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [consultOpen, setConsultOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"macros" | "guidelines" | "workouts" | "diet">("macros");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [lastAutosavedAt, setLastAutosavedAt] = useState<Date | null>(null);
+  const [isAutosaving, setIsAutosaving] = useState(false);
+  const [pendingOpen, setPendingOpen] = useState(false);
+  const [hasDraft, setHasDraft] = useState(false);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const payloadRef = useRef<ProtocolPayload | null>(null);
+  useEffect(() => { payloadRef.current = payload; }, [payload]);
 
   const tabLabel: Record<typeof activeTab, string> = {
     macros: "Macros",
@@ -181,8 +191,20 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       setProtocolId(existing.id);
       setName(existing.name || `Protocolo — ${studentName}`);
       setActive(existing.active ?? true);
-      const parsed = ProtocolPayloadSchema.safeParse(existing.payload);
-      setPayload(parsed.success ? parsed.data : buildBasePayload({ split: "ABC", mealsCount: 5, carbCycle: false }));
+      // Se houver rascunho salvo, retomar dele; senão, usar o payload publicado.
+      const draftParsed = existing.draft_payload
+        ? ProtocolPayloadSchema.safeParse(existing.draft_payload)
+        : null;
+      const publishedParsed = ProtocolPayloadSchema.safeParse(existing.payload);
+      if (draftParsed && draftParsed.success) {
+        setPayload(draftParsed.data);
+        setHasDraft(true);
+      } else {
+        setPayload(publishedParsed.success
+          ? publishedParsed.data
+          : buildBasePayload({ split: "ABC", mealsCount: 5, carbCycle: false }));
+        setHasDraft(false);
+      }
       // Só grava o snapshot na primeira vez que carregamos este protocolo.
       // Ignora revalidações posteriores para não corromper a comparação.
       if (previousPayloadRef.current == null) {
@@ -195,6 +217,90 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   }, [existing, isLoading, studentName]);
 
   const isEditMode = !!protocolId;
+
+  // ─── Autosave em draft_payload ─────────────────────────────────────────
+  // Só roda em modo edição de um protocolo já existente. Nunca toca em `payload`.
+  async function performAutosave() {
+    if (!isEditMode || !protocolId) return;
+    const current = payloadRef.current;
+    if (!current) return;
+    setIsAutosaving(true);
+    try {
+      const parsed = ProtocolPayloadSchema.parse(current);
+      const { error } = await sb
+        .from("protocols")
+        .update({ draft_payload: parsed })
+        .eq("id", protocolId);
+      if (error) throw error;
+      setLastAutosavedAt(new Date());
+      setHasDraft(true);
+    } catch (e) {
+      console.error("[autosave] falhou", e);
+    } finally {
+      setIsAutosaving(false);
+    }
+  }
+
+  const flushAutosave = () => {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+      performAutosave();
+    }
+  };
+
+  // Agenda autosave debounced (1.5s) sempre que o payload muda em modo edição.
+  useEffect(() => {
+    if (!isDirty || !isEditMode || !protocolId) return;
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(() => {
+      autosaveTimerRef.current = null;
+      performAutosave();
+    }, 1500);
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payload, isDirty, isEditMode, protocolId]);
+
+  // Flush ao trocar de aba.
+  const handleTabChange = (v: string) => {
+    flushAutosave();
+    setActiveTab(v as typeof activeTab);
+  };
+
+  async function discardDraft() {
+    if (!protocolId || !existing) return;
+    try {
+      const { error } = await sb
+        .from("protocols")
+        .update({ draft_payload: null })
+        .eq("id", protocolId);
+      if (error) throw error;
+      const publishedParsed = ProtocolPayloadSchema.safeParse(existing.payload);
+      if (publishedParsed.success) setPayload(publishedParsed.data);
+      setHasDraft(false);
+      setIsDirty(false);
+      setLastAutosavedAt(null);
+      toast.success("Rascunho descartado — voltamos à última versão publicada");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao descartar rascunho");
+    }
+  }
+
+  // Lista de alterações pendentes (rascunho vs. último publicado).
+  const pendingChanges: ProtocolChange[] = useMemo(() => {
+    if (!payload || !isEditMode) return [];
+    if (previousActiveRef.current === false) return [];
+    try {
+      return detectProtocolChanges(previousPayloadRef.current, payload) ?? [];
+    } catch {
+      return [];
+    }
+  }, [payload, isEditMode]);
 
   function generateBase() {
     const base = buildBasePayload({ split: setupSplit, mealsCount: setupMeals, carbCycle: setupCarbCycle });
@@ -212,13 +318,55 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       toast.error("Protocolo está Inativo — ative no topo antes de publicar.");
       return;
     }
+    // Cancela qualquer autosave em voo/pendente para não colidir com o publish.
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
     const publishActive = opts.asDraft ? false : active;
     setSaving(true);
     try {
       const parsed = ProtocolPayloadSchema.parse(payload);
       if (isEditMode && protocolId) {
-        const { error } = await sb.from("protocols").update({ name, payload: parsed, active: publishActive, updated_at: new Date().toISOString() }).eq("id", protocolId);
+        // Snapshot da versão publicada antes de sobrescrever — só em publicação real.
+        if (!opts.asDraft) {
+          const { data: current, error: readErr } = await sb
+            .from("protocols")
+            .select("payload")
+            .eq("id", protocolId)
+            .maybeSingle();
+          if (readErr) throw readErr;
+          if (current?.payload) {
+            const { data: maxRow } = await sb
+              .from("protocol_versions")
+              .select("version")
+              .eq("protocol_id", protocolId)
+              .order("version", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            const nextVersion = ((maxRow?.version as number | undefined) ?? 0) + 1;
+            const { error: insErr } = await sb
+              .from("protocol_versions")
+              .insert({
+                protocol_id: protocolId,
+                student_id: studentId,
+                coach_id: coachId,
+                version: nextVersion,
+                payload: current.payload,
+              });
+            if (insErr) throw insErr;
+          }
+        }
+        const updateFields: Record<string, unknown> = {
+          name,
+          payload: parsed,
+          active: publishActive,
+          updated_at: new Date().toISOString(),
+        };
+        if (!opts.asDraft) updateFields.draft_payload = null;
+        const { error } = await sb.from("protocols").update(updateFields).eq("id", protocolId);
         if (error) throw error;
+        if (!opts.asDraft) setHasDraft(false);
         toast.success(opts.asDraft ? "Rascunho salvo — aluno ainda não vê esta versão" : "Protocolo atualizado");
       } else {
         const { data, error } = await sb.from("protocols").insert({ student_id: studentId, coach_id: coachId, name, is_template: false, payload: parsed, active: publishActive }).select().single();
@@ -404,11 +552,39 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
           {payload && (
             <div>
               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Nome do protocolo</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 h-9 text-sm" />
+              <div className="mt-1 flex items-center gap-2">
+                <Input value={name} onChange={(e) => setName(e.target.value)} className="h-9 text-sm flex-1" />
+                {isEditMode && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-9 text-xs"
+                    onClick={() => setHistoryOpen(true)}
+                    title="Ver histórico de versões"
+                  >
+                    <History className="w-3.5 h-3.5 sm:mr-1.5" />
+                    <span className="hidden sm:inline">Histórico</span>
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </div>
       </Card>
+
+      {isEditMode && hasDraft && (
+        <Card className="border-amber-500/40 bg-amber-500/5 p-3 flex items-start gap-3">
+          <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-foreground/90">
+              Você está editando um <strong>rascunho não publicado</strong>. O aluno continua vendo a última versão publicada.
+            </p>
+          </div>
+          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={discardDraft}>
+            Descartar rascunho
+          </Button>
+        </Card>
+      )}
 
       {!payload ? (
         <>
@@ -431,7 +607,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             )}
             <div className={cn("space-y-4", !active && "opacity-60 saturate-50")}>
 
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
+          <Tabs value={activeTab} onValueChange={handleTabChange}>
             {(() => {
               const completion = computeCompletion(payload);
               const flags = [completion.macros, completion.guidelines, completion.workouts, completion.diet];
@@ -468,19 +644,56 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 sticky bottom-4 z-40">
-            <Button onClick={saveAsTemplate} disabled={saving} size="lg" variant="ghost" className="shadow-lg mr-auto">
-              <BookmarkPlus className="w-4 h-4 mr-2" />
-              Salvar template
-            </Button>
-            <Button onClick={() => save({ asDraft: true })} disabled={saving} size="lg" variant="outline" className="shadow-lg bg-background">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
-              Salvar rascunho
-            </Button>
-            <Button onClick={() => save()} disabled={saving || !active} size="lg" className="shadow-lg">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-              {isEditMode ? "Atualizar protocolo" : "Criar protocolo"}
-            </Button>
+          <div className="sticky bottom-4 z-40 space-y-2">
+            {isEditMode && pendingChanges.length > 0 && (
+              <Card className="bg-background/95 backdrop-blur border-primary/30 shadow-lg overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setPendingOpen((v) => !v)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-primary/5 transition"
+                >
+                  <AlertCircle className="w-4 h-4 text-primary" />
+                  <span className="text-xs font-semibold flex-1">
+                    {pendingChanges.length} {pendingChanges.length === 1 ? "alteração pendente" : "alterações pendentes"}
+                  </span>
+                  <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", pendingOpen && "rotate-180")} />
+                </button>
+                {pendingOpen && (
+                  <ul className="border-t border-border max-h-52 overflow-y-auto divide-y divide-border">
+                    {pendingChanges.slice(0, 30).map((c, i) => (
+                      <li key={i} className="px-3 py-2 text-[11px]">
+                        <div className="font-medium text-foreground/90">{c.label}</div>
+                        {c.detail && <div className="text-muted-foreground mt-0.5">{c.detail}</div>}
+                      </li>
+                    ))}
+                    {pendingChanges.length > 30 && (
+                      <li className="px-3 py-2 text-[11px] italic text-muted-foreground">
+                        + {pendingChanges.length - 30} outras alterações…
+                      </li>
+                    )}
+                  </ul>
+                )}
+              </Card>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={saveAsTemplate} disabled={saving} size="lg" variant="ghost" className="shadow-lg mr-auto">
+                <BookmarkPlus className="w-4 h-4 mr-2" />
+                Salvar template
+              </Button>
+              {isEditMode && (
+                <span className="text-[10px] text-muted-foreground px-1" aria-live="polite">
+                  {isAutosaving
+                    ? "Salvando…"
+                    : lastAutosavedAt
+                      ? `Salvo às ${lastAutosavedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+                      : hasDraft ? "Rascunho retomado" : ""}
+                </span>
+              )}
+              <Button onClick={() => save()} disabled={saving || !active} size="lg" className="shadow-lg">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                {isEditMode ? "Atualizar protocolo" : "Criar protocolo"}
+              </Button>
+            </div>
           </div>
         </>
       )}
@@ -539,6 +752,16 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
           section={activeTab}
         />
       )}
+
+      <ProtocolVersionHistoryDialog
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        protocolId={protocolId}
+        protocolName={name}
+        onRestore={(p) => {
+          updatePayload(p);
+        }}
+      />
     </div>
   );
 }
