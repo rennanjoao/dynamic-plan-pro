@@ -552,11 +552,39 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
           {payload && (
             <div>
               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Nome do protocolo</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 h-9 text-sm" />
+              <div className="mt-1 flex items-center gap-2">
+                <Input value={name} onChange={(e) => setName(e.target.value)} className="h-9 text-sm flex-1" />
+                {isEditMode && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-9 text-xs"
+                    onClick={() => setHistoryOpen(true)}
+                    title="Ver histórico de versões"
+                  >
+                    <History className="w-3.5 h-3.5 sm:mr-1.5" />
+                    <span className="hidden sm:inline">Histórico</span>
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </div>
       </Card>
+
+      {isEditMode && hasDraft && (
+        <Card className="border-amber-500/40 bg-amber-500/5 p-3 flex items-start gap-3">
+          <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-foreground/90">
+              Você está editando um <strong>rascunho não publicado</strong>. O aluno continua vendo a última versão publicada.
+            </p>
+          </div>
+          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={discardDraft}>
+            Descartar rascunho
+          </Button>
+        </Card>
+      )}
 
       {!payload ? (
         <>
