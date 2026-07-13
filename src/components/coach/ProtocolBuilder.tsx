@@ -48,7 +48,7 @@ import {
   Loader2, Save, Plus, Trash2, FileText, Dumbbell, UtensilsCrossed,
   Calendar, Sparkles, BarChart3, Activity, Pill, TrendingUp, TrendingDown, Minus,
   CheckCircle2, ChevronDown, Copy, BookmarkPlus, Library, ClipboardList,
-  ArrowUp, ArrowDown, Eye, Settings2
+  ArrowUp, ArrowDown, Eye, Settings2, History, AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
 import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
@@ -64,6 +64,7 @@ import ProtocolImportExport from "./ProtocolImportExport";
 import ProtocolImportHistory from "./ProtocolImportHistory";
 import WorkoutPeriodizationEditor from "./WorkoutPeriodizationEditor";
 import StudentProtocolPreview from "./StudentProtocolPreview";
+import ProtocolVersionHistoryDialog from "./ProtocolVersionHistoryDialog";
 import { calcMealMacros, calcDayMacros, tacoGroupToKind, parseWeightString, optionMacros, compareOptions, type SubstitutionSeverity } from "@/lib/macroCalc";
 import {
   detectProtocolChanges,
