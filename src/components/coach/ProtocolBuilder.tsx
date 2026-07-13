@@ -191,8 +191,20 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       setProtocolId(existing.id);
       setName(existing.name || `Protocolo — ${studentName}`);
       setActive(existing.active ?? true);
-      const parsed = ProtocolPayloadSchema.safeParse(existing.payload);
-      setPayload(parsed.success ? parsed.data : buildBasePayload({ split: "ABC", mealsCount: 5, carbCycle: false }));
+      // Se houver rascunho salvo, retomar dele; senão, usar o payload publicado.
+      const draftParsed = existing.draft_payload
+        ? ProtocolPayloadSchema.safeParse(existing.draft_payload)
+        : null;
+      const publishedParsed = ProtocolPayloadSchema.safeParse(existing.payload);
+      if (draftParsed && draftParsed.success) {
+        setPayload(draftParsed.data);
+        setHasDraft(true);
+      } else {
+        setPayload(publishedParsed.success
+          ? publishedParsed.data
+          : buildBasePayload({ split: "ABC", mealsCount: 5, carbCycle: false }));
+        setHasDraft(false);
+      }
       // Só grava o snapshot na primeira vez que carregamos este protocolo.
       // Ignora revalidações posteriores para não corromper a comparação.
       if (previousPayloadRef.current == null) {
@@ -205,6 +217,90 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   }, [existing, isLoading, studentName]);
 
   const isEditMode = !!protocolId;
+
+  // ─── Autosave em draft_payload ─────────────────────────────────────────
+  // Só roda em modo edição de um protocolo já existente. Nunca toca em `payload`.
+  async function performAutosave() {
+    if (!isEditMode || !protocolId) return;
+    const current = payloadRef.current;
+    if (!current) return;
+    setIsAutosaving(true);
+    try {
+      const parsed = ProtocolPayloadSchema.parse(current);
+      const { error } = await sb
+        .from("protocols")
+        .update({ draft_payload: parsed })
+        .eq("id", protocolId);
+      if (error) throw error;
+      setLastAutosavedAt(new Date());
+      setHasDraft(true);
+    } catch (e) {
+      console.error("[autosave] falhou", e);
+    } finally {
+      setIsAutosaving(false);
+    }
+  }
+
+  const flushAutosave = () => {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+      performAutosave();
+    }
+  };
+
+  // Agenda autosave debounced (1.5s) sempre que o payload muda em modo edição.
+  useEffect(() => {
+    if (!isDirty || !isEditMode || !protocolId) return;
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(() => {
+      autosaveTimerRef.current = null;
+      performAutosave();
+    }, 1500);
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payload, isDirty, isEditMode, protocolId]);
+
+  // Flush ao trocar de aba.
+  const handleTabChange = (v: string) => {
+    flushAutosave();
+    setActiveTab(v as typeof activeTab);
+  };
+
+  async function discardDraft() {
+    if (!protocolId || !existing) return;
+    try {
+      const { error } = await sb
+        .from("protocols")
+        .update({ draft_payload: null })
+        .eq("id", protocolId);
+      if (error) throw error;
+      const publishedParsed = ProtocolPayloadSchema.safeParse(existing.payload);
+      if (publishedParsed.success) setPayload(publishedParsed.data);
+      setHasDraft(false);
+      setIsDirty(false);
+      setLastAutosavedAt(null);
+      toast.success("Rascunho descartado — voltamos à última versão publicada");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao descartar rascunho");
+    }
+  }
+
+  // Lista de alterações pendentes (rascunho vs. último publicado).
+  const pendingChanges: ProtocolChange[] = useMemo(() => {
+    if (!payload || !isEditMode) return [];
+    if (previousActiveRef.current === false) return [];
+    try {
+      return detectProtocolChanges(previousPayloadRef.current, payload) ?? [];
+    } catch {
+      return [];
+    }
+  }, [payload, isEditMode]);
 
   function generateBase() {
     const base = buildBasePayload({ split: setupSplit, mealsCount: setupMeals, carbCycle: setupCarbCycle });
