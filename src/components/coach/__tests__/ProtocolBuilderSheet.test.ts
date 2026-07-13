@@ -1,10 +1,12 @@
 /**
  * ProtocolBuilderSheet.test.ts
- * Regressão estrutural: garante que o Sheet de Anamnese:
- *  1. usa <Sheet> (Radix Portal — não desmonta o builder)
- *  2. carrega AnamnesisViewer via lazy()/Suspense (não bloqueia o tree)
- *  3. monta o AnamnesisViewer apenas quando consultOpen === true
- *     (não dispara consulta enquanto fechado)
+ * Regressão estrutural: garante que o painel de consulta lateral:
+ *  1. carrega CheckinFeedbackPanel via lazy()/Suspense (não bloqueia o tree
+ *     principal do builder e é renderizado em portal via Dialog)
+ *  2. monta o CheckinFeedbackPanel apenas quando consultOpen === true
+ *     (não dispara consulta/fetch enquanto fechado)
+ *  3. consultOpen é state local (useState) — não derruba o estado da dieta
+ *  4. não há early-return baseado em consultOpen
  *
  * Render de integração é frágil para esse componente (size 925 LOC, muitas deps Supabase
  * e contexto auth). A asserção é feita sobre o source para travar regressões arquiteturais.
@@ -18,23 +20,18 @@ const SRC = readFileSync(
   "utf8"
 );
 
-describe("ProtocolBuilder — Sheet de Anamnese (regressão)", () => {
-  it("usa lazy() para AnamnesisViewer", () => {
-    expect(SRC).toMatch(/lazy\(\s*\(\)\s*=>\s*import\("@\/components\/anamnesis\/AnamnesisViewer"\)\s*\)/);
+describe("ProtocolBuilder — painel de consulta (regressão)", () => {
+  it("usa lazy() para CheckinFeedbackPanel", () => {
+    expect(SRC).toMatch(/lazy\(\s*\(\)\s*=>\s*import\("\.\/CheckinFeedbackPanel"\)\s*\)/);
   });
 
-  it("usa <Sheet> (portal) — nunca <Dialog> embutido no tree principal para Anamnese", () => {
-    expect(SRC).toMatch(/<Sheet\s+open=\{consultOpen\}/);
-    expect(SRC).toMatch(/<SheetContent/);
+  it("renderiza CheckinFeedbackPanel dentro de <Suspense>", () => {
+    expect(SRC).toMatch(/<Suspense[\s\S]*?<CheckinFeedbackPanel/);
   });
 
-  it("renderiza AnamnesisViewer dentro de <Suspense>", () => {
-    expect(SRC).toMatch(/<Suspense[\s\S]*?<AnamnesisViewerLazy/);
-  });
-
-  it("monta o viewer apenas com consultOpen === true (evita fetch quando fechado)", () => {
-    // padrão: {consultOpen && (<Suspense>...<AnamnesisViewerLazy/>)}
-    expect(SRC).toMatch(/\{consultOpen\s*&&[\s\S]*?<AnamnesisViewerLazy/);
+  it("monta o painel apenas com consultOpen === true (evita fetch quando fechado)", () => {
+    // padrão: {consultOpen && (<Suspense>...<CheckinFeedbackPanel/>)}
+    expect(SRC).toMatch(/\{consultOpen\s*&&[\s\S]*?<CheckinFeedbackPanel/);
   });
 
   it("state consultOpen é local (useState boolean) — não derruba o estado da dieta", () => {
