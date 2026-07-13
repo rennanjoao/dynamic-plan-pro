@@ -318,13 +318,55 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       toast.error("Protocolo está Inativo — ative no topo antes de publicar.");
       return;
     }
+    // Cancela qualquer autosave em voo/pendente para não colidir com o publish.
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
     const publishActive = opts.asDraft ? false : active;
     setSaving(true);
     try {
       const parsed = ProtocolPayloadSchema.parse(payload);
       if (isEditMode && protocolId) {
-        const { error } = await sb.from("protocols").update({ name, payload: parsed, active: publishActive, updated_at: new Date().toISOString() }).eq("id", protocolId);
+        // Snapshot da versão publicada antes de sobrescrever — só em publicação real.
+        if (!opts.asDraft) {
+          const { data: current, error: readErr } = await sb
+            .from("protocols")
+            .select("payload")
+            .eq("id", protocolId)
+            .maybeSingle();
+          if (readErr) throw readErr;
+          if (current?.payload) {
+            const { data: maxRow } = await sb
+              .from("protocol_versions")
+              .select("version")
+              .eq("protocol_id", protocolId)
+              .order("version", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            const nextVersion = ((maxRow?.version as number | undefined) ?? 0) + 1;
+            const { error: insErr } = await sb
+              .from("protocol_versions")
+              .insert({
+                protocol_id: protocolId,
+                student_id: studentId,
+                coach_id: coachId,
+                version: nextVersion,
+                payload: current.payload,
+              });
+            if (insErr) throw insErr;
+          }
+        }
+        const updateFields: Record<string, unknown> = {
+          name,
+          payload: parsed,
+          active: publishActive,
+          updated_at: new Date().toISOString(),
+        };
+        if (!opts.asDraft) updateFields.draft_payload = null;
+        const { error } = await sb.from("protocols").update(updateFields).eq("id", protocolId);
         if (error) throw error;
+        if (!opts.asDraft) setHasDraft(false);
         toast.success(opts.asDraft ? "Rascunho salvo — aluno ainda não vê esta versão" : "Protocolo atualizado");
       } else {
         const { data, error } = await sb.from("protocols").insert({ student_id: studentId, coach_id: coachId, name, is_template: false, payload: parsed, active: publishActive }).select().single();
