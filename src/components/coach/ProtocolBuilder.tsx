@@ -607,7 +607,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             )}
             <div className={cn("space-y-4", !active && "opacity-60 saturate-50")}>
 
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
+          <Tabs value={activeTab} onValueChange={handleTabChange}>
             {(() => {
               const completion = computeCompletion(payload);
               const flags = [completion.macros, completion.guidelines, completion.workouts, completion.diet];
@@ -644,19 +644,56 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 sticky bottom-4 z-40">
-            <Button onClick={saveAsTemplate} disabled={saving} size="lg" variant="ghost" className="shadow-lg mr-auto">
-              <BookmarkPlus className="w-4 h-4 mr-2" />
-              Salvar template
-            </Button>
-            <Button onClick={() => save({ asDraft: true })} disabled={saving} size="lg" variant="outline" className="shadow-lg bg-background">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
-              Salvar rascunho
-            </Button>
-            <Button onClick={() => save()} disabled={saving || !active} size="lg" className="shadow-lg">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-              {isEditMode ? "Atualizar protocolo" : "Criar protocolo"}
-            </Button>
+          <div className="sticky bottom-4 z-40 space-y-2">
+            {isEditMode && pendingChanges.length > 0 && (
+              <Card className="bg-background/95 backdrop-blur border-primary/30 shadow-lg overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setPendingOpen((v) => !v)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-primary/5 transition"
+                >
+                  <AlertCircle className="w-4 h-4 text-primary" />
+                  <span className="text-xs font-semibold flex-1">
+                    {pendingChanges.length} {pendingChanges.length === 1 ? "alteração pendente" : "alterações pendentes"}
+                  </span>
+                  <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", pendingOpen && "rotate-180")} />
+                </button>
+                {pendingOpen && (
+                  <ul className="border-t border-border max-h-52 overflow-y-auto divide-y divide-border">
+                    {pendingChanges.slice(0, 30).map((c, i) => (
+                      <li key={i} className="px-3 py-2 text-[11px]">
+                        <div className="font-medium text-foreground/90">{c.label}</div>
+                        {c.detail && <div className="text-muted-foreground mt-0.5">{c.detail}</div>}
+                      </li>
+                    ))}
+                    {pendingChanges.length > 30 && (
+                      <li className="px-3 py-2 text-[11px] italic text-muted-foreground">
+                        + {pendingChanges.length - 30} outras alterações…
+                      </li>
+                    )}
+                  </ul>
+                )}
+              </Card>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={saveAsTemplate} disabled={saving} size="lg" variant="ghost" className="shadow-lg mr-auto">
+                <BookmarkPlus className="w-4 h-4 mr-2" />
+                Salvar template
+              </Button>
+              {isEditMode && (
+                <span className="text-[10px] text-muted-foreground px-1" aria-live="polite">
+                  {isAutosaving
+                    ? "Salvando…"
+                    : lastAutosavedAt
+                      ? `Salvo às ${lastAutosavedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+                      : hasDraft ? "Rascunho retomado" : ""}
+                </span>
+              )}
+              <Button onClick={() => save()} disabled={saving || !active} size="lg" className="shadow-lg">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                {isEditMode ? "Atualizar protocolo" : "Criar protocolo"}
+              </Button>
+            </div>
           </div>
         </>
       )}
