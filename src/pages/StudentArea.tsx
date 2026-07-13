@@ -478,7 +478,7 @@ export default function StudentArea() {
 
   // ─── Módulos secundários (grid 2x2) ───
   const secondaryModules = [
-    { title: "Suplementação", description: "Fármacos, vitaminas e horários.",   icon: Pill,          color: "text-purple-500",  bg: "bg-purple-500/10",  border: "border-purple-500/20",  route: "/supplements"  },
+    { title: "Suplementos & Directrizes", description: "Fármacos, vitaminas e horários.",   icon: Pill,          color: "text-purple-500",  bg: "bg-purple-500/10",  border: "border-purple-500/20",  route: "/supplements"  },
     { title: "Evolução",       description: "Fotos, gráficos e progresso.",      icon: TrendingUp,    color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", route: "/evolution"    },
     { title: "Check-in",       description: "Feedback periódico ao treinador.",  icon: CheckCircle2,  color: "text-rose-500",    bg: "bg-rose-500/10",    border: "border-rose-500/20",    route: "/check-in"     },
     { title: "Lista de Compras", description: "Compras agregadas e PDF.",        icon: ShoppingCart,  color: "text-orange-500",  bg: "bg-orange-500/10",  border: "border-orange-500/20",  route: "/shopping-list"},
