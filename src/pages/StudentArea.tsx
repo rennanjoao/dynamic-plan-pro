@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import FeedbackCountdownAlert from "@/components/student/FeedbackCountdownAlert";
 import { TrainerAlert } from "@/components/student/TrainerAlert";
 import CoachUpdatesCard from "@/components/student/CoachUpdatesCard";
+import CoachUpdatesHistoryDialog from "@/components/student/CoachUpdatesHistoryDialog";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { buildPixBrCode } from "@/lib/pixBrCode";
 import QRCode from "qrcode";
@@ -530,6 +531,7 @@ export default function StudentArea() {
         <TrainerAlert />
 
         <CoachUpdatesCard />
+        <CoachUpdatesHistoryLink />
 
         {billingAlert && !dismissedAlerts.includes(billingAlert.id) && (
           <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 relative shadow-sm">
