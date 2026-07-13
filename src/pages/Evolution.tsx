@@ -3,7 +3,7 @@
  * Tabs: Dashboard (comparativo) · Histórico (timeline).
  */
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,7 +14,8 @@ import { ProgressChart } from "@/components/student/ProgressChart";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Plus, MessageCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ArrowLeft, Plus, MessageCircle, ChevronRight } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -34,6 +35,7 @@ export default function Evolution() {
   const navigate = useNavigate();
   const { anamnesis, checkIns, loading, studentId } = useStudentData();
   const qc = useQueryClient();
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -99,16 +101,39 @@ export default function Evolution() {
         ) : (
           <>
           {hasFeedback && latestFeedback && (
-            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 space-y-2">
-              <div className="flex items-center gap-2">
-                <MessageCircle className="w-4 h-4 text-emerald-500" />
-                <p className="text-sm font-bold text-emerald-600 dark:text-emerald-500">Feedback do seu coach</p>
-                <span className="text-[11px] text-muted-foreground ml-auto">{formatRelative(latestFeedback.submitted_at)}</span>
-              </div>
-              <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
-                {latestFeedback.coach_feedback}
-              </p>
-            </div>
+            <>
+              <button
+                type="button"
+                onClick={() => setFeedbackOpen(true)}
+                className="w-full text-left rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 hover:bg-emerald-500/15 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <MessageCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <p className="text-sm font-bold text-emerald-600 dark:text-emerald-500">Feedback do seu coach</p>
+                  <span className="text-[11px] text-muted-foreground ml-auto shrink-0">{formatRelative(latestFeedback.submitted_at)}</span>
+                </div>
+                <p className="text-sm text-foreground/80 mt-1 line-clamp-1">
+                  {latestFeedback.coach_feedback}
+                </p>
+                <div className="flex items-center gap-1 mt-1 text-[11px] text-emerald-600 dark:text-emerald-500">
+                  Toque para ver completo <ChevronRight className="w-3 h-3" />
+                </div>
+              </button>
+
+              <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
+                <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2 text-emerald-600 dark:text-emerald-500">
+                      <MessageCircle className="w-4 h-4" /> Feedback do seu coach
+                    </DialogTitle>
+                    <p className="text-[11px] text-muted-foreground">{formatRelative(latestFeedback.submitted_at)}</p>
+                  </DialogHeader>
+                  <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+                    {latestFeedback.coach_feedback}
+                  </p>
+                </DialogContent>
+              </Dialog>
+            </>
           )}
           <Tabs defaultValue="dashboard" className="space-y-5">
             <TabsList className="grid grid-cols-2 w-full bg-card border border-border">
