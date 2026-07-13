@@ -94,6 +94,7 @@ interface ProtocolRow {
   name: string;
   is_template: boolean;
   payload: ProtocolPayload;
+  draft_payload: ProtocolPayload | null;
   active: boolean | null;
   updated_at: string;
 }
