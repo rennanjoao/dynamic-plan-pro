@@ -314,6 +314,8 @@ export const ProtocolPayloadSchema = z.object({
   periodization: PeriodizationSchema.default({} as any),
   // Map weekday key → workout key ("" or "rest" = sem treino)
   weekDays: z.record(z.string()).default({}),
+  // Observações do card de Descanso (key reservada "REST" em weekDays).
+  restNotes: z.string().default(""),
 });
 
 export type ProtocolPayload = z.infer<typeof ProtocolPayloadSchema>;

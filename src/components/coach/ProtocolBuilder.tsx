@@ -1314,7 +1314,9 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
                   title={`Carbo ${CARB_LABEL[carb]} — clique para alternar`}
                   className={cn(
                     "text-[8px] font-bold uppercase tracking-wider px-1 py-px rounded border leading-none mt-0.5",
-                    CARB_COLOR[carb].pill
+                    carb === "high"
+                      ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/40"
+                      : "bg-muted/40 text-muted-foreground border-border/50"
                   )}
                 >
                   {CARB_LABEL[carb]}
@@ -1597,6 +1599,58 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
           </div>
         </Card>
       ))}
+      {/* ── Card especial: Descanso (key reservada "REST") ── */}
+      <Card className="bg-card/40 border-dashed border-border/60 p-4">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-10 h-10 rounded-full bg-muted text-muted-foreground flex items-center justify-center font-black text-[11px] shrink-0 uppercase tracking-wider">
+            Off
+          </div>
+          <div className="flex-1">
+            <p className="text-base font-bold text-foreground leading-tight">Descanso</p>
+            <p className="text-[11px] text-muted-foreground">Dia sem treino — vincule aos dias da semana como qualquer outro treino.</p>
+          </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="shrink-0 inline-flex items-center gap-1 text-[11px] text-muted-foreground bg-muted/40 hover:bg-muted/60 border border-border/40 rounded-full px-2.5 py-1"
+                title="Dias da semana de descanso"
+              >
+                {dayChipText("REST")} <ChevronDown className="w-3 h-3" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-44 p-2">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 px-1">Aparece em</p>
+              <div className="space-y-0.5">
+                {DAY_KEYS.map((k) => {
+                  const checked = weekDays[k] === "REST";
+                  const takenBy = weekDays[k];
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setWeekday(k, "REST")}
+                      className={cn(
+                        "w-full flex items-center justify-between gap-2 px-2 py-1 rounded text-xs hover:bg-muted/60",
+                        checked && "bg-muted/60 text-foreground font-semibold"
+                      )}
+                    >
+                      <span>{ABBR[k]}</span>
+                      {checked ? <CheckCircle2 className="w-3.5 h-3.5" /> : takenBy ? <span className="text-[9px] text-muted-foreground">→ {takenBy}</span> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+        <Textarea
+          value={(payload as any).restNotes ?? ""}
+          onChange={(e) => setPayload({ ...payload, restNotes: e.target.value } as any)}
+          placeholder="Observação opcional para os dias de descanso (ex.: mobilidade leve, caminhada, sono/recuperação)."
+          className="min-h-[60px] text-xs bg-background/60"
+        />
+      </Card>
       <div className="mt-4 space-y-2">
         <div className="flex items-center justify-between">
           <Label className="text-sm font-semibold flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> Aeróbicos</Label>
