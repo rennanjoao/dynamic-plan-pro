@@ -689,10 +689,6 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
               </Card>
             )}
             <div className="flex flex-wrap items-center gap-2">
-              <Button onClick={saveAsTemplate} disabled={saving} size="lg" variant="ghost" className="shadow-lg mr-auto">
-                <BookmarkPlus className="w-4 h-4 mr-2" />
-                Salvar template
-              </Button>
               {isEditMode && (
                 <span className="text-[10px] text-muted-foreground px-1" aria-live="polite">
                   {isAutosaving
