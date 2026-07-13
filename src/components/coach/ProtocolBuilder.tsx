@@ -55,6 +55,7 @@ import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
 import {
   ProtocolPayloadSchema, ProtocolPayload, SPLIT_OPTIONS, WEEKDAYS,
   buildBasePayload, makeEmptyExercise, makeEmptyMeal, type SplitValue, MEAL_NAME_PRESETS,
+  SUPPLEMENT_OBJECTIVES,
 } from "@/lib/protocolSchema";
 import {
   buildWeekStrip, cycleCarb, normalizeCarb, CARB_LABEL, CARB_COLOR,
