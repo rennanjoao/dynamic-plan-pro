@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2, Sparkles } from "lucide-react";
@@ -22,6 +22,7 @@ import { useHighlightTarget } from "@/hooks/useHighlightTarget";
 export default function DynamicRoutine() {
   const navigate = useNavigate();
   const [userId, setUserId] = useState("");
+  const queryClient = useQueryClient();
   useWakeLock();
   useHighlightTarget();
 
@@ -36,6 +37,26 @@ export default function DynamicRoutine() {
     queryKey: ["student-routine-json", userId],
     enabled: !!userId,
     queryFn: async () => {
+      // 1) Fonte primária: protocols (gravação que o coach sempre garante que
+      //    aconteceu — a réplica em coach_plans é "best effort" e pode falhar).
+      const { data: protocol } = await supabase
+        .from("protocols")
+        .select("payload")
+        .eq("student_id", userId)
+        .eq("is_template", false)
+        .eq("active", true)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (protocol?.payload && Object.keys(protocol.payload as object).length > 0) {
+        return {
+          diet_strategy_json: protocol.payload,
+          workout_periodization_json: protocol.payload,
+        };
+      }
+
+      // 2) Fallback: coach_plans (cópia legada, só se não houver protocolo ativo)
       const { data } = await supabase
         .from("coach_plans")
         .select("diet_strategy_json, workout_periodization_json")
@@ -48,6 +69,29 @@ export default function DynamicRoutine() {
     },
     staleTime: 60_000,
   });
+
+  // [FIX] Sem isto, se o coach publicar um protocolo novo enquanto o aluno já
+  // está com esta tela aberta, ela não atualiza sozinha.
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel(`routine-live-${userId}`)
+      .on(
+        "postgres_changes" as never,
+        { event: "*", schema: "public", table: "protocols", filter: `student_id=eq.${userId}` },
+        () => queryClient.invalidateQueries({ queryKey: ["student-routine-json", userId] })
+      )
+      .on(
+        "postgres_changes" as never,
+        { event: "*", schema: "public", table: "coach_plans", filter: `student_id=eq.${userId}` },
+        () => queryClient.invalidateQueries({ queryKey: ["student-routine-json", userId] })
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId, queryClient]);
 
   const { data: profile } = useQuery({
     queryKey: ["student-profile", userId],
