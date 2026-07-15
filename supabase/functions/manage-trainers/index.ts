@@ -214,7 +214,7 @@ serve(async (req) => {
       const resendKey = Deno.env.get("RESEND_API_KEY");
       let emailSent = false;
       let emailError: string | null = null;
-      const origin = req.headers.get("origin") || "https://rjelitelab.com.br";
+      const origin = req.headers.get("origin") || "https://app.eliteprimehub.com.br";
       const inviteLink = `${origin}/register?invite=${token}`;
 
       if (!resendKey) {
