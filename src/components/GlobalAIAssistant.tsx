@@ -180,7 +180,7 @@ export const GlobalAIAssistant = () => {
       const [ciRes, streakRes, wsRes] = await Promise.all([
         supabase
           .from("check_ins")
-          .select("coach_feedback, submitted_at")
+          .select("coach_feedback, feedback_read_at, submitted_at")
           .eq("student_id", uid)
           .order("submitted_at", { ascending: false })
           .limit(1)
@@ -207,6 +207,7 @@ export const GlobalAIAssistant = () => {
         : null;
       return {
         coachFeedback: ciRes.data?.coach_feedback ?? null,
+        feedbackReadAt: ciRes.data?.feedback_read_at ?? null,
         checkinSubmittedAt: ciRes.data?.submitted_at ?? null,
         checkinStreak: typeof streakRes.data === "number" ? streakRes.data : 0,
         daysSinceLastCheckin,
@@ -223,13 +224,14 @@ export const GlobalAIAssistant = () => {
     // Ordem de prioridade: feedback novo > reforço positivo > recuperação
     const {
       coachFeedback,
+      feedbackReadAt,
       checkinStreak = 0,
       daysSinceLastCheckin,
       daysSinceLastWorkout,
     } = proactiveCheck;
 
     let msg: string | null = null;
-    if (coachFeedback) {
+    if (coachFeedback && !feedbackReadAt) {
       msg = "Seu coach deixou um feedback no seu último check-in! Quer que eu faça um resumo pra você?";
     } else if (checkinStreak >= 3 && daysSinceLastCheckin != null && daysSinceLastCheckin >= 12) {
       msg = `Você já tem ${checkinStreak} check-ins seguidos 🔥 Falta pouco pro próximo — quer que eu revise o que ajustar agora?`;
