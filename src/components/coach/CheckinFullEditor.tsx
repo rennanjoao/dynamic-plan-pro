@@ -45,6 +45,10 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
   const [fotos, setFotos] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState<string>("");
   const [reaction, setReaction] = useState<string | null>(null);
+  // [FIX] Guarda o updated_at carregado, para detectar se o registro mudou
+  // (edição do aluno, ou o painel rápido de feedback) enquanto este editor
+  // ficou aberto — sem isto, o Salvar sobrescreve tudo às cegas.
+  const [loadedUpdatedAt, setLoadedUpdatedAt] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -75,7 +79,7 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
       setLoading(true);
       const { data: row } = await sb
         .from("check_ins")
-        .select("id, payload, current_metrics, coach_feedback, coach_reaction")
+        .select("id, payload, current_metrics, coach_feedback, coach_reaction, updated_at")
         .eq("id", rowId)
         .maybeSingle();
       if (cancelled || !row) { setLoading(false); return; }
@@ -91,6 +95,7 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
       setFotos((p.fotos as Record<string, string>) || {});
       setFeedback((row.coach_feedback as string) || "");
       setReaction((row.coach_reaction as string) || null);
+      setLoadedUpdatedAt((row.updated_at as string) || null);
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -119,7 +124,11 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
         if (!isNaN(v)) current_metrics[m.key] = v;
       });
       const payload = { ...data, metrics_raw: metrics, fotos };
-      const { error } = await sb
+
+      // [FIX] Só grava se updated_at ainda for o mesmo de quando este editor
+      // carregou o registro. Se mudou (edição do aluno ou outra tela), NÃO
+      // sobrescrevemos — avisamos o coach em vez de perder o dado novo.
+      let query = sb
         .from("check_ins")
         .update({
           payload,
@@ -129,7 +138,20 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
           updated_at: new Date().toISOString(),
         })
         .eq("id", rowId);
+      if (loadedUpdatedAt) {
+        query = query.eq("updated_at", loadedUpdatedAt);
+      }
+      const { data: savedRows, error } = await query.select("id");
       if (error) throw error;
+
+      if (!savedRows || savedRows.length === 0) {
+        toast.error(
+          "Este check-in foi alterado (pelo aluno ou em outra tela) enquanto você editava. Nada foi sobrescrito — feche e reabra o editor para ver a versão mais recente antes de salvar de novo.",
+          { duration: 12000 }
+        );
+        return;
+      }
+
       toast.success("Check-in atualizado.");
       onSaved?.();
       onOpenChange(false);
