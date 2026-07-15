@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2, AlertTriangle, Activity, Info, History, CalendarClock } from "lucide-react";
@@ -58,6 +58,7 @@ export default function WorkoutPlan() {
   const [workoutModeDay, setWorkoutModeDay] = useState<string | undefined>(undefined);
   const [workoutModeWeek, setWorkoutModeWeek] = useState<number>(0);
   const [showHistory, setShowHistory] = useState(false);
+  const queryClient = useQueryClient();
   useWakeLock(showWorkoutMode);
   useHighlightTarget();
 
@@ -107,6 +108,26 @@ export default function WorkoutPlan() {
     queryKey: ["student-workout-json", userId],
     enabled: !!userId,
     queryFn: async () => {
+      // 1) Fonte primária: protocols (gravação que o coach sempre garante que
+      //    aconteceu — a réplica em coach_plans é "best effort" e pode falhar).
+      const { data: protocol } = await supabase
+        .from("protocols")
+        .select("payload, coach_id")
+        .eq("student_id", userId)
+        .eq("is_template", false)
+        .eq("active", true)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (protocol?.payload && Object.keys(protocol.payload as object).length > 0) {
+        return {
+          workout_periodization_json: protocol.payload,
+          coach_id: protocol.coach_id,
+        };
+      }
+
+      // 2) Fallback: coach_plans (cópia legada, só se não houver protocolo ativo)
       const { data } = await supabase
         .from("coach_plans")
         .select("workout_periodization_json, coach_id")
@@ -117,6 +138,29 @@ export default function WorkoutPlan() {
       return data ?? null;
     },
   });
+
+  // [FIX] Sem isto, se o coach publicar um protocolo novo enquanto o aluno já
+  // está com esta tela aberta, ela não atualiza sozinha.
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel(`workout-plan-live-${userId}`)
+      .on(
+        "postgres_changes" as never,
+        { event: "*", schema: "public", table: "protocols", filter: `student_id=eq.${userId}` },
+        () => queryClient.invalidateQueries({ queryKey: ["student-workout-json", userId] })
+      )
+      .on(
+        "postgres_changes" as never,
+        { event: "*", schema: "public", table: "coach_plans", filter: `student_id=eq.${userId}` },
+        () => queryClient.invalidateQueries({ queryKey: ["student-workout-json", userId] })
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId, queryClient]);
 
   const { data: coachProfile } = useQuery({
     queryKey: ["coach-profile-name", (planData as any)?.coach_id],
