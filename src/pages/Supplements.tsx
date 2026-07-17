@@ -1,25 +1,20 @@
-import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, Pill, Info, UtensilsCrossed, Calendar } from "lucide-react";
+import { ArrowLeft, Pill, Info, UtensilsCrossed, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ProtocolPayloadSchema } from "@/lib/protocolSchema";
 import ProtocolQuestionButton from "@/components/student/ProtocolQuestionButton";
 import { useHighlightTarget } from "@/hooks/useHighlightTarget";
 import { slug } from "@/lib/slug";
+import { useAuthUserId } from "@/hooks/useAuthUserId";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 export default function Supplements() {
   const navigate = useNavigate();
-  const [userId, setUserId] = useState("");
+  const userId = useAuthUserId();
   useHighlightTarget();
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.user) setUserId(data.session.user.id);
-    });
-  }, []);
 
   const { data: planData, isLoading } = useQuery({
     queryKey: ["student-supps-json", userId],
@@ -56,11 +51,7 @@ export default function Supplements() {
     },
   });
 
-  if (isLoading) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <Loader2 className="w-8 h-8 animate-spin text-primary" />
-    </div>
-  );
+  if (isLoading) return <PageLoader />;
 
   const rawPayload = planData || {};
   const parsed = ProtocolPayloadSchema.safeParse(rawPayload);

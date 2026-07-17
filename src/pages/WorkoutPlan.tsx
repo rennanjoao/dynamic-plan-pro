@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, AlertTriangle, Activity, Info, History, CalendarClock } from "lucide-react";
+import { ArrowLeft, AlertTriangle, Activity, Info, History, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,8 @@ import { slug } from "@/lib/slug";
 import WorkoutStrategyHeader from "@/components/student/WorkoutStrategyHeader";
 import { useCurrentPeriodizationWeek } from "@/hooks/useCurrentPeriodizationWeek";
 import { DEFAULT_WEEKS } from "@/lib/periodizationDefaults";
+import { useAuthUserId } from "@/hooks/useAuthUserId";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 const WEEKDAYS_LABEL: Record<string, string> = {
   seg: "Segunda", ter: "Terça", qua: "Quarta",
@@ -53,7 +55,7 @@ const WORKOUT_MODE_UI_KEY = (uid: string) => `workout_mode_ui_${uid}`;
 
 export default function WorkoutPlan() {
   const navigate = useNavigate();
-  const [userId, setUserId] = useState("");
+  const userId = useAuthUserId({ redirectTo: "/auth" });
   const [showWorkoutMode, setShowWorkoutMode] = useState(false);
   const [workoutModeDay, setWorkoutModeDay] = useState<string | undefined>(undefined);
   const [workoutModeWeek, setWorkoutModeWeek] = useState<number>(0);
@@ -61,13 +63,6 @@ export default function WorkoutPlan() {
   const queryClient = useQueryClient();
   useWakeLock(showWorkoutMode);
   useHighlightTarget();
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.user) setUserId(data.session.user.id);
-      else navigate("/auth");
-    });
-  }, [navigate]);
 
   // ── Resiliência ao Reload (F5): restaura o Modo Treino aberto ──────────────
   // Sem isto, recarregar a página durante um treino em curso derruba o aluno
@@ -210,11 +205,7 @@ export default function WorkoutPlan() {
   );
   const currentWeek = currentWeekRaw ?? 0;
 
-  if (isLoading) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <Loader2 className="w-8 h-8 animate-spin text-primary" />
-    </div>
-  );
+  if (isLoading) return <PageLoader />;
 
 
   const handleStartWorkout = (dayKey: string, week?: number) => {
