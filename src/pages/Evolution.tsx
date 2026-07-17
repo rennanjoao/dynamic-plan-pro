@@ -16,20 +16,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowLeft, Plus, MessageCircle, ChevronRight } from "lucide-react";
+import { formatRelativePtBR } from "@/lib/formatDate";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
-
-function formatRelative(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const day = 86_400_000;
-  const days = Math.floor(diffMs / day);
-  if (days <= 0) return "hoje";
-  if (days === 1) return "ontem";
-  if (days < 7) return `há ${days} dias`;
-  if (days < 30) return `há ${Math.floor(days / 7)} semana${Math.floor(days / 7) > 1 ? "s" : ""}`;
-  return new Date(iso).toLocaleDateString("pt-BR");
-}
 
 export default function Evolution() {
   const navigate = useNavigate();
