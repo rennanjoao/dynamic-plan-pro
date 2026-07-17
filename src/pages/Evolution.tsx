@@ -100,7 +100,7 @@ export default function Evolution() {
                 <div className="flex items-center gap-2">
                   <MessageCircle className="w-4 h-4 text-emerald-500 shrink-0" />
                   <p className="text-sm font-bold text-emerald-600 dark:text-emerald-500">Feedback do seu coach</p>
-                  <span className="text-[11px] text-muted-foreground ml-auto shrink-0">{formatRelative(latestFeedback.submitted_at)}</span>
+                  <span className="text-[11px] text-muted-foreground ml-auto shrink-0">{formatRelativePtBR(latestFeedback.submitted_at)}</span>
                 </div>
                 <p className="text-sm text-foreground/80 mt-1 line-clamp-1">
                   {latestFeedback.coach_feedback}
@@ -116,7 +116,7 @@ export default function Evolution() {
                     <DialogTitle className="flex items-center gap-2 text-emerald-600 dark:text-emerald-500">
                       <MessageCircle className="w-4 h-4" /> Feedback do seu coach
                     </DialogTitle>
-                    <p className="text-[11px] text-muted-foreground">{formatRelative(latestFeedback.submitted_at)}</p>
+                    <p className="text-[11px] text-muted-foreground">{formatRelativePtBR(latestFeedback.submitted_at)}</p>
                   </DialogHeader>
                   <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
                     {latestFeedback.coach_feedback}
