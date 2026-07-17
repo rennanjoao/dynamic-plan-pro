@@ -5,11 +5,11 @@
  * StructuredMealsViewer.tsx que replica a inteligência do protocolo HTML original.
  */
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import StudentToolbar from "@/components/student/StudentToolbar";
@@ -18,20 +18,15 @@ import StructuredMealsViewer from "@/components/student/StructuredMealsViewer";
 import { ProtocolPayloadSchema } from "@/lib/protocolSchema";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useHighlightTarget } from "@/hooks/useHighlightTarget";
+import { useAuthUserId } from "@/hooks/useAuthUserId";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 export default function DynamicRoutine() {
   const navigate = useNavigate();
-  const [userId, setUserId] = useState("");
+  const userId = useAuthUserId({ redirectTo: "/auth" });
   const queryClient = useQueryClient();
   useWakeLock();
   useHighlightTarget();
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.user) setUserId(data.session.user.id);
-      else navigate("/auth");
-    });
-  }, [navigate]);
 
   const { data: planData, isLoading } = useQuery({
     queryKey: ["student-routine-json", userId],
