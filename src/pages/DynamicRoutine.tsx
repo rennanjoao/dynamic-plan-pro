@@ -102,13 +102,7 @@ export default function DynamicRoutine() {
     staleTime: 300_000,
   });
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  if (isLoading) return <PageLoader />;
 
   // Se o coach não publicou nenhum plano
   if (!planData || (!planData.diet_strategy_json && !planData.workout_periodization_json)) {
