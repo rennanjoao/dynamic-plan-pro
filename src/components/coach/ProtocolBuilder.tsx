@@ -68,6 +68,8 @@ import StudentProtocolPreview from "./StudentProtocolPreview";
 import ProtocolVersionHistoryDialog from "./ProtocolVersionHistoryDialog";
 import TemplateLibraryDialog from "./TemplateLibraryDialog";
 import CopyProtocolDialog from "./CopyProtocolDialog";
+import { MacrosTab } from "./protocol-builder/MacrosTab";
+import { GuidelinesTab } from "./protocol-builder/GuidelinesTab";
 import { calcMealMacros, calcDayMacros, tacoGroupToKind, parseWeightString, optionMacros, compareOptions, type SubstitutionSeverity } from "@/lib/macroCalc";
 import {
   detectProtocolChanges,
