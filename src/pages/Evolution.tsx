@@ -3,11 +3,11 @@
  * Tabs: Dashboard (comparativo) · Histórico (timeline).
  */
 
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useStudentData } from "@/hooks/useStudentData";
+import { useAuthUserId } from "@/hooks/useAuthUserId";
 import ComparisonBoard from "@/components/student/ComparisonBoard";
 import EvolutionTimeline from "@/components/student/EvolutionTimeline";
 import { ProgressChart } from "@/components/student/ProgressChart";
@@ -22,16 +22,10 @@ import { formatRelativePtBR } from "@/lib/formatDate";
 const sb: any = supabase;
 
 export default function Evolution() {
-  const navigate = useNavigate();
   const { anamnesis, checkIns, loading, studentId } = useStudentData();
   const qc = useQueryClient();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (!data.session) navigate("/auth");
-    });
-  }, [navigate]);
+  useAuthUserId({ redirectTo: "/auth" });
 
   const { data: latestFeedback } = useQuery({
     queryKey: ["latest-coach-feedback", studentId],
