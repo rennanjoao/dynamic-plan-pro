@@ -3,7 +3,8 @@
  * Tabs: Dashboard (comparativo) · Histórico (timeline).
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useStudentData } from "@/hooks/useStudentData";
@@ -22,6 +23,7 @@ import { formatRelativePtBR } from "@/lib/formatDate";
 const sb: any = supabase;
 
 export default function Evolution() {
+  const navigate = useNavigate();
   const { anamnesis, checkIns, loading, studentId } = useStudentData();
   const qc = useQueryClient();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
