@@ -15,7 +15,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Loader2, TrendingDown, TrendingUp, Minus, FileText, ArrowLeft, ZoomIn } from "lucide-react";
-import { CHECKIN_METRICS } from "@/lib/checkInSchema";
+import { CHECKIN_METRICS, colorForDelta } from "@/lib/checkInSchema";
 import { estimateBF } from "@/lib/bfEstimate";
 import CheckinPayloadAnswers from "@/components/coach/CheckinPayloadAnswers";
 import { formatDatePtBR } from "@/lib/formatDate";
