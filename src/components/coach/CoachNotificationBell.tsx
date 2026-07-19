@@ -8,6 +8,7 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
+import { formatDateTimePtBR } from "@/lib/formatDate";
 
 interface Notification {
   id: string;
@@ -147,7 +148,7 @@ export default function CoachNotificationBell() {
                 .maybeSingle();
               const nome = prof?.full_name ?? "Aluno";
               toast(`✅ ${nome} enviou um check-in!`, {
-                description: `Check-in · Recebido em ${new Date().toLocaleString("pt-BR")}`,
+                description: `Check-in · Recebido em ${formatDateTimePtBR(new Date())}`,
                 duration: 8000,
                 action: { label: "Ver", onClick: () => setOpen(true) },
               });
