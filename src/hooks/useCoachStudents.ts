@@ -1,7 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Goal } from "@/utils/macros";
+import { getMetricPolarity } from "@/lib/checkInSchema";
 
 export type AlertLevel = "critical" | "warning" | "ok";
+
+export interface WeightTrend {
+  deltaKg: number | null;
+  direction: "up" | "down" | "flat" | null;
+  isStagnant: boolean;
+}
+
+// Objetivos canônicos gravados em coach_plans.goal (sanitizados pelo goalMap
+// em ProtocolBuilder). Qualquer string fora dessa lista é tratada como
+// desconhecida — não geramos alerta de estagnação nesse caso.
+const CANONICAL_GOALS: Goal[] = ["emagrecer", "manter", "hipertrofia", "recomposicao"];
+const STAGNATION_MARGIN_KG = 0.3;
 
 export interface StudentStatus {
   id: string;
@@ -20,6 +34,7 @@ export interface StudentStatus {
   feedbackIntervalDays: number;
   warningDays: number;
   criticalDays: number;
+  weightTrend: WeightTrend;
 }
 
 export interface PagedStudentsResult {
