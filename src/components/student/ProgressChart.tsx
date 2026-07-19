@@ -2,6 +2,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { useStudentData } from "@/hooks/useStudentData";
 import { TrendingUp, Loader2 } from "lucide-react";
 import { estimateBF } from "@/lib/bfEstimate";
+import { colorForDelta } from "@/lib/checkInSchema";
 
 export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
   const { anamnesis, checkIns, loading } = useStudentData(studentId);
@@ -166,13 +167,13 @@ export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
       <div className="mt-6 grid grid-cols-2 gap-4">
         <div className="glass rounded-xl p-4">
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Mudança de Peso</p>
-          <p className={`text-2xl font-bold mt-1 ${Number(mudancaPeso) <= 0 ? 'text-emerald-400' : 'text-primary'}`}>
+          <p className={`text-2xl font-bold mt-1 ${colorForDelta(Number(mudancaPeso)) === "text-emerald-500" ? "text-emerald-400" : Number(mudancaPeso) <= 0 ? 'text-emerald-400' : 'text-primary'}`}>
             {Number(mudancaPeso) > 0 ? '+' : ''}{mudancaPeso} kg
           </p>
         </div>
         <div className="glass rounded-xl p-4">
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Gordura Estimada</p>
-          <p className={`text-2xl font-bold mt-1 ${Number(mudancaGordura) <= 0 ? 'text-emerald-400' : 'text-primary'}`}>
+          <p className={`text-2xl font-bold mt-1 ${colorForDelta(Number(mudancaGordura)) === "text-emerald-500" ? "text-emerald-400" : Number(mudancaGordura) <= 0 ? 'text-emerald-400' : 'text-primary'}`}>
             {ultimaMedidaComGordura && primeiraMedidaComGordura
               ? `${Number(mudancaGordura) > 0 ? '+' : ''}${mudancaGordura}%`
               : '—'}
