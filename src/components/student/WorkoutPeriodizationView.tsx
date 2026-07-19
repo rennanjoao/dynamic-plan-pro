@@ -209,7 +209,12 @@ export default function WorkoutPeriodizationView({
             </p>
           ) : (
             <Accordion type="single" collapsible className="w-full space-y-3">
-              {resolvedExercises.map((day, i) => (
+              {resolvedExercises.map((day, i) => {
+                // [FIX Tarefa 9] Letra exibida = posição no array; day.key
+                // continua sendo o identificador estável passado ao
+                // onStartWorkout (grava em workout_sessions.workout_key).
+                const letter = String.fromCharCode(65 + i);
+                return (
                 <AccordionItem
                   key={i}
                   value={`pw-${i}`}
@@ -218,10 +223,10 @@ export default function WorkoutPeriodizationView({
                   <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/30">
                     <div className="flex items-center gap-3 text-left w-full">
                       <div className="w-9 h-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-black shrink-0">
-                        {day.key}
+                        {letter}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-sm">Treino {day.key}</h3>
+                        <h3 className="font-bold text-sm">Treino {letter}</h3>
                         <p className="text-[11px] text-muted-foreground truncate">
                           {day.focus || "Geral"}
                         </p>
