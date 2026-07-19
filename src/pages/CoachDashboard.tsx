@@ -242,6 +242,31 @@ function AlertBadge({ level }: { level: AlertLevel }) {
   return <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${cls}`}>{label}</span>;
 }
 
+// Pastilha compacta com a variação de peso desde o check-in anterior.
+// Cor derivada de getMetricPolarity(goal) — reutiliza a mesma decisão de
+// cor usada nas telas de evolução.
+function WeightTrendBadge({ student }: { student: StudentStatus }) {
+  const trend = student.weightTrend;
+  if (!trend || trend.deltaKg == null) return null;
+  const goal = student.goal as Goal;
+  const polarity = ["emagrecer", "manter", "hipertrofia", "recomposicao"].includes(goal)
+    ? getMetricPolarity(goal)
+    : "menor_melhor";
+  const cls = trend.isStagnant
+    ? "text-amber-500"
+    : colorForDelta(trend.deltaKg, polarity);
+  const Icon = trend.direction === "flat" ? Minus : trend.direction === "up" ? TrendingUp : TrendingDown;
+  const label = trend.isStagnant
+    ? "Estagnado"
+    : `${trend.deltaKg > 0 ? "+" : ""}${trend.deltaKg.toFixed(1)}kg`;
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold tabular-nums ${cls}`}>
+      <Icon className="w-3 h-3" />
+      {label}
+    </span>
+  );
+}
+
 function StudentRow({
   student, onAnamnesis, onProtocol, onUnlink, onHistory, onChangeHistory, onLatestFeedback, onSettings,
 }: {
