@@ -858,6 +858,16 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
     return linked.length === 0 ? "Sem dia" : linked.map((k) => ABBR[k]).join(", ");
   };
 
+  // [FIX Tarefa 9] A LETRA EXIBIDA do treino é derivada da POSIÇÃO no array
+  // (A = primeiro, B = segundo, ...). O identificador estável `day.key`
+  // continua sendo o valor gravado em workout_sessions.workout_key,
+  // periodização, cardio associations, etc. — apenas o rótulo visual
+  // é recalculado a cada render.
+  const positionLetter = (i: number) => String.fromCharCode(65 + i);
+  const workoutKeyToLetter: Record<string, string> = {};
+  payload.workouts.forEach((w, i) => { workoutKeyToLetter[w.key] = positionLetter(i); });
+  const displayLetter = (workoutKey: string) => workoutKeyToLetter[workoutKey] ?? workoutKey;
+
   return (
     <div className="space-y-3">
       <WorkoutPeriodizationEditor payload={payload} setPayload={setPayload} coachId={coachId} />
