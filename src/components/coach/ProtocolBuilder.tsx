@@ -814,7 +814,7 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
   // [FIX Tarefa 10] Backfill de __id em exercícios carregados de protocolos
   // antigos (que não tinham esse campo). Roda uma única vez por payload,
   // apenas se algum exercício estiver sem __id — evita loop de setPayload.
-  React.useEffect(() => {
+  useEffect(() => {
     const needs = payload.workouts.some((d) => d.exercises.some((e: any) => !e.__id));
     if (!needs) return;
     const gen = () =>
