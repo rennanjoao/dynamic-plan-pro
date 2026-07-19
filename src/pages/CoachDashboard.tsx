@@ -437,7 +437,8 @@ function CheckinHistoryDialog({
     }
   };
 
-  const fmtDate = (iso: string) => formatDateTimePtBR(iso);
+  const fmtDate = (iso: string) =>
+    new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
   const getWeight = (c: CheckinRow) => {
     const m = c.current_metrics || {};
