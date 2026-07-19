@@ -437,8 +437,7 @@ function CheckinHistoryDialog({
     }
   };
 
-  const fmtDate = (iso: string) =>
-    new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  const fmtDate = (iso: string) => formatDateTimePtBR(iso);
 
   const getWeight = (c: CheckinRow) => {
     const m = c.current_metrics || {};
@@ -783,10 +782,10 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
                   <TableRow key={student.id}>
                     <TableCell className="text-sm font-semibold">{student.name}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {student.lastAnamnesis ? new Date(student.lastAnamnesis).toLocaleDateString("pt-BR") : "Aguardando"}
+                      {student.lastAnamnesis ? formatDatePtBR(student.lastAnamnesis) : "Aguardando"}
                     </TableCell>
                     <TableCell className="text-xs font-medium">
-                      {activeFinance?.due_date ? new Date(activeFinance.due_date).toLocaleDateString("pt-BR") : "Sem pendências"}
+                      {activeFinance?.due_date ? formatDatePtBR(activeFinance.due_date) : "Sem pendências"}
                     </TableCell>
                     <TableCell>
                       {activeFinance ? (
