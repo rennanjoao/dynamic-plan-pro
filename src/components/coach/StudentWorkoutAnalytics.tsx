@@ -501,6 +501,10 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
     <div className="space-y-5">
 
       {/* ── Alertas de fadiga ─────────────────────────────────────────────── */}
+      {/* [OCULTO] Banner de alertas de fadiga temporariamente escondido —
+          leitura/resolução via markRead permanece funcional, apenas não
+          renderizamos a seção. */}
+      {false && (
       <AnimatePresence>
         {unreadAlerts.length > 0 && (
           <motion.div
