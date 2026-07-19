@@ -575,6 +575,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
           </motion.div>
         )}
       </AnimatePresence>
+      )}
 
       {/* ── Sem dados ─────────────────────────────────────────────────────── */}
       {!hasData && (
