@@ -362,9 +362,7 @@ export default function EvolutionComparison({
             const hasBoth = a != null && b != null;
             const d = hasBoth ? (b as number) - (a as number) : null;
             const Icon = d == null ? Minus : Math.abs(d) < 0.05 ? Minus : d < 0 ? TrendingDown : TrendingUp;
-            const color = d == null ? "text-muted-foreground" :
-              Math.abs(d) < 0.05 ? "text-muted-foreground" :
-              d < 0 ? "text-emerald-500" : "text-amber-500";
+            const color = colorForDelta(d);
             return (
               <div key={m.key} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 py-1.5 border-b border-border/40 last:border-0">
                 <span className="text-xs text-muted-foreground">{m.label}</span>
