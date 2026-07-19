@@ -223,6 +223,7 @@ export function useCoachStudentsPaged(
           feedbackIntervalDays: interval,
           warningDays: warning,
           criticalDays: critical,
+          weightTrend: { deltaKg: null, direction: null, isStagnant: false },
         };
       });
 
