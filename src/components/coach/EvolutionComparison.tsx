@@ -18,6 +18,7 @@ import { Loader2, TrendingDown, TrendingUp, Minus, FileText, ArrowLeft, ZoomIn }
 import { CHECKIN_METRICS } from "@/lib/checkInSchema";
 import { estimateBF } from "@/lib/bfEstimate";
 import CheckinPayloadAnswers from "@/components/coach/CheckinPayloadAnswers";
+import { formatDatePtBR } from "@/lib/formatDate";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -44,7 +45,7 @@ interface Timepoint {
 }
 
 function fmt(iso: string) {
-  return new Date(iso).toLocaleDateString("pt-BR");
+  return formatDatePtBR(iso);
 }
 
 const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));

@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, TrendingDown, TrendingUp, Minus, FilePlus2, FileEdit, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { formatDatePtBR } from "@/lib/formatDate";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -323,7 +324,7 @@ export default function CheckIn() {
                   {lastCheckin ? (
                     <p className="text-xs text-muted-foreground">
                       Enviado em{" "}
-                      {new Date(lastCheckin.submitted_at).toLocaleDateString("pt-BR")}.{" "}
+                      {formatDatePtBR(lastCheckin.submitted_at)}.{" "}
                       <span className="font-semibold text-foreground">
                         Edições usadas: {lastCheckin.edit_count ?? 0}/3
                       </span>
