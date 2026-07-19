@@ -811,6 +811,24 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
 // ─── WorkoutsTab ─────────────────────────────────────────────────────────────
 
 function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void; coachId: string | null }) {
+  // [FIX Tarefa 10] Backfill de __id em exercícios carregados de protocolos
+  // antigos (que não tinham esse campo). Roda uma única vez por payload,
+  // apenas se algum exercício estiver sem __id — evita loop de setPayload.
+  React.useEffect(() => {
+    const needs = payload.workouts.some((d) => d.exercises.some((e: any) => !e.__id));
+    if (!needs) return;
+    const gen = () =>
+      (typeof crypto !== "undefined" && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `ex_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
+    const nextWorkouts = payload.workouts.map((d) => ({
+      ...d,
+      exercises: d.exercises.map((e: any) => (e.__id ? e : { ...e, __id: gen() })),
+    }));
+    setPayload({ ...payload, workouts: nextWorkouts });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const updDay = (idx: number, patch: Partial<ProtocolPayload["workouts"][number]>) => { const n = [...payload.workouts]; n[idx] = { ...n[idx], ...patch }; setPayload({ ...payload, workouts: n }); };
   const updEx = (di: number, ei: number, patch: any) => { const n = [...payload.workouts]; const exs = [...n[di].exercises]; exs[ei] = { ...exs[ei], ...patch }; n[di] = { ...n[di], exercises: exs }; setPayload({ ...payload, workouts: n }); };
   const moveExercise = (di: number, ei: number, direction: "up" | "down") => {
