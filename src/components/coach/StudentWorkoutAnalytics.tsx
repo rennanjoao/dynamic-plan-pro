@@ -415,8 +415,11 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
   }, [sessions]);
 
   // ── Stats de resumo ────────────────────────────────────────────────────────
+  // Adesão: sessões concluídas ÷ teto de 12 sessões de referência.
+  // Numerador também é limitado ao mesmo teto para que o resultado nunca
+  // ultrapasse 100% (aluno com > 12 sessões concluídas mantém 100%).
   const adherenceRate = sessions.length > 0
-    ? Math.round((sessions.filter((s) => s.ended_at).length / Math.min(sessions.length, 12)) * 100)
+    ? Math.round((Math.min(sessions.filter((s) => s.ended_at).length, 12) / Math.min(sessions.length, 12)) * 100)
     : 0;
 
   const totalSetsCount   = completedSets.length;
@@ -498,6 +501,10 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
     <div className="space-y-5">
 
       {/* ── Alertas de fadiga ─────────────────────────────────────────────── */}
+      {/* [OCULTO] Banner de alertas de fadiga temporariamente escondido —
+          leitura/resolução via markRead permanece funcional, apenas não
+          renderizamos a seção. */}
+      {false && (
       <AnimatePresence>
         {unreadAlerts.length > 0 && (
           <motion.div
@@ -568,6 +575,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
           </motion.div>
         )}
       </AnimatePresence>
+      )}
 
       {/* ── Sem dados ─────────────────────────────────────────────────────── */}
       {!hasData && (

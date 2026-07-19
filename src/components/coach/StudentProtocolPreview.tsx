@@ -66,6 +66,9 @@ export default function StudentProtocolPreview({ open, onClose, payload, student
             ) : (
               <Accordion type="single" collapsible className="w-full space-y-3">
                 {workouts.map((day, i) => {
+                  // [FIX Tarefa 9] Letra exibida = posição no array (A, B, C, D…).
+                  // day.key permanece como identificador estável para associar cardio.
+                  const letter = String.fromCharCode(65 + i);
                   const dayCardio = (payload.cardio ?? []).filter(
                     (c) => c.workoutKey === day.key && c.associationType === "workout"
                   );
@@ -78,10 +81,10 @@ export default function StudentProtocolPreview({ open, onClose, payload, student
                       <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/30">
                         <div className="flex items-center gap-3 text-left">
                           <div className="w-10 h-10 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-black">
-                            {day.key}
+                            {letter}
                           </div>
                           <div>
-                            <h3 className="font-bold text-sm">Treino {day.key}</h3>
+                            <h3 className="font-bold text-sm">Treino {letter}</h3>
                             <p className="text-xs text-muted-foreground">{day.focus || "Geral"}</p>
                           </div>
                         </div>

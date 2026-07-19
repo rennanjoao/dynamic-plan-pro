@@ -47,6 +47,11 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { ChangePasswordButton } from "@/components/ChangePasswordButton";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { exportCheckinPDF } from "@/lib/coachPdfExport";
+import { formatDatePtBR, formatDateTimePtBR, formatRelativePtBR } from "@/lib/formatDate";
+import { queryKeys } from "@/lib/queryKeys";
+import { getMetricPolarity, colorForDelta } from "@/lib/checkInSchema";
+import type { Goal } from "@/utils/macros";
+import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 const ProtocolBuilder = lazy(() => import("@/components/coach/ProtocolBuilder"));
 const EvolutionComparisonLazy = lazy(() => import("@/components/coach/EvolutionComparison"));
@@ -237,6 +242,31 @@ function AlertBadge({ level }: { level: AlertLevel }) {
   return <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${cls}`}>{label}</span>;
 }
 
+// Pastilha compacta com a variação de peso desde o check-in anterior.
+// Cor derivada de getMetricPolarity(goal) — reutiliza a mesma decisão de
+// cor usada nas telas de evolução.
+function WeightTrendBadge({ student }: { student: StudentStatus }) {
+  const trend = student.weightTrend;
+  if (!trend || trend.deltaKg == null) return null;
+  const goal = student.goal as Goal;
+  const polarity = ["emagrecer", "manter", "hipertrofia", "recomposicao"].includes(goal)
+    ? getMetricPolarity(goal)
+    : "menor_melhor";
+  const cls = trend.isStagnant
+    ? "text-amber-500"
+    : colorForDelta(trend.deltaKg, polarity);
+  const Icon = trend.direction === "flat" ? Minus : trend.direction === "up" ? TrendingUp : TrendingDown;
+  const label = trend.isStagnant
+    ? "Estagnado"
+    : `${trend.deltaKg > 0 ? "+" : ""}${trend.deltaKg.toFixed(1)}kg`;
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold tabular-nums ${cls}`}>
+      <Icon className="w-3 h-3" />
+      {label}
+    </span>
+  );
+}
+
 function StudentRow({
   student, onAnamnesis, onProtocol, onUnlink, onHistory, onChangeHistory, onLatestFeedback, onSettings,
 }: {
@@ -249,17 +279,12 @@ function StudentRow({
   onLatestFeedback: (s: StudentStatus) => void;
   onSettings: (s: StudentStatus) => void;
 }) {
-  const lastActivity =
-    student.daysInactive === 0 ? "Hoje" :
-    student.daysInactive === 1 ? "Ontem" :
-    student.daysInactive >= 999 ? "Sem registro" :
-    `${student.daysInactive}d sem registro`;
-
+  // Rótulo único de atividade — usa formatRelativePtBR sobre a data do
+  // último check-in, evitando exibir dois rótulos redundantes.
   const feedbackLabel =
-    student.daysSinceLastFeedback >= 999 ? "Sem feedback" :
-    student.daysSinceLastFeedback === 0 ? "Feedback hoje" :
-    student.daysSinceLastFeedback === 1 ? "Feedback há 1 dia" :
-    `Feedback há ${student.daysSinceLastFeedback} dias`;
+    student.daysSinceLastFeedback >= 999 || !student.lastFeedback
+      ? "Sem check-in registrado"
+      : `Último check-in: ${formatRelativePtBR(student.lastFeedback)}`;
 
   const safeName = student.name || "Aluno";
   const initials = safeName.split(" ").slice(0, 2).map((n) => n[0] || "").join("");
@@ -285,7 +310,7 @@ function StudentRow({
           <p className="text-sm font-semibold text-foreground truncate">{safeName}</p>
           <AlertBadge level={student.alertLevel || "ok"} />
         </div>
-        <p className="text-xs text-muted-foreground truncate">{student.goal || "Objetivo não definido"} · {lastActivity}</p>
+        <p className="text-xs text-muted-foreground truncate">{student.goal || "Objetivo não definido"}</p>
         <button
           type="button"
           onClick={() => student.daysSinceLastFeedback < 999 && onLatestFeedback(student)}
@@ -307,6 +332,7 @@ function StudentRow({
         <div className="hidden sm:block text-right shrink-0">
           <p className="text-xs text-muted-foreground">Peso</p>
           <p className="text-sm font-semibold text-foreground">{displayWeight} kg</p>
+          <WeightTrendBadge student={student} />
         </div>
       )}
 
@@ -638,7 +664,7 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
       toast.success("Registro financeiro adicionado!");
       setForm({ student_id: "", description: "", amount: "", due_date: "" });
       setShowAdd(false);
-      qc.invalidateQueries({ queryKey: ["coach-finances"] });
+      qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -650,7 +676,7 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
         paid_at: currentlyPaid ? null : new Date().toISOString(),
       }).eq("id", id);
       if (error) throw error;
-      qc.invalidateQueries({ queryKey: ["coach-finances"] });
+      qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
       toast.success(currentlyPaid ? "Marcado como pendente" : "Marcado como pago");
     } catch (e) {
       toast.error("Erro ao atualizar status: " + (e instanceof Error ? e.message : "erro desconhecido"));
@@ -662,7 +688,7 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
     try {
       const { error } = await supabase.from("coach_finances").delete().eq("id", id);
       if (error) throw error;
-      qc.invalidateQueries({ queryKey: ["coach-finances"] });
+      qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
     } catch (e) {
       toast.error("Erro ao remover: " + (e instanceof Error ? e.message : "erro desconhecido"));
     }
@@ -676,7 +702,7 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
         .update({ due_date: editingFinance.due_date || null })
         .eq("id", editingFinance.id);
       if (error) throw error;
-      qc.invalidateQueries({ queryKey: ["coach-finances"] });
+      qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
       setEditingFinance(null);
       toast.success("Data de vencimento atualizada!");
     } catch (e) {
@@ -699,7 +725,7 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
         status: "pending",
       });
       if (error) throw error;
-      qc.invalidateQueries({ queryKey: ["coach-finances"] });
+      qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
       toast.success(`Cobrança criada para ${quickBilling.student_name}. O aluno receberá o alerta.`);
       setQuickBilling(null);
       setQuickForm({ description: "Mensalidade", amount: "", due_date: "" });
@@ -757,10 +783,10 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
                   <TableRow key={student.id}>
                     <TableCell className="text-sm font-semibold">{student.name}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {student.lastAnamnesis ? new Date(student.lastAnamnesis).toLocaleDateString("pt-BR") : "Aguardando"}
+                      {student.lastAnamnesis ? formatDatePtBR(student.lastAnamnesis) : "Aguardando"}
                     </TableCell>
                     <TableCell className="text-xs font-medium">
-                      {activeFinance?.due_date ? new Date(activeFinance.due_date).toLocaleDateString("pt-BR") : "Sem pendências"}
+                      {activeFinance?.due_date ? formatDatePtBR(activeFinance.due_date) : "Sem pendências"}
                     </TableCell>
                     <TableCell>
                       {activeFinance ? (

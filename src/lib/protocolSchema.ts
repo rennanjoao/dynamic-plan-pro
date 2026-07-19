@@ -39,6 +39,11 @@ export const ExerciseSchema = z.object({
   // seleciona o exercício via combobox. Protocolos antigos não têm este campo
   // e continuam funcionando pelo fallback de matching por nome.
   gifKey: z.string().optional(),
+  // Identificador estável do item para drag-and-drop no builder.
+  // Gerado on-the-fly quando o exercício é criado; backfilled em cargas
+  // antigas. NÃO participa da lógica de treino/sessões (workout_key é a
+  // referência estável do TREINO, __id é apenas do ITEM na lista).
+  __id: z.string().optional(),
 });
 
 export const WorkoutDaySchema = z.object({
@@ -326,7 +331,17 @@ export type CardioRow = z.infer<typeof CardioSchema>;
 export type SupplementRow = z.infer<typeof SupplementSchema>;
 
 export function makeEmptyExercise(): z.infer<typeof ExerciseSchema> {
-  return { name: "", sets: "", reps: "", cadence: "", rest: "", notes: "" };
+  return {
+    name: "",
+    sets: "",
+    reps: "",
+    cadence: "",
+    rest: "",
+    notes: "",
+    __id: (typeof crypto !== "undefined" && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : `ex_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`,
+  };
 }
 
 export function makeEmptyMeal(name = "Refeição"): z.infer<typeof MealSchema> {

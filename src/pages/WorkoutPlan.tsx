@@ -221,7 +221,13 @@ export default function WorkoutPlan() {
     </p>
   ) : (
     <Accordion type="single" collapsible className="w-full space-y-4">
-      {workouts.map((day: any, i: number) => (
+      {workouts.map((day: any, i: number) => {
+        // [FIX Tarefa 9] Letra exibida = posição no array (A, B, C, D…).
+        // day.key permanece como identificador estável — usado em
+        // handleStartWorkout, filtros de cardio e ID de âncora — para
+        // não quebrar workout_sessions/periodização/CoachUpdates anchors.
+        const letter = String.fromCharCode(65 + i);
+        return (
         <AccordionItem
           key={i}
           value={`workout-${i}`}
@@ -230,10 +236,10 @@ export default function WorkoutPlan() {
           <AccordionTrigger className="px-4 py-4 hover:no-underline hover:bg-muted/30">
             <div className="flex items-center gap-3 text-left w-full">
               <div className="w-10 h-10 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-black text-lg shrink-0">
-                {day.key}
+                {letter}
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-base">Treino {day.key}</h3>
+                <h3 className="font-bold text-base">Treino {letter}</h3>
                 <p className="text-xs text-muted-foreground">{day.focus || "Geral"}</p>
               </div>
             </div>
@@ -312,13 +318,14 @@ export default function WorkoutPlan() {
                 className="w-full gap-2"
                 onClick={() => handleStartWorkout(day.key)}
               >
-                Iniciar Treino {day.key}
+                Iniciar Treino {letter}
               </Button>
             </div>
             <ProtocolQuestionButton context="exercise" variant="full" />
           </AccordionContent>
         </AccordionItem>
-      ))}
+        );
+      })}
     </Accordion>
   );
 

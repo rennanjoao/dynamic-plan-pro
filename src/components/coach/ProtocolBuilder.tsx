@@ -811,6 +811,24 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
 // ─── WorkoutsTab ─────────────────────────────────────────────────────────────
 
 function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void; coachId: string | null }) {
+  // [FIX Tarefa 10] Backfill de __id em exercícios carregados de protocolos
+  // antigos (que não tinham esse campo). Roda uma única vez por payload,
+  // apenas se algum exercício estiver sem __id — evita loop de setPayload.
+  useEffect(() => {
+    const needs = payload.workouts.some((d) => d.exercises.some((e: any) => !e.__id));
+    if (!needs) return;
+    const gen = () =>
+      (typeof crypto !== "undefined" && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `ex_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
+    const nextWorkouts = payload.workouts.map((d) => ({
+      ...d,
+      exercises: d.exercises.map((e: any) => (e.__id ? e : { ...e, __id: gen() })),
+    }));
+    setPayload({ ...payload, workouts: nextWorkouts });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const updDay = (idx: number, patch: Partial<ProtocolPayload["workouts"][number]>) => { const n = [...payload.workouts]; n[idx] = { ...n[idx], ...patch }; setPayload({ ...payload, workouts: n }); };
   const updEx = (di: number, ei: number, patch: any) => { const n = [...payload.workouts]; const exs = [...n[di].exercises]; exs[ei] = { ...exs[ei], ...patch }; n[di] = { ...n[di], exercises: exs }; setPayload({ ...payload, workouts: n }); };
   const moveExercise = (di: number, ei: number, direction: "up" | "down") => {
@@ -858,6 +876,16 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
     return linked.length === 0 ? "Sem dia" : linked.map((k) => ABBR[k]).join(", ");
   };
 
+  // [FIX Tarefa 9] A LETRA EXIBIDA do treino é derivada da POSIÇÃO no array
+  // (A = primeiro, B = segundo, ...). O identificador estável `day.key`
+  // continua sendo o valor gravado em workout_sessions.workout_key,
+  // periodização, cardio associations, etc. — apenas o rótulo visual
+  // é recalculado a cada render.
+  const positionLetter = (i: number) => String.fromCharCode(65 + i);
+  const workoutKeyToLetter: Record<string, string> = {};
+  payload.workouts.forEach((w, i) => { workoutKeyToLetter[w.key] = positionLetter(i); });
+  const displayLetter = (workoutKey: string) => workoutKeyToLetter[workoutKey] ?? workoutKey;
+
   return (
     <div className="space-y-3">
       <WorkoutPeriodizationEditor payload={payload} setPayload={setPayload} coachId={coachId} />
@@ -882,7 +910,7 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
                 )}
               >
                 <span className="text-[9px] uppercase text-muted-foreground tracking-wider">{ABBR[k]}</span>
-                <span className="text-[12px] font-bold text-foreground leading-none">{wk || "—"}</span>
+                <span className="text-[12px] font-bold text-foreground leading-none">{wk ? displayLetter(wk) : "—"}</span>
                 <button
                   type="button"
                   onClick={() => cyclePillCarb(k)}
@@ -925,7 +953,7 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
                 <ArrowDown className="w-3.5 h-3.5" />
               </button>
             </div>
-            <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-black text-base shrink-0">{day.key}</div>
+            <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-black text-base shrink-0">{positionLetter(di)}</div>
             <Input
               value={day.focus}
               onChange={(e) => updDay(di, { focus: e.target.value })}
@@ -1094,7 +1122,7 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
             {(payload.cardio ?? []).filter((c) => c.workoutKey === day.key && c.associationType === "workout").length > 0 && (
               <div className="mt-3 pt-3 border-t border-border/40 space-y-2">
                 <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                  <Activity className="w-3.5 h-3.5 text-primary" /> Aeróbico do Treino {day.key}
+                  <Activity className="w-3.5 h-3.5 text-primary" /> Aeróbico do Treino {positionLetter(di)}
                 </p>
                 {(payload.cardio ?? []).map((c, ci) => {
                   if (c.workoutKey !== day.key || c.associationType !== "workout") return null;

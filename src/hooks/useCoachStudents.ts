@@ -1,7 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Goal } from "@/utils/macros";
 
 export type AlertLevel = "critical" | "warning" | "ok";
+
+export interface WeightTrend {
+  deltaKg: number | null;
+  direction: "up" | "down" | "flat" | null;
+  isStagnant: boolean;
+}
+
+// Objetivos canônicos gravados em coach_plans.goal (sanitizados pelo goalMap
+// em ProtocolBuilder). Qualquer string fora dessa lista é tratada como
+// desconhecida — não geramos alerta de estagnação nesse caso.
+const CANONICAL_GOALS: Goal[] = ["emagrecer", "manter", "hipertrofia", "recomposicao"];
+const STAGNATION_MARGIN_KG = 0.3;
 
 export interface StudentStatus {
   id: string;
@@ -20,6 +33,7 @@ export interface StudentStatus {
   feedbackIntervalDays: number;
   warningDays: number;
   criticalDays: number;
+  weightTrend: WeightTrend;
 }
 
 export interface PagedStudentsResult {
@@ -208,6 +222,7 @@ export function useCoachStudentsPaged(
           feedbackIntervalDays: interval,
           warningDays: warning,
           criticalDays: critical,
+          weightTrend: { deltaKg: null, direction: null, isStagnant: false },
         };
       });
 
@@ -290,48 +305,86 @@ export function useCoachStudentsPaged(
           });
         }
       });
-      const ciBy = new Map<string, { submitted_at: string; current_metrics: Record<string, unknown> | null }>();
-      const ciTimeBy = new Map<string, number>();
+      // Retemos os DOIS check-ins mais recentes por aluno (efetivamente por
+      // maior de submitted_at/updated_at). O mais recente alimenta o peso
+      // atual; o anterior alimenta o cálculo de tendência (weightTrend).
+      type CiRow = { submitted_at: string; current_metrics: Record<string, unknown> | null; t: number };
+      const ciByAll = new Map<string, CiRow[]>();
       ci?.forEach((c) => {
         const t = Math.max(new Date(c.submitted_at).getTime(), new Date(c.updated_at || c.submitted_at).getTime());
-        const prevT = ciTimeBy.get(c.student_id);
-        if (prevT === undefined || t > prevT) {
-          ciTimeBy.set(c.student_id, t);
-          ciBy.set(c.student_id, {
-            submitted_at: c.submitted_at,
-            current_metrics: (c.current_metrics as Record<string, unknown>) || null,
-          });
-        }
+        const row: CiRow = {
+          submitted_at: c.submitted_at,
+          current_metrics: (c.current_metrics as Record<string, unknown>) || null,
+          t,
+        };
+        const arr = ciByAll.get(c.student_id) ?? [];
+        arr.push(row);
+        ciByAll.set(c.student_id, arr);
+      });
+      const ciBy = new Map<string, { submitted_at: string; current_metrics: Record<string, unknown> | null }>();
+      const ciPrevBy = new Map<string, { submitted_at: string; current_metrics: Record<string, unknown> | null }>();
+      ciByAll.forEach((arr, sid) => {
+        arr.sort((a, b) => b.t - a.t);
+        if (arr[0]) ciBy.set(sid, { submitted_at: arr[0].submitted_at, current_metrics: arr[0].current_metrics });
+        if (arr[1]) ciPrevBy.set(sid, { submitted_at: arr[1].submitted_at, current_metrics: arr[1].current_metrics });
       });
       const planBy = new Map<string, string>();
       plans?.forEach((p) => {
         if (!planBy.has(p.student_id)) planBy.set(p.student_id, p.goal || "—");
       });
 
-      return { anaBy, ciBy, planBy };
+      return { anaBy, ciBy, ciPrevBy, planBy };
     },
   });
+
+  const parseWeight = (raw: unknown): number | null => {
+    if (typeof raw === "number" && isFinite(raw)) return raw;
+    if (typeof raw === "string") {
+      const n = parseFloat(raw.replace(",", "."));
+      return isFinite(n) ? n : null;
+    }
+    return null;
+  };
 
   const enrichedPage: StudentStatus[] = pageRows.map((s) => {
     const d = detailQuery.data;
     if (!d) return s;
     const a = d.anaBy.get(s.id);
     const c = d.ciBy.get(s.id);
+    const cPrev = d.ciPrevBy.get(s.id);
     const goal = d.planBy.get(s.id) || "—";
     const ciM = (c?.current_metrics as Record<string, unknown>) || {};
     const baseM = (a?.baseline_metrics as Record<string, unknown>) || {};
     const v = ciM.peso ?? ciM.weight ?? baseM.peso;
-    let currentWeight: number | null = null;
-    if (typeof v === "number" && isFinite(v)) currentWeight = v;
-    else if (typeof v === "string") {
-      const n = parseFloat(v.replace(",", "."));
-      currentWeight = isFinite(n) ? n : null;
+    const currentWeight = parseWeight(v);
+
+    // weightTrend: compara peso do check-in mais recente com o do anterior.
+    // Fallback: se só houver 1 check-in, usa peso da anamnese (baseline).
+    const latestWeight = parseWeight(ciM.peso ?? ciM.weight);
+    const prevWeight =
+      parseWeight((cPrev?.current_metrics as Record<string, unknown> | null)?.peso
+                  ?? (cPrev?.current_metrics as Record<string, unknown> | null)?.weight)
+      ?? parseWeight(baseM.peso ?? baseM.weight);
+
+    let weightTrend: WeightTrend = { deltaKg: null, direction: null, isStagnant: false };
+    if (latestWeight != null && prevWeight != null) {
+      const deltaKg = Math.round((latestWeight - prevWeight) * 10) / 10;
+      const direction: "up" | "down" | "flat" =
+        Math.abs(deltaKg) < 0.05 ? "flat" : deltaKg > 0 ? "up" : "down";
+      const isCanonicalGoal = (CANONICAL_GOALS as string[]).includes(goal);
+      const isStagnant =
+        Math.abs(deltaKg) < STAGNATION_MARGIN_KG &&
+        isCanonicalGoal &&
+        (goal as Goal) !== "manter";
+      weightTrend = { deltaKg, direction, isStagnant };
     }
+
     return {
       ...s,
       lastAnamnesis: a?.submitted_at || a?.updated_at || null,
       goal,
       currentWeight,
+      weightTrend,
     };
   });
 

@@ -8,6 +8,7 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
+import { formatDateTimePtBR } from "@/lib/formatDate";
 
 interface Notification {
   id: string;
@@ -147,7 +148,7 @@ export default function CoachNotificationBell() {
                 .maybeSingle();
               const nome = prof?.full_name ?? "Aluno";
               toast(`✅ ${nome} enviou um check-in!`, {
-                description: `Check-in · Recebido em ${new Date().toLocaleString("pt-BR")}`,
+                description: `Check-in · Recebido em ${formatDateTimePtBR(new Date())}`,
                 duration: 8000,
                 action: { label: "Ver", onClick: () => setOpen(true) },
               });
@@ -219,11 +220,13 @@ export default function CoachNotificationBell() {
   };
 
   const unreadCount = notifications.length;
-  const totalBadge = unreadCount + fatigueCount;
+  // [OCULTO] Contador de fadiga temporariamente removido da UI — a leitura
+  // do banco continua acontecendo, apenas não somamos ao badge nem
+  // renderizamos o banner.
+  const totalBadge = unreadCount;
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
-    if (next) { setFatigueCount(0); }
   };
 
   return (
@@ -250,7 +253,7 @@ export default function CoachNotificationBell() {
         </SheetHeader>
 
         <div className="mt-4 space-y-3">
-          {fatigueCount > 0 && (
+          {false && fatigueCount > 0 && (
             <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
               <p className="text-sm text-red-700 dark:text-red-400">

@@ -14,6 +14,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ConfirmProvider } from "@/components/ConfirmProvider";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import { supabase } from "@/integrations/supabase/client";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 const Index        = lazyWithRetry(() => import("./pages/Index"));
 const Admin        = lazyWithRetry(() => import("./pages/Admin"));
@@ -61,14 +62,6 @@ function AuthCacheGuard() {
     return () => sub.subscription.unsubscribe();
   }, []);
   return null;
-}
-
-function PageLoader() {
-  return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
 }
 
 const App = () => {

@@ -5,7 +5,7 @@
  */
 
 import { Card } from "@/components/ui/card";
-import { CHECKIN_METRICS } from "@/lib/checkInSchema";
+import { CHECKIN_METRICS, colorForDelta } from "@/lib/checkInSchema";
 import { cn } from "@/lib/utils";
 import { TrendingDown, TrendingUp, Minus } from "lucide-react";
 import type { Anamnesis, CheckIn } from "@/hooks/useStudentData";
@@ -17,13 +17,9 @@ interface Props {
   latestCheckIn: CheckIn | null;
 }
 
-// Quando "menor é melhor" para o aluno (cintura, peso na maioria dos casos)
-// Mantemos neutro como padrão e deixamos verde para qualquer mudança "intencional"
-function colorFor(delta: number) {
-  if (Math.abs(delta) < 0.05) return "text-muted-foreground";
-  if (delta < 0) return "text-emerald-400";
-  return "text-amber-400";
-}
+// A decisão de cor foi centralizada em colorForDelta (checkInSchema.ts) —
+// mantemos "menor_melhor" como polaridade padrão para este board, que era o
+// comportamento anterior (delta negativo = verde; positivo = âmbar).
 
 export default function ComparisonBoard({ anamnesis, latestCheckIn }: Props) {
   if (!anamnesis?.baseline_metrics || Object.keys(anamnesis.baseline_metrics).length === 0) {
@@ -118,7 +114,7 @@ export default function ComparisonBoard({ anamnesis, latestCheckIn }: Props) {
           const hasBoth = typeof ini === "number" && typeof cur === "number";
           const d = hasBoth ? cur - ini : null;
           const Icon = d == null ? Minus : Math.abs(d) < 0.05 ? Minus : d < 0 ? TrendingDown : TrendingUp;
-          const color = d == null ? "text-muted-foreground" : colorFor(d);
+          const color = colorForDelta(d);
           return (
             <div key={m.key} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 py-2 border-b border-border/50 last:border-0">
               <span className="text-xs text-muted-foreground">{m.label}</span>
