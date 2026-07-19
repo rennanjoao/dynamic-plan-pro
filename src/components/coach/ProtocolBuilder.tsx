@@ -892,7 +892,7 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
                 )}
               >
                 <span className="text-[9px] uppercase text-muted-foreground tracking-wider">{ABBR[k]}</span>
-                <span className="text-[12px] font-bold text-foreground leading-none">{wk || "—"}</span>
+                <span className="text-[12px] font-bold text-foreground leading-none">{wk ? displayLetter(wk) : "—"}</span>
                 <button
                   type="button"
                   onClick={() => cyclePillCarb(k)}
@@ -935,7 +935,7 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
                 <ArrowDown className="w-3.5 h-3.5" />
               </button>
             </div>
-            <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-black text-base shrink-0">{day.key}</div>
+            <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-black text-base shrink-0">{positionLetter(di)}</div>
             <Input
               value={day.focus}
               onChange={(e) => updDay(di, { focus: e.target.value })}
@@ -1104,7 +1104,7 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
             {(payload.cardio ?? []).filter((c) => c.workoutKey === day.key && c.associationType === "workout").length > 0 && (
               <div className="mt-3 pt-3 border-t border-border/40 space-y-2">
                 <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                  <Activity className="w-3.5 h-3.5 text-primary" /> Aeróbico do Treino {day.key}
+                  <Activity className="w-3.5 h-3.5 text-primary" /> Aeróbico do Treino {positionLetter(di)}
                 </p>
                 {(payload.cardio ?? []).map((c, ci) => {
                   if (c.workoutKey !== day.key || c.associationType !== "workout") return null;
