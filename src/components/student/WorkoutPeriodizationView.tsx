@@ -260,7 +260,8 @@ export default function WorkoutPeriodizationView({
                     ))}
                   </AccordionContent>
                 </AccordionItem>
-              ))}
+                );
+              })}
             </Accordion>
           )}
         </>
