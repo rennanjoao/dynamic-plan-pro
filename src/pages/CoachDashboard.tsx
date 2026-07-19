@@ -47,6 +47,11 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { ChangePasswordButton } from "@/components/ChangePasswordButton";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { exportCheckinPDF } from "@/lib/coachPdfExport";
+import { formatDatePtBR, formatDateTimePtBR, formatRelativePtBR } from "@/lib/formatDate";
+import { queryKeys } from "@/lib/queryKeys";
+import { getMetricPolarity, colorForDelta } from "@/lib/checkInSchema";
+import type { Goal } from "@/utils/macros";
+import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 const ProtocolBuilder = lazy(() => import("@/components/coach/ProtocolBuilder"));
 const EvolutionComparisonLazy = lazy(() => import("@/components/coach/EvolutionComparison"));
