@@ -664,7 +664,7 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
       toast.success("Registro financeiro adicionado!");
       setForm({ student_id: "", description: "", amount: "", due_date: "" });
       setShowAdd(false);
-      qc.invalidateQueries({ queryKey: ["coach-finances"] });
+      qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -676,7 +676,7 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
         paid_at: currentlyPaid ? null : new Date().toISOString(),
       }).eq("id", id);
       if (error) throw error;
-      qc.invalidateQueries({ queryKey: ["coach-finances"] });
+      qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
       toast.success(currentlyPaid ? "Marcado como pendente" : "Marcado como pago");
     } catch (e) {
       toast.error("Erro ao atualizar status: " + (e instanceof Error ? e.message : "erro desconhecido"));
@@ -688,7 +688,7 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
     try {
       const { error } = await supabase.from("coach_finances").delete().eq("id", id);
       if (error) throw error;
-      qc.invalidateQueries({ queryKey: ["coach-finances"] });
+      qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
     } catch (e) {
       toast.error("Erro ao remover: " + (e instanceof Error ? e.message : "erro desconhecido"));
     }
@@ -702,7 +702,7 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
         .update({ due_date: editingFinance.due_date || null })
         .eq("id", editingFinance.id);
       if (error) throw error;
-      qc.invalidateQueries({ queryKey: ["coach-finances"] });
+      qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
       setEditingFinance(null);
       toast.success("Data de vencimento atualizada!");
     } catch (e) {
@@ -725,7 +725,7 @@ function FinancesTab({ coachId, students }: { coachId: string; students: Student
         status: "pending",
       });
       if (error) throw error;
-      qc.invalidateQueries({ queryKey: ["coach-finances"] });
+      qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
       toast.success(`Cobrança criada para ${quickBilling.student_name}. O aluno receberá o alerta.`);
       setQuickBilling(null);
       setQuickForm({ description: "Mensalidade", amount: "", due_date: "" });
