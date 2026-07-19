@@ -254,17 +254,12 @@ function StudentRow({
   onLatestFeedback: (s: StudentStatus) => void;
   onSettings: (s: StudentStatus) => void;
 }) {
-  const lastActivity =
-    student.daysInactive === 0 ? "Hoje" :
-    student.daysInactive === 1 ? "Ontem" :
-    student.daysInactive >= 999 ? "Sem registro" :
-    `${student.daysInactive}d sem registro`;
-
+  // Rótulo único de atividade — usa formatRelativePtBR sobre a data do
+  // último check-in, evitando exibir dois rótulos redundantes.
   const feedbackLabel =
-    student.daysSinceLastFeedback >= 999 ? "Sem feedback" :
-    student.daysSinceLastFeedback === 0 ? "Feedback hoje" :
-    student.daysSinceLastFeedback === 1 ? "Feedback há 1 dia" :
-    `Feedback há ${student.daysSinceLastFeedback} dias`;
+    student.daysSinceLastFeedback >= 999 || !student.lastFeedback
+      ? "Sem check-in registrado"
+      : `Último check-in: ${formatRelativePtBR(student.lastFeedback)}`;
 
   const safeName = student.name || "Aluno";
   const initials = safeName.split(" ").slice(0, 2).map((n) => n[0] || "").join("");
@@ -290,7 +285,7 @@ function StudentRow({
           <p className="text-sm font-semibold text-foreground truncate">{safeName}</p>
           <AlertBadge level={student.alertLevel || "ok"} />
         </div>
-        <p className="text-xs text-muted-foreground truncate">{student.goal || "Objetivo não definido"} · {lastActivity}</p>
+        <p className="text-xs text-muted-foreground truncate">{student.goal || "Objetivo não definido"}</p>
         <button
           type="button"
           onClick={() => student.daysSinceLastFeedback < 999 && onLatestFeedback(student)}
@@ -312,6 +307,7 @@ function StudentRow({
         <div className="hidden sm:block text-right shrink-0">
           <p className="text-xs text-muted-foreground">Peso</p>
           <p className="text-sm font-semibold text-foreground">{displayWeight} kg</p>
+          <WeightTrendBadge student={student} />
         </div>
       )}
 
