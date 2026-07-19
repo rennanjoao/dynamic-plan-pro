@@ -14,5 +14,12 @@ export const queryKeys = {
   studentProtocol: (userId: string) => ["student-protocol", userId] as const,
   latestCoachFeedback: (studentId: string | undefined) =>
     ["latest-coach-feedback", studentId] as const,
-  coachStudents: (coachId: string | undefined) => ["coach-students", coachId] as const,
+  // Espelham exatamente as chaves usadas em src/hooks/useCoachStudents.ts.
+  coachStudentsLite: (coachId: string | null) =>
+    ["coach-students-lite", coachId] as const,
+  coachStudentsSummary: (coachId: string | null, feedbackIntervalDays: number) =>
+    ["coach-students-summary", coachId, feedbackIntervalDays] as const,
+  coachStudentsDetail: (coachId: string | null, page: number, pageIds: string[]) =>
+    ["coach-students-detail", coachId, page, pageIds.join(",")] as const,
+  coachFinances: () => ["coach-finances"] as const,
 } as const;
