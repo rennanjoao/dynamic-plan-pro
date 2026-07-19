@@ -7,6 +7,46 @@
  */
 
 import type { SectionDef } from "./anamnesisSchema";
+import type { Goal } from "@/utils/macros";
+
+/**
+ * Polaridade da métrica em relação ao objetivo do aluno.
+ *
+ * - `menor_melhor`: reduzir o valor é considerado progresso (ex.: perder peso
+ *   quando o objetivo é "emagrecer" ou "recomposicao").
+ * - `maior_melhor`: aumentar o valor é considerado progresso (ex.: ganhar
+ *   peso quando o objetivo é "hipertrofia").
+ * - `neutro`: variações são estabilidade e não devem ser tratadas como
+ *   alerta (ex.: objetivo "manter").
+ *
+ * Tabela fixa — não altera regras de negócio existentes, apenas centraliza
+ * a decisão de cor que hoje está duplicada em vários componentes.
+ */
+export type MetricPolarity = "menor_melhor" | "maior_melhor" | "neutro";
+
+export function getMetricPolarity(goal: Goal): MetricPolarity {
+  switch (goal) {
+    case "emagrecer":
+    case "recomposicao":
+      return "menor_melhor";
+    case "hipertrofia":
+      return "maior_melhor";
+    case "manter":
+      return "neutro";
+  }
+}
+
+/**
+ * Classe Tailwind de cor de texto para um delta em relação à polaridade.
+ * Preserva o mesmo esquema já usado nas telas (emerald = progresso,
+ * amber = regressão, muted = estável/neutro).
+ */
+export function colorForDelta(delta: number | null, polarity: MetricPolarity = "menor_melhor"): string {
+  if (delta == null || Math.abs(delta) < 0.05) return "text-muted-foreground";
+  if (polarity === "neutro") return "text-muted-foreground";
+  const positive = polarity === "menor_melhor" ? delta < 0 : delta > 0;
+  return positive ? "text-emerald-500" : "text-amber-500";
+}
 
 // Métricas que geram delta vs anamnese
 export const CHECKIN_METRICS = [
