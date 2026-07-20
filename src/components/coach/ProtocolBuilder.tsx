@@ -48,7 +48,7 @@ import {
   Loader2, Save, Plus, Trash2, FileText, Dumbbell, UtensilsCrossed,
   Calendar, Sparkles, BarChart3, Activity, Pill, TrendingUp, TrendingDown, Minus,
   CheckCircle2, ChevronDown, Copy, BookmarkPlus, Library, ClipboardList,
-  ArrowUp, ArrowDown, Eye, Settings2, History, AlertCircle
+  ArrowUp, ArrowDown, Eye, Settings2, History, AlertCircle, GripVertical
 } from "lucide-react";
 import { toast } from "sonner";
 import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
@@ -77,6 +77,15 @@ import {
   type ProtocolChange,
 } from "@/lib/protocolChangeDetector";
 import { mergeProtocolChanges } from "@/lib/protocolChangeMerge";
+import {
+  DndContext, closestCenter, PointerSensor, KeyboardSensor,
+  useSensor, useSensors, type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, sortableKeyboardCoordinates,
+  useSortable, verticalListSortingStrategy, arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 import { TACO_FOODS } from "@/data/tacoFoods";
 const TACO_DATA = TACO_FOODS.map((t, i) => ({ ...t, id: String(i), cookFactor: t.cookFactor ?? 1 }));
@@ -810,6 +819,27 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
 
 // ─── WorkoutsTab ─────────────────────────────────────────────────────────────
 
+// Linha sortable para drag-and-drop de exercícios. Aplica transform no
+// próprio grid-row (mantém o layout original) e delega os listeners a um
+// handle dedicado (ícone GripVertical) para não interferir nos inputs.
+function SortableExerciseRow({
+  id, className, children,
+}: { id: string; className?: string; children: (handle: { attributes: any; listeners: any; isDragging: boolean }) => React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    position: "relative",
+    zIndex: isDragging ? 20 : undefined,
+  };
+  return (
+    <div ref={setNodeRef} style={style} className={className}>
+      {children({ attributes, listeners, isDragging })}
+    </div>
+  );
+}
+
 function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void; coachId: string | null }) {
   // [FIX Tarefa 10] Backfill de __id em exercícios carregados de protocolos
   // antigos (que não tinham esse campo). Roda uma única vez por payload,
@@ -838,6 +868,25 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
     if (targetIdx < 0 || targetIdx >= exs.length) return;
     [exs[ei], exs[targetIdx]] = [exs[targetIdx], exs[ei]];
     n[di] = { ...n[di], exercises: exs };
+    setPayload({ ...payload, workouts: n });
+  };
+  // Sensors: só inicia drag após 5px de movimento p/ não interferir em cliques
+  // nos botões (mover, deletar, picker de exercício, etc.).
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const handleDragEnd = (di: number, event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const exs = payload.workouts[di].exercises as any[];
+    const ids = exs.map((e, i) => e.__id ?? `${payload.workouts[di].key}-${i}`);
+    const oldIndex = ids.indexOf(String(active.id));
+    const newIndex = ids.indexOf(String(over.id));
+    if (oldIndex < 0 || newIndex < 0) return;
+    const nextExs = arrayMove(exs, oldIndex, newIndex);
+    const n = [...payload.workouts];
+    n[di] = { ...n[di], exercises: nextExs };
     setPayload({ ...payload, workouts: n });
   };
   // Reordena o CARD do dia inteiro (ex: mover "Perna" para cima de "Peito")
@@ -1034,6 +1083,15 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
               </div>
             )}
             
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={(e) => handleDragEnd(di, e)}
+            >
+              <SortableContext
+                items={day.exercises.map((e: any, i) => e.__id ?? `${day.key}-${i}`)}
+                strategy={verticalListSortingStrategy}
+              >
             {day.exercises.map((ex, ei) => {
               const w1 = payload.periodization?.weeks?.[0];
               // Quando periodização ativa, pré-preenche campos vazios com valores da Semana 1
@@ -1046,13 +1104,19 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
               const phCadence = periodOn && w1?.cadence ? `S1: ${w1.cadence}` : "Ex: 3010";
               const phRest    = periodOn && w1?.rest    ? `S1: ${w1.rest}`    : "Descanso (Ex: 60s)";
               const collapsed = periodOn && !overrideOpen[di];
+              const rowId = (ex as any).__id ?? `${day.key}-${ei}`;
               return (
-              <div key={ei} className={cn(
-                "grid grid-cols-2 gap-2 items-center",
-                collapsed
-                  ? "md:grid-cols-[1.8fr_1fr_auto]"
-                  : "md:grid-cols-[1.8fr_0.6fr_0.6fr_0.6fr_0.6fr_1fr_auto]"
-              )}>
+              <SortableExerciseRow
+                key={rowId}
+                id={rowId}
+                className={cn(
+                  "grid grid-cols-2 gap-2 items-center",
+                  collapsed
+                    ? "md:grid-cols-[1.8fr_1fr_auto]"
+                    : "md:grid-cols-[1.8fr_0.6fr_0.6fr_0.6fr_0.6fr_1fr_auto]"
+                )}
+              >
+              {({ attributes, listeners }) => (<>
                 <ExercisePickerInput
                   value={ex.name}
                   gifKey={(ex as any).gifKey}
@@ -1069,6 +1133,16 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
                 )}
                 <Input value={ex.notes} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-xs" />
                 <div className="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    {...attributes}
+                    {...listeners}
+                    className="text-muted-foreground hover:text-primary p-1 cursor-grab active:cursor-grabbing touch-none"
+                    title="Arrastar para reordenar"
+                    aria-label="Arrastar exercício"
+                  >
+                    <GripVertical className="w-3.5 h-3.5" />
+                  </button>
                   <button
                     type="button"
                     onClick={() => moveExercise(di, ei, "up")}
@@ -1089,9 +1163,12 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
                   </button>
                   <button onClick={() => updDay(di, { exercises: day.exercises.filter((_, i) => i !== ei) })} className="text-muted-foreground hover:text-destructive p-1.5"><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>
-              </div>
+              </>)}
+              </SortableExerciseRow>
               );
             })}
+              </SortableContext>
+            </DndContext>
             <div className="flex flex-wrap gap-2 mt-1">
               <Button size="sm" variant="outline" onClick={() => updDay(di, { exercises: [...day.exercises, makeEmptyExercise()] })} className="h-7 text-xs"><Plus className="w-3 h-3 mr-1" /> Exercício</Button>
               <Button
