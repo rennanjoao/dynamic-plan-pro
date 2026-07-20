@@ -1083,6 +1083,15 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
               </div>
             )}
             
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={(e) => handleDragEnd(di, e)}
+            >
+              <SortableContext
+                items={day.exercises.map((e: any, i) => e.__id ?? `${day.key}-${i}`)}
+                strategy={verticalListSortingStrategy}
+              >
             {day.exercises.map((ex, ei) => {
               const w1 = payload.periodization?.weeks?.[0];
               // Quando periodização ativa, pré-preenche campos vazios com valores da Semana 1
@@ -1095,13 +1104,19 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
               const phCadence = periodOn && w1?.cadence ? `S1: ${w1.cadence}` : "Ex: 3010";
               const phRest    = periodOn && w1?.rest    ? `S1: ${w1.rest}`    : "Descanso (Ex: 60s)";
               const collapsed = periodOn && !overrideOpen[di];
+              const rowId = (ex as any).__id ?? `${day.key}-${ei}`;
               return (
-              <div key={ei} className={cn(
-                "grid grid-cols-2 gap-2 items-center",
-                collapsed
-                  ? "md:grid-cols-[1.8fr_1fr_auto]"
-                  : "md:grid-cols-[1.8fr_0.6fr_0.6fr_0.6fr_0.6fr_1fr_auto]"
-              )}>
+              <SortableExerciseRow
+                key={rowId}
+                id={rowId}
+                className={cn(
+                  "grid grid-cols-2 gap-2 items-center",
+                  collapsed
+                    ? "md:grid-cols-[1.8fr_1fr_auto]"
+                    : "md:grid-cols-[1.8fr_0.6fr_0.6fr_0.6fr_0.6fr_1fr_auto]"
+                )}
+              >
+              {({ attributes, listeners }) => (<>
                 <ExercisePickerInput
                   value={ex.name}
                   gifKey={(ex as any).gifKey}
@@ -1118,6 +1133,16 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
                 )}
                 <Input value={ex.notes} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-xs" />
                 <div className="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    {...attributes}
+                    {...listeners}
+                    className="text-muted-foreground hover:text-primary p-1 cursor-grab active:cursor-grabbing touch-none"
+                    title="Arrastar para reordenar"
+                    aria-label="Arrastar exercício"
+                  >
+                    <GripVertical className="w-3.5 h-3.5" />
+                  </button>
                   <button
                     type="button"
                     onClick={() => moveExercise(di, ei, "up")}
@@ -1138,9 +1163,12 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
                   </button>
                   <button onClick={() => updDay(di, { exercises: day.exercises.filter((_, i) => i !== ei) })} className="text-muted-foreground hover:text-destructive p-1.5"><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>
-              </div>
+              </>)}
+              </SortableExerciseRow>
               );
             })}
+              </SortableContext>
+            </DndContext>
             <div className="flex flex-wrap gap-2 mt-1">
               <Button size="sm" variant="outline" onClick={() => updDay(di, { exercises: [...day.exercises, makeEmptyExercise()] })} className="h-7 text-xs"><Plus className="w-3 h-3 mr-1" /> Exercício</Button>
               <Button
