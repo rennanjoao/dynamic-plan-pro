@@ -48,7 +48,7 @@ import {
   Loader2, Save, Plus, Trash2, FileText, Dumbbell, UtensilsCrossed,
   Calendar, Sparkles, BarChart3, Activity, Pill, TrendingUp, TrendingDown, Minus,
   CheckCircle2, ChevronDown, Copy, BookmarkPlus, Library, ClipboardList,
-  ArrowUp, ArrowDown, Eye, Settings2, History, AlertCircle
+  ArrowUp, ArrowDown, Eye, Settings2, History, AlertCircle, GripVertical
 } from "lucide-react";
 import { toast } from "sonner";
 import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
@@ -77,6 +77,15 @@ import {
   type ProtocolChange,
 } from "@/lib/protocolChangeDetector";
 import { mergeProtocolChanges } from "@/lib/protocolChangeMerge";
+import {
+  DndContext, closestCenter, PointerSensor, KeyboardSensor,
+  useSensor, useSensors, type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, sortableKeyboardCoordinates,
+  useSortable, verticalListSortingStrategy, arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 import { TACO_FOODS } from "@/data/tacoFoods";
 const TACO_DATA = TACO_FOODS.map((t, i) => ({ ...t, id: String(i), cookFactor: t.cookFactor ?? 1 }));
