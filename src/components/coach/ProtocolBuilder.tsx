@@ -819,6 +819,27 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
 
 // ─── WorkoutsTab ─────────────────────────────────────────────────────────────
 
+// Linha sortable para drag-and-drop de exercícios. Aplica transform no
+// próprio grid-row (mantém o layout original) e delega os listeners a um
+// handle dedicado (ícone GripVertical) para não interferir nos inputs.
+function SortableExerciseRow({
+  id, className, children,
+}: { id: string; className?: string; children: (handle: { attributes: any; listeners: any; isDragging: boolean }) => React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    position: "relative",
+    zIndex: isDragging ? 20 : undefined,
+  };
+  return (
+    <div ref={setNodeRef} style={style} className={className}>
+      {children({ attributes, listeners, isDragging })}
+    </div>
+  );
+}
+
 function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void; coachId: string | null }) {
   // [FIX Tarefa 10] Backfill de __id em exercícios carregados de protocolos
   // antigos (que não tinham esse campo). Roda uma única vez por payload,
@@ -847,6 +868,25 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
     if (targetIdx < 0 || targetIdx >= exs.length) return;
     [exs[ei], exs[targetIdx]] = [exs[targetIdx], exs[ei]];
     n[di] = { ...n[di], exercises: exs };
+    setPayload({ ...payload, workouts: n });
+  };
+  // Sensors: só inicia drag após 5px de movimento p/ não interferir em cliques
+  // nos botões (mover, deletar, picker de exercício, etc.).
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const handleDragEnd = (di: number, event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const exs = payload.workouts[di].exercises as any[];
+    const ids = exs.map((e, i) => e.__id ?? `${payload.workouts[di].key}-${i}`);
+    const oldIndex = ids.indexOf(String(active.id));
+    const newIndex = ids.indexOf(String(over.id));
+    if (oldIndex < 0 || newIndex < 0) return;
+    const nextExs = arrayMove(exs, oldIndex, newIndex);
+    const n = [...payload.workouts];
+    n[di] = { ...n[di], exercises: nextExs };
     setPayload({ ...payload, workouts: n });
   };
   // Reordena o CARD do dia inteiro (ex: mover "Perna" para cima de "Peito")
