@@ -352,10 +352,12 @@ const Anamnesis = () => {
         baseline_metrics: baseline,
         submitted_at: new Date().toISOString(),
       };
+      let finalAnamnesisId: string | null = null;
       if (isEditMode && editingAnamnesisId) {
         anamnesisRow.student_edit_count = studentEditCount + 1;
         anamnesisRow.updated_at = new Date().toISOString();
         await (supabase.from("anamnesis") as any).update(anamnesisRow).eq("id", editingAnamnesisId);
+        finalAnamnesisId = editingAnamnesisId;
       } else {
         const { data: prior } = await supabase
           .from("anamnesis")
@@ -364,8 +366,23 @@ const Anamnesis = () => {
           .maybeSingle();
         if (prior?.id) {
           await (supabase.from("anamnesis") as any).update(anamnesisRow).eq("id", prior.id);
+          finalAnamnesisId = prior.id;
         } else {
-          await (supabase.from("anamnesis") as any).insert(anamnesisRow);
+          const { data: inserted } = await (supabase.from("anamnesis") as any)
+            .insert(anamnesisRow)
+            .select("id")
+            .single();
+          finalAnamnesisId = inserted?.id ?? null;
+        }
+      }
+
+      if (finalAnamnesisId) {
+        try {
+          await supabase.functions.invoke("anamnesis-summary", {
+            body: { anamnesisId: finalAnamnesisId },
+          });
+        } catch (summaryErr) {
+          console.warn("anamnesis-summary falhou ao disparar (não bloqueia o cadastro)", summaryErr);
         }
       }
 
