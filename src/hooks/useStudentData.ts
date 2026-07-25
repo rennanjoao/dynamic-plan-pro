@@ -58,7 +58,7 @@ export function useStudentData(explicitStudentId?: string) {
     queryFn: async () => {
       const { data, error } = await sb
         .from("anamnesis")
-        .select("*")
+        .select("id, student_id, coach_id, baseline_metrics, payload, submitted_at, created_at, updated_at, body_fat, arm_relaxed, arm_flexed, student_edit_count")
         .eq("student_id", studentId!)
         .maybeSingle();
       if (error) throw error;
