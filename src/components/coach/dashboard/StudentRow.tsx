@@ -1,6 +1,5 @@
 import type { StudentStatus } from "@/hooks/useCoachStudents";
 import { ClipboardList, Dumbbell, History, Sparkles, Settings2, X, MessageSquare } from "lucide-react";
-import { formatRelativePtBR } from "@/lib/formatDate";
 import { AlertBadge, WeightTrendBadge } from "./dashboardUtils";
 
 export function StudentRow({
@@ -15,10 +14,15 @@ export function StudentRow({
   onLatestFeedback: (s: StudentStatus) => void;
   onSettings: (s: StudentStatus) => void;
 }) {
-  const feedbackLabel =
-    student.daysSinceLastFeedback >= 999 || !student.lastFeedback
-      ? "Sem check-in registrado"
-      : `Último check-in: ${formatRelativePtBR(student.lastFeedback)}`;
+  // Sempre em dias exatos (nunca "há N semana(s)") — o coach precisa comparar
+  // isso diretamente com os limites de atenção/crítico, que também são em dias.
+  const feedbackLabel = (() => {
+    if (student.daysSinceLastFeedback >= 999 || !student.lastFeedback) return "Sem check-in registrado";
+    const d = student.daysSinceLastFeedback;
+    if (d <= 0) return "Último check-in: hoje";
+    if (d === 1) return "Último check-in: ontem";
+    return `Último check-in: há ${d} dias`;
+  })();
 
   const safeName = student.name || "Aluno";
   const initials = safeName.split(" ").slice(0, 2).map((n) => n[0] || "").join("");
@@ -42,7 +46,13 @@ export function StudentRow({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <p className="text-sm font-semibold text-foreground truncate">{safeName}</p>
-          <AlertBadge level={student.alertLevel || "ok"} />
+          <AlertBadge
+            level={student.alertLevel || "ok"}
+            daysSinceLastFeedback={student.daysSinceLastFeedback}
+            warningDays={student.warningDays}
+            criticalDays={student.criticalDays}
+            lastFeedback={student.lastFeedback}
+          />
         </div>
         <p className="text-xs text-muted-foreground truncate">{student.goal || "Objetivo não definido"}</p>
         <button
