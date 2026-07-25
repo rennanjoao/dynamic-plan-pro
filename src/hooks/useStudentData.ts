@@ -73,7 +73,7 @@ export function useStudentData(explicitStudentId?: string) {
     queryFn: async () => {
       const { data, error } = await sb
         .from("check_ins")
-        .select("*")
+        .select("id, student_id, coach_id, current_metrics, payload, coach_feedback, photo_url, submitted_at, created_at, updated_at, body_fat, arm_relaxed, arm_flexed, feedback_read_at, edit_count")
         .eq("student_id", studentId!)
         .order("submitted_at", { ascending: false });
       if (error) throw error;
