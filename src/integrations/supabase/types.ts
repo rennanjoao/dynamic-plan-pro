@@ -49,6 +49,8 @@ export type Database = {
       }
       anamnesis: {
         Row: {
+          ai_flags: Json
+          ai_summary: string | null
           arm_flexed: number | null
           arm_relaxed: number | null
           baseline_metrics: Json
@@ -63,6 +65,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_flags?: Json
+          ai_summary?: string | null
           arm_flexed?: number | null
           arm_relaxed?: number | null
           baseline_metrics?: Json
@@ -77,6 +81,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_flags?: Json
+          ai_summary?: string | null
           arm_flexed?: number | null
           arm_relaxed?: number | null
           baseline_metrics?: Json
@@ -214,6 +220,7 @@ export type Database = {
       }
       check_ins: {
         Row: {
+          ai_feedback_draft: string | null
           arm_flexed: number | null
           arm_relaxed: number | null
           body_fat: number | null
@@ -232,6 +239,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_feedback_draft?: string | null
           arm_flexed?: number | null
           arm_relaxed?: number | null
           body_fat?: number | null
@@ -250,6 +258,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_feedback_draft?: string | null
           arm_flexed?: number | null
           arm_relaxed?: number | null
           body_fat?: number | null
@@ -268,6 +277,35 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      checkin_ai_insights: {
+        Row: {
+          check_in_id: string
+          generated_at: string
+          id: string
+          summary: Json
+        }
+        Insert: {
+          check_in_id: string
+          generated_at?: string
+          id?: string
+          summary?: Json
+        }
+        Update: {
+          check_in_id?: string
+          generated_at?: string
+          id?: string
+          summary?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkin_ai_insights_check_in_id_fkey"
+            columns: ["check_in_id"]
+            isOneToOne: true
+            referencedRelation: "check_ins"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       checkin_reminder_log: {
         Row: {
