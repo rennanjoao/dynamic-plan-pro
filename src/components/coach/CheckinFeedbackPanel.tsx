@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Loader2, Send, ChevronDown, ChevronUp, FileDown, CheckSquare, Square } from "lucide-react";
+import { Loader2, Send, ChevronDown, ChevronUp, FileDown, CheckSquare, Square, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { exportCheckinPDF, exportCheckinsBatchPDF } from "@/lib/coachPdfExport";
 import { CHECKIN_SECTIONS } from "@/lib/checkInSchema";
@@ -59,6 +59,8 @@ export default function CheckinFeedbackPanel({ studentId, studentName, open, onC
   const [feedback, setFeedback] = useState("");
   const [sending, setSending] = useState(false);
   const [showAnamnesis, setShowAnamnesis] = useState(false);
+  const [insight, setInsight] = useState<{ changes?: string[]; hypotheses?: string[]; alerts?: string[] } | null>(null);
+  const [generatingDraft, setGeneratingDraft] = useState(false);
 
   useEffect(() => {
     if (!open || !studentId) return;
@@ -87,6 +89,20 @@ export default function CheckinFeedbackPanel({ studentId, studentName, open, onC
       setShowAnamnesis(false);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!ci?.id) { setInsight(null); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await sb
+        .from("checkin_ai_insights")
+        .select("summary")
+        .eq("check_in_id", ci.id)
+        .maybeSingle();
+      if (!cancelled) setInsight(data?.summary ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [ci?.id]);
 
   const fmtDate = (iso: string) =>
     new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -132,6 +148,24 @@ export default function CheckinFeedbackPanel({ studentId, studentName, open, onC
       }
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleGenerateDraft = async () => {
+    if (!ci?.id) return;
+    setGeneratingDraft(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("checkin-feedback-draft", {
+        body: { checkInId: ci.id },
+      });
+      if (error) throw error;
+      const draft = (data as { draft?: string })?.draft;
+      if (draft) setFeedback(draft);
+      else toast.error("Não foi possível gerar o rascunho.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao gerar rascunho.");
+    } finally {
+      setGeneratingDraft(false);
     }
   };
 
@@ -226,10 +260,54 @@ export default function CheckinFeedbackPanel({ studentId, studentName, open, onC
               </>
             )}
 
+            {insight && ((insight.changes?.length ?? 0) > 0 || (insight.hypotheses?.length ?? 0) > 0 || (insight.alerts?.length ?? 0) > 0) && (
+              <div className="space-y-2 border-t border-border pt-3">
+                <label className="text-xs font-semibold text-primary uppercase tracking-wider">
+                  Resumo automático (IA) — o que mudou
+                </label>
+                {(insight.changes?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Mudanças</p>
+                    <ul className="list-disc pl-4 text-xs space-y-0.5">
+                      {insight.changes!.map((c, i) => <li key={i}>{c}</li>)}
+                    </ul>
+                  </div>
+                )}
+                {(insight.hypotheses?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Hipóteses</p>
+                    <ul className="list-disc pl-4 text-xs space-y-0.5">
+                      {insight.hypotheses!.map((c, i) => <li key={i}>{c}</li>)}
+                    </ul>
+                  </div>
+                )}
+                {(insight.alerts?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="text-[11px] font-semibold text-amber-600 uppercase mb-1">Alertas</p>
+                    <ul className="list-disc pl-4 text-xs space-y-0.5 text-amber-700">
+                      {insight.alerts!.map((c, i) => <li key={i}>{c}</li>)}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-2 border-t border-border pt-3">
-              <label className="text-xs font-semibold text-primary uppercase tracking-wider">
-                Feedback do Coach
-              </label>
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-xs font-semibold text-primary uppercase tracking-wider">
+                  Feedback do Coach
+                </label>
+                <Button
+                  type="button"
+                  onClick={handleGenerateDraft}
+                  variant="outline"
+                  size="sm"
+                  disabled={!ci || generatingDraft || sending}
+                >
+                  {generatingDraft ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                  Gerar rascunho
+                </Button>
+              </div>
               <Textarea
                 value={feedback}
                 onChange={(e) => setFeedback(e.target.value)}

@@ -201,6 +201,7 @@ export default function CheckIn() {
         }
       }
 
+      let newCheckInId: string | null = null;
       if (mode === "update" && lastCheckin) {
         const { error } = await sb
           .from("check_ins")
@@ -213,12 +214,13 @@ export default function CheckIn() {
           .eq("id", lastCheckin.id);
         if (error) throw error;
       } else {
-        const { error } = await sb.from("check_ins").insert({
+        const { data: inserted, error } = await sb.from("check_ins").insert({
           student_id: studentId,
           current_metrics,
           payload: { ...data, metrics_raw: metrics, fotos },
-        });
+        }).select("id").single();
         if (error) throw error;
+        newCheckInId = inserted?.id ?? null;
       }
 
       try {
@@ -254,6 +256,27 @@ export default function CheckIn() {
         }
       } catch (notifyErr) {
         console.warn("notifyCoach falhou (check-in)", notifyErr);
+      }
+
+      try {
+        const checkInIdForInsight = mode === "update" && lastCheckin ? lastCheckin.id : newCheckInId;
+        if (checkInIdForInsight) {
+          let ok = false;
+          for (let attempt = 1; attempt <= 2 && !ok; attempt++) {
+            try {
+              const { error: insightErr } = await supabase.functions.invoke("checkin-insight", {
+                body: { checkInId: checkInIdForInsight },
+              });
+              if (!insightErr) ok = true;
+              else console.warn(`checkin-insight falhou (tentativa ${attempt}/2)`, insightErr);
+            } catch (e) {
+              console.warn(`checkin-insight exceção (tentativa ${attempt}/2)`, e);
+            }
+            if (!ok && attempt < 2) await new Promise((r) => setTimeout(r, 800));
+          }
+        }
+      } catch (insightOuterErr) {
+        console.warn("Disparo de checkin-insight falhou (não bloqueia o check-in)", insightOuterErr);
       }
 
       toast.success(

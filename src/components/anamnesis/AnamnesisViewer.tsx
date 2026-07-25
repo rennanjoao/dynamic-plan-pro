@@ -62,6 +62,8 @@ function fmt(val: unknown): string {
 export default function AnamnesisViewer({ studentId, studentName }: Props) {
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiFlags, setAiFlags] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [zoomPhoto, setZoomPhoto] = useState<{ url: string; label: string } | null>(null);
   const [showPhotoCompare, setShowPhotoCompare] = useState(false);
@@ -90,6 +92,8 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
       if (row) {
         setData((row.payload as Record<string, unknown>) || {});
         setUpdatedAt(row.updated_at as string);
+        setAiSummary((row.ai_summary as string) || null);
+        setAiFlags((row.ai_flags as Record<string, unknown>) || null);
       }
       setLoading(false);
     })();
@@ -263,6 +267,27 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
           )}
         </div>
       </div>
+
+      {aiSummary && !isEditing && (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardContent className="p-4 space-y-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <p className="text-xs font-semibold text-primary uppercase tracking-wider">
+                Resumo da anamnese (IA)
+              </p>
+              {aiFlags && (aiFlags.lesoes || aiFlags.doencas || aiFlags.substancias) && (
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 border border-amber-500/30">
+                  Revisar com atenção
+                </span>
+              )}
+            </div>
+            <p className="text-sm whitespace-pre-wrap leading-relaxed">{aiSummary}</p>
+            {aiFlags?.detalhes ? (
+              <p className="text-xs text-amber-700 border-t border-amber-500/20 pt-2">{String(aiFlags.detalhes)}</p>
+            ) : null}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Gráfico de evolução oculto durante a edição para focar no formulário */}
       {!isEditing && <ProgressChart studentId={studentId} />}
