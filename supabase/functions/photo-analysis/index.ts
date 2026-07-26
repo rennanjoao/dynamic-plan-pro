@@ -2,6 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCorsHeaders } from "../_shared/cors.ts";
 
+const POSE_ORDER = ["frente", "lateral_dir", "lateral_esq", "costas"] as const;
+
 serve(async (req) => {
   const corsHeaders = buildCorsHeaders(req.headers.get("origin"));
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -27,7 +29,7 @@ serve(async (req) => {
 
     const { data: current, error: curErr } = await adminClient
       .from("check_ins")
-      .select("id, student_id, current_metrics, payload, submitted_at, updated_at")
+      .select("id, student_id, payload, submitted_at")
       .eq("id", checkInId)
       .maybeSingle();
     if (curErr) throw curErr;
@@ -49,58 +51,62 @@ serve(async (req) => {
     }
     if (!allowed) throw new Error("Acesso negado");
 
+    // Idempotência estrita: nunca reprocessa
     const { data: existing } = await adminClient
-      .from("checkin_ai_insights")
-      .select("generated_at")
+      .from("checkin_photo_analysis")
+      .select("id")
       .eq("check_in_id", checkInId)
       .maybeSingle();
-    const checkinChangedAt = current.updated_at ?? current.submitted_at;
-    if (existing && new Date(existing.generated_at) >= new Date(checkinChangedAt)) {
-      return new Response(JSON.stringify({ ok: true, skipped: "already_up_to_date" }), {
+    if (existing) {
+      return new Response(JSON.stringify({ ok: true, skipped: "already_generated" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const [{ data: previous }, { data: anam }, { data: workouts }] = await Promise.all([
-      adminClient
-        .from("check_ins")
-        .select("current_metrics, payload, submitted_at")
-        .eq("student_id", current.student_id)
-        .neq("id", checkInId)
-        .order("submitted_at", { ascending: false })
-        .limit(3),
-      adminClient
-        .from("anamnesis")
-        .select("baseline_metrics, payload, ai_summary")
-        .eq("student_id", current.student_id)
-        .maybeSingle(),
-      adminClient
-        .from("workout_progress")
-        .select("completed, completed_at")
-        .eq("user_id", current.student_id)
-        .gte("completed_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()),
-    ]);
+    const payload = (current.payload as Record<string, unknown>) || {};
+    const fotos = (payload.fotos as Record<string, string>) || {};
+    const missing = POSE_ORDER.some((k) => !fotos[k]);
+    if (missing) {
+      return new Response(JSON.stringify({ ok: true, skipped: "fotos_incompletas" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-    const workoutAdherence = {
-      completedLast14d: (workouts ?? []).filter((w) => w.completed).length,
-      totalLast14d: (workouts ?? []).length,
-    };
+    // Referência: check-in anterior mais recente com as 4 fotos completas
+    const { data: prevList } = await adminClient
+      .from("check_ins")
+      .select("id, payload, submitted_at")
+      .eq("student_id", current.student_id)
+      .neq("id", checkInId)
+      .order("submitted_at", { ascending: false })
+      .limit(10);
 
-    const SYSTEM_PROMPT = `Você analisa a evolução de um aluno de fitness/nutrição para o coach dele.
+    let referenceUrl: string | null = null;
+    for (const p of prevList ?? []) {
+      const pf = ((p.payload as Record<string, unknown>)?.fotos as Record<string, string>) || {};
+      if (POSE_ORDER.every((k) => pf[k])) {
+        referenceUrl = pf.frente || null;
+        break;
+      }
+    }
+
+    const SYSTEM_PROMPT = `Você analisa fotos corporais de um aluno de fitness para o coach dele.
 Responda SOMENTE com um JSON válido, sem markdown, sem texto fora do JSON, exatamente neste formato:
-{"changes": ["..."], "hypotheses": ["..."], "alerts": ["..."]}
-- "changes": até 5 mudanças objetivas entre o check-in atual e os anteriores (peso, medidas, sono, humor, aderência etc.).
-- "hypotheses": até 3 hipóteses técnicas plausíveis para essas mudanças.
-- "alerts": até 3 pontos que merecem atenção do coach (fadiga, baixa aderência, piora clínica). Array vazio se não houver nada relevante.
-Nunca invente dado que não esteja no contexto. Seja objetivo, técnico, em português.`;
+{"gordura_visual":"...","definicao":"...","volume_muscular":"...","simetria":"...","reliability":0.0}
+- Descrições curtas e qualitativas (ex.: "moderada", "boa definição no tronco", "levemente assimétrico à direita").
+- NUNCA cite peso, %BF ou qualquer número clínico.
+- NUNCA emita diagnóstico clínico.
+- reliability: 0.0 a 1.0 conforme a confiabilidade da comparação com a foto de referência anterior. Se não houver referência, use 0.`;
 
-    const userContent = JSON.stringify({
-      checkInAtual: { metrics: current.current_metrics, payload: current.payload, data: current.submitted_at },
-      checkInsAnteriores: previous ?? [],
-      anamneseResumo: anam?.ai_summary ?? null,
-      anamneseBaseline: anam?.baseline_metrics ?? null,
-      aderenciaTreino14d: workoutAdherence,
-    });
+    const userContent: Array<Record<string, unknown>> = [
+      { type: "text", text: `Análise das 4 poses atuais${referenceUrl ? " comparadas à foto frente do check-in anterior" : " (sem referência anterior)"}. Ordem: frente, lateral_dir, lateral_esq, costas${referenceUrl ? ", depois a referência frente anterior" : ""}.` },
+    ];
+    for (const k of POSE_ORDER) {
+      userContent.push({ type: "image_url", image_url: { url: fotos[k] } });
+    }
+    if (referenceUrl) {
+      userContent.push({ type: "image_url", image_url: { url: referenceUrl } });
+    }
 
     const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -121,24 +127,38 @@ Nunca invente dado que não esteja no contexto. Seja objetivo, técnico, em port
     }
     const aiJson = await aiRes.json();
     const raw = aiJson.choices?.[0]?.message?.content ?? "{}";
-    let parsed: { changes?: string[]; hypotheses?: string[]; alerts?: string[] };
+    let parsed: {
+      gordura_visual?: string;
+      definicao?: string;
+      volume_muscular?: string;
+      simetria?: string;
+      reliability?: number;
+    };
     try {
       parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
     } catch {
-      console.error("[checkin-insight] resposta não-JSON do modelo:", raw);
-      parsed = { changes: [], hypotheses: [], alerts: [] };
+      console.error("[photo-analysis] resposta não-JSON do modelo:", raw);
+      parsed = {};
     }
 
+    const tags = {
+      gordura_visual: parsed.gordura_visual ?? "",
+      definicao: parsed.definicao ?? "",
+      volume_muscular: parsed.volume_muscular ?? "",
+      simetria: parsed.simetria ?? "",
+    };
+    const reliability =
+      typeof parsed.reliability === "number" && isFinite(parsed.reliability)
+        ? Math.max(0, Math.min(1, parsed.reliability))
+        : (referenceUrl ? null : 0);
+
     const { error: upsertErr } = await adminClient
-      .from("checkin_ai_insights")
+      .from("checkin_photo_analysis")
       .upsert(
         {
           check_in_id: checkInId,
-          summary: {
-            changes: parsed.changes ?? [],
-            hypotheses: parsed.hypotheses ?? [],
-            alerts: parsed.alerts ?? [],
-          },
+          tags,
+          reliability,
           generated_at: new Date().toISOString(),
         },
         { onConflict: "check_in_id" }
@@ -149,7 +169,7 @@ Nunca invente dado que não esteja no contexto. Seja objetivo, técnico, em port
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
-    console.error("[checkin-insight]", e);
+    console.error("[photo-analysis]", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Erro desconhecido" }), {
       status: 500,
       headers: { ...buildCorsHeaders(req.headers.get("origin")), "Content-Type": "application/json" },

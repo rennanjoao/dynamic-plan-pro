@@ -307,6 +307,38 @@ export type Database = {
           },
         ]
       }
+      checkin_photo_analysis: {
+        Row: {
+          check_in_id: string
+          generated_at: string
+          id: string
+          reliability: number | null
+          tags: Json
+        }
+        Insert: {
+          check_in_id: string
+          generated_at?: string
+          id?: string
+          reliability?: number | null
+          tags?: Json
+        }
+        Update: {
+          check_in_id?: string
+          generated_at?: string
+          id?: string
+          reliability?: number | null
+          tags?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkin_photo_analysis_check_in_id_fkey"
+            columns: ["check_in_id"]
+            isOneToOne: true
+            referencedRelation: "check_ins"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       checkin_reminder_log: {
         Row: {
           coach_id: string | null
