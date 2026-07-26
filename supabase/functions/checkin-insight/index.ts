@@ -106,7 +106,7 @@ Nunca invente dado que não esteja no contexto. Seja objetivo, técnico, em port
       method: "POST",
       headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
+        model: "qwen/qwen3.6-27b",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userContent },
