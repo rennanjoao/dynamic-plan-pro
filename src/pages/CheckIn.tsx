@@ -279,6 +279,22 @@ export default function CheckIn() {
         console.warn("Disparo de checkin-insight falhou (não bloqueia o check-in)", insightOuterErr);
       }
 
+      try {
+        const checkInIdForInsight = mode === "update" && lastCheckin ? lastCheckin.id : newCheckInId;
+        const hasAllFotos =
+          !!fotos.frente && !!fotos.lateral_dir && !!fotos.lateral_esq && !!fotos.costas;
+        if (checkInIdForInsight && hasAllFotos) {
+          void supabase.functions
+            .invoke("photo-analysis", { body: { checkInId: checkInIdForInsight } })
+            .then(({ error }) => {
+              if (error) console.warn("photo-analysis falhou", error);
+            })
+            .catch((e) => console.warn("photo-analysis exceção", e));
+        }
+      } catch (photoOuterErr) {
+        console.warn("Disparo de photo-analysis falhou (não bloqueia o check-in)", photoOuterErr);
+      }
+
       toast.success(
         mode === "update"
           ? "Check-in atualizado e enviado ao seu coach."
