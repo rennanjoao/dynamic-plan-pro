@@ -46,7 +46,7 @@ serve(async (req) => {
     }
     if (!allowed) throw new Error("Acesso negado");
 
-    const [{ data: insightRow }, { data: pastFeedbacks }] = await Promise.all([
+    const [{ data: insightRow }, { data: pastFeedbacks }, { data: anamneseRow }, { data: photoRow }] = await Promise.all([
       adminClient
         .from("checkin_ai_insights")
         .select("summary")
@@ -59,18 +59,33 @@ serve(async (req) => {
         .not("coach_feedback", "is", null)
         .order("submitted_at", { ascending: false })
         .limit(3),
+      adminClient
+        .from("anamnesis")
+        .select("ai_summary")
+        .eq("student_id", current.student_id)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      adminClient
+        .from("checkin_photo_analysis")
+        .select("tags, reliability")
+        .eq("check_in_id", checkInId)
+        .maybeSingle(),
     ]);
 
     const SYSTEM_PROMPT = `Você escreve, em português, um rascunho de feedback de check-in de um coach para o próprio aluno.
 Regras:
 - Texto corrido, tom humano e direto, como o coach normalmente escreve (veja exemplos de feedbacks anteriores dele, se houver).
-- Baseie-se apenas nos dados fornecidos (dados do check-in atual e no resumo "o que mudou", se houver).
+- Baseie-se apenas nos dados fornecidos (dados do check-in atual, resumo "o que mudou", contexto da anamnese e análise visual, quando houver).
+- Se "analiseVisual" for fornecida, mencione no máximo 1 ponto dela, só se for relevante ao momento do aluno — nunca liste todos os campos.
 - Não invente números ou fatos que não estejam no contexto.
 - Responda APENAS com o texto do feedback, sem aspas, sem markdown, sem preâmbulo.`;
 
     const userContent = JSON.stringify({
       checkInAtual: { metrics: current.current_metrics, payload: current.payload, data: current.submitted_at },
       resumoIA: insightRow?.summary ?? null,
+      contextoAnamnese: anamneseRow?.ai_summary ?? null,
+      analiseVisual: photoRow ? { tags: photoRow.tags, reliability: photoRow.reliability } : null,
       exemplosDeFeedbacksAnterioresDoCoach: (pastFeedbacks ?? []).map((f) => f.coach_feedback),
     });
 
@@ -85,6 +100,7 @@ Regras:
         ],
         stream: false,
         temperature: 0.6,
+        reasoning_format: "hidden",
       }),
     });
     if (!aiRes.ok) {
