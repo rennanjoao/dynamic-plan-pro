@@ -61,6 +61,30 @@ export default function EvolutionComparison({
   const [feedbackOnlyId, setFeedbackOnlyId] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [activePoseFilter, setActivePoseFilter] = useState<typeof POSE_KEYS[number] | null>(null);
+  const [photoAnalysis, setPhotoAnalysis] = useState<{
+    tags: { gordura_visual?: string; definicao?: string; volume_muscular?: string; simetria?: string };
+    reliability: number | null;
+  } | null>(null);
+
+  useEffect(() => {
+    const rightPoint = points.find((p) => p.id === rightId);
+    if (!rightPoint || rightPoint.kind !== "checkin") {
+      setPhotoAnalysis(null);
+      return;
+    }
+    const checkInId = rightPoint.id.replace(/^ci-/, "");
+    let cancelled = false;
+    (async () => {
+      const { data } = await sb
+        .from("checkin_photo_analysis")
+        .select("tags, reliability")
+        .eq("check_in_id", checkInId)
+        .maybeSingle();
+      if (cancelled) return;
+      setPhotoAnalysis(data ? { tags: data.tags || {}, reliability: data.reliability ?? null } : null);
+    })();
+    return () => { cancelled = true; };
+  }, [rightId, points]);
 
   useEffect(() => {
     (async () => {
@@ -351,6 +375,30 @@ export default function EvolutionComparison({
           ))}
         </div>
       </Card>
+
+      {right.kind === "checkin" && photoAnalysis && (
+        <Card className="p-3">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] uppercase tracking-wider text-primary font-bold">Análise visual (IA)</p>
+            <p className="text-[10px] text-muted-foreground">
+              confiabilidade da comparação: {photoAnalysis.reliability != null ? `${Math.round(photoAnalysis.reliability * 100)}%` : "—"}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {([
+              ["Gordura visual", photoAnalysis.tags.gordura_visual],
+              ["Definição", photoAnalysis.tags.definicao],
+              ["Volume muscular", photoAnalysis.tags.volume_muscular],
+              ["Simetria", photoAnalysis.tags.simetria],
+            ] as const).map(([label, value]) => value ? (
+              <span key={label} className="text-[11px] px-2 py-1 rounded-md border border-border/60 bg-muted/30">
+                <span className="text-muted-foreground">{label}:</span>{" "}
+                <span className="text-foreground font-medium">{value}</span>
+              </span>
+            ) : null)}
+          </div>
+        </Card>
+      )}
 
       {/* Métricas */}
       <Card className="p-4">
