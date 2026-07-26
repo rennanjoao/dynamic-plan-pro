@@ -182,7 +182,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   }, [isDirty]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setCoachId(data.session?.user?.id ?? null));
+    supabase.auth.getSession().then(({ data }) => {   const id = data.session?.user?.id ?? null;   setCoachId(id);   loadCoachProfile(id); });
   }, []);
 
   const { data: existing, isLoading } = useQuery({
@@ -1368,7 +1368,7 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
 
 function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void }) {
   const [coachId, setCoachId] = useState<string | null>(null);
-  useEffect(() => { supabase.auth.getSession().then(({ data }) => setCoachId(data.session?.user?.id ?? null)); }, []);
+  useEffect(() => { supabase.auth.getSession().then(({ data }) => {   const id = data.session?.user?.id ?? null;   setCoachId(id);   loadCoachProfile(id); }); }, []);
 
   const [saveTplFor, setSaveTplFor] = useState<{ idx: number; name: string; kind: string } | null>(null);
   const [loadTplOpen, setLoadTplOpen] = useState(false);
