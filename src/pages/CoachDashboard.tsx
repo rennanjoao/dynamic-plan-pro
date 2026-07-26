@@ -33,6 +33,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 // Subcomponentes extraídos
 import { StatCard, useCoachId, sb } from "@/components/coach/dashboard/dashboardUtils";
 import { StudentRow } from "@/components/coach/dashboard/StudentRow";
+import { PriorityQueuePanel } from "@/components/coach/dashboard/PriorityQueuePanel";
 import { EvolutionDialog } from "@/components/coach/dashboard/EvolutionDialog";
 import { StudentFeedbackConfigDialog } from "@/components/coach/dashboard/StudentFeedbackConfigDialog";
 import { CheckinHistoryDialog } from "@/components/coach/dashboard/CheckinHistoryDialog";
@@ -182,6 +183,24 @@ export default function CoachDashboard() {
               <StatCard label="Precisam atenção"  value={stats.warning}  icon={<AlertTriangle className="w-4 h-4" />} accent="#F59E0B" />
               <StatCard label="Em dia"            value={stats.ok}       icon={<CheckCircle2 className="w-4 h-4" />}  accent="#10B981" />
             </div>
+
+            {coachId && (
+              <PriorityQueuePanel
+                coachId={coachId}
+                students={allStudents}
+                onSelectStudent={(sid) => {
+                  const st = allStudents.find((s) => s.id === sid);
+                  if (st) {
+                    setSelectedStudent({
+                      id: st.id, name: st.name, alertLevel: "ok", daysInactive: 0,
+                      daysSinceLastFeedback: 999, currentWeight: undefined, lastWeightDate: undefined,
+                    } as any);
+                    setActiveTab("treinos");
+                  }
+                }}
+                onSelectBilling={() => setActiveTab("finances")}
+              />
+            )}
 
             <div className="flex gap-3 flex-wrap">
               <div className="relative flex-1 min-w-[180px]">
