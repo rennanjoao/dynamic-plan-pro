@@ -3,6 +3,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCorsHeaders } from "../_shared/cors.ts";
 
 const POSE_ORDER = ["frente", "lateral_dir", "lateral_esq", "costas"] as const;
+// Envio pra IA é só o par frente+costas (limite de 5 imagens/request do modelo).
+// POSE_ORDER continua sendo o gate de "check-in tem as 4 fotos" — não muda.
+const COMPARE_POSES = ["frente", "costas"] as const;
 
 serve(async (req) => {
   const corsHeaders = buildCorsHeaders(req.headers.get("origin"));
@@ -72,7 +75,7 @@ serve(async (req) => {
       });
     }
 
-    // Referência: check-in anterior mais recente com as 4 fotos completas
+    // Referência: check-in anterior mais recente com o par frente+costas completo
     const { data: prevList } = await adminClient
       .from("check_ins")
       .select("id, payload, submitted_at")
@@ -81,14 +84,17 @@ serve(async (req) => {
       .order("submitted_at", { ascending: false })
       .limit(10);
 
-    let referenceUrl: string | null = null;
+    let refFrente: string | null = null;
+    let refCostas: string | null = null;
     for (const p of prevList ?? []) {
       const pf = ((p.payload as Record<string, unknown>)?.fotos as Record<string, string>) || {};
-      if (POSE_ORDER.every((k) => pf[k])) {
-        referenceUrl = pf.frente || null;
+      if (COMPARE_POSES.every((k) => pf[k])) {
+        refFrente = pf.frente;
+        refCostas = pf.costas;
         break;
       }
     }
+    const hasReference = !!refFrente && !!refCostas;
 
     // Contexto de objetivo/condição do aluno (mesmo resumo já usado no coach — nunca cru)
     const { data: anamneseRow } = await adminClient
@@ -100,26 +106,34 @@ serve(async (req) => {
       .maybeSingle();
     const anamneseContexto = anamneseRow?.ai_summary ?? null;
 
-    const SYSTEM_PROMPT = `Você analisa fotos corporais de um aluno de fitness para o coach dele.
+    const SYSTEM_PROMPT = `Você analisa fotos corporais (frente e costas) de um aluno de fitness para o coach dele.
 Responda SOMENTE com um JSON válido, sem markdown, sem texto fora do JSON, exatamente neste formato:
 {"gordura_visual":"...","definicao":"...","volume_muscular":"...","simetria":"...","reliability":0.0}
 - Descrições curtas e qualitativas (ex.: "moderada", "boa definição no tronco", "levemente assimétrico à direita").
+- As imagens vêm identificadas por legenda (frente atual, frente anterior, costas atual, costas anterior). Compare cada pose com seu par da mesma pose quando o par anterior existir.
+- "simetria" pode considerar frente e costas atuais entre si, mesmo sem referência anterior.
 - Use o contexto de objetivo/condição do aluno (se fornecido) só para calibrar a leitura (ex.: fase de volume explica menos definição; não tratar como meta a cobrar do aluno).
 - NUNCA cite peso, %BF ou qualquer número clínico.
 - NUNCA emita diagnóstico clínico, mesmo que o contexto mencione lesão ou condição de saúde.
-- reliability: 0.0 a 1.0 conforme a confiabilidade da comparação com a foto de referência anterior. Se não houver referência, use 0.`;
+- reliability: 0.0 a 1.0 conforme a confiabilidade da comparação com as fotos de referência anterior (frente+costas). Se não houver esse par anterior completo, use 0.`;
 
     const userContent: Array<Record<string, unknown>> = [
       {
         type: "text",
-        text: `Análise das 4 poses atuais${referenceUrl ? " comparadas à foto frente do check-in anterior" : " (sem referência anterior)"}. Ordem: frente, lateral_dir, lateral_esq, costas${referenceUrl ? ", depois a referência frente anterior" : ""}.${anamneseContexto ? `\n\nContexto do aluno (objetivo/condição, da anamnese): ${anamneseContexto}` : ""}`,
+        text: `Comparação em pares por pose (frente com frente, costas com costas).${hasReference ? "" : " Sem par anterior completo (frente+costas) — analise só as fotos atuais."}${anamneseContexto ? `\n\nContexto do aluno (objetivo/condição, da anamnese): ${anamneseContexto}` : ""}`,
       },
+      { type: "text", text: "Frente atual:" },
+      { type: "image_url", image_url: { url: fotos.frente } },
     ];
-    for (const k of POSE_ORDER) {
-      userContent.push({ type: "image_url", image_url: { url: fotos[k] } });
+    if (hasReference) {
+      userContent.push({ type: "text", text: "Frente anterior (referência):" });
+      userContent.push({ type: "image_url", image_url: { url: refFrente! } });
     }
-    if (referenceUrl) {
-      userContent.push({ type: "image_url", image_url: { url: referenceUrl } });
+    userContent.push({ type: "text", text: "Costas atual:" });
+    userContent.push({ type: "image_url", image_url: { url: fotos.costas } });
+    if (hasReference) {
+      userContent.push({ type: "text", text: "Costas anterior (referência):" });
+      userContent.push({ type: "image_url", image_url: { url: refCostas! } });
     }
 
     const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -165,7 +179,7 @@ Responda SOMENTE com um JSON válido, sem markdown, sem texto fora do JSON, exat
     const reliability =
       typeof parsed.reliability === "number" && isFinite(parsed.reliability)
         ? Math.max(0, Math.min(1, parsed.reliability))
-        : (referenceUrl ? null : 0);
+        : (hasReference ? null : 0);
 
     const { error: upsertErr } = await adminClient
       .from("checkin_photo_analysis")
