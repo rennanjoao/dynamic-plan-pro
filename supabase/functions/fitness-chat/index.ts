@@ -67,6 +67,7 @@ serve(async (req) => {
           model: "qwen/qwen3.6-27b",
           messages: chatMessages,
           stream: true,
+          reasoning_format: "hidden",
         }),
       }
     );
