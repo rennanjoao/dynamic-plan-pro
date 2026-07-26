@@ -1616,6 +1616,20 @@ export type Database = {
       }
     }
     Views: {
+      coach_priority_queue: {
+        Row: {
+          coach_id: string | null
+          message: string | null
+          reference_at: string | null
+          severity: string | null
+          source: string | null
+          source_id: string | null
+          student_id: string | null
+          suggested_action: string | null
+          title: string | null
+        }
+        Relationships: []
+      }
       student_alert_view: {
         Row: {
           alert_level: string | null
