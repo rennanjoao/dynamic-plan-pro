@@ -54,6 +54,7 @@ serve(async (req: Request) => {
         body: JSON.stringify({
           model: "qwen/qwen3.6-27b",
           messages: chatMessages,
+          reasoning_format: "hidden",
         }),
       }
     );
