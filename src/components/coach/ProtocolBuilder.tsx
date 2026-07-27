@@ -451,7 +451,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
           console.error("[protocol_change_events] best-effort falhou", evtErr);
         }
       }
-      qc.invalidateQueries({ queryKey: ["protocol-builder", studentId] });
+      if (coachId) {         void sb.rpc("refresh_coach_ai_profile", { p_coach_id: coachId }).then(({ error }) => {           if (error) console.warn("refresh_coach_ai_profile falhou (não bloqueia o save)", error);         });       }       qc.invalidateQueries({ queryKey: ["protocol-builder", studentId] });
       qc.invalidateQueries({ queryKey: ["protocol", studentId] });
       qc.invalidateQueries({ queryKey: ["diet-strategy", studentId] });
       qc.invalidateQueries({ queryKey: ["workout-plan", studentId] });
