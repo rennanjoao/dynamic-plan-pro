@@ -48,7 +48,7 @@ import {
   Loader2, Save, Plus, Trash2, FileText, Dumbbell, UtensilsCrossed,
   Calendar, Sparkles, BarChart3, Activity, Pill, TrendingUp, TrendingDown, Minus,
   CheckCircle2, ChevronDown, Copy, BookmarkPlus, Library, ClipboardList,
-  ArrowUp, ArrowDown, Eye, Settings2, History, AlertCircle, GripVertical
+  ArrowUp, ArrowDown, Eye, Settings2, History, AlertCircle, GripVertical, RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
 import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
@@ -156,6 +156,14 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
+  const ENABLE_AI_INITIAL_DRAFT = true;
+  const [aiSuggestion, setAiSuggestion] = useState<{
+    calories: number; protein: number; carbs: number; fat: number; water: number; goal: string; rationale: string;
+  } | null>(null);
+  const [loadingAiSuggestion, setLoadingAiSuggestion] = useState(false);
+  const [renewalOpen, setRenewalOpen] = useState(false);
+  const [renewalLoading, setRenewalLoading] = useState(false);
+  const [renewalText, setRenewalText] = useState("");
   const [lastAutosavedAt, setLastAutosavedAt] = useState<Date | null>(null);
   const [isAutosaving, setIsAutosaving] = useState(false);
   const [pendingOpen, setPendingOpen] = useState(false);
@@ -318,13 +326,60 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
     }
   }, [payload, isEditMode]);
 
+  async function suggestMacrosWithAI() {
+    if (!studentId) return;
+    setLoadingAiSuggestion(true);
+    try {
+      const { data, error } = await sb.functions.invoke("protocol-initial-draft", { body: { studentId } });
+      if (error) throw error;
+      if (!data?.ok) {
+        toast.error(data?.reason === "sem_anamnese" ? "Aluno ainda não tem anamnese preenchida" : "Não foi possível gerar sugestão agora");
+        return;
+      }
+      setAiSuggestion(data);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível gerar sugestão agora");
+    } finally {
+      setLoadingAiSuggestion(false);
+    }
+  }
+
+  async function openRenewalSuggestion() {
+    if (!studentId || !protocolId) return;
+    setRenewalOpen(true);
+    setRenewalLoading(true);
+    setRenewalText("");
+    try {
+      const { data, error } = await sb.functions.invoke("protocol-renewal-draft", { body: { studentId, protocolId } });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error || "Falha ao gerar sugestão");
+      setRenewalText(data.text || "");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível gerar sugestão agora");
+      setRenewalOpen(false);
+    } finally {
+      setRenewalLoading(false);
+    }
+  }
+
   function generateBase() {
     const base = buildBasePayload({ split: setupSplit, mealsCount: setupMeals, carbCycle: setupCarbCycle });
+    if (aiSuggestion) {
+      base.macros = {
+        calories: aiSuggestion.calories,
+        protein: aiSuggestion.protein,
+        carbs: aiSuggestion.carbs,
+        fat: aiSuggestion.fat,
+        water: aiSuggestion.water,
+        goal: aiSuggestion.goal,
+      };
+    }
     updatePayload(base);
     setName(`Protocolo — ${studentName}`);
     setActive(true);
     setProtocolId(null);
     setSetupOpen(false);
+    setAiSuggestion(null);
   }
 
   async function save(opts: { asDraft?: boolean } = {}) {
@@ -602,6 +657,18 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                     <span className="hidden sm:inline">Histórico</span>
                   </Button>
                 )}
+                {isEditMode && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-9 text-xs"
+                    onClick={openRenewalSuggestion}
+                    title="Sugestão de renovação de ciclo (IA)"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 sm:mr-1.5" />
+                    <span className="hidden sm:inline">Renovar ciclo (IA)</span>
+                  </Button>
+                )}
               </div>
             </div>
           )}
@@ -758,7 +825,58 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
               </div>
               <Switch checked={setupCarbCycle} onCheckedChange={setSetupCarbCycle} />
             </div>
+            {ENABLE_AI_INITIAL_DRAFT && (
+              !aiSuggestion ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={suggestMacrosWithAI}
+                  disabled={loadingAiSuggestion}
+                >
+                  {loadingAiSuggestion ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                  Sugerir macros com IA (baseado na anamnese)
+                </Button>
+              ) : (
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-1.5">
+                  <p className="text-[11px] font-semibold text-primary">Sugestão da IA:</p>
+                  <p className="text-xs text-foreground/90">
+                    {aiSuggestion.calories} kcal · P {aiSuggestion.protein}g · C {aiSuggestion.carbs}g · G {aiSuggestion.fat}g · Água {aiSuggestion.water}L
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">{aiSuggestion.rationale}</p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setAiSuggestion(null)}
+                    className="text-[11px] h-6 px-2"
+                  >
+                    Descartar sugestão
+                  </Button>
+                </div>
+              )
+            )}
             <Button onClick={generateBase} className="w-full"><Sparkles className="w-4 h-4 mr-2" /> Gerar Base</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={renewalOpen} onOpenChange={setRenewalOpen}>
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>Sugestão de renovação de ciclo (IA)</DialogTitle>
+            <DialogDescription className="text-xs">
+              Rascunho pra você revisar — nada é aplicado automaticamente no protocolo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            {renewalLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            ) : (
+              <p className="text-sm whitespace-pre-wrap text-foreground/90">{renewalText}</p>
+            )}
           </div>
         </DialogContent>
       </Dialog>

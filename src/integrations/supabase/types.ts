@@ -372,6 +372,42 @@ export type Database = {
         }
         Relationships: []
       }
+      coach_ai_profile: {
+        Row: {
+          cadence: string | null
+          coach_id: string
+          display_name: string
+          exercise_key: string
+          reps: string | null
+          rest: string | null
+          sample_count: number
+          sets: string | null
+          updated_at: string
+        }
+        Insert: {
+          cadence?: string | null
+          coach_id: string
+          display_name: string
+          exercise_key: string
+          reps?: string | null
+          rest?: string | null
+          sample_count?: number
+          sets?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cadence?: string | null
+          coach_id?: string
+          display_name?: string
+          exercise_key?: string
+          reps?: string | null
+          rest?: string | null
+          sample_count?: number
+          sets?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       coach_fatigue_alerts: {
         Row: {
           alert_type: string
@@ -1715,6 +1751,11 @@ export type Database = {
         }
         Returns: boolean
       }
+      refresh_coach_ai_profile: {
+        Args: { p_coach_id?: string }
+        Returns: undefined
+      }
+      unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
       app_role: "admin" | "user" | "coach"
