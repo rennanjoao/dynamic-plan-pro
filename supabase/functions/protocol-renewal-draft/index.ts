@@ -89,7 +89,7 @@ Responda APENAS com o texto, sem markdown, sem preâmbulo, sem aspas.`;
         ],
         stream: false,
         temperature: 0.5,
-        reasoning_format: "hidden",
+        reasoning_effort: "none",
       }),
     });
     if (!aiRes.ok) {

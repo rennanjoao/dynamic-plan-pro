@@ -147,7 +147,7 @@ Responda SOMENTE com um JSON válido, sem markdown, sem texto fora do JSON, exat
         ],
         stream: false,
         temperature: 0.3,
-        reasoning_format: "hidden",
+        reasoning_effort: "none",
       }),
     });
     if (!aiRes.ok) {
