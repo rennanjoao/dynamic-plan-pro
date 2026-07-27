@@ -113,7 +113,7 @@ Nunca invente dado que não esteja no contexto. Seja objetivo, técnico, em port
         ],
         stream: false,
         temperature: 0.3,
-        reasoning_format: "hidden",
+        reasoning_effort: "none",
       }),
     });
     if (!aiRes.ok) {

@@ -100,7 +100,7 @@ Regras:
         ],
         stream: false,
         temperature: 0.6,
-        reasoning_format: "hidden",
+        reasoning_effort: "none",
       }),
     });
     if (!aiRes.ok) {

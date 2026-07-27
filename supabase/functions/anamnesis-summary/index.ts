@@ -79,7 +79,7 @@ Nunca invente informação que não esteja no texto do aluno.`;
         ],
         stream: false,
         temperature: 0.2,
-        reasoning_format: "hidden",
+        reasoning_effort: "none",
       }),
     });
     if (!aiRes.ok) {
