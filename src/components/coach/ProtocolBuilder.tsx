@@ -165,6 +165,19 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [renewalOpen, setRenewalOpen] = useState(false);
   const [renewalLoading, setRenewalLoading] = useState(false);
   const [renewalText, setRenewalText] = useState("");
+  const [renewalSuggestions, setRenewalSuggestions] = useState<Array<{
+    id: string;
+    categoria: "treino" | "dieta" | "diretrizes";
+    exercicioId?: string;
+    campo: string;
+    alvo: string;
+    valorAtual: string;
+    valorSugerido: string;
+    motivo: string;
+  }>>([]);
+  const [renewalAccepted, setRenewalAccepted] = useState<Set<string>>(new Set());
+  const [renewalEdited, setRenewalEdited] = useState<Record<string, string>>({});
+  const [showRenewalSuggestions, setShowRenewalSuggestions] = useState(false);
   const [lastAutosavedAt, setLastAutosavedAt] = useState<Date | null>(null);
   const [isAutosaving, setIsAutosaving] = useState(false);
   const [pendingOpen, setPendingOpen] = useState(false);
@@ -350,17 +363,47 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
     setRenewalOpen(true);
     setRenewalLoading(true);
     setRenewalText("");
+    setRenewalSuggestions([]);
+    setRenewalAccepted(new Set());
+    setRenewalEdited({});
+    setShowRenewalSuggestions(false);
     try {
       const { data, error } = await sb.functions.invoke("protocol-renewal-draft", { body: { studentId, protocolId } });
       if (error) throw error;
       if (!data?.ok) throw new Error(data?.error || "Falha ao gerar sugestão");
-      setRenewalText(data.text || "");
+      setRenewalText(data.resumo || "");
+      setRenewalSuggestions(data.sugestoes || []);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Não foi possível gerar sugestão agora");
       setRenewalOpen(false);
     } finally {
       setRenewalLoading(false);
     }
+  }
+
+  function applyRenewalSuggestions() {
+    if (renewalAccepted.size === 0 || !payload) return;
+    const next = JSON.parse(JSON.stringify(payload)) as typeof payload;
+    let count = 0;
+    for (const s of renewalSuggestions) {
+      if (!renewalAccepted.has(s.id)) continue;
+      const valor = renewalEdited[s.id] ?? s.valorSugerido;
+      if (s.categoria === "treino" && s.exercicioId) {
+        for (const w of next.workouts) {
+          const ex = (w.exercises as any[]).find((e) => e.__id === s.exercicioId);
+          if (ex) { ex[s.campo] = valor; count++; break; }
+        }
+      } else if (s.categoria === "dieta") {
+        next.macros = { ...next.macros, [s.campo]: Number(valor) || 0 };
+        count++;
+      } else if (s.categoria === "diretrizes") {
+        next.guidelines = { ...next.guidelines, [s.campo]: valor };
+        count++;
+      }
+    }
+    updatePayload(next);
+    toast.success(`${count} alteração(ões) aplicada(s) — revise e clique em Salvar/Atualizar protocolo.`);
+    setRenewalOpen(false);
   }
 
   function generateBase() {
