@@ -68,10 +68,59 @@ serve(async (req) => {
     if (!protocolo) throw new Error("Protocolo não encontrado");
 
     const payload = (protocolo.payload as Record<string, unknown>) || {};
+    const coachIdDoProtocolo = String((protocolo as Record<string, unknown>).coach_id ?? user.id);
     const workouts = (payload.workouts as Array<Record<string, unknown>>) || [];
+    const weekDays = (payload.weekDays as Record<string, string>) || {};
+    const WEEKDAYS_ORDER = [
+      { key: "seg", label: "Segunda" }, { key: "ter", label: "Terça" },
+      { key: "qua", label: "Quarta" }, { key: "qui", label: "Quinta" },
+      { key: "sex", label: "Sexta" }, { key: "sab", label: "Sábado" },
+      { key: "dom", label: "Domingo" },
+    ];
+    // Visão real da semana — qual dia é qual treino, e qual dia é descanso
+    // de verdade (nunca inferir isso pela letra do treino).
+    const diasDaSemana = WEEKDAYS_ORDER.map(({ key, label }) => {
+      const v = weekDays[key];
+      return { dia: label, atividade: !v || v === "REST" ? "Descanso" : `Treino ${v}` };
+    });
+    const diaDaSemanaPorTreino: Record<string, string[]> = {};
+    for (const { key, label } of WEEKDAYS_ORDER) {
+      const v = weekDays[key];
+      if (v && v !== "REST") (diaDaSemanaPorTreino[v] ??= []).push(label);
+    }
+
+    function normalizeNome(n: string): string {
+      return (n || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+    }
+
     const exerciciosDisponiveis: string[] = [];
+    const nomesExercicios = new Set<string>();
+    for (const w of workouts) {
+      for (const e of ((w.exercises as Array<Record<string, unknown>>) || [])) {
+        const nome = String(e.name ?? "").trim();
+        if (nome) nomesExercicios.add(normalizeNome(nome));
+      }
+    }
+
+    // DNA do coach (Passo 8) — padrão histórico dele pra cada exercício que
+    // aparece neste protocolo, só como calibração de estilo, não como regra.
+    let dnaDoCoach: Array<{ exercicio: string; sets: string | null; reps: string | null; cadence: string | null; rest: string | null; amostras: number }> = [];
+    if (nomesExercicios.size > 0) {
+      const { data: perfil } = await adminClient
+        .from("coach_ai_profile")
+        .select("exercise_key, display_name, sets, reps, cadence, rest, sample_count")
+        .eq("coach_id", coachIdDoProtocolo);
+      dnaDoCoach = (perfil ?? [])
+        .filter((p) => nomesExercicios.has(p.exercise_key))
+        .map((p) => ({
+          exercicio: p.display_name, sets: p.sets, reps: p.reps, cadence: p.cadence, rest: p.rest,
+          amostras: p.sample_count,
+        }));
+    }
+
     const resumoTreino = workouts.map((w) => ({
       dia: w.key,
+      diaDaSemana: diaDaSemanaPorTreino[String(w.key)]?.join(", ") || "não atribuído a nenhum dia",
       foco: w.focus,
       exercicios: ((w.exercises as Array<Record<string, unknown>>) || []).map((e) => {
         const id = String(e.__id ?? "");
@@ -99,6 +148,15 @@ Responda SOMENTE com um JSON válido, sem markdown, exatamente neste formato:
 Regras:
 - Máximo ${MAX_SUGESTOES} sugestões no total, só as mais relevantes.
 - categoria "treino": exercicioId TEM que ser um dos ids em treinoAtual — nunca invente id.
+- diasDaSemana mostra a semana real: qual dia é qual treino, e qual dia é
+  "Descanso". Cada treino em treinoAtual já vem com diaDaSemana preenchido.
+  NUNCA presuma que a letra do treino (A/B/C/D) indica um dia da semana ou
+  que um treino é descanso — só confie no que diasDaSemana e diaDaSemana dizem.
+- dnaDoCoach mostra o padrão histórico desse coach pra cada exercício, vindo
+  de outros protocolos que ele já escreveu. Use como referência de estilo
+  dele, não como regra fixa — se sugerir algo bem diferente do padrão dele,
+  diga o motivo específico no campo "motivo" (ex: progressão pontual, não
+  estilo geral).
 - Baseie-se só nos dados fornecidos. Não invente números que não estejam no contexto.
 - Nunca emita diagnóstico clínico.
 - Isto é rascunho — o coach decide o que aceitar, então pode sugerir mesmo sem certeza absoluta, mas com "motivo" honesto.`;
@@ -106,7 +164,10 @@ Regras:
     const userContent = JSON.stringify({
       macrosAtuais: payload.macros ?? null,
       diretrizesAtuais: payload.guidelines ?? null,
+      diasDaSemana,
+      notasDescanso: payload.restNotes || null,
       treinoAtual: resumoTreino,
+      dnaDoCoach,
       ultimosCheckins: (checkins ?? []).map((c) => ({ metrics: c.current_metrics, data: c.submitted_at })),
       resumoAnamnese: anamnese?.ai_summary ?? null,
     });
