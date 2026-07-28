@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Loader2, BookmarkPlus, Trash2, Dumbbell, Utensils, FileText, ClipboardList } from "lucide-react";
+import { Loader2, BookmarkPlus, Trash2, Dumbbell, Utensils, FileText, ClipboardList, Eye } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { ProtocolPayloadSchema, type ProtocolPayload } from "@/lib/protocolSchema";
 
@@ -53,6 +53,7 @@ export default function TemplateLibraryDialog({
   const [saveOpen, setSaveOpen] = useState<null | "workout" | "protocol">(null);
   const [saveName, setSaveName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   async function reload() {
     if (!coachId) return;
@@ -208,6 +209,42 @@ export default function TemplateLibraryDialog({
     } finally { setSaving(false); }
   }
 
+  function renderTemplatePreview(item: TplItem) {
+    if (item.type === "workout") {
+      const treinos = item.raw.treinos || {};
+      const workouts = Array.isArray(treinos.workouts) ? treinos.workouts : [];
+      if (workouts.length === 0) return <p className="text-[11px] text-muted-foreground">Sem dias de treino salvos.</p>;
+      return (
+        <div className="text-[11px] text-muted-foreground space-y-1">
+          {workouts.map((w: any, i: number) => (
+            <p key={i}>
+              <span className="font-medium text-foreground">{w.key}{w.focus ? ` — ${w.focus}` : ""}:</span>{" "}
+              {(w.exercises || []).map((e: any) => e.name).filter(Boolean).join(", ") || "sem exercícios"}
+            </p>
+          ))}
+        </div>
+      );
+    }
+    if (item.type === "meal") {
+      const meal = item.raw.meal_data || {};
+      const macros = meal.macros || {};
+      return (
+        <div className="text-[11px] text-muted-foreground space-y-1">
+          <p>Macros: {macros.protein ?? 0}g P · {macros.carbs ?? 0}g C · {macros.fat ?? 0}g G</p>
+          <p>{(meal.options?.length ?? 0)} opção(ões) de refeição{meal.notes ? ` — ${meal.notes}` : ""}</p>
+        </div>
+      );
+    }
+    const p = item.raw.payload || {};
+    const macros = p.macros || {};
+    return (
+      <div className="text-[11px] text-muted-foreground space-y-1">
+        <p>Macros: {macros.calories ?? "—"} kcal · {macros.protein ?? 0}g P · {macros.carbs ?? 0}g C · {macros.fat ?? 0}g G</p>
+        <p>{(p.workouts?.length ?? 0)} dia(s) de treino · {(p.meals?.length ?? 0)} refeição(ões)</p>
+      </div>
+    );
+  }
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -259,30 +296,45 @@ export default function TemplateLibraryDialog({
                 {filtered.map((item) => {
                   const meta = TYPE_META[item.type];
                   const Icon = meta.icon;
+                  const key = `${item.type}:${item.id}`;
                   return (
-                    <li key={`${item.type}:${item.id}`} className="flex items-center gap-2 rounded-md border border-border/60 bg-background/40 px-2.5 py-2">
-                      <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-medium text-foreground truncate">{item.name}</span>
-                          <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${meta.badge}`}>
-                            {meta.label}
-                          </span>
+                    <li key={key} className="rounded-md border border-border/60 bg-background/40 px-2.5 py-2">
+                      <div className="flex items-center gap-2">
+                        <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-medium text-foreground truncate">{item.name}</span>
+                            <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${meta.badge}`}>
+                              {meta.label}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            {new Date(item.createdAt).toLocaleDateString("pt-BR")}
+                          </p>
                         </div>
-                        <p className="text-[10px] text-muted-foreground">
-                          {new Date(item.createdAt).toLocaleDateString("pt-BR")}
-                        </p>
+                        <button
+                          onClick={() => setExpandedKey(expandedKey === key ? null : key)}
+                          className="text-muted-foreground hover:text-foreground p-1"
+                          title="Pré-visualizar"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => applyItem(item)}>
+                          Aplicar
+                        </Button>
+                        <button
+                          onClick={() => deleteItem(item)}
+                          className="text-muted-foreground hover:text-destructive p-1"
+                          title="Excluir"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
-                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => applyItem(item)}>
-                        Aplicar
-                      </Button>
-                      <button
-                        onClick={() => deleteItem(item)}
-                        className="text-muted-foreground hover:text-destructive p-1"
-                        title="Excluir"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {expandedKey === key && (
+                        <div className="mt-2 pt-2 border-t border-border/40">
+                          {renderTemplatePreview(item)}
+                        </div>
+                      )}
                     </li>
                   );
                 })}

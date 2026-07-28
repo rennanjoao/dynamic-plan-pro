@@ -933,6 +933,25 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                   </Button>
                 )}
 
+                {showRenewalSuggestions && renewalSuggestions.length > 0 && (
+                  <div className="flex items-center gap-3 text-xs">
+                    <button
+                      type="button"
+                      className="text-primary hover:underline"
+                      onClick={() => setRenewalAccepted(new Set(renewalSuggestions.map((s) => s.id)))}
+                    >
+                      Selecionar todas
+                    </button>
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:underline"
+                      onClick={() => setRenewalAccepted(new Set())}
+                    >
+                      Limpar seleção
+                    </button>
+                  </div>
+                )}
+
                 {showRenewalSuggestions && (["treino", "dieta", "diretrizes"] as const).map((cat) => {
                   const items = renewalSuggestions.filter((s) => s.categoria === cat);
                   if (items.length === 0) return null;

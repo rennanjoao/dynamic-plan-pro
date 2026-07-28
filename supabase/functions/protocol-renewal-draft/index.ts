@@ -50,7 +50,7 @@ serve(async (req) => {
     if (!allowed) throw new Error("Acesso negado");
 
     const [{ data: protocolo }, { data: checkins }, { data: anamnese }] = await Promise.all([
-      adminClient.from("protocols").select("payload, name").eq("id", protocolId).maybeSingle(),
+      adminClient.from("protocols").select("payload, name").eq("id", protocolId).eq("student_id", studentId).maybeSingle(),
       adminClient
         .from("check_ins")
         .select("current_metrics, submitted_at")
