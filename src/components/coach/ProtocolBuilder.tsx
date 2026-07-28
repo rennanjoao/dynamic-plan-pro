@@ -36,6 +36,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Popover, PopoverContent, PopoverTrigger,
@@ -164,6 +165,19 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [renewalOpen, setRenewalOpen] = useState(false);
   const [renewalLoading, setRenewalLoading] = useState(false);
   const [renewalText, setRenewalText] = useState("");
+  const [renewalSuggestions, setRenewalSuggestions] = useState<Array<{
+    id: string;
+    categoria: "treino" | "dieta" | "diretrizes";
+    exercicioId?: string;
+    campo: string;
+    alvo: string;
+    valorAtual: string;
+    valorSugerido: string;
+    motivo: string;
+  }>>([]);
+  const [renewalAccepted, setRenewalAccepted] = useState<Set<string>>(new Set());
+  const [renewalEdited, setRenewalEdited] = useState<Record<string, string>>({});
+  const [showRenewalSuggestions, setShowRenewalSuggestions] = useState(false);
   const [lastAutosavedAt, setLastAutosavedAt] = useState<Date | null>(null);
   const [isAutosaving, setIsAutosaving] = useState(false);
   const [pendingOpen, setPendingOpen] = useState(false);
@@ -349,17 +363,47 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
     setRenewalOpen(true);
     setRenewalLoading(true);
     setRenewalText("");
+    setRenewalSuggestions([]);
+    setRenewalAccepted(new Set());
+    setRenewalEdited({});
+    setShowRenewalSuggestions(false);
     try {
       const { data, error } = await sb.functions.invoke("protocol-renewal-draft", { body: { studentId, protocolId } });
       if (error) throw error;
       if (!data?.ok) throw new Error(data?.error || "Falha ao gerar sugestão");
-      setRenewalText(data.text || "");
+      setRenewalText(data.resumo || "");
+      setRenewalSuggestions(data.sugestoes || []);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Não foi possível gerar sugestão agora");
       setRenewalOpen(false);
     } finally {
       setRenewalLoading(false);
     }
+  }
+
+  function applyRenewalSuggestions() {
+    if (renewalAccepted.size === 0 || !payload) return;
+    const next = JSON.parse(JSON.stringify(payload)) as typeof payload;
+    let count = 0;
+    for (const s of renewalSuggestions) {
+      if (!renewalAccepted.has(s.id)) continue;
+      const valor = renewalEdited[s.id] ?? s.valorSugerido;
+      if (s.categoria === "treino" && s.exercicioId) {
+        for (const w of next.workouts) {
+          const ex = (w.exercises as any[]).find((e) => e.__id === s.exercicioId);
+          if (ex) { ex[s.campo] = valor; count++; break; }
+        }
+      } else if (s.categoria === "dieta") {
+        next.macros = { ...next.macros, [s.campo]: Number(valor) || 0 };
+        count++;
+      } else if (s.categoria === "diretrizes") {
+        next.guidelines = { ...next.guidelines, [s.campo]: valor };
+        count++;
+      }
+    }
+    updatePayload(next);
+    toast.success(`${count} alteração(ões) aplicada(s) — revise e clique em Salvar/Atualizar protocolo.`);
+    setRenewalOpen(false);
   }
 
   function generateBase() {
@@ -862,22 +906,94 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       </Dialog>
 
       <Dialog open={renewalOpen} onOpenChange={setRenewalOpen}>
-        <DialogContent className="sm:max-w-[560px]">
+        <DialogContent className="sm:max-w-[640px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Sugestão de renovação de ciclo (IA)</DialogTitle>
             <DialogDescription className="text-xs">
-              Rascunho pra você revisar — nada é aplicado automaticamente no protocolo.
+              Rascunho pra você revisar — só aplica o que você marcar abaixo.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-2">
+          <div className="py-2 space-y-4">
             {renewalLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
               </div>
             ) : (
-              <p className="text-sm whitespace-pre-wrap text-foreground/90">{renewalText}</p>
+              <>
+                <p className="text-sm whitespace-pre-wrap text-foreground/90">{renewalText}</p>
+
+                {renewalSuggestions.length > 0 && !showRenewalSuggestions && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setShowRenewalSuggestions(true)}
+                  >
+                    Ver alterações sugeridas ({renewalSuggestions.length})
+                  </Button>
+                )}
+
+                {showRenewalSuggestions && (["treino", "dieta", "diretrizes"] as const).map((cat) => {
+                  const items = renewalSuggestions.filter((s) => s.categoria === cat);
+                  if (items.length === 0) return null;
+                  const Icon = cat === "treino" ? Dumbbell : cat === "dieta" ? UtensilsCrossed : FileText;
+                  const label = cat === "treino" ? "Treino" : cat === "dieta" ? "Dieta" : "Diretrizes";
+                  return (
+                    <div key={cat} className="space-y-2">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        <Icon className="w-3.5 h-3.5" /> {label}
+                      </div>
+                      {items.map((s) => (
+                        <div key={s.id} className="flex gap-2 items-start p-2 rounded-md border border-border/60 bg-background/40">
+                          <Checkbox
+                            className="mt-1"
+                            checked={renewalAccepted.has(s.id)}
+                            onCheckedChange={(checked) => {
+                              setRenewalAccepted((prev) => {
+                                const next = new Set(prev);
+                                if (checked) next.add(s.id); else next.delete(s.id);
+                                return next;
+                              });
+                            }}
+                          />
+                          <div className="flex-1 space-y-1">
+                            <p className="text-xs font-medium">{s.alvo}</p>
+                            {s.categoria === "diretrizes" ? (
+                              <Textarea
+                                className="text-xs min-h-[72px]"
+                                value={renewalEdited[s.id] ?? s.valorSugerido}
+                                onChange={(e) => setRenewalEdited((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                              />
+                            ) : (
+                              <div className="flex items-center gap-2 text-xs">
+                                {s.valorAtual && <span className="text-muted-foreground line-through">{s.valorAtual}</span>}
+                                <Input
+                                  className="h-7 text-xs w-28"
+                                  value={renewalEdited[s.id] ?? s.valorSugerido}
+                                  onChange={(e) => setRenewalEdited((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                                />
+                              </div>
+                            )}
+                            <p className="text-[11px] text-muted-foreground">{s.motivo}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </>
             )}
           </div>
+          {showRenewalSuggestions && renewalSuggestions.length > 0 && (
+            <Button
+              type="button"
+              onClick={applyRenewalSuggestions}
+              disabled={renewalAccepted.size === 0}
+              className="w-full"
+            >
+              Aplicar selecionadas ({renewalAccepted.size})
+            </Button>
+          )}
         </DialogContent>
       </Dialog>
 
