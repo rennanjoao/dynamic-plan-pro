@@ -20,7 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Apple, Dumbbell, Pill, TrendingUp, CheckCircle2,
   AlertCircle, Copy, Check, X, LogOut, Sparkles,
-  ShoppingCart, FileEdit, Flame, User,
+  ShoppingCart, FileEdit, Flame, User, Moon,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SimpleProfileDialog } from "@/components/SimpleProfileDialog";
@@ -284,6 +284,49 @@ export default function StudentArea() {
     },
   });
 
+  // ─── "Hoje": treino/descanso do dia, direto do weekDays do protocolo ativo ───
+  const { data: todayPlan, isLoading: todayPlanLoading } = useQuery({
+    queryKey: ["student-today-plan", userId],
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 30,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("protocols")
+        .select("payload")
+        .eq("student_id", userId)
+        .eq("is_template", false)
+        .eq("active", true)
+        .limit(1)
+        .maybeSingle();
+      const payload = (data?.payload as Record<string, unknown>) || null;
+      if (!payload) return null;
+      const weekDays = (payload.weekDays as Record<string, string>) || {};
+      const workouts = (payload.workouts as Array<Record<string, unknown>>) || [];
+      const WEEKDAYS_ORDER = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
+      const todayKey = WEEKDAYS_ORDER[new Date().getDay()];
+      const treinoKey = weekDays[todayKey];
+      if (!treinoKey || treinoKey === "REST") {
+        return { tipo: "descanso" as const };
+      }
+      const w = workouts.find((w) => String(w.key) === treinoKey);
+      return { tipo: "treino" as const, letra: treinoKey, foco: (w?.focus as string) || null };
+    },
+  });
+
+  // ─── Recado motivacional do dia (IA, cacheado 1x/dia no backend) ───
+  const todayStrForNudge = new Date().toISOString().slice(0, 10);
+  const { data: dailyNudge } = useQuery({
+    queryKey: ["student-daily-nudge", userId, todayStrForNudge],
+    enabled: !!userId,
+    staleTime: Infinity,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("student-daily-nudge");
+      if (error || !data?.ok) return null;
+      return (data.message as string) || null;
+    },
+  });
+
   // ─── ALERTA 2: Cobrança ───
   const { data: billingAlert } = useQuery({
     queryKey: ["student-billing-alert", userId],
@@ -539,6 +582,39 @@ export default function StudentArea() {
       )}
 
       <main className="max-w-4xl mx-auto px-4 py-5 space-y-4">
+
+        {/* Hoje: plano do dia (determinístico, do weekDays) + recado da IA (cacheado 1x/dia) */}
+        {userId && (todayPlanLoading || todayPlan) && (
+          <Card className="border-primary/20 bg-primary/5">
+            <CardContent className="p-4 flex items-start gap-3">
+              {todayPlanLoading ? (
+                <Skeleton className="w-9 h-9 rounded-full shrink-0" />
+              ) : todayPlan?.tipo === "treino" ? (
+                <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                  <Dumbbell className="w-4 h-4 text-primary" />
+                </div>
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center shrink-0">
+                  <Moon className="w-4 h-4 text-muted-foreground" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                {todayPlanLoading ? (
+                  <Skeleton className="h-4 w-32 rounded" />
+                ) : (
+                  <p className="text-sm font-semibold text-foreground">
+                    {todayPlan?.tipo === "treino"
+                      ? `Hoje: Treino ${todayPlan.letra}${todayPlan.foco ? ` — ${todayPlan.foco}` : ""}`
+                      : "Hoje: dia de descanso"}
+                  </p>
+                )}
+                {dailyNudge && (
+                  <p className="text-xs text-muted-foreground mt-1">{dailyNudge}</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Alertas */}
         {userId && (
