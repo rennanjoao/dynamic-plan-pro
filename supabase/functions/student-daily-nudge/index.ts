@@ -32,7 +32,10 @@ serve(async (req) => {
 
     // Fuso simples: usa a data local do servidor (UTC). Suficiente pra
     // granularidade de "1x por dia" — não precisa ser exato ao segundo.
-    const hoje = new Date();
+    // Fuso do Brasil (UTC-3, sem horário de verão desde 2019) — sem isso, o
+    // servidor (UTC) vira "amanhã" 3h antes do fuso do aluno, e o card de
+    // "hoje" no navegador dele fica dessincronizado com este recado.
+    const hoje = new Date(Date.now() - 3 * 60 * 60 * 1000);
     const todayStr = hoje.toISOString().slice(0, 10);
 
     const { data: cached } = await adminClient
