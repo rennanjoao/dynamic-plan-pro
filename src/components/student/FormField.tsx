@@ -53,6 +53,29 @@ export function FormField({ field, value, onChange }: Props) {
     );
   }
 
+  // Slider 0–10 (mesma escala da bateria "Como você se sente" da Anamnese)
+  if (field.type === "slider") {
+    const parsed = parseInt(String(v ?? "5"), 10);
+    const val = isNaN(parsed) ? 5 : Math.min(10, Math.max(0, parsed));
+    return (
+      <div className="space-y-1">
+        <div className="flex justify-between items-center">
+          <span className="text-[10px] text-muted-foreground">0 = muito baixo</span>
+          <span className="text-primary text-xs font-bold">{val}/10</span>
+          <span className="text-[10px] text-muted-foreground">10 = excelente</span>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={10}
+          value={val}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full accent-primary"
+        />
+      </div>
+    );
+  }
+
   // Botões de escolha única (estilo anamnese)
   if (field.type === "choices" && Array.isArray(field.options)) {
     const cols = field.options.length >= 4 ? 4 : field.options.length === 3 ? 3 : 2;
