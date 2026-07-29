@@ -12,7 +12,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { CHECKIN_SECTIONS, CHECKIN_METRICS } from "@/lib/checkInSchema";
 import { notifyCoach } from "@/lib/notifyCoach";
-import { uploadToCloudinary, uploadRawToCloudinary } from "@/lib/anamnesisSchema";
+import { uploadToCloudinary, uploadRawToCloudinary, isFieldVisible } from "@/lib/anamnesisSchema";
+import type { FieldRenderContext, SectionDef } from "@/lib/anamnesisSchema";
 import { FormField } from "@/components/student/FormField";
 import { FotoSlot } from "@/components/shared/FotoSlot";
 import { useStudentData } from "@/hooks/useStudentData";
@@ -35,6 +36,52 @@ const FOTO_LABELS: Record<string, string> = {
   lateral_esq: "Lateral Esq.",
   costas: "Costas",
 };
+
+/**
+ * Card de uma seção do Check-in. Extraído para uso único em `step === 1` e
+ * `step === 2` (antes era JSX duplicado nos dois lugares), e para aplicar a
+ * filtragem condicional de campos num só ponto. Some sozinho (retorna null)
+ * quando, após a filtragem, a seção não tem nenhum campo visível — é assim
+ * que "Protocolo & Saúde" desaparece por completo para quem não tem
+ * protocolo ativo e não é mulher, em vez de aparecer como um card vazio.
+ */
+function CheckinSectionCard({
+  section,
+  ctx,
+  data,
+  onFieldChange,
+}: {
+  section: SectionDef;
+  ctx: FieldRenderContext;
+  data: Record<string, unknown>;
+  onFieldChange: (key: string, value: unknown) => void;
+}) {
+  const visibleFields = section.fields.filter((f) => isFieldVisible(f, ctx));
+  if (visibleFields.length === 0) return null;
+  return (
+    <Card className="bg-card/60 border-border p-5">
+      <h2 className="text-sm font-bold text-primary uppercase tracking-wider mb-4">
+        {section.title}
+      </h2>
+      <div className="grid grid-cols-2 gap-4">
+        {visibleFields.map((f) => (
+          <div key={f.key} className={f.half ? "col-span-1" : "col-span-2"}>
+            <Label className="text-xs text-muted-foreground mb-1.5 block">
+              {f.label}
+            </Label>
+            <FormField
+              field={f}
+              value={data[f.key]}
+              onChange={(v) => onFieldChange(f.key, v)}
+            />
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+const STEP1_SECTION_IDS = ["identificacao", "dieta", "protocolo", "treino_sono"];
 
 export default function CheckIn() {
   const navigate = useNavigate();
@@ -139,14 +186,29 @@ export default function CheckIn() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anamnesis, mode]);
 
+  // Contexto usado para decidir quais campos condicionais aparecem: a
+  // Anamnese como referência estática (protocolo, gênero) + as respostas já
+  // dadas neste próprio check-in (ex.: "descreva o colateral" só depois de
+  // responder que houve colateral).
+  const fieldCtx: FieldRenderContext = useMemo(
+    () => ({
+      reference: (anamnesis?.payload as Record<string, unknown>) ?? {},
+      answers: data,
+    }),
+    [anamnesis, data]
+  );
+
   const progress = useMemo(() => {
-    const all = CHECKIN_SECTIONS.flatMap((s) => s.fields);
+    // Conta só os campos visíveis para este aluno — um campo condicional
+    // escondido (ex.: colaterais de hormônio para quem não tem protocolo)
+    // não deve contar contra o % de preenchimento de ninguém.
+    const all = CHECKIN_SECTIONS.flatMap((s) => s.fields).filter((f) => isFieldVisible(f, fieldCtx));
     const filled = all.filter((f) => {
       const v = data[f.key];
       return v !== undefined && v !== null && v !== "";
     }).length;
-    return Math.round((filled / all.length) * 100);
-  }, [data]);
+    return all.length === 0 ? 100 : Math.round((filled / all.length) * 100);
+  }, [data, fieldCtx]);
 
   function delta(key: string) {
     const ini = parseFloat(String(metrics[`ini_${key}`] ?? "").replace(",", "."));
@@ -314,9 +376,10 @@ export default function CheckIn() {
               studentEmail,
               kind: "checkin",
               summary:
-                mode === "update"
+                (data.atencao_urgente === "Sim" ? "⚠️ Atenção prioritária solicitada pelo aluno. " : "") +
+                (mode === "update"
                   ? "Aluno atualizou o último check-in."
-                  : "Aluno enviou um novo check-in quinzenal.",
+                  : "Aluno enviou um novo check-in quinzenal."),
               data: { ...data, ...current_metrics, fotos, _updated: mode === "update" },
             });
           }
@@ -505,26 +568,14 @@ export default function CheckIn() {
 
         {step === 1 && (
           <>
-            {CHECKIN_SECTIONS.filter((s) => ["identificacao", "dieta", "treino_sono"].includes(s.id)).map((sec) => (
-              <Card key={sec.id} className="bg-card/60 border-border p-5">
-                <h2 className="text-sm font-bold text-primary uppercase tracking-wider mb-4">
-                  {sec.title}
-                </h2>
-                <div className="grid grid-cols-2 gap-4">
-                  {sec.fields.map((f) => (
-                    <div key={f.key} className={f.half ? "col-span-1" : "col-span-2"}>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">
-                        {f.label}
-                      </Label>
-                      <FormField
-                        field={f}
-                        value={data[f.key]}
-                        onChange={(v) => setData((p) => ({ ...p, [f.key]: v }))}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </Card>
+            {CHECKIN_SECTIONS.filter((s) => STEP1_SECTION_IDS.includes(s.id)).map((sec) => (
+              <CheckinSectionCard
+                key={sec.id}
+                section={sec}
+                ctx={fieldCtx}
+                data={data}
+                onFieldChange={(key, v) => setData((p) => ({ ...p, [key]: v }))}
+              />
             ))}
           </>
         )}
@@ -575,26 +626,14 @@ export default function CheckIn() {
           </div>
         </Card>
 
-        {CHECKIN_SECTIONS.filter((s) => !["identificacao", "dieta", "treino_sono"].includes(s.id)).map((sec) => (
-          <Card key={sec.id} className="bg-card/60 border-border p-5">
-            <h2 className="text-sm font-bold text-primary uppercase tracking-wider mb-4">
-              {sec.title}
-            </h2>
-            <div className="grid grid-cols-2 gap-4">
-              {sec.fields.map((f) => (
-                <div key={f.key} className={f.half ? "col-span-1" : "col-span-2"}>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">
-                    {f.label}
-                  </Label>
-                  <FormField
-                    field={f}
-                    value={data[f.key]}
-                    onChange={(v) => setData((p) => ({ ...p, [f.key]: v }))}
-                  />
-                </div>
-              ))}
-            </div>
-          </Card>
+        {CHECKIN_SECTIONS.filter((s) => !STEP1_SECTION_IDS.includes(s.id)).map((sec) => (
+          <CheckinSectionCard
+            key={sec.id}
+            section={sec}
+            ctx={fieldCtx}
+            data={data}
+            onFieldChange={(key, v) => setData((p) => ({ ...p, [key]: v }))}
+          />
         ))}
 
         {/* Fotos de progresso */}
