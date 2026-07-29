@@ -300,6 +300,15 @@ export default function CheckinFeedbackPanel(props: Props) {
           </div>
         ) : (
           <div className="space-y-4">
+            {/* Alerta determinístico do aluno — não depende do resumo de IA (que é
+               best-effort e pode falhar/atrasar). Vem do campo "atencao_urgente"
+               do Check-in (seção Identificação). */}
+            {(ci?.payload as Record<string, unknown> | null)?.atencao_urgente === "Sim" && (
+              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+                <span>⚠️ O aluno sinalizou que precisa de atenção prioritária nesta quinzena.</span>
+              </div>
+            )}
+
             {/* Insight de IA — movido para o topo */}
             {insight && ((insight.changes?.length ?? 0) > 0 || (insight.hypotheses?.length ?? 0) > 0 || (insight.alerts?.length ?? 0) > 0) && (
               <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
