@@ -22,10 +22,37 @@ export const BASELINE_KEYS = [
   "braco_d_relaxado","braco_e_relaxado","braco_d_contraido","braco_e_contraido","coxa_d","coxa_e","pant_d","pant_e",
 ] as const;
 
-export interface AnamnesisField { key: string; label: string; type?: string; placeholder?: string; options?: string[]; step?: string | number; half?: boolean; [k: string]: unknown }
+/**
+ * Contexto usado para decidir se um campo condicional deve ser exibido.
+ * - `reference`: dados de referência estáticos (ex.: payload da Anamnese,
+ *   usado como linha de base para decidir perguntas do Check-in).
+ * - `answers`: respostas já preenchidas no formulário atual (permite que um
+ *   campo dependa de outro campo do mesmo formulário — ex.: só mostrar
+ *   "Descreva o efeito colateral" se "Colateral" ≠ "Nenhum").
+ */
+export interface FieldRenderContext {
+  reference?: Record<string, unknown>;
+  answers?: Record<string, unknown>;
+}
+
+export interface AnamnesisField {
+  key: string; label: string; type?: string; placeholder?: string; options?: string[]; step?: string | number; half?: boolean;
+  /**
+   * Predicado opcional: quando definido, o campo só é exibido se retornar
+   * `true` para o contexto atual. Sem `condition`, o campo é sempre visível
+   * — comportamento idêntico ao anterior, 100% retrocompatível.
+   */
+  condition?: (ctx: FieldRenderContext) => boolean;
+  [k: string]: unknown;
+}
 export interface AnamnesisSection { id: string; title: string; fields: AnamnesisField[] }
 export type FieldDef = AnamnesisField;
 export type SectionDef = AnamnesisSection;
+
+/** Avalia se um campo deve ser exibido no contexto atual. Sem `condition` definida, sempre `true`. */
+export function isFieldVisible(field: AnamnesisField, ctx: FieldRenderContext): boolean {
+  return field.condition ? field.condition(ctx) : true;
+}
 
 export const ANAMNESIS_SECTIONS: AnamnesisSection[] = [
   { id: "identificacao", title: "Quem é você", fields: [
@@ -157,4 +184,3 @@ export async function uploadRawToCloudinary(file: File): Promise<string> {
 // Envio de email ao coach agora é feito exclusivamente pela edge function
 // `notify-coach` (Resend). As funções legadas Web3Forms foram removidas
 // para evitar entrega a destinatários hardcoded.
-
