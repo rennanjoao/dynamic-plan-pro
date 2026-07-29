@@ -10,7 +10,7 @@
  * Não altera RLS, schema ou comportamento do reply-to-student.
  */
 
-import { useEffect, useState, lazy, Suspense } from "react";
+import { useEffect, useState, lazy, Suspense, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -20,10 +20,19 @@ import { Button } from "@/components/ui/button";
 import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Loader2, Send, ChevronDown, ChevronUp, FileDown, CheckSquare, Square, Sparkles } from "lucide-react";
+import { Loader2, Send, ChevronDown, ChevronUp, FileDown, CheckSquare, Square, Sparkles, Pencil, History } from "lucide-react";
 import { toast } from "sonner";
 import { exportCheckinPDF, exportCheckinsBatchPDF } from "@/lib/coachPdfExport";
-import { CHECKIN_SECTIONS } from "@/lib/checkInSchema";
+import {
+  CHECKIN_SECTIONS, CHECKIN_METRICS, CHECKIN_HIGHLIGHT_KEYS,
+  colorForDelta, getMetricPolarity,
+} from "@/lib/checkInSchema";
+import type { StudentStatus } from "@/hooks/useCoachStudents";
+import type { Goal } from "@/utils/macros";
+import CheckinPayloadAnswers from "@/components/coach/CheckinPayloadAnswers";
+import CheckinFullEditor from "@/components/coach/CheckinFullEditor";
+import { CheckinHistoryDialog } from "@/components/coach/dashboard/CheckinHistoryDialog";
+import { AlertBadge, WeightTrendBadge } from "@/components/coach/dashboard/dashboardUtils";
 
 const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
 
@@ -45,13 +54,18 @@ interface CheckinRow {
 const sb: any = supabase;
 
 interface Props {
-  studentId: string | null;
-  studentName: string;
+  /** Objeto completo do aluno (novo). Se ausente, cai no par studentId/studentName por compatibilidade. */
+  student?: StudentStatus | null;
+  studentId?: string | null;
+  studentName?: string;
   open: boolean;
   onClose: () => void;
 }
 
-export default function CheckinFeedbackPanel({ studentId, studentName, open, onClose }: Props) {
+export default function CheckinFeedbackPanel(props: Props) {
+  const { open, onClose, student } = props;
+  const studentId = student?.id ?? props.studentId ?? null;
+  const studentName = student?.name ?? props.studentName ?? "Aluno";
   const [loading, setLoading] = useState(false);
   const [ci, setCi] = useState<CheckinRow | null>(null);
   const [history, setHistory] = useState<CheckinRow[]>([]);
@@ -61,6 +75,8 @@ export default function CheckinFeedbackPanel({ studentId, studentName, open, onC
   const [showAnamnesis, setShowAnamnesis] = useState(false);
   const [insight, setInsight] = useState<{ changes?: string[]; hypotheses?: string[]; alerts?: string[] } | null>(null);
   const [generatingDraft, setGeneratingDraft] = useState(false);
+  const [fullEditorOpen, setFullEditorOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   useEffect(() => {
     if (!open || !studentId) return;
@@ -108,6 +124,42 @@ export default function CheckinFeedbackPanel({ studentId, studentName, open, onC
     new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
   const fotos = ((ci?.payload as Record<string, unknown> | null)?.fotos as Record<string, string> | undefined) || {};
+
+  // Deltas por métrica vs check-in imediatamente anterior (posição 1 no history)
+  const previous = history[1] || null;
+  const metricDeltas = useMemo(() => {
+    const cur = (ci?.current_metrics || {}) as Record<string, unknown>;
+    const prev = (previous?.current_metrics || {}) as Record<string, unknown>;
+    return CHECKIN_METRICS.map((m) => {
+      const cv = typeof cur[m.key] === "number" ? (cur[m.key] as number) : Number(cur[m.key]);
+      const pv = typeof prev[m.key] === "number" ? (prev[m.key] as number) : Number(prev[m.key]);
+      const hasCur = !isNaN(cv);
+      const hasPrev = !isNaN(pv);
+      return {
+        key: m.key,
+        label: m.label,
+        unit: m.unit,
+        value: hasCur ? cv : null,
+        delta: hasCur && hasPrev ? cv - pv : null,
+      };
+    }).filter((x) => x.value !== null);
+  }, [ci, previous]);
+
+  const goal = (student?.goal as Goal) || "manter";
+  const polarity = ["emagrecer", "manter", "hipertrofia", "recomposicao"].includes(goal)
+    ? getMetricPolarity(goal)
+    : "menor_melhor";
+
+  const highlightChips = useMemo(() => {
+    const p = (ci?.payload || {}) as Record<string, unknown>;
+    const labelMap: Record<string, string> = {};
+    for (const sec of CHECKIN_SECTIONS) {
+      for (const f of sec.fields) labelMap[f.key] = f.label;
+    }
+    return CHECKIN_HIGHLIGHT_KEYS
+      .map((k) => ({ key: k, label: labelMap[k] || k, value: p[k] }))
+      .filter((c) => c.value !== undefined && c.value !== null && c.value !== "");
+  }, [ci]);
 
   const handleSend = async () => {
     if (!studentId) return;
@@ -216,8 +268,31 @@ export default function CheckinFeedbackPanel({ studentId, studentName, open, onC
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Feedback — {studentName}</DialogTitle>
+          <DialogTitle>Resumo do Check-in — {studentName}</DialogTitle>
         </DialogHeader>
+
+        {student && (
+          <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-border">
+            {student.goal && (
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-muted/40 text-foreground border-border uppercase tracking-wider">
+                {student.goal}
+              </span>
+            )}
+            <AlertBadge
+              level={student.alertLevel}
+              daysSinceLastFeedback={student.daysSinceLastFeedback}
+              warningDays={student.warningDays}
+              criticalDays={student.criticalDays}
+              lastFeedback={student.lastFeedback}
+            />
+            <WeightTrendBadge student={student} />
+            <span className="text-[10px] text-muted-foreground ml-auto">
+              {student.daysSinceLastFeedback >= 999
+                ? "Sem check-in ainda"
+                : `Último check-in há ${student.daysSinceLastFeedback} dia${student.daysSinceLastFeedback === 1 ? "" : "s"}`}
+            </span>
+          </div>
+        )}
 
         {loading ? (
           <div className="flex justify-center py-10">
@@ -225,43 +300,9 @@ export default function CheckinFeedbackPanel({ studentId, studentName, open, onC
           </div>
         ) : (
           <div className="space-y-4">
-            {!ci ? (
-              <p className="text-sm text-muted-foreground italic text-center py-6">
-                Sem check-in registrado ainda.
-              </p>
-            ) : (
-              <>
-                <p className="text-xs text-muted-foreground">Check-in: {fmtDate(ci.submitted_at)}</p>
-
-                {Object.keys(fotos).length > 0 && (
-                  <div className="grid grid-cols-4 gap-2">
-                    {(["frente","lateral_dir","lateral_esq","costas"] as const).map((k) =>
-                      fotos[k] ? (
-                        <div key={k} className="aspect-[3/4] rounded-md overflow-hidden border border-border/50">
-                          <img src={fotos[k]} alt={k} className="w-full h-full object-cover" />
-                        </div>
-                      ) : null
-                    )}
-                  </div>
-                )}
-
-                {ci.current_metrics && Object.keys(ci.current_metrics).length > 0 && (
-                  <div className="space-y-1 border-t border-border pt-3">
-                    {Object.entries(ci.current_metrics).map(([k, v]) => (
-                      <div key={k} className="flex justify-between text-xs py-0.5">
-                        <span className="text-muted-foreground capitalize">{k}</span>
-                        <span className="font-medium text-right max-w-[60%]">
-                          {typeof v === "object" && v !== null ? JSON.stringify(v) : String(v ?? "—")}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-
+            {/* Insight de IA — movido para o topo */}
             {insight && ((insight.changes?.length ?? 0) > 0 || (insight.hypotheses?.length ?? 0) > 0 || (insight.alerts?.length ?? 0) > 0) && (
-              <div className="space-y-2 border-t border-border pt-3">
+              <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
                 <label className="text-xs font-semibold text-primary uppercase tracking-wider">
                   Resumo automático (IA) — o que mudou
                 </label>
@@ -292,7 +333,79 @@ export default function CheckinFeedbackPanel({ studentId, studentName, open, onC
               </div>
             )}
 
+            {/* Chips de aderência a partir de CHECKIN_HIGHLIGHT_KEYS */}
+            {highlightChips.length > 0 && (
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Aderência</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {highlightChips.map((c) => (
+                    <span
+                      key={c.key}
+                      className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-full border border-border bg-muted/40"
+                    >
+                      <span className="text-muted-foreground">{c.label}:</span>
+                      <span className="font-semibold text-foreground">{String(c.value)}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!ci ? (
+              <p className="text-sm text-muted-foreground italic text-center py-6">
+                Sem check-in registrado ainda.
+              </p>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground">Check-in: {fmtDate(ci.submitted_at)}</p>
+
+                {Object.keys(fotos).length > 0 && (
+                  <div className="grid grid-cols-4 gap-2">
+                    {(["frente","lateral_dir","lateral_esq","costas"] as const).map((k) =>
+                      fotos[k] ? (
+                        <div key={k} className="aspect-[3/4] rounded-md overflow-hidden border border-border/50">
+                          <img src={fotos[k]} alt={k} className="w-full h-full object-cover" />
+                        </div>
+                      ) : null
+                    )}
+                  </div>
+                )}
+
+                {metricDeltas.length > 0 && (
+                  <div className="space-y-1 border-t border-border pt-3">
+                    {metricDeltas.map((m) => {
+                      const cls = colorForDelta(m.delta, polarity);
+                      return (
+                        <div key={m.key} className="flex justify-between items-center text-xs py-0.5">
+                          <span className="text-muted-foreground">{m.label}</span>
+                          <span className="flex items-center gap-2">
+                            <span className="font-medium">{m.value} {m.unit}</span>
+                            {m.delta != null && (
+                              <span className={`font-semibold tabular-nums ${cls}`}>
+                                ({m.delta > 0 ? "+" : ""}{m.delta.toFixed(1)})
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Respostas completas por seção (fotos ficam de fora — já exibidas acima) */}
+                <CheckinPayloadAnswers payload={ci.payload} showPhotos={false} />
+              </>
+            )}
+
             <div className="space-y-2 border-t border-border pt-3">
+              <div className="flex flex-wrap gap-2 mb-1">
+                <Button type="button" variant="outline" size="sm" onClick={() => setFullEditorOpen(true)} disabled={!studentId}>
+                  <Pencil className="w-3.5 h-3.5 mr-1.5" /> Editar completo
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => setHistoryOpen(true)} disabled={!studentId}>
+                  <History className="w-3.5 h-3.5 mr-1.5" /> Ver histórico antigo
+                </Button>
+              </div>
               <div className="flex items-center justify-between gap-2">
                 <label className="text-xs font-semibold text-primary uppercase tracking-wider">
                   Feedback do Coach
@@ -397,6 +510,21 @@ export default function CheckinFeedbackPanel({ studentId, studentName, open, onC
               </CollapsibleContent>
             </Collapsible>
           </div>
+        )}
+
+        {studentId && fullEditorOpen && (
+          <CheckinFullEditor
+            open={fullEditorOpen}
+            onOpenChange={setFullEditorOpen}
+            studentId={studentId}
+          />
+        )}
+        {studentId && historyOpen && (
+          <CheckinHistoryDialog
+            student={student ?? { id: studentId, name: studentName } as StudentStatus}
+            open={historyOpen}
+            onClose={() => setHistoryOpen(false)}
+          />
         )}
       </DialogContent>
     </Dialog>
