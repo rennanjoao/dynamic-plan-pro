@@ -1310,6 +1310,30 @@ export type Database = {
         }
         Relationships: []
       }
+      student_daily_nudge: {
+        Row: {
+          generated_at: string
+          id: string
+          message: string
+          nudge_date: string
+          student_id: string
+        }
+        Insert: {
+          generated_at?: string
+          id?: string
+          message: string
+          nudge_date: string
+          student_id: string
+        }
+        Update: {
+          generated_at?: string
+          id?: string
+          message?: string
+          nudge_date?: string
+          student_id?: string
+        }
+        Relationships: []
+      }
       student_dismissed_alerts: {
         Row: {
           alert_id: string
