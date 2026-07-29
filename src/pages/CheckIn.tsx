@@ -12,7 +12,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { CHECKIN_SECTIONS, CHECKIN_METRICS } from "@/lib/checkInSchema";
 import { notifyCoach } from "@/lib/notifyCoach";
-import { uploadToCloudinary } from "@/lib/anamnesisSchema";
+import { uploadToCloudinary, uploadRawToCloudinary } from "@/lib/anamnesisSchema";
 import { FormField } from "@/components/student/FormField";
 import { FotoSlot } from "@/components/shared/FotoSlot";
 import { useStudentData } from "@/hooks/useStudentData";
@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, TrendingDown, TrendingUp, Minus, FilePlus2, FileEdit, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, TrendingDown, TrendingUp, Minus, FilePlus2, FileEdit, X, FileText, Upload, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatDatePtBR } from "@/lib/formatDate";
@@ -51,6 +51,11 @@ export default function CheckIn() {
   const [fotoPreviews, setFotoPreviews] = useState<Record<string, string | null>>({
     frente: null, lateral_dir: null, lateral_esq: null, costas: null,
   });
+
+  // Exames PDF — arquivos novos ainda não enviados + já existentes (em modo update)
+  type ExameItem = { url: string; nome: string; tamanho_kb: number; enviado_em: string };
+  const [exameFiles, setExameFiles] = useState<File[]>([]);
+  const [existingExames, setExistingExames] = useState<ExameItem[]>([]);
 
   // Modo: choose | new | update (atualiza último check-in)
   const [mode, setMode] = useState<"choose" | "new" | "update">("choose");
@@ -89,6 +94,8 @@ export default function CheckIn() {
     setMetrics({});
     setFotoFiles({ frente: null, lateral_dir: null, lateral_esq: null, costas: null });
     setFotoPreviews({ frente: null, lateral_dir: null, lateral_esq: null, costas: null });
+    setExameFiles([]);
+    setExistingExames([]);
     setMode("new");
   }
 
@@ -112,6 +119,9 @@ export default function CheckIn() {
       lateral_esq: fotos.lateral_esq || null,
       costas: fotos.costas || null,
     });
+    const prevExames = (p.exames as ExameItem[]) ?? [];
+    setExistingExames(Array.isArray(prevExames) ? prevExames : []);
+    setExameFiles([]);
     setMode("update");
   }
 
@@ -154,6 +164,39 @@ export default function CheckIn() {
   function handleFotoRemove(key: string) {
     setFotoFiles((p) => ({ ...p, [key]: null }));
     setFotoPreviews((p) => ({ ...p, [key]: null }));
+  }
+
+  function handleExameAdd(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    const arr = Array.from(files);
+    const valid: File[] = [];
+    for (const f of arr) {
+      if (f.type !== "application/pdf") {
+        toast.error(`"${f.name}" não é um PDF.`);
+        continue;
+      }
+      if (f.size > 10 * 1024 * 1024) {
+        toast.error(`"${f.name}" excede 10MB.`);
+        continue;
+      }
+      valid.push(f);
+    }
+    setExameFiles((prev) => {
+      const remainingSlots = 3 - existingExames.length - prev.length;
+      if (remainingSlots <= 0) {
+        toast.error("Máximo de 3 exames por check-in.");
+        return prev;
+      }
+      return [...prev, ...valid.slice(0, remainingSlots)];
+    });
+  }
+
+  function removeExistingExame(idx: number) {
+    setExistingExames((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function removePendingExame(idx: number) {
+    setExameFiles((prev) => prev.filter((_, i) => i !== idx));
   }
 
   async function submit() {
@@ -201,13 +244,37 @@ export default function CheckIn() {
         }
       }
 
+      // Upload de exames PDF (best-effort). Mantém os já existentes (que o
+      // aluno não removeu) e concatena os novos.
+      const exames: ExameItem[] = [...existingExames];
+      for (const file of exameFiles) {
+        const toastId = `upload-exame-${file.name}`;
+        try {
+          toast.loading(`Enviando exame (${file.name})...`, { id: toastId });
+          const url = await Promise.race([
+            uploadRawToCloudinary(file),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 60_000)),
+          ]);
+          exames.push({
+            url: url as string,
+            nome: file.name,
+            tamanho_kb: Math.round(file.size / 1024),
+            enviado_em: new Date().toISOString(),
+          });
+          toast.dismiss(toastId);
+        } catch (err) {
+          toast.dismiss(toastId);
+          toast.warning(`Exame "${file.name}" não enviado — check-in salvo sem ele.`);
+        }
+      }
+
       let newCheckInId: string | null = null;
       if (mode === "update" && lastCheckin) {
         const { error } = await sb
           .from("check_ins")
           .update({
             current_metrics,
-            payload: { ...data, metrics_raw: metrics, fotos },
+            payload: { ...data, metrics_raw: metrics, fotos, exames },
             edit_count: (lastCheckin.edit_count ?? 0) + 1,
             updated_at: new Date().toISOString(),
           })
@@ -217,7 +284,7 @@ export default function CheckIn() {
         const { data: inserted, error } = await sb.from("check_ins").insert({
           student_id: studentId,
           current_metrics,
-          payload: { ...data, metrics_raw: metrics, fotos },
+          payload: { ...data, metrics_raw: metrics, fotos, exames },
         }).select("id").single();
         if (error) throw error;
         newCheckInId = inserted?.id ?? null;
