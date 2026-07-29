@@ -357,8 +357,7 @@ export default function CoachDashboard() {
 
         <Suspense fallback={null}>
           <CheckinFeedbackPanel
-            studentId={latestFbStudent?.id ?? null}
-            studentName={latestFbStudent?.name ?? "Aluno"}
+            student={latestFbStudent}
             open={!!latestFbStudent}
             onClose={() => setLatestFbStudent(null)}
           />
