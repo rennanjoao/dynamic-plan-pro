@@ -95,6 +95,11 @@ export function CheckinHistoryDialog({
     return Object.values(fotos).some((v) => typeof v === "string" && v.length > 0);
   };
 
+  const hasExames = (c: CheckinRow) => {
+    const ex = ((c.payload as Record<string, unknown> | null)?.exames as Array<unknown> | undefined) || [];
+    return Array.isArray(ex) && ex.length > 0;
+  };
+
   const renderCheckinHTML = (c: CheckinRow) => {
     const metrics = c.current_metrics || {};
     const rows = Object.entries(metrics)
@@ -220,6 +225,9 @@ export function CheckinHistoryDialog({
                     <div className="flex flex-wrap items-center gap-1">
                       {hasPhotos(c) && (
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-blue-500/10 text-blue-600 border-blue-500/30">Com fotos</span>
+                      )}
+                      {hasExames(c) && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-purple-500/10 text-purple-600 border-purple-500/30">Com exames</span>
                       )}
                       {c.coach_feedback && (
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-500/10 text-emerald-600 border-emerald-500/30">Com feedback</span>

@@ -9,8 +9,9 @@
  */
 import { useState } from "react";
 import { CHECKIN_SECTIONS } from "@/lib/checkInSchema";
+import { FileText, ExternalLink } from "lucide-react";
 
-const IGNORED = new Set(["metrics_raw", "fotos", "_updated"]);
+const IGNORED = new Set(["metrics_raw", "fotos", "_updated", "exames"]);
 
 const POSE_KEYS = ["frente", "lateral_dir", "lateral_esq", "costas"] as const;
 const POSE_LABEL: Record<string, string> = {
@@ -44,6 +45,10 @@ export default function CheckinPayloadAnswers({
     ? POSE_KEYS.map((k) => ({ key: k, url: pickPhoto(fotos, k, photoUrl) })).filter((e) => !!e.url)
     : [];
 
+  const exames = ((payload as Record<string, unknown>).exames as Array<{
+    url: string; nome?: string; tamanho_kb?: number; enviado_em?: string;
+  }> | undefined) || [];
+
   const sections = CHECKIN_SECTIONS.map((sec) => {
     const filled = sec.fields
       .filter((f) => !IGNORED.has(f.key))
@@ -51,7 +56,7 @@ export default function CheckinPayloadAnswers({
       .filter(({ value }) => value !== undefined && value !== null && value !== "");
     return { title: sec.title, filled };
   }).filter((s) => s.filled.length > 0);
-  if (sections.length === 0 && photoEntries.length === 0) return null;
+  if (sections.length === 0 && photoEntries.length === 0 && exames.length === 0) return null;
   return (
     <div className="space-y-3 border-t border-border pt-3">
       {photoEntries.length > 0 && (
@@ -70,6 +75,29 @@ export default function CheckinPayloadAnswers({
                   {POSE_LABEL[key]}
                 </span>
               </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {exames.length > 0 && (
+        <div>
+          <p className="text-[10px] font-bold uppercase text-primary mb-1">Exames</p>
+          <div className="flex flex-wrap gap-1.5">
+            {exames.map((ex, i) => (
+              <a
+                key={i}
+                href={ex.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-full border border-border bg-muted/40 hover:bg-muted/70 hover:border-primary/50 transition-colors"
+              >
+                <FileText className="w-3 h-3 text-primary" />
+                <span className="max-w-[180px] truncate">{ex.nome || `Exame ${i + 1}`}</span>
+                {typeof ex.tamanho_kb === "number" && (
+                  <span className="text-muted-foreground">({ex.tamanho_kb}KB)</span>
+                )}
+                <ExternalLink className="w-2.5 h-2.5 text-muted-foreground" />
+              </a>
             ))}
           </div>
         </div>

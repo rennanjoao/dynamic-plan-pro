@@ -136,6 +136,24 @@ export async function uploadToCloudinary(file: File): Promise<string> {
   return data.secure_url as string;
 }
 
+/**
+ * Upload de arquivo bruto (PDF, docs) para o Cloudinary usando o mesmo
+ * upload_preset das fotos. Endpoint `raw/upload` preserva o tipo original
+ * sem tentar tratar como imagem.
+ */
+export async function uploadRawToCloudinary(file: File): Promise<string> {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("upload_preset", CLOUDINARY_PRESET);
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/raw/upload`,
+    { method: "POST", body: fd }
+  );
+  const data = await res.json();
+  if (!data.secure_url) throw new Error(data.error?.message || "Falha no upload");
+  return data.secure_url as string;
+}
+
 // Envio de email ao coach agora é feito exclusivamente pela edge function
 // `notify-coach` (Resend). As funções legadas Web3Forms foram removidas
 // para evitar entrega a destinatários hardcoded.

@@ -15,7 +15,7 @@ import { FormField } from "@/components/student/FormField";
 import { CHECKIN_METRICS, CHECKIN_SECTIONS } from "@/lib/checkInSchema";
 import { uploadToCloudinary } from "@/lib/anamnesisSchema";
 import { toast } from "sonner";
-import { Loader2, Save, Upload } from "lucide-react";
+import { Loader2, Save, Upload, FileText, Trash2 } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -43,6 +43,8 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
   const [data, setData] = useState<Record<string, unknown>>({});
   const [metrics, setMetrics] = useState<Record<string, string>>({});
   const [fotos, setFotos] = useState<Record<string, string>>({});
+  type ExameItem = { url: string; nome?: string; tamanho_kb?: number; enviado_em?: string };
+  const [exames, setExames] = useState<ExameItem[]>([]);
   const [feedback, setFeedback] = useState<string>("");
   const [reaction, setReaction] = useState<string | null>(null);
   // [FIX] Guarda o updated_at carregado, para detectar se o registro mudou
@@ -93,6 +95,8 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
       });
       setMetrics(m);
       setFotos((p.fotos as Record<string, string>) || {});
+      const ex = (p.exames as ExameItem[]) || [];
+      setExames(Array.isArray(ex) ? ex : []);
       setFeedback((row.coach_feedback as string) || "");
       setReaction((row.coach_reaction as string) || null);
       setLoadedUpdatedAt((row.updated_at as string) || null);
@@ -123,7 +127,7 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
         const v = parseFloat(String(metrics[`cur_${m.key}`] ?? "").replace(",", "."));
         if (!isNaN(v)) current_metrics[m.key] = v;
       });
-      const payload = { ...data, metrics_raw: metrics, fotos };
+      const payload = { ...data, metrics_raw: metrics, fotos, exames };
 
       // [FIX] Só grava se updated_at ainda for o mesmo de quando este editor
       // carregou o registro. Se mudou (edição do aluno ou outra tela), NÃO
@@ -269,6 +273,34 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
                 ))}
               </div>
             </section>
+
+            {/* Exames (PDF) — só permite remover; upload é feito pelo aluno */}
+            {exames.length > 0 && (
+              <section className="rounded-xl border border-border p-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-primary mb-3">Exames (PDF)</h3>
+                <div className="space-y-2">
+                  {exames.map((ex, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs bg-muted/30 border border-border rounded-lg px-3 py-2">
+                      <FileText className="w-4 h-4 text-primary shrink-0" />
+                      <a href={ex.url} target="_blank" rel="noopener noreferrer" className="flex-1 truncate hover:underline">
+                        {ex.nome || `Exame ${i + 1}`}
+                      </a>
+                      {typeof ex.tamanho_kb === "number" && (
+                        <span className="text-muted-foreground text-[10px]">{ex.tamanho_kb}KB</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setExames((prev) => prev.filter((_, idx) => idx !== i))}
+                        className="text-muted-foreground hover:text-destructive"
+                        aria-label="Remover exame"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* Feedback do coach */}
             <section className="rounded-xl border border-primary/30 bg-primary/5 p-4">
