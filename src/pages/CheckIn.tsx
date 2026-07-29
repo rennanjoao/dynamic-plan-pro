@@ -626,6 +626,53 @@ export default function CheckIn() {
             ))}
           </div>
         </Card>
+
+        {/* Exames (PDF) — opcional, até 3 arquivos de 10MB */}
+        <Card className="bg-card/60 border-border p-5">
+          <h2 className="text-sm font-bold text-primary uppercase tracking-wider mb-2">
+            Exames (PDF) <span className="text-[10px] font-normal text-muted-foreground normal-case">— opcional</span>
+          </h2>
+          <p className="text-[11px] text-muted-foreground mb-3">
+            Anexe até 3 arquivos PDF (10MB cada) para seu coach revisar junto com o check-in.
+          </p>
+          <div className="space-y-2">
+            {existingExames.map((ex, i) => (
+              <div key={`ex-${i}`} className="flex items-center gap-2 text-xs bg-muted/30 border border-border rounded-lg px-3 py-2">
+                <FileText className="w-4 h-4 text-primary shrink-0" />
+                <a href={ex.url} target="_blank" rel="noopener noreferrer" className="flex-1 truncate hover:underline">
+                  {ex.nome}
+                </a>
+                <span className="text-muted-foreground text-[10px]">{ex.tamanho_kb}KB</span>
+                <button type="button" onClick={() => removeExistingExame(i)} className="text-muted-foreground hover:text-destructive" aria-label="Remover">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+            {exameFiles.map((f, i) => (
+              <div key={`new-${i}`} className="flex items-center gap-2 text-xs bg-primary/5 border border-primary/30 rounded-lg px-3 py-2">
+                <FileText className="w-4 h-4 text-primary shrink-0" />
+                <span className="flex-1 truncate">{f.name}</span>
+                <span className="text-muted-foreground text-[10px]">{Math.round(f.size / 1024)}KB</span>
+                <button type="button" onClick={() => removePendingExame(i)} className="text-muted-foreground hover:text-destructive" aria-label="Remover">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+            {existingExames.length + exameFiles.length < 3 && (
+              <label className="flex items-center justify-center gap-2 text-xs border-2 border-dashed border-border rounded-lg py-4 cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors">
+                <Upload className="w-4 h-4 text-muted-foreground" />
+                <span className="text-muted-foreground">Anexar PDF ({3 - existingExames.length - exameFiles.length} restante{3 - existingExames.length - exameFiles.length === 1 ? "" : "s"})</span>
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => { handleExameAdd(e.target.files); e.target.value = ""; }}
+                />
+              </label>
+            )}
+          </div>
+        </Card>
           </>
         )}
 
