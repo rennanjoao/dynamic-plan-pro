@@ -61,6 +61,20 @@ export const CHECKIN_METRICS = [
   { key: "braco_e_contraido", label: "Braço E Cont.", unit: "cm" },
 ] as const;
 
+/**
+ * Chaves priorizadas para renderizar uma faixa compacta de "Aderência" no
+ * Resumo do Check-in do coach. NÃO altera CHECKIN_SECTIONS nem a validação
+ * do formulário do aluno — é só um subset visual.
+ */
+export const CHECKIN_HIGHLIGHT_KEYS = [
+  "dieta_adesao",
+  "treino_falta",
+  "sono_disp",
+  "humor_geral",
+  "compulsao_estado",
+  "aparencia",
+] as const;
+
 export const CHECKIN_SECTIONS: SectionDef[] = [
   {
     id: "identificacao",
