@@ -569,6 +569,7 @@ const Anamnesis = () => {
           </div>
         </Card>
 
+        {formStep === 1 && (<>
         {/* 01 — Quem é você */}
         <section>
           <SecHead num="01" title="Sua Conta & Identificação" />
@@ -634,7 +635,9 @@ const Anamnesis = () => {
             <Field label="Objetivos detalhados"><FiTextarea name="objetivos" placeholder="Descreva seus objetivos..." value={g("objetivos")} onChange={set("objetivos")} /></Field>
           </Card>
         </section>
+        </>)}
 
+        {formStep === 2 && (<>
         {/* 04 — Rotina */}
         <section>
           <SecHead num="04" title="Sua rotina real" />
@@ -698,7 +701,9 @@ const Anamnesis = () => {
             <Field label="Suplementação completa atual"><FiTextarea name="suplementacao" placeholder="Ex: Creatina 5g, Whey 30g..." value={g("suplementacao")} onChange={set("suplementacao")} /></Field>
           </Card>
         </section>
+        </>)}
 
+        {formStep === 3 && (<>
         {/* 07 — Alimentação */}
         <section>
           <SecHead num="07" title="Alimentação & digestão" />
@@ -801,7 +806,9 @@ const Anamnesis = () => {
             </Card>
           </section>
         )}
+        </>)}
 
+        {formStep === 4 && (<>
         {/* 11 — Histórico clínico */}
         <section>
           <SecHead num="11" title="Histórico clínico" />
@@ -835,13 +842,27 @@ const Anamnesis = () => {
             </div>
           </Card>
         </section>
+        </>)}
 
-        {/* Botão enviar */}
-        <Button size="lg" className="w-full h-14 text-base font-bold glow-primary" onClick={handleSubmit} disabled={saving}>
-          {saving
-            ? isEditMode ? "Salvando alterações..." : "Criando conta e finalizando..."
-            : isEditMode ? "Salvar alterações" : "Finalizar Cadastro"}
-        </Button>
+        {/* Navegação entre etapas */}
+        <div className="flex gap-3">
+          {formStep > 1 && (
+            <Button variant="outline" size="lg" className="flex-1 h-14 text-base font-bold" onClick={() => { setFormStep(s => s - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }} disabled={saving}>
+              Voltar
+            </Button>
+          )}
+          {formStep < TOTAL_FORM_STEPS ? (
+            <Button size="lg" className="flex-1 h-14 text-base font-bold glow-primary" onClick={() => { setFormStep(s => s + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+              Continuar
+            </Button>
+          ) : (
+            <Button size="lg" className="flex-1 h-14 text-base font-bold glow-primary" onClick={handleSubmit} disabled={saving}>
+              {saving
+                ? isEditMode ? "Salvando alterações..." : "Criando conta e finalizando..."
+                : isEditMode ? "Salvar alterações" : "Finalizar Cadastro"}
+            </Button>
+          )}
+        </div>
       </div>
 
       {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-card border border-border px-5 py-3 rounded-xl text-sm shadow-lg z-50 whitespace-nowrap">{toast}</div>}
