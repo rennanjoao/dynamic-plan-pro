@@ -130,6 +130,18 @@ export function FormField({ field, value, onChange }: Props) {
     );
   }
 
+  // Data / hora — usados na ficha de anamnese (data de nascimento, horários)
+  if (field.type === "date" || field.type === "time") {
+    return (
+      <Input
+        type={field.type}
+        value={(v as string) ?? ""}
+        onChange={(e) => onChange(e.target.value)}
+        className="bg-card border-border text-sm h-10"
+      />
+    );
+  }
+
   // Texto padrão
   return (
     <Input
