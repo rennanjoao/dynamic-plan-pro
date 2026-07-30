@@ -435,6 +435,8 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
 
   function generateBase() {
     const base = buildBasePayload({ split: setupSplit, mealsCount: setupMeals, carbCycle: setupCarbCycle });
+    // Pré-preenche o objetivo com o que o aluno respondeu na Anamnese.
+    if (suggestedGoal) base.macros = { ...base.macros, goal: suggestedGoal };
     if (aiSuggestion) {
       base.macros = {
         calories: aiSuggestion.calories,
