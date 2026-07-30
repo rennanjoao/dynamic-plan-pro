@@ -526,7 +526,14 @@ const Anamnesis = () => {
           {isEditMode ? `Editar Anamnese · ${studentEditCount + 1}/2` : "Ficha de Anamnese"}
         </span>
         {!isEditMode && (
-          <Button variant="outline" size="sm" onClick={() => { setD({}); setGender(""); setGroups({}); showToast("Limpo."); }}>Limpar</Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (!window.confirm("Isso vai apagar tudo que você preencheu até agora. Confirma?")) return;
+              setD({}); setGender(""); setGroups({}); setTpm([]); setQuedaF([]); setFormStep(1); showToast("Limpo.");
+            }}
+          >Limpar</Button>
         )}
         {isEditMode && (
           <Button variant="ghost" size="sm" onClick={() => navigate("/student-area")}>Voltar</Button>
@@ -534,6 +541,19 @@ const Anamnesis = () => {
       </div>
 
       <div className="max-w-xl mx-auto px-4 py-8 space-y-8 relative z-10">
+        {/* Stepper + progresso (mesmo padrão do Check-in) */}
+        <div>
+          <div className="flex gap-2">
+            {Array.from({ length: TOTAL_FORM_STEPS }, (_, i) => i + 1).map(s => (
+              <div key={s} className={cn("h-1.5 flex-1 rounded-full transition-colors", formStep >= s ? "bg-primary" : "bg-muted")} />
+            ))}
+          </div>
+          <div className="flex items-center justify-between mt-1.5">
+            <p className="text-[11px] text-muted-foreground">Etapa {formStep} de {TOTAL_FORM_STEPS}</p>
+            <p className="text-[11px] font-semibold text-primary">{Math.round((formStep / TOTAL_FORM_STEPS) * 100)}%</p>
+          </div>
+        </div>
+
         {/* Treinador Travado (Read-Only) */}
         <Card label="Seu Treinador">
           <div className="flex items-center gap-4 px-5 py-4 rounded-xl border-2 border-primary/30 bg-primary/5">
