@@ -48,6 +48,10 @@ const Anamnesis = () => {
   const [searchParams] = useSearchParams();
   const isEditMode = searchParams.get("mode") === "edit";
   const [step, setStep] = useState<"code" | "form" | "done">("code");
+  // Etapa visual do formulário (1..4) — apenas apresentação; nenhum campo
+  // deixa de existir e o autosave continua igual.
+  const [formStep, setFormStep] = useState(1);
+  const TOTAL_FORM_STEPS = 4;
   const [inviteCode, setInviteCode] = useState("");
   const [coach, setCoach] = useState<CoachInfo | null>(null);
   const [loggedUserId, setLoggedUserId] = useState<string | null>(null);
@@ -297,6 +301,11 @@ const Anamnesis = () => {
       if (g("senha").length < 6) { showToast("A senha deve ter no mínimo 6 caracteres."); return; }
     }
     if (!gender) { showToast("Selecione seu gênero."); return; }
+    if (!g("peso") || !g("altura")) {
+      showToast("Preencha peso e altura — são a base de comparação de todo o seu acompanhamento.");
+      setFormStep(1);
+      return;
+    }
 
     setSaving(true);
     try {
