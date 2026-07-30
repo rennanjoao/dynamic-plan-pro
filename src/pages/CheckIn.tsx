@@ -759,7 +759,11 @@ export default function CheckIn() {
               <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           ) : (
-            <Button className="flex-1" onClick={submit} disabled={saving || progress < 25}>
+            <Button
+              className="flex-1"
+              onClick={submit}
+              disabled={saving || (progress < 25 && data.atencao_urgente !== "Sim")}
+            >
               {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
               Enviar check-in
             </Button>

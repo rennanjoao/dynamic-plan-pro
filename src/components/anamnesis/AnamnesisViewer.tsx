@@ -9,8 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ANAMNESIS_SECTIONS, BASELINE_KEYS, NEURO_SLIDERS, uploadToCloudinary, type AnamnesisField } from "@/lib/anamnesisSchema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { FormField } from "@/components/student/FormField";
 import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from "@/components/ui/accordion";
@@ -43,11 +42,19 @@ const DATE_KEYS = new Set(["data_nasc"]);
 const TIME_KEYS = new Set(["horario_dormir", "horario_acordar"]);
 const NUMBER_KEYS = new Set<string>(["meta_peso", "meta_prazo", "dias_treino", "anos_treino"]);
 
-function fieldInputType(f: AnamnesisField): "number" | "date" | "time" | "textarea" {
-  if (DATE_KEYS.has(f.key)) return "date";
-  if (TIME_KEYS.has(f.key)) return "time";
-  if (f.type === "number" || BASELINE_SET.has(f.key) || NEURO_KEYS.has(f.key) || NUMBER_KEYS.has(f.key)) return "number";
-  return "textarea";
+/**
+ * Deriva o `type` efetivo do campo para renderizar com o mesmo <FormField />
+ * usado pelo Check-in. Campos que já declaram `type` no schema (ex.: choices)
+ * são respeitados; o resto cai nas heurísticas históricas (data, hora, número).
+ */
+function effectiveField(f: AnamnesisField): AnamnesisField {
+  if (f.type) return f;
+  if (DATE_KEYS.has(f.key)) return { ...f, type: "date" };
+  if (TIME_KEYS.has(f.key)) return { ...f, type: "time" };
+  if (BASELINE_SET.has(f.key) || NEURO_KEYS.has(f.key) || NUMBER_KEYS.has(f.key)) {
+    return { ...f, type: "number", step: (f.step as string | number | undefined) ?? "0.1" };
+  }
+  return { ...f, type: "textarea" };
 }
 
 // FORMATADOR BLINDADO: Impede Crash caso o valor seja Array ou Objeto JSON
@@ -334,7 +341,7 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
         </Card>
       )}
 
-      <Accordion type="multiple" defaultValue={["identificacao", "composicao"]} className="space-y-2">
+      <Accordion type="multiple" defaultValue={["identificacao", "composicao", "substancias", "clinico"]} className="space-y-2">
         {ANAMNESIS_SECTIONS.map((s) => (
           <AccordionItem key={s.id} value={s.id} className="border rounded-lg px-4">
             <AccordionTrigger className="py-3">
@@ -345,53 +352,15 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
                 {(s.fields || []).map((f) => (
                   <div key={f.key} className="flex flex-col md:flex-row md:items-center justify-between gap-2 py-1.5 text-sm border-b border-border/40 last:border-0">
                     <span className="text-muted-foreground font-medium">{f.label}</span>
-                    {isEditing ? (() => {
-                      const kind = fieldInputType(f);
-                      const val = editPayload[f.key];
-                      const onChange = (v: string) => setEditPayload({ ...editPayload, [f.key]: v });
-                      const common = "w-full md:max-w-[55%]";
-                      if (kind === "number") {
-                        return (
-                          <Input
-                            type="number"
-                            inputMode="decimal"
-                            step={(f.step as string | number | undefined) ?? "0.1"}
-                            min={NEURO_KEYS.has(f.key) ? 0 : undefined}
-                            max={NEURO_KEYS.has(f.key) ? 10 : undefined}
-                            value={val === null || val === undefined ? "" : String(val)}
-                            onChange={(e) => onChange(e.target.value)}
-                            className={common}
-                          />
-                        );
-                      }
-                      if (kind === "date") {
-                        return (
-                          <Input
-                            type="date"
-                            value={(val as string) || ""}
-                            onChange={(e) => onChange(e.target.value)}
-                            className={common}
-                          />
-                        );
-                      }
-                      if (kind === "time") {
-                        return (
-                          <Input
-                            type="time"
-                            value={(val as string) || ""}
-                            onChange={(e) => onChange(e.target.value)}
-                            className={common}
-                          />
-                        );
-                      }
-                      return (
-                        <Textarea
-                          value={(val as string) || ""}
-                          onChange={(e) => onChange(e.target.value)}
-                          className={`${common} min-h-[40px] resize-y`}
+                    {isEditing ? (
+                      <div className="w-full md:max-w-[55%]">
+                        <FormField
+                          field={effectiveField(f)}
+                          value={editPayload[f.key]}
+                          onChange={(v) => setEditPayload({ ...editPayload, [f.key]: v })}
                         />
-                      );
-                    })() : (
+                      </div>
+                    ) : (
                       <span className="font-medium text-right max-w-[55%] text-foreground">{fmt(data[f.key])}</span>
                     )}
                   </div>
