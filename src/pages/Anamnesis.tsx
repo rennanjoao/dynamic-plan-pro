@@ -48,6 +48,10 @@ const Anamnesis = () => {
   const [searchParams] = useSearchParams();
   const isEditMode = searchParams.get("mode") === "edit";
   const [step, setStep] = useState<"code" | "form" | "done">("code");
+  // Etapa visual do formulário (1..4) — apenas apresentação; nenhum campo
+  // deixa de existir e o autosave continua igual.
+  const [formStep, setFormStep] = useState(1);
+  const TOTAL_FORM_STEPS = 4;
   const [inviteCode, setInviteCode] = useState("");
   const [coach, setCoach] = useState<CoachInfo | null>(null);
   const [loggedUserId, setLoggedUserId] = useState<string | null>(null);
@@ -297,6 +301,11 @@ const Anamnesis = () => {
       if (g("senha").length < 6) { showToast("A senha deve ter no mínimo 6 caracteres."); return; }
     }
     if (!gender) { showToast("Selecione seu gênero."); return; }
+    if (!g("peso") || !g("altura")) {
+      showToast("Preencha peso e altura — são a base de comparação de todo o seu acompanhamento.");
+      setFormStep(1);
+      return;
+    }
 
     setSaving(true);
     try {
@@ -517,7 +526,14 @@ const Anamnesis = () => {
           {isEditMode ? `Editar Anamnese · ${studentEditCount + 1}/2` : "Ficha de Anamnese"}
         </span>
         {!isEditMode && (
-          <Button variant="outline" size="sm" onClick={() => { setD({}); setGender(""); setGroups({}); showToast("Limpo."); }}>Limpar</Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (!window.confirm("Isso vai apagar tudo que você preencheu até agora. Confirma?")) return;
+              setD({}); setGender(""); setGroups({}); setTpm([]); setQuedaF([]); setFormStep(1); showToast("Limpo.");
+            }}
+          >Limpar</Button>
         )}
         {isEditMode && (
           <Button variant="ghost" size="sm" onClick={() => navigate("/student-area")}>Voltar</Button>
@@ -525,6 +541,19 @@ const Anamnesis = () => {
       </div>
 
       <div className="max-w-xl mx-auto px-4 py-8 space-y-8 relative z-10">
+        {/* Stepper + progresso (mesmo padrão do Check-in) */}
+        <div>
+          <div className="flex gap-2">
+            {Array.from({ length: TOTAL_FORM_STEPS }, (_, i) => i + 1).map(s => (
+              <div key={s} className={cn("h-1.5 flex-1 rounded-full transition-colors", formStep >= s ? "bg-primary" : "bg-muted")} />
+            ))}
+          </div>
+          <div className="flex items-center justify-between mt-1.5">
+            <p className="text-[11px] text-muted-foreground">Etapa {formStep} de {TOTAL_FORM_STEPS}</p>
+            <p className="text-[11px] font-semibold text-primary">{Math.round((formStep / TOTAL_FORM_STEPS) * 100)}%</p>
+          </div>
+        </div>
+
         {/* Treinador Travado (Read-Only) */}
         <Card label="Seu Treinador">
           <div className="flex items-center gap-4 px-5 py-4 rounded-xl border-2 border-primary/30 bg-primary/5">
@@ -540,6 +569,7 @@ const Anamnesis = () => {
           </div>
         </Card>
 
+        {formStep === 1 && (<>
         {/* 01 — Quem é você */}
         <section>
           <SecHead num="01" title="Sua Conta & Identificação" />
@@ -605,7 +635,9 @@ const Anamnesis = () => {
             <Field label="Objetivos detalhados"><FiTextarea name="objetivos" placeholder="Descreva seus objetivos..." value={g("objetivos")} onChange={set("objetivos")} /></Field>
           </Card>
         </section>
+        </>)}
 
+        {formStep === 2 && (<>
         {/* 04 — Rotina */}
         <section>
           <SecHead num="04" title="Sua rotina real" />
@@ -669,7 +701,9 @@ const Anamnesis = () => {
             <Field label="Suplementação completa atual"><FiTextarea name="suplementacao" placeholder="Ex: Creatina 5g, Whey 30g..." value={g("suplementacao")} onChange={set("suplementacao")} /></Field>
           </Card>
         </section>
+        </>)}
 
+        {formStep === 3 && (<>
         {/* 07 — Alimentação */}
         <section>
           <SecHead num="07" title="Alimentação & digestão" />
@@ -772,7 +806,9 @@ const Anamnesis = () => {
             </Card>
           </section>
         )}
+        </>)}
 
+        {formStep === 4 && (<>
         {/* 11 — Histórico clínico */}
         <section>
           <SecHead num="11" title="Histórico clínico" />
@@ -806,13 +842,27 @@ const Anamnesis = () => {
             </div>
           </Card>
         </section>
+        </>)}
 
-        {/* Botão enviar */}
-        <Button size="lg" className="w-full h-14 text-base font-bold glow-primary" onClick={handleSubmit} disabled={saving}>
-          {saving
-            ? isEditMode ? "Salvando alterações..." : "Criando conta e finalizando..."
-            : isEditMode ? "Salvar alterações" : "Finalizar Cadastro"}
-        </Button>
+        {/* Navegação entre etapas */}
+        <div className="flex gap-3">
+          {formStep > 1 && (
+            <Button variant="outline" size="lg" className="flex-1 h-14 text-base font-bold" onClick={() => { setFormStep(s => s - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }} disabled={saving}>
+              Voltar
+            </Button>
+          )}
+          {formStep < TOTAL_FORM_STEPS ? (
+            <Button size="lg" className="flex-1 h-14 text-base font-bold glow-primary" onClick={() => { setFormStep(s => s + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+              Continuar
+            </Button>
+          ) : (
+            <Button size="lg" className="flex-1 h-14 text-base font-bold glow-primary" onClick={handleSubmit} disabled={saving}>
+              {saving
+                ? isEditMode ? "Salvando alterações..." : "Criando conta e finalizando..."
+                : isEditMode ? "Salvar alterações" : "Finalizar Cadastro"}
+            </Button>
+          )}
+        </div>
       </div>
 
       {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-card border border-border px-5 py-3 rounded-xl text-sm shadow-lg z-50 whitespace-nowrap">{toast}</div>}

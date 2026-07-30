@@ -3,7 +3,7 @@
  * usado pelo coach. Edita todas as seções de CHECKIN_SECTIONS, métricas,
  * fotos e o feedback do coach.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FormField } from "@/components/student/FormField";
 import { CHECKIN_METRICS, CHECKIN_SECTIONS } from "@/lib/checkInSchema";
-import { uploadToCloudinary } from "@/lib/anamnesisSchema";
+import { uploadToCloudinary, isFieldVisible } from "@/lib/anamnesisSchema";
+import type { FieldRenderContext } from "@/lib/anamnesisSchema";
 import { toast } from "sonner";
 import { Loader2, Save, Upload, FileText, Trash2 } from "lucide-react";
 
@@ -47,6 +48,9 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
   const [exames, setExames] = useState<ExameItem[]>([]);
   const [feedback, setFeedback] = useState<string>("");
   const [reaction, setReaction] = useState<string | null>(null);
+  // Referência da anamnese: alimenta os campos condicionais (gênero, protocolo
+  // ativo) exatamente como no formulário do aluno.
+  const [anamnesisPayload, setAnamnesisPayload] = useState<Record<string, unknown>>({});
   // [FIX] Guarda o updated_at carregado, para detectar se o registro mudou
   // (edição do aluno, ou o painel rápido de feedback) enquanto este editor
   // ficou aberto — sem isto, o Salvar sobrescreve tudo às cegas.
@@ -56,6 +60,13 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
     if (!open) return;
     (async () => {
       setLoading(true);
+      sb.from("anamnesis")
+        .select("payload")
+        .eq("student_id", studentId)
+        .maybeSingle()
+        .then(({ data: a }: { data: { payload?: Record<string, unknown> } | null }) =>
+          setAnamnesisPayload((a?.payload as Record<string, unknown>) ?? {})
+        );
       const { data: rows } = await sb
         .from("check_ins")
         .select("id, submitted_at")
@@ -72,6 +83,11 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
       setRowId(list[0].id);
     })();
   }, [open, studentId, onOpenChange]);
+
+  const fieldCtx: FieldRenderContext = useMemo(
+    () => ({ reference: anamnesisPayload, answers: data }),
+    [anamnesisPayload, data]
+  );
 
   // Load the selected check-in's full data whenever rowId changes
   useEffect(() => {
@@ -222,11 +238,14 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
             </section>
 
             {/* Seções de feedback do aluno */}
-            {CHECKIN_SECTIONS.map((sec) => (
+            {CHECKIN_SECTIONS.map((sec) => {
+              const visibleFields = sec.fields.filter((f) => isFieldVisible(f, fieldCtx));
+              if (visibleFields.length === 0) return null;
+              return (
               <section key={sec.id} className="rounded-xl border border-border p-4">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-primary mb-3">{sec.title}</h3>
                 <div className="grid grid-cols-2 gap-3">
-                  {sec.fields.map((f) => (
+                  {visibleFields.map((f) => (
                     <div key={f.key} className={f.half ? "col-span-1" : "col-span-2"}>
                       <Label className="text-xs text-muted-foreground mb-1.5 block">{f.label}</Label>
                       <FormField
@@ -238,7 +257,8 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
                   ))}
                 </div>
               </section>
-            ))}
+              );
+            })}
 
             {/* Fotos */}
             <section className="rounded-xl border border-border p-4">
