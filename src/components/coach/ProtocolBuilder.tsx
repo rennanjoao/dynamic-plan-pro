@@ -224,6 +224,33 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
     },
   });
 
+  /**
+   * Objetivo sugerido a partir da Anamnese (`meta_prioridade`). Só é usado
+   * como valor inicial de um protocolo novo — o coach pode trocar livremente.
+   */
+  const { data: suggestedGoal } = useQuery({
+    queryKey: ["protocol-builder-anamnesis-goal", studentId],
+    enabled: !!studentId,
+    queryFn: async () => {
+      const { data } = await sb
+        .from("anamnesis")
+        .select("payload")
+        .eq("student_id", studentId)
+        .maybeSingle();
+      const prio = String((data?.payload as Record<string, unknown> | undefined)?.meta_prioridade ?? "");
+      const map: Record<string, string> = {
+        "perda de gordura": "emagrecimento",
+        "hipertrofia": "hipertrofia",
+        "recomposição": "recomposicao",
+        "recomposicao": "recomposicao",
+        "performance": "performance",
+        "saúde": "manter",
+        "saude": "manter",
+      };
+      return map[prio.trim().toLowerCase()] ?? null;
+    },
+  });
+
   useEffect(() => {
     if (existing) {
       setProtocolId(existing.id);
