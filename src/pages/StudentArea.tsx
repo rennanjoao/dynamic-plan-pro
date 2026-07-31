@@ -426,6 +426,13 @@ export default function StudentArea() {
   const firstName      = profile?.full_name ? profile.full_name.split(" ")[0] : "Aluno";
   const anamnesisEdits = Number(anamnesisMeta?.student_edit_count ?? 0);
   const canEditAnamnesis = !!anamnesisMeta?.submitted_at && anamnesisEdits < 2;
+  // Composição dos alertas do topo (Etapa 4): guarda quais slots ficaram
+  // vazios para decidir quantos ficam abertos ao mesmo tempo.
+  const [emptySlots, setEmptySlots] = useState<Record<string, boolean>>({});
+  const [alertsExpanded, setAlertsExpanded] = useState(false);
+  const markSlotEmpty = useCallback((key: string, empty: boolean) => {
+    setEmptySlots((prev) => (prev[key] === empty ? prev : { ...prev, [key]: empty }));
+  }, []);
   const streak         = calcStreak(workoutLogs ?? []);
   const todayStr       = new Date().toISOString().slice(0, 10);
   const trainedToday   = (workoutLogs ?? []).some((l) => l.completed_at?.slice(0, 10) === todayStr);
