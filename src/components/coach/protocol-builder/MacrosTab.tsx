@@ -6,6 +6,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { ProtocolPayload, WEEKDAYS } from "@/lib/protocolSchema";
+import { normalizeCarb, cycleCarb, CARB_LABEL, CARB_COLOR } from "@/lib/weekCycle";
 
 /**
  * MacrosTab — extraído de ProtocolBuilder.tsx sem mudança de comportamento.
@@ -71,6 +72,35 @@ export function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; s
                   <span className="text-xs text-muted-foreground">%</span>
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-0.5">× {(1 - (payload.carbCycleLowPct ?? 15) / 100).toFixed(2)}</p>
+              </div>
+            </div>
+
+            <div className="border-t border-border/40 pt-3">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Tipo de cada dia</Label>
+              <p className="text-[10px] text-muted-foreground mt-0.5 mb-2">
+                Toque num dia para alternar Alto → Base → Baixo. Isso é o que o aluno vê na semana dele.
+              </p>
+              <div className="space-y-1.5">
+                {WEEKDAYS.map((d) => {
+                  const cur = normalizeCarb(payload.carbCycle?.[d.key]);
+                  return (
+                    <div key={d.key} className="flex items-center gap-2">
+                      <span className="w-16 text-xs font-medium text-foreground shrink-0">{d.label}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPayload({
+                            ...payload,
+                            carbCycle: { ...(payload.carbCycle || {}), [d.key]: cycleCarb(cur) },
+                          })
+                        }
+                        className={`flex-1 h-7 rounded-md border text-[11px] font-bold transition-colors ${CARB_COLOR[cur].bg} ${CARB_COLOR[cur].border} ${CARB_COLOR[cur].text}`}
+                      >
+                        {CARB_LABEL[cur]}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
