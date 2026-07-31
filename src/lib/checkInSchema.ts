@@ -58,20 +58,21 @@ export function colorForDelta(delta: number | null, polarity: MetricPolarity = "
 }
 
 /**
- * Heurística para saber se o aluno tem protocolo ativo (hormônios,
- * manipulados, estimulantes ou suplementação) a partir da Anamnese.
+ * Determina se o aluno tem protocolo ativo (hormônios, manipulados,
+ * estimulantes ou suplementação) a partir da Anamnese.
  *
- * LIMITAÇÃO IMPORTANTE: os campos de origem (`hormonios`, `estimulantes`,
- * `suplementacao`) são texto livre na Anamnese hoje — não existe um flag
- * booleano estruturado. Por segurança clínica, qualquer valor não-vazio que
- * não pareça uma negação clara ("não", "nenhum", "-"...) é tratado como
- * "possui protocolo". Isso favorece deliberadamente o falso positivo
- * (mostrar a pergunta extra a quem não precisava) em vez do falso negativo
- * (esconder colaterais/adesão de quem realmente usa hormônio). Se a
- * Anamnese ainda não carregou, também assume "possui" pelo mesmo motivo.
+ * Fonte primária: o campo estruturado `usa_hormonio_atualmente` ("Sim"/"Não"),
+ * quando presente — resposta explícita manda.
  *
- * Uma melhoria futura (fora do escopo desta revisão do Check-in) seria um
- * campo estruturado Sim/Não na Anamnese para substituir esta heurística.
+ * FALLBACK (Anamneses enviadas antes desse campo existir): os campos de
+ * origem (`hormonios`, `estimulantes`, `suplementacao`) são texto livre —
+ * não há flag booleano nesses registros antigos. Por segurança clínica,
+ * qualquer valor não-vazio que não pareça uma negação clara ("não",
+ * "nenhum", "-"...) é tratado como "possui protocolo". Isso favorece
+ * deliberadamente o falso positivo (mostrar a pergunta extra a quem não
+ * precisava) em vez do falso negativo (esconder colaterais/adesão de quem
+ * realmente usa hormônio). Se a Anamnese ainda não carregou, também assume
+ * "possui" pelo mesmo motivo.
  */
 const NEGATION_PATTERN = /^(n[aã]o|nenhum[a]?|-+|n\/?a|sem uso)\.?$/i;
 
@@ -184,7 +185,6 @@ const CLINICAL_SCALE: Record<string, { worst: string; mid?: string }> = {
 
 export function getClinicalSignal(
   latestCheckinPayload: Record<string, unknown> | null | undefined,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   anamnesisPayload?: Record<string, unknown> | null
 ): ClinicalSignal | null {
   if (!latestCheckinPayload) return null;
