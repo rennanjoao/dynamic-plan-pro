@@ -103,6 +103,11 @@ export const SupplementSchema = z.object({
     .enum(["hipertrofia", "recuperacao", "emagrecimento", "performance", "saude_geral", "outro"])
     .optional()
     .default("outro"),
+  // Diferencia suplemento comum de hormônio/manipulado. Itens antigos (sem
+  // o campo) caem no default "suplemento" e continuam renderizando igual.
+  category: z.enum(["suplemento", "hormonio_manipulado"]).optional().default("suplemento"),
+  // Só usado quando category === "hormonio_manipulado" (ex.: ["seg","qui"]).
+  weeklyFrequency: z.array(z.string()).optional().default([]),
 });
 
 // Combo de suplementos — agrupa múltiplos itens com um nome + horário/momento único.
