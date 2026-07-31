@@ -10,7 +10,7 @@
  * - Mantida toda a lógica de alertas, dismiss, PIX, QR Code e notificações.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -21,6 +21,7 @@ import {
   Apple, Dumbbell, Pill, TrendingUp, CheckCircle2,
   AlertCircle, Copy, Check, X, LogOut, Sparkles,
   ShoppingCart, FileEdit, Flame, User, Moon,
+  ChevronDown,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SimpleProfileDialog } from "@/components/SimpleProfileDialog";
@@ -54,6 +55,15 @@ async function fetchDismissedFromDB(uid: string): Promise<string[]> {
   }
 }
 async function persistDismissedToDB(uid: string, alertId: string) {
+
+/**
+ * AlertSlot — wrapper puramente visual usado na composição do topo do hub.
+ * Cada alerta (TrainerAlert, FeedbackCountdownAlert, CoachUpdatesCard…)
+ * decide internamente se renderiza algo; este slot apenas OBSERVA se o
+ * conteúdo ficou vazio para que a composição saiba quantos alertas estão
+ * realmente ativos. Nenhuma lógica de geração de alerta muda aqui — e os
+ * itens colapsados continuam montados (só escondidos via CSS).
+ */
   try {
     await (supabase as any)
       .from("student_dismissed_alerts")
