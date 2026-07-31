@@ -84,6 +84,11 @@ function mentionsActiveUse(value: unknown): boolean {
 
 export function hasActiveProtocol(anamnesisPayload: Record<string, unknown> | null | undefined): boolean {
   if (!anamnesisPayload) return true; // sem anamnese carregada ainda → não escondemos por segurança
+  // Campo estruturado (Anamneses novas): resposta explícita manda.
+  const structured = anamnesisPayload["usa_hormonio_atualmente"];
+  if (structured === "Sim") return true;
+  if (structured === "Não") return false;
+  // Anamneses antigas (sem o campo): mantém a heurística de texto livre.
   return (
     mentionsActiveUse(anamnesisPayload["hormonios"]) ||
     mentionsActiveUse(anamnesisPayload["estimulantes"]) ||
@@ -301,6 +306,7 @@ export const CHECKIN_SECTIONS: SectionDef[] = [
     title: "06 · Finalização",
     fields: [
       { key: "aparencia",          label: "Notou melhora no corpo?",           type: "choices", options: ["Melhorou", "Igual", "Piorou"] },
+      { key: "meta_ainda_valida",  label: "Sua meta ainda é a mesma da Anamnese?", type: "choices", options: ["Sim", "Mudou"] },
       {
         key: "aparencia_desc", label: "Descreva brevemente", type: "text", placeholder: "Definição, retenção…",
         condition: (ctx) => answeredButNot(ctx, "aparencia", "Igual"),

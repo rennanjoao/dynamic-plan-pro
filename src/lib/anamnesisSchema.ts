@@ -107,6 +107,7 @@ export const ANAMNESIS_SECTIONS: AnamnesisSection[] = [
   { id: "substancias", title: "Histórico de substâncias", fields: [
     { key: "remedios", label: "Remédios prescritos" },
     { key: "drogas", label: "Drogas lícitas/ilícitas" },
+    { key: "usa_hormonio_atualmente", label: "Usa hormônio/anabolizante atualmente?", type: "choices", options: ["Sim", "Não"] },
     { key: "hormonios", label: "Hormônios / anabolizantes" },
     { key: "estimulantes", label: "Estimulantes" },
     { key: "suplementacao", label: "Suplementação atual" },
