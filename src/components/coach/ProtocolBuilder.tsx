@@ -41,6 +41,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { MoreHorizontal } from "lucide-react";
 import { lazy, Suspense } from "react";
 import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
@@ -659,40 +663,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             </div>
           </div>
 
-          {/* Second row: action buttons */}
-          {payload && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 text-xs"
-                onClick={() => setPreviewOpen(true)}
-              >
-                <Eye className="w-3.5 h-3.5 mr-1.5" />
-                <span className="hidden sm:inline">Ver como aluno</span>
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 text-xs"
-                onClick={() => setConsultOpen(true)}
-              >
-                <ClipboardList className="w-3.5 h-3.5 mr-1.5" />
-                <span className="hidden sm:inline">Anamnese</span>
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 text-xs"
-                onClick={() => setSetupOpen(true)}
-              >
-                <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                <span className="hidden sm:inline">Recriar base</span>
-              </Button>
-            </div>
-          )}
-
-          {/* Name input inline (only when there is a payload) */}
+          {/* Name input + ações (cabeçalho enxuto: 2 ações diretas + menu) */}
           {payload && (
             <div>
               <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Nome do protocolo</Label>
@@ -702,46 +673,51 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                   size="sm"
                   variant="outline"
                   className="h-9 text-xs"
-                  onClick={() => setLibraryOpen(true)}
-                  title="Biblioteca de templates"
+                  onClick={() => setPreviewOpen(true)}
+                  title="Ver como aluno"
                 >
-                  <Library className="w-3.5 h-3.5 sm:mr-1.5" />
-                  <span className="hidden sm:inline">Templates</span>
+                  <Eye className="w-3.5 h-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Ver como aluno</span>
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
                   className="h-9 text-xs"
-                  onClick={() => setCopyOpen(true)}
-                  title="Copiar para outro aluno"
+                  onClick={() => setConsultOpen(true)}
+                  title="Abrir anamnese do aluno"
                 >
-                  <Copy className="w-3.5 h-3.5 sm:mr-1.5" />
-                  <span className="hidden sm:inline">Copiar</span>
+                  <ClipboardList className="w-3.5 h-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Anamnese</span>
                 </Button>
-                {isEditMode && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-9 text-xs"
-                    onClick={() => setHistoryOpen(true)}
-                    title="Ver histórico de versões"
-                  >
-                    <History className="w-3.5 h-3.5 sm:mr-1.5" />
-                    <span className="hidden sm:inline">Histórico</span>
-                  </Button>
-                )}
-                {isEditMode && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-9 text-xs"
-                    onClick={openRenewalSuggestion}
-                    title="Sugestão de renovação de ciclo (IA)"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5 sm:mr-1.5" />
-                    <span className="hidden sm:inline">Renovar ciclo (IA)</span>
-                  </Button>
-                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" variant="outline" className="h-9 text-xs" title="Mais ações">
+                      <MoreHorizontal className="w-3.5 h-3.5 sm:mr-1.5" />
+                      <span className="hidden sm:inline">Mais</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem onSelect={() => setSetupOpen(true)} className="text-xs">
+                      <Sparkles className="w-3.5 h-3.5 mr-2" /> Recriar base
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setLibraryOpen(true)} className="text-xs">
+                      <Library className="w-3.5 h-3.5 mr-2" /> Biblioteca de templates
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setCopyOpen(true)} className="text-xs">
+                      <Copy className="w-3.5 h-3.5 mr-2" /> Copiar para outro aluno
+                    </DropdownMenuItem>
+                    {isEditMode && (
+                      <DropdownMenuItem onSelect={() => setHistoryOpen(true)} className="text-xs">
+                        <History className="w-3.5 h-3.5 mr-2" /> Histórico de versões
+                      </DropdownMenuItem>
+                    )}
+                    {isEditMode && (
+                      <DropdownMenuItem onSelect={openRenewalSuggestion} className="text-xs">
+                        <RefreshCw className="w-3.5 h-3.5 mr-2" /> Renovar ciclo (IA)
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           )}
