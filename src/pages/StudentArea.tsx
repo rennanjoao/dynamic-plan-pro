@@ -648,21 +648,15 @@ export default function StudentArea() {
           </Card>
         )}
 
-        {/* Alertas */}
-        {userId && (
-          <FeedbackCountdownAlert
-            userId={userId}
-            dismissed={dismissedAlerts}
-            onDismiss={dismissAlert}
-          />
-        )}
-        <TrainerAlert />
-
-        <CoachUpdatesCard />
-        <CoachUpdatesHistoryLink />
-
-        {billingAlert && !dismissedAlerts.includes(billingAlert.id) && (
-          <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 relative shadow-sm">
+        {/* ── Alertas (composição por prioridade — Etapa 4) ──
+            Ordem fixa: cobrança vencida > recado do coach > contagem de
+            check-in > atualização de protocolo. Com 3+ ativos, só os dois
+            primeiros ficam abertos; o resto vai para "Você tem N atualizações".
+            A lógica interna de cada alerta permanece intocada. */}
+        {(() => {
+          const billingActive = !!billingAlert && !dismissedAlerts.includes(billingAlert.id);
+          const billingNode = billingActive && billingAlert && (
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 relative shadow-sm">
             <button onClick={() => dismissAlert(billingAlert.id)} className="absolute top-3 right-3 text-amber-600 hover:text-amber-700" aria-label="Fechar">
               <X className="w-4 h-4" />
             </button>
@@ -708,8 +702,55 @@ export default function StudentArea() {
                 </div>
               </div>
             </div>
-          </div>
-        )}
+            </div>
+          );
+
+          const slots: { key: string; node: React.ReactNode; known?: boolean }[] = [
+            { key: "billing",   node: billingNode || null, known: billingActive },
+            { key: "trainer",   node: <TrainerAlert /> },
+            { key: "countdown", node: userId ? <FeedbackCountdownAlert userId={userId} dismissed={dismissedAlerts} onDismiss={dismissAlert} /> : null },
+            { key: "updates",   node: <CoachUpdatesCard /> },
+          ];
+
+          const isActive = (s: { key: string; known?: boolean }) =>
+            s.known !== undefined ? s.known : emptySlots[s.key] !== true;
+
+          let activeIndex = -1;
+          let hiddenCount = 0;
+          const rendered = slots.map((s) => {
+            if (!s.node) return null;
+            const active = isActive(s);
+            if (active) activeIndex += 1;
+            const collapsed = active && !alertsExpanded && activeIndex >= 2;
+            if (collapsed) hiddenCount += 1;
+            return (
+              <AlertSlot
+                key={s.key}
+                hidden={collapsed}
+                onEmptyChange={(empty) => markSlotEmpty(s.key, empty)}
+              >
+                {s.node}
+              </AlertSlot>
+            );
+          });
+
+          return (
+            <div className="space-y-4">
+              {rendered}
+              {(hiddenCount > 0 || alertsExpanded) && (
+                <button
+                  type="button"
+                  onClick={() => setAlertsExpanded((v) => !v)}
+                  className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-border/60 bg-card/60 px-4 py-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${alertsExpanded ? "rotate-180" : ""}`} />
+                  {alertsExpanded ? "Mostrar menos" : `Você tem ${hiddenCount} atualizaç${hiddenCount === 1 ? "ão" : "ões"}`}
+                </button>
+              )}
+              <CoachUpdatesHistoryLink />
+            </div>
+          );
+        })()}
 
         {/* ── DESTAQUES: Dieta e Treino ── */}
         <div className="space-y-3">
