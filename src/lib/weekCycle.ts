@@ -68,7 +68,7 @@ export interface DayInfo {
   isToday: boolean;
 }
 
-const ABBR: Record<string, string> = {
+export const ABBR: Record<string, string> = {
   seg: "Seg", ter: "Ter", qua: "Qua", qui: "Qui",
   sex: "Sex", sab: "Sáb", dom: "Dom",
 };
