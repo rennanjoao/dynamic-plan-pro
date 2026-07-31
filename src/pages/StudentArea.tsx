@@ -55,20 +55,35 @@ async function fetchDismissedFromDB(uid: string): Promise<string[]> {
   }
 }
 async function persistDismissedToDB(uid: string, alertId: string) {
-
-/**
- * AlertSlot — wrapper puramente visual usado na composição do topo do hub.
- * Cada alerta (TrainerAlert, FeedbackCountdownAlert, CoachUpdatesCard…)
- * decide internamente se renderiza algo; este slot apenas OBSERVA se o
- * conteúdo ficou vazio para que a composição saiba quantos alertas estão
- * realmente ativos. Nenhuma lógica de geração de alerta muda aqui — e os
- * itens colapsados continuam montados (só escondidos via CSS).
- */
   try {
     await (supabase as any)
       .from("student_dismissed_alerts")
       .upsert({ user_id: uid, alert_id: alertId }, { onConflict: "user_id,alert_id" });
   } catch { /* cache local ainda mantém */ }
+}
+
+/**
+ * AlertSlot — wrapper puramente visual usado na composição do topo do hub.
+ * Cada alerta (TrainerAlert, FeedbackCountdownAlert, CoachUpdatesCard…)
+ * decide internamente se renderiza algo; este slot apenas OBSERVA se o
+ * conteúdo ficou vazio, para que a composição saiba quantos alertas estão
+ * realmente ativos. Nenhuma lógica de geração de alerta muda aqui — e os
+ * itens colapsados continuam montados (só escondidos via CSS).
+ */
+function AlertSlot({
+  hidden, onEmptyChange, children,
+}: { hidden?: boolean; onEmptyChange: (empty: boolean) => void; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => onEmptyChange(el.childElementCount === 0);
+    check();
+    const mo = new MutationObserver(check);
+    mo.observe(el, { childList: true, subtree: true });
+    return () => mo.disconnect();
+  });
+  return <div ref={ref} className={hidden ? "hidden" : undefined}>{children}</div>;
 }
 
 // ─── Saudação dinâmica ──────────────────────────────────────────────────────
