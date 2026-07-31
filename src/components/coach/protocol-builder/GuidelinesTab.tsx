@@ -197,9 +197,24 @@ function SupplementsSection({
     "Com refeição", "Antes de dormir", "Outro",
   ];
 
+  // Dias da semana para itens de categoria "hormonio_manipulado" — onde a
+  // lista de horários de refeição (TIMING_OPTIONS) não faz sentido.
+  const WEEKDAYS = [
+    { key: "seg", label: "Seg" }, { key: "ter", label: "Ter" }, { key: "qua", label: "Qua" },
+    { key: "qui", label: "Qui" }, { key: "sex", label: "Sex" }, { key: "sab", label: "Sáb" },
+    { key: "dom", label: "Dom" },
+  ];
+
   const renderSupplementCard = (si: number) => {
     const s = supplements[si];
     if (!s) return null;
+    const category = ((s as any).category as string) || "suplemento";
+    const isHormone = category === "hormonio_manipulado";
+    const weekly: string[] = ((s as any).weeklyFrequency as string[]) || [];
+    const toggleDay = (d: string) =>
+      updSupp(si, {
+        weeklyFrequency: weekly.includes(d) ? weekly.filter((x) => x !== d) : [...weekly, d],
+      } as any);
     return (
       <Card key={si} className="bg-card/60 border-border p-3">
         <div className="grid grid-cols-[1fr_auto] gap-2 mb-2">
@@ -224,14 +239,48 @@ function SupplementsSection({
             placeholder="Dose"
             className="h-8 text-xs"
           />
-          <Select value={s.timing || "Outro"} onValueChange={(v) => updSupp(si, { timing: v })}>
+          <Select
+            value={category}
+            onValueChange={(v) => updSupp(si, { category: v } as any)}
+          >
             <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {TIMING_OPTIONS.map((t) => (
-                <SelectItem key={t} value={t} className="text-xs">{t}</SelectItem>
-              ))}
+              <SelectItem value="suplemento" className="text-xs">Suplemento</SelectItem>
+              <SelectItem value="hormonio_manipulado" className="text-xs">Hormônio ou manipulado</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+        <div className="mt-2">
+          {isHormone ? (
+            <>
+              <Label className="text-[10px] text-muted-foreground">Dias da semana</Label>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {WEEKDAYS.map((d) => (
+                  <button
+                    key={d.key}
+                    type="button"
+                    onClick={() => toggleDay(d.key)}
+                    className={`px-2 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
+                      weekly.includes(d.key)
+                        ? "bg-primary/15 border-primary/50 text-primary"
+                        : "border-border text-muted-foreground hover:bg-accent"
+                    }`}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <Select value={s.timing || "Outro"} onValueChange={(v) => updSupp(si, { timing: v })}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {TIMING_OPTIONS.map((t) => (
+                  <SelectItem key={t} value={t} className="text-xs">{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
         <div className="grid grid-cols-[1fr_1fr] gap-2 mt-2">
           <Select
