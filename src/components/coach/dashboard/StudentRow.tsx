@@ -82,7 +82,7 @@ export function StudentRow({
       )}
 
       <div className="flex items-center gap-1 shrink-0">
-        <button onClick={() => onAnamnesis(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Evolução e Anamnese">
+        <button onClick={() => onAnamnesis(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Anamnese">
           <ClipboardList className="w-4 h-4" />
         </button>
         <button onClick={() => onProtocol(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Protocolo">
