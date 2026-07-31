@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Goal } from "@/utils/macros";
+import { getClinicalSignal, type ClinicalSignal } from "@/lib/checkInSchema";
 
 export type AlertLevel = "critical" | "warning" | "ok";
 
@@ -34,6 +35,8 @@ export interface StudentStatus {
   warningDays: number;
   criticalDays: number;
   weightTrend: WeightTrend;
+  /** Segundo eixo: sinal clínico derivado do conteúdo do último check-in. */
+  clinicalSignal: ClinicalSignal | null;
 }
 
 export interface PagedStudentsResult {
@@ -169,7 +172,7 @@ export function useCoachStudentsPaged(
         supabase.from("profiles").select("user_id, full_name, email").in("user_id", ids),
         supabase
           .from("check_ins")
-          .select("student_id, submitted_at, updated_at")
+          .select("student_id, submitted_at, updated_at, payload")
           .in("student_id", ids)
           .order("submitted_at", { ascending: false })
           .limit(ids.length * 3), // teto explícito, evita full-scan se aluno tiver muitos check-ins
@@ -183,12 +186,17 @@ export function useCoachStudentsPaged(
 
       const lastCiByStudent = new Map<string, string>();
       const lastCiTimeByStudent = new Map<string, number>();
+      const lastCiPayloadByStudent = new Map<string, Record<string, unknown> | null>();
       lastCi?.forEach((c) => {
         const t = effectiveTime(c);
         const prevT = lastCiTimeByStudent.get(c.student_id);
         if (prevT === undefined || t > prevT) {
           lastCiTimeByStudent.set(c.student_id, t);
           lastCiByStudent.set(c.student_id, c.submitted_at);
+          lastCiPayloadByStudent.set(
+            c.student_id,
+            ((c as { payload?: unknown }).payload as Record<string, unknown>) ?? null
+          );
         }
       });
 
@@ -223,6 +231,7 @@ export function useCoachStudentsPaged(
           warningDays: warning,
           criticalDays: critical,
           weightTrend: { deltaKg: null, direction: null, isStagnant: false },
+          clinicalSignal: getClinicalSignal(lastCiPayloadByStudent.get(sid) ?? null),
         };
       });
 

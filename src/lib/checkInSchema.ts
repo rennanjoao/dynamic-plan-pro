@@ -150,6 +150,57 @@ export const CHECKIN_HIGHLIGHT_KEYS = [
   "aparencia",
 ] as const;
 
+/**
+ * Sinal clínico do aluno — segundo eixo, INDEPENDENTE do badge de atraso.
+ *
+ * O badge existente (AlertBadge) mede só "quantos dias sem check-in".
+ * Este mede "o que o último check-in diz". Regra determinística:
+ *
+ *  1. `atencao_urgente === "Sim"` → 'alerta' imediato.
+ *  2. Senão, contam-se as respostas de CHECKIN_HIGHLIGHT_KEYS:
+ *     - 2+ respostas no PIOR valor da escala          → 'alerta'
+ *     - 1 resposta no pior valor OU 2+ no intermediário → 'atencao'
+ *     - caso contrário                                 → 'ok'
+ *  3. Sem check-in → null (neutro, não renderiza badge).
+ *
+ * `anamnesisPayload` é aceito para uso futuro (contexto de linha de base);
+ * hoje a decisão usa apenas o último check-in.
+ */
+export type ClinicalSignal = "alerta" | "atencao" | "ok";
+
+const CLINICAL_SCALE: Record<string, { worst: string; mid?: string }> = {
+  dieta_adesao:     { worst: "Desvios",   mid: "Maioria" },
+  treino_falta:     { worst: "2+ dias",   mid: "1 dia" },
+  sono_disp:        { worst: "Ruim",      mid: "Regular" },
+  humor_geral:      { worst: "Cansado" },
+  compulsao_estado: { worst: "Piorou",    mid: "Igual" },
+  aparencia:        { worst: "Piorou",    mid: "Igual" },
+};
+
+export function getClinicalSignal(
+  latestCheckinPayload: Record<string, unknown> | null | undefined,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  anamnesisPayload?: Record<string, unknown> | null
+): ClinicalSignal | null {
+  if (!latestCheckinPayload) return null;
+  if (latestCheckinPayload["atencao_urgente"] === "Sim") return "alerta";
+
+  let worstCount = 0;
+  let midCount = 0;
+  for (const key of CHECKIN_HIGHLIGHT_KEYS) {
+    const scale = CLINICAL_SCALE[key];
+    if (!scale) continue;
+    const v = latestCheckinPayload[key];
+    if (typeof v !== "string" || !v) continue;
+    if (v === scale.worst) worstCount++;
+    else if (scale.mid && v === scale.mid) midCount++;
+  }
+
+  if (worstCount >= 2) return "alerta";
+  if (worstCount === 1 || midCount >= 2) return "atencao";
+  return "ok";
+}
+
 export const CHECKIN_SECTIONS: SectionDef[] = [
   {
     id: "identificacao",
