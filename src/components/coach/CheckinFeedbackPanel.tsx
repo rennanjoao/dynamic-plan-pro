@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Loader2, Send, ChevronDown, ChevronUp, FileDown, CheckSquare, Square, Sparkles, Pencil, History } from "lucide-react";
+import { Loader2, Send, ChevronDown, ChevronUp, FileDown, CheckSquare, Square, Sparkles, Pencil, History, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 import { exportCheckinPDF, exportCheckinsBatchPDF } from "@/lib/coachPdfExport";
 import {
