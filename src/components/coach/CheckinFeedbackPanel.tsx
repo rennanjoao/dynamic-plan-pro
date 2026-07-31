@@ -502,7 +502,10 @@ export default function CheckinFeedbackPanel(props: Props) {
             <Collapsible open={showAnamnesis} onOpenChange={setShowAnamnesis}>
               <CollapsibleTrigger asChild>
                 <Button variant="outline" size="sm" className="w-full justify-between">
-                  <span>Ver anamnese completa e histórico</span>
+                  <span className="flex items-center gap-2">
+                    <ClipboardList className="w-4 h-4 text-primary" />
+                    Anamnese
+                  </span>
                   {showAnamnesis ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </Button>
               </CollapsibleTrigger>
