@@ -39,6 +39,7 @@ import { StudentFeedbackConfigDialog } from "@/components/coach/dashboard/Studen
 import { CheckinHistoryDialog } from "@/components/coach/dashboard/CheckinHistoryDialog";
 import { FinancesTab } from "@/components/coach/dashboard/FinancesTab";
 import { ProfileDialog } from "@/components/coach/dashboard/ProfileDialog";
+import { usePlatformBilling, worstPlatformStatus } from "@/hooks/usePlatformBilling";
 
 const ProtocolBuilder = lazy(() => import("@/components/coach/ProtocolBuilder"));
 const CheckinFeedbackPanel = lazy(() => import("@/components/coach/CheckinFeedbackPanel"));
@@ -95,6 +96,8 @@ export default function CoachDashboard() {
   useEffect(() => { setStudentPage(0); }, [search, filter]);
 
   const { data: allStudents = [] } = useCoachStudentsLite(coachId);
+  const { data: platformCharges = [] } = usePlatformBilling(coachId);
+  const platformStatus = worstPlatformStatus(platformCharges);
 
   const goBack = () => { setView("list"); setSelectedStudent(null); };
 
@@ -163,6 +166,12 @@ export default function CoachDashboard() {
             )}
             <Button variant="outline" size="sm" onClick={() => setShowProfile(true)} className="gap-1.5">
               <User className="w-3.5 h-3.5" /> Perfil
+              {platformStatus && (
+                <span
+                  title={platformStatus === "blocked" ? "Assinatura da plataforma bloqueada" : "Assinatura da plataforma pendente"}
+                  className={`ml-1 w-2 h-2 rounded-full ${platformStatus === "blocked" ? "bg-red-500" : "bg-amber-500"}`}
+                />
+              )}
             </Button>
           </div>
         </div>
@@ -189,16 +198,19 @@ export default function CoachDashboard() {
                 coachId={coachId}
                 students={allStudents}
                 onSelectStudent={(sid) => {
+                  // Tanto 'fatigue' quanto 'checkin_urgent' são sobre o check-in
+                  // do aluno → abre direto o mesmo painel de feedback usado na
+                  // StudentRow ("Último check-in").
                   const st = allStudents.find((s) => s.id === sid);
-                  if (st) {
-                    setSelectedStudent({
+                  if (!st) return;
+                  const full = pagedStudents.find((s) => s.id === sid);
+                  setLatestFbStudent(
+                    full ?? ({
                       id: st.id, name: st.name, alertLevel: "ok", daysInactive: 0,
-                      daysSinceLastFeedback: 999, currentWeight: undefined, lastWeightDate: undefined,
-                    } as any);
-                    setActiveTab("treinos");
-                  }
+                      daysSinceLastFeedback: 0, currentWeight: null, lastFeedback: null,
+                    } as any)
+                  );
                 }}
-                onSelectBilling={() => setActiveTab("finances")}
               />
             )}
 
