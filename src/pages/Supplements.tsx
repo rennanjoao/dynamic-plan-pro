@@ -8,6 +8,7 @@ import { ProtocolPayloadSchema } from "@/lib/protocolSchema";
 import ProtocolQuestionButton from "@/components/student/ProtocolQuestionButton";
 import { useHighlightTarget } from "@/hooks/useHighlightTarget";
 import { slug } from "@/lib/slug";
+import { ABBR } from "@/lib/weekCycle";
 import { useAuthUserId } from "@/hooks/useAuthUserId";
 import { PageLoader } from "@/components/ui/PageLoader";
 
@@ -113,8 +114,17 @@ export default function Supplements() {
             (Array.isArray(c?.supplementIndexes) ? c.supplementIndexes : []).forEach((i: number) => boundSet.add(i))
           );
           const unbound = supplements.filter((_: any, i: number) => !boundSet.has(i));
+          const formatFrequency = (days: unknown): string => {
+            const list = Array.isArray(days) ? days : [];
+            if (list.length === 0) return "Hormônio/Manipulado";
+            if (list.length === 7) return "Hormônio/Manipulado — todos os dias";
+            const labels = list.map((d) => ABBR[String(d)] ?? String(d));
+            return `Hormônio/Manipulado — ${labels.join(", ")}`;
+          };
           const groups = unbound.reduce((acc: Record<string, any[]>, s: any) => {
-            const key = (s.timing && String(s.timing).trim()) || "Outros";
+            const key = s.category === "hormonio_manipulado"
+              ? formatFrequency(s.weeklyFrequency)
+              : (s.timing && String(s.timing).trim()) || "Outros";
             (acc[key] = acc[key] || []).push(s);
             return acc;
           }, {});
