@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, Plus, Trash2, DollarSign, Calendar, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useCoachFinances } from "@/hooks/useCoachFinances";
+import { usePlatformBilling, worstPlatformStatus } from "@/hooks/usePlatformBilling";
 import type { StudentLite } from "@/hooks/useCoachStudents";
 import { queryKeys } from "@/lib/queryKeys";
 import { formatDatePtBR } from "@/lib/formatDate";
@@ -18,6 +19,8 @@ import { StatCard } from "./dashboardUtils";
 
 export function FinancesTab({ coachId, students }: { coachId: string; students: StudentLite[] }) {
   const { data: finances = [], isLoading } = useCoachFinances(coachId);
+  const { data: platformCharges = [] } = usePlatformBilling(coachId);
+  const platformStatus = worstPlatformStatus(platformCharges);
   const qc = useQueryClient();
   const confirm = useConfirm();
 
@@ -124,6 +127,26 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
 
   return (
     <div className="space-y-4">
+      {platformStatus && (
+        <div className={`rounded-xl border px-4 py-3 flex items-start gap-3 ${
+          platformStatus === "blocked"
+            ? "border-red-200 bg-red-50 text-red-700 dark:bg-red-950/20 dark:border-red-900 dark:text-red-400"
+            : "border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:border-amber-900 dark:text-amber-400"
+        }`}>
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-xs font-bold">
+              {platformStatus === "blocked" ? "Assinatura da plataforma bloqueada" : "Assinatura da plataforma pendente"}
+            </p>
+            <p className="text-[11px] mt-0.5 opacity-90">
+              {platformCharges
+                .map((c) => `${c.period} — R$ ${Number(c.amount).toFixed(2)}`)
+                .join(" · ")}
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-3 gap-3">
         <StatCard label="Receita (Pago)"  value={`R$ ${totalReceita.toFixed(0)}`}  icon={<DollarSign className="w-4 h-4" />}   accent="#10B981" />
         <StatCard label="Pendente"         value={`R$ ${totalPendente.toFixed(0)}`} icon={<Calendar className="w-4 h-4" />}     accent="#F59E0B" />

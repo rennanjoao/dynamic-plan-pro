@@ -10,7 +10,7 @@
  * - Mantida toda a lógica de alertas, dismiss, PIX, QR Code e notificações.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -21,6 +21,7 @@ import {
   Apple, Dumbbell, Pill, TrendingUp, CheckCircle2,
   AlertCircle, Copy, Check, X, LogOut, Sparkles,
   ShoppingCart, FileEdit, Flame, User, Moon,
+  ChevronDown,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SimpleProfileDialog } from "@/components/SimpleProfileDialog";
@@ -59,6 +60,30 @@ async function persistDismissedToDB(uid: string, alertId: string) {
       .from("student_dismissed_alerts")
       .upsert({ user_id: uid, alert_id: alertId }, { onConflict: "user_id,alert_id" });
   } catch { /* cache local ainda mantém */ }
+}
+
+/**
+ * AlertSlot — wrapper puramente visual usado na composição do topo do hub.
+ * Cada alerta (TrainerAlert, FeedbackCountdownAlert, CoachUpdatesCard…)
+ * decide internamente se renderiza algo; este slot apenas OBSERVA se o
+ * conteúdo ficou vazio, para que a composição saiba quantos alertas estão
+ * realmente ativos. Nenhuma lógica de geração de alerta muda aqui — e os
+ * itens colapsados continuam montados (só escondidos via CSS).
+ */
+function AlertSlot({
+  hidden, onEmptyChange, children,
+}: { hidden?: boolean; onEmptyChange: (empty: boolean) => void; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => onEmptyChange(el.childElementCount === 0);
+    check();
+    const mo = new MutationObserver(check);
+    mo.observe(el, { childList: true, subtree: true });
+    return () => mo.disconnect();
+  });
+  return <div ref={ref} className={hidden ? "hidden" : undefined}>{children}</div>;
 }
 
 // ─── Saudação dinâmica ──────────────────────────────────────────────────────
@@ -401,6 +426,13 @@ export default function StudentArea() {
   const firstName      = profile?.full_name ? profile.full_name.split(" ")[0] : "Aluno";
   const anamnesisEdits = Number(anamnesisMeta?.student_edit_count ?? 0);
   const canEditAnamnesis = !!anamnesisMeta?.submitted_at && anamnesisEdits < 2;
+  // Composição dos alertas do topo (Etapa 4): guarda quais slots ficaram
+  // vazios para decidir quantos ficam abertos ao mesmo tempo.
+  const [emptySlots, setEmptySlots] = useState<Record<string, boolean>>({});
+  const [alertsExpanded, setAlertsExpanded] = useState(false);
+  const markSlotEmpty = useCallback((key: string, empty: boolean) => {
+    setEmptySlots((prev) => (prev[key] === empty ? prev : { ...prev, [key]: empty }));
+  }, []);
   const streak         = calcStreak(workoutLogs ?? []);
   const todayStr       = new Date().toISOString().slice(0, 10);
   const trainedToday   = (workoutLogs ?? []).some((l) => l.completed_at?.slice(0, 10) === todayStr);
@@ -522,7 +554,7 @@ export default function StudentArea() {
   // ─── Módulos secundários (grid 2x2) ───
   const secondaryModules = [
     { title: "Suplementos & Directrizes", description: "Fármacos, vitaminas e horários.",   icon: Pill,          color: "text-purple-500",  bg: "bg-purple-500/10",  border: "border-purple-500/20",  route: "/supplements"  },
-    { title: "Evolução",       description: "Fotos, gráficos e progresso.",      icon: TrendingUp,    color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", route: "/evolution"    },
+    { title: "Evolução",       description: "Fotos, gráficos e progresso.",      icon: TrendingUp,    color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", route: "/evolution", showAnamnesisEdit: true },
     { title: "Check-in",       description: "Feedback periódico ao treinador.",  icon: CheckCircle2,  color: "text-rose-500",    bg: "bg-rose-500/10",    border: "border-rose-500/20",    route: "/check-in"     },
     { title: "Lista de Compras", description: "Compras agregadas e PDF.",        icon: ShoppingCart,  color: "text-orange-500",  bg: "bg-orange-500/10",  border: "border-orange-500/20",  route: "/shopping-list"},
   ];
@@ -616,21 +648,15 @@ export default function StudentArea() {
           </Card>
         )}
 
-        {/* Alertas */}
-        {userId && (
-          <FeedbackCountdownAlert
-            userId={userId}
-            dismissed={dismissedAlerts}
-            onDismiss={dismissAlert}
-          />
-        )}
-        <TrainerAlert />
-
-        <CoachUpdatesCard />
-        <CoachUpdatesHistoryLink />
-
-        {billingAlert && !dismissedAlerts.includes(billingAlert.id) && (
-          <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 relative shadow-sm">
+        {/* ── Alertas (composição por prioridade — Etapa 4) ──
+            Ordem fixa: cobrança vencida > recado do coach > contagem de
+            check-in > atualização de protocolo. Com 3+ ativos, só os dois
+            primeiros ficam abertos; o resto vai para "Você tem N atualizações".
+            A lógica interna de cada alerta permanece intocada. */}
+        {(() => {
+          const billingActive = !!billingAlert && !dismissedAlerts.includes(billingAlert.id);
+          const billingNode = billingActive && billingAlert && (
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 relative shadow-sm">
             <button onClick={() => dismissAlert(billingAlert.id)} className="absolute top-3 right-3 text-amber-600 hover:text-amber-700" aria-label="Fechar">
               <X className="w-4 h-4" />
             </button>
@@ -676,8 +702,55 @@ export default function StudentArea() {
                 </div>
               </div>
             </div>
-          </div>
-        )}
+            </div>
+          );
+
+          const slots: { key: string; node: React.ReactNode; known?: boolean }[] = [
+            { key: "billing",   node: billingNode || null, known: billingActive },
+            { key: "trainer",   node: <TrainerAlert /> },
+            { key: "countdown", node: userId ? <FeedbackCountdownAlert userId={userId} dismissed={dismissedAlerts} onDismiss={dismissAlert} /> : null },
+            { key: "updates",   node: <CoachUpdatesCard /> },
+          ];
+
+          const isActive = (s: { key: string; known?: boolean }) =>
+            s.known !== undefined ? s.known : emptySlots[s.key] !== true;
+
+          let activeIndex = -1;
+          let hiddenCount = 0;
+          const rendered = slots.map((s) => {
+            if (!s.node) return null;
+            const active = isActive(s);
+            if (active) activeIndex += 1;
+            const collapsed = active && !alertsExpanded && activeIndex >= 2;
+            if (collapsed) hiddenCount += 1;
+            return (
+              <AlertSlot
+                key={s.key}
+                hidden={collapsed}
+                onEmptyChange={(empty) => markSlotEmpty(s.key, empty)}
+              >
+                {s.node}
+              </AlertSlot>
+            );
+          });
+
+          return (
+            <div className="space-y-4">
+              {rendered}
+              {(hiddenCount > 0 || alertsExpanded) && (
+                <button
+                  type="button"
+                  onClick={() => setAlertsExpanded((v) => !v)}
+                  className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-border/60 bg-card/60 px-4 py-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${alertsExpanded ? "rotate-180" : ""}`} />
+                  {alertsExpanded ? "Mostrar menos" : `Você tem ${hiddenCount} atualizaç${hiddenCount === 1 ? "ão" : "ões"}`}
+                </button>
+              )}
+              <CoachUpdatesHistoryLink />
+            </div>
+          );
+        })()}
 
         {/* ── DESTAQUES: Dieta e Treino ── */}
         <div className="space-y-3">

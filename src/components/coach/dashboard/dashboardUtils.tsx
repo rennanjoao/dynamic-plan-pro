@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import type { AlertLevel, StudentStatus } from "@/hooks/useCoachStudents";
 import { getMetricPolarity, colorForDelta } from "@/lib/checkInSchema";
+import type { ClinicalSignal } from "@/lib/checkInSchema";
 import type { Goal } from "@/utils/macros";
 import { formatDatePtBR } from "@/lib/formatDate";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -97,6 +98,33 @@ export function AlertBadge({
 }
 
 // Pastilha compacta com a variação de peso desde o check-in anterior.
+
+/**
+ * Badge do SINAL CLÍNICO (conteúdo do último check-in) — deliberadamente
+ * diferente do AlertBadge (que mede só atraso): aqui é um ponto colorido
+ * com rótulo curto, não uma pílula preenchida.
+ */
+export function ClinicalSignalBadge({ signal }: { signal: ClinicalSignal | null | undefined }) {
+  if (!signal) return null;
+  const map: Record<ClinicalSignal, { label: string; dot: string; text: string; tip: string }> = {
+    alerta:  { label: "Sinal ruim",  dot: "bg-red-500",     text: "text-red-600 dark:text-red-400",       tip: "Último check-in com pedido de atenção urgente ou várias respostas no pior nível." },
+    atencao: { label: "Observar",    dot: "bg-amber-500",   text: "text-amber-600 dark:text-amber-400",   tip: "Último check-in com sinais intermediários — vale acompanhar." },
+    ok:      { label: "Bem",         dot: "bg-emerald-500", text: "text-emerald-600 dark:text-emerald-400", tip: "Último check-in sem sinais negativos relevantes." },
+  };
+  const { label, dot, text, tip } = map[signal];
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={`inline-flex items-center gap-1 text-[10px] font-semibold cursor-default ${text}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+          {label}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[240px] text-xs leading-relaxed">{tip}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function WeightTrendBadge({ student }: { student: StudentStatus }) {
   const trend = student.weightTrend;
   if (!trend || trend.deltaKg == null) return null;

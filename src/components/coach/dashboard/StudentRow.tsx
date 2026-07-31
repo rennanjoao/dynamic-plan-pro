@@ -1,6 +1,6 @@
 import type { StudentStatus } from "@/hooks/useCoachStudents";
 import { ClipboardList, Dumbbell, History, Sparkles, Settings2, X, MessageSquare } from "lucide-react";
-import { AlertBadge, WeightTrendBadge } from "./dashboardUtils";
+import { AlertBadge, ClinicalSignalBadge, WeightTrendBadge } from "./dashboardUtils";
 
 export function StudentRow({
   student, onAnamnesis, onProtocol, onUnlink, onHistory, onChangeHistory, onLatestFeedback, onSettings,
@@ -53,6 +53,7 @@ export function StudentRow({
             criticalDays={student.criticalDays}
             lastFeedback={student.lastFeedback}
           />
+          <ClinicalSignalBadge signal={student.clinicalSignal} />
         </div>
         <p className="text-xs text-muted-foreground truncate">{student.goal || "Objetivo não definido"}</p>
         <button
@@ -81,7 +82,7 @@ export function StudentRow({
       )}
 
       <div className="flex items-center gap-1 shrink-0">
-        <button onClick={() => onAnamnesis(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Evolução e Anamnese">
+        <button onClick={() => onAnamnesis(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Anamnese">
           <ClipboardList className="w-4 h-4" />
         </button>
         <button onClick={() => onProtocol(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Protocolo">
