@@ -1,20 +1,22 @@
 /**
  * PriorityQueuePanel.tsx — Fila única de prioridade do dia (F3 do Master
- * Blueprint). Lê a view `coach_priority_queue` (cruzamento determinístico,
- * sem IA, de coach_fatigue_alerts + daily_alerts + platform_billing_charges)
- * e mostra tudo num só lugar. 100% leitura — nenhuma escrita acontece aqui.
+ * Blueprint). Lê a view `coach_priority_queue`, que hoje cruza apenas
+ * fontes sobre ALUNOS: coach_fatigue_alerts ('fatigue') e check-ins com
+ * pedido de atenção prioritária ainda sem feedback ('checkin_urgent').
+ * A cobrança da plataforma saiu daqui — vive no Perfil / aba Financeiro.
+ * 100% leitura — nenhuma escrita acontece aqui.
  */
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertTriangle, Bell, CreditCard, ListChecks } from "lucide-react";
+import { AlertTriangle, LifeBuoy, ListChecks } from "lucide-react";
 import type { StudentLite } from "@/hooks/useCoachStudents";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
 
 type QueueSeverity = "critical" | "warning" | "info";
-type QueueSource = "fatigue" | "reminder" | "billing";
+type QueueSource = "fatigue" | "checkin_urgent";
 
 interface QueueRow {
   source_id: string;
@@ -31,19 +33,17 @@ interface QueueRow {
 interface Props {
   coachId: string;
   students: StudentLite[];
-  onSelectStudent?: (studentId: string) => void;
-  onSelectBilling?: () => void;
+  onSelectStudent?: (studentId: string, source: QueueSource) => void;
 }
 
 const SEVERITY_RANK: Record<QueueSeverity, number> = { critical: 0, warning: 1, info: 2 };
 
 const SOURCE_ICON: Record<QueueSource, typeof AlertTriangle> = {
   fatigue: AlertTriangle,
-  reminder: Bell,
-  billing: CreditCard,
+  checkin_urgent: LifeBuoy,
 };
 
-export function PriorityQueuePanel({ coachId, students, onSelectStudent, onSelectBilling }: Props) {
+export function PriorityQueuePanel({ coachId, students, onSelectStudent }: Props) {
   const { data, isLoading } = useQuery({
     queryKey: ["coach-priority-queue", coachId],
     enabled: !!coachId,
@@ -79,21 +79,20 @@ export function PriorityQueuePanel({ coachId, students, onSelectStudent, onSelec
       </div>
       <div className="divide-y divide-border max-h-80 overflow-y-auto">
         {rows.map((r) => {
-          const Icon = SOURCE_ICON[r.source];
+          const Icon = SOURCE_ICON[r.source] ?? AlertTriangle;
           const sevCls =
             r.severity === "critical" ? "text-red-500" :
             r.severity === "warning" ? "text-amber-500" :
             "text-sky-500";
           const studentName = r.student_id ? nameById.get(r.student_id) : undefined;
-          const clickable = (!!r.student_id && !!onSelectStudent) || (r.source === "billing" && !!onSelectBilling);
+          const clickable = !!r.student_id && !!onSelectStudent;
           return (
             <button
               key={r.source_id}
               type="button"
               disabled={!clickable}
               onClick={() => {
-                if (r.student_id && onSelectStudent) onSelectStudent(r.student_id);
-                else if (r.source === "billing" && onSelectBilling) onSelectBilling();
+                if (r.student_id && onSelectStudent) onSelectStudent(r.student_id, r.source);
               }}
               className={`w-full text-left px-4 py-3 flex items-start gap-3 transition-colors ${
                 clickable ? "hover:bg-accent/50 cursor-pointer" : "cursor-default"
