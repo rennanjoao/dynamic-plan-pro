@@ -192,18 +192,26 @@ serve(async (req) => {
       if (mc.checked) adesaoPorIndice[i].marcadas++;
     }
     const opcoesValidas = new Map<string, { refeicaoIndex: number; optionKey: string }>();
+    const itensValidos = new Set<string>();
     const dietaAtual = meals.map((m, i) => {
       const ad = adesaoPorIndice[i];
       const opts = ((m.options as Array<Record<string, unknown>>) || []).map((o) => {
         const key = mealOptionKey(o);
         opcoesValidas.set(`${i}|${key}`, { refeicaoIndex: i, optionKey: key });
-        return {
-          optionKey: key,
-          titulo: o.title ?? "",
-          itens: ((o.items as Array<Record<string, unknown>>) || []).map((it) => ({
-            alimento: it.food ?? it.name ?? "", quantidade: it.qty ?? it.amount ?? "",
-          })),
-        };
+        const itens = ((o.items as Array<Record<string, unknown>>) || []).map((it, itemIndex) => {
+          const itemRef = `${i}|${key}|${itemIndex}`;
+          const opcional = !!it.optional;
+          // Só itens não-opcionais entram como alvo válido de ajuste de quantidade —
+          // opcional não conta pra meta, não faz sentido a IA "ajustar" ele.
+          if (!opcional && String(it.name ?? it.baseName ?? "").trim()) itensValidos.add(itemRef);
+          return {
+            itemRef,
+            alimento: String(it.name ?? it.baseName ?? ""),
+            quantidade: String(it.weight ?? ""),
+            opcional,
+          };
+        });
+        return { optionKey: key, titulo: o.title ?? "", itens };
       });
       return {
         refeicaoIndex: i,
@@ -232,6 +240,7 @@ Responda SOMENTE com um JSON válido, sem markdown, exatamente neste formato:
       "exercicioId": "(obrigatório só se categoria=treino — use exatamente um dos ids fornecidos em treinoAtual)",
       "refeicaoIndex": 0,
       "optionKey": "(obrigatório só se categoria=refeicao — use exatamente um optionKey de dietaAtual)",
+      "itemRef": "(obrigatório só se categoria=refeicao E campo=quantidade — use exatamente um itemRef de dietaAtual, do item não-opcional que você decidiu ajustar)",
       "campo": "(treino: sets|reps|cadence|rest — dieta: calories|protein|carbs|fat|water — refeicao: trocar_alimento|quantidade|redistribuir_macro|horario — diretrizes: training|diet|weekOrganization|supplementation)",
       "alvo": "nome curto e humano do que está sendo sugerido (ex: 'Cadeira Flexora — dia A', 'Água diária', 'Diretrizes de treino')",
       "valorAtual": "valor atual, se aplicável",
@@ -250,6 +259,16 @@ Regras:
 - categoria "treino": exercicioId TEM que ser um dos ids em treinoAtual — nunca invente id.
 - categoria "refeicao": refeicaoIndex e optionKey TÊM que existir em dietaAtual — nunca invente.
   Prefira ajustes cirúrgicos em refeições com adesão baixa, no lugar de mexer nos macros globais.
+- Quando decidir que o ciclo precisa de mais ou menos kcal/proteína/carboidrato/gordura e
+  isso puder ser resolvido mudando a quantidade de UM item que já existe em dietaAtual,
+  use categoria "refeicao", campo "quantidade", e é OBRIGATÓRIO incluir "itemRef" apontando
+  pro item exato (nunca um item com opcional=true) — "valorSugerido" nesse caso é só o novo
+  peso (ex: "180g"), nunca uma frase. Prefira isso a mudar a meta em macrosAtuais (categoria
+  "dieta") sempre que der pra resolver em itens reais — a meta some se o coach só ajustar a
+  meta, mas o ajuste no item já fica pronto pro coach só aprovar.
+- campo "trocar_alimento" e "redistribuir_macro" não têm um valor numérico único (é troca de
+  alimento ou reorganização) — nesses dois, itemRef é opcional e valorSugerido pode ser uma
+  frase curta e objetiva.
 - estrategiaDoCoach lista a estratégia alimentar que ele já usa (ex: jejum,
   low carb). NUNCA proponha algo que contrarie essa estratégia; se propuser
   algo próximo do limite, explique no "motivo".
@@ -344,11 +363,21 @@ Regras:
         if (!opcoesValidas.has(`${refeicaoIndex}|${optionKey}`)) continue;
         const valorSugerido = String(s.valorSugerido ?? "").trim();
         if (!valorSugerido) continue;
-        sugestoesValidadas.push({
-          id: crypto.randomUUID(), categoria, campo, refeicaoIndex, optionKey,
-          alvo: String(s.alvo ?? "Refeição"), valorAtual: s.valorAtual != null ? String(s.valorAtual) : "",
-          valorSugerido, motivo: String(s.motivo ?? ""),
-        });
+        if (campo === "quantidade") {
+          const itemRef = String(s.itemRef ?? "");
+          if (!itensValidos.has(itemRef)) continue;
+          sugestoesValidadas.push({
+            id: crypto.randomUUID(), categoria, campo, refeicaoIndex, optionKey, itemRef,
+            alvo: String(s.alvo ?? "Alimento"), valorAtual: s.valorAtual != null ? String(s.valorAtual) : "",
+            valorSugerido, motivo: String(s.motivo ?? ""),
+          });
+        } else {
+          sugestoesValidadas.push({
+            id: crypto.randomUUID(), categoria, campo, refeicaoIndex, optionKey,
+            alvo: String(s.alvo ?? "Refeição"), valorAtual: s.valorAtual != null ? String(s.valorAtual) : "",
+            valorSugerido, motivo: String(s.motivo ?? ""),
+          });
+        }
       } else if (categoria === "diretrizes") {
         const campo = String(s.campo ?? "");
         if (!DIRETRIZES_CAMPOS.includes(campo as typeof DIRETRIZES_CAMPOS[number])) continue;
