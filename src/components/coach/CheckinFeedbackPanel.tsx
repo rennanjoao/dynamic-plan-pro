@@ -41,6 +41,17 @@ const CHECKIN_PDF_SECTIONS = CHECKIN_SECTIONS.map((s) => ({
   fields: (s.fields || []).map((f) => ({ key: f.key, label: f.label })),
 }));
 
+/** Rótulos humanos da triagem gerada por `protocol-renewal-draft`. */
+const ADJUST_ACTION_LABEL: Record<string, string> = {
+  nenhuma_alteracao: "Sem alteração no protocolo",
+  orientar_coach: "Orientar o aluno",
+  investigar_antes: "Investigar antes de ajustar",
+  recomendar_exame: "Recomendar exame",
+  reduzir_carga_treino: "Reduzir carga de treino",
+  acompanhar_mais_um_ciclo: "Acompanhar mais um ciclo",
+  ajustar: "Ajuste sugerido no protocolo",
+};
+
 interface CheckinRow {
   id: string;
   submitted_at: string;
@@ -74,6 +85,13 @@ export default function CheckinFeedbackPanel(props: Props) {
   const [sending, setSending] = useState(false);
   const [showAnamnesis, setShowAnamnesis] = useState(false);
   const [insight, setInsight] = useState<{ changes?: string[]; hypotheses?: string[]; alerts?: string[] } | null>(null);
+  const [adjustDraft, setAdjustDraft] = useState<{
+    action: string;
+    action_rationale: string | null;
+    estrategia_identificada: string | null;
+    resumo: string | null;
+    sugestoes: Array<{ id: string; categoria: string; alvo: string; valorAtual?: string; valorSugerido: string; motivo: string }>;
+  } | null>(null);
   const [generatingDraft, setGeneratingDraft] = useState(false);
   const [fullEditorOpen, setFullEditorOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -116,6 +134,20 @@ export default function CheckinFeedbackPanel(props: Props) {
         .eq("check_in_id", ci.id)
         .maybeSingle();
       if (!cancelled) setInsight(data?.summary ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [ci?.id]);
+
+  useEffect(() => {
+    if (!ci?.id) { setAdjustDraft(null); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await sb
+        .from("checkin_ai_adjustment_draft")
+        .select("action, action_rationale, estrategia_identificada, resumo, sugestoes")
+        .eq("check_in_id", ci.id)
+        .maybeSingle();
+      if (!cancelled) setAdjustDraft(data ?? null);
     })();
     return () => { cancelled = true; };
   }, [ci?.id]);
@@ -343,6 +375,43 @@ export default function CheckinFeedbackPanel(props: Props) {
             )}
 
             {/* Chips de aderência a partir de CHECKIN_HIGHLIGHT_KEYS */}
+            {adjustDraft && (
+              <div className="space-y-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+                    Triagem da IA — {ADJUST_ACTION_LABEL[adjustDraft.action] ?? adjustDraft.action}
+                  </span>
+                </div>
+                {adjustDraft.action_rationale && (
+                  <p className="text-xs text-foreground/90">{adjustDraft.action_rationale}</p>
+                )}
+                {adjustDraft.estrategia_identificada && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Estratégia respeitada: {adjustDraft.estrategia_identificada}
+                  </p>
+                )}
+                {(adjustDraft.sugestoes?.length ?? 0) > 0 ? (
+                  <ul className="list-disc pl-4 text-xs space-y-0.5">
+                    {adjustDraft.sugestoes.map((s) => (
+                      <li key={s.id}>
+                        <span className="font-medium">{s.alvo}</span>
+                        {s.valorAtual ? ` — ${s.valorAtual} → ${s.valorSugerido}` : ` — ${s.valorSugerido}`}
+                        <span className="text-muted-foreground"> · {s.motivo}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">Nenhum ajuste de protocolo sugerido para este check-in.</p>
+                )}
+                {(adjustDraft.sugestoes?.length ?? 0) > 0 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Abra o editor de protocolo do aluno e use “Renovar ciclo (IA)” para revisar e aplicar.
+                  </p>
+                )}
+              </div>
+            )}
+
             {highlightChips.length > 0 && (
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Aderência</p>

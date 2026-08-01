@@ -5,7 +5,19 @@ import { buildCorsHeaders } from "../_shared/cors.ts";
 const TREINO_CAMPOS = ["sets", "reps", "cadence", "rest"] as const;
 const DIETA_CAMPOS = ["calories", "protein", "carbs", "fat", "water"] as const;
 const DIRETRIZES_CAMPOS = ["training", "diet", "weekOrganization", "supplementation"] as const;
+const REFEICAO_CAMPOS = ["trocar_alimento", "quantidade", "redistribuir_macro", "horario"] as const;
+const ACOES = [
+  "nenhuma_alteracao", "orientar_coach", "investigar_antes", "recomendar_exame",
+  "reduzir_carga_treino", "acompanhar_mais_um_ciclo", "ajustar",
+] as const;
 const MAX_SUGESTOES = 10;
+
+// Mesma normalização de identidade de src/lib/protocolChangeDetector.ts
+const sTrim = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
+const nameKey = (v: unknown): string => sTrim(v).toLowerCase();
+const mealOptionKey = (o: Record<string, unknown>): string => `${o?.kind ?? ""}::${sTrim(o?.title)}`;
+
+const ESTRATEGIA_KEYWORDS = ["jejum", "cetog", "low carb", "flexível", "flexivel", "equivalente"];
 
 function clampNum(n: unknown, min: number, max: number): number | null {
   const v = typeof n === "number" ? n : Number(n);
@@ -33,8 +45,16 @@ serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    const { studentId, protocolId } = await req.json();
-    if (!studentId || !protocolId) throw new Error("studentId e protocolId são obrigatórios");
+    const { checkInId } = await req.json();
+    if (!checkInId) throw new Error("checkInId é obrigatório");
+
+    const { data: checkIn } = await adminClient
+      .from("check_ins")
+      .select("id, student_id, payload, current_metrics, submitted_at, updated_at")
+      .eq("id", checkInId)
+      .maybeSingle();
+    if (!checkIn) throw new Error("Check-in não encontrado");
+    const studentId = checkIn.student_id as string;
 
     const { data: isAdmin } = await adminClient.rpc("has_role", { _user_id: user.id, _role: "admin" });
     let allowed = !!isAdmin;
@@ -49,8 +69,33 @@ serve(async (req) => {
     }
     if (!allowed) throw new Error("Acesso negado");
 
-    const [{ data: protocolo }, { data: checkins }, { data: anamnese }] = await Promise.all([
-      adminClient.from("protocols").select("payload, name").eq("id", protocolId).eq("student_id", studentId).maybeSingle(),
+    // Idempotência — não chama a IA de novo se o rascunho já é mais novo que o check-in.
+    const { data: existente } = await adminClient
+      .from("checkin_ai_adjustment_draft")
+      .select("action, action_rationale, estrategia_identificada, resumo, sugestoes, generated_at")
+      .eq("check_in_id", checkInId)
+      .maybeSingle();
+    if (existente && new Date(existente.generated_at) >= new Date(checkIn.updated_at ?? checkIn.submitted_at)) {
+      return new Response(JSON.stringify({
+        ok: true,
+        cached: true,
+        acao: existente.action,
+        motivo_acao: existente.action_rationale ?? "",
+        estrategia_identificada: existente.estrategia_identificada ?? "",
+        resumo: existente.resumo ?? "",
+        sugestoes: existente.sugestoes ?? [],
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const [{ data: protocolo }, { data: checkins }, { data: anamnese }, { data: insight }, { data: fotoAnalise }, { data: mealCheckins }] = await Promise.all([
+      adminClient
+        .from("protocols")
+        .select("id, payload, name, coach_id")
+        .eq("student_id", studentId)
+        .eq("active", true)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
       adminClient
         .from("check_ins")
         .select("current_metrics, submitted_at")
@@ -64,8 +109,16 @@ serve(async (req) => {
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle(),
+      adminClient.from("checkin_ai_insights").select("summary").eq("check_in_id", checkInId).maybeSingle(),
+      adminClient.from("checkin_photo_analysis").select("tags").eq("check_in_id", checkInId).maybeSingle(),
+      adminClient
+        .from("meal_checkins")
+        .select("meal_index, checked, date")
+        .eq("student_id", studentId)
+        .gte("date", new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10)),
     ]);
-    if (!protocolo) throw new Error("Protocolo não encontrado");
+    if (!protocolo) throw new Error("Protocolo ativo não encontrado");
+    const protocolId = protocolo.id as string;
 
     const payload = (protocolo.payload as Record<string, unknown>) || {};
     const coachIdDoProtocolo = String((protocolo as Record<string, unknown>).coach_id ?? user.id);
@@ -129,15 +182,57 @@ serve(async (req) => {
       }),
     }));
 
-    const SYSTEM_PROMPT = `Você ajuda um coach de fitness a planejar a renovação de ciclo de um aluno que já treina com ele.
+    // Refeições do protocolo ativo + adesão real por refeição (14 dias).
+    const meals = (payload.meals as Array<Record<string, unknown>>) || [];
+    const adesaoPorIndice: Record<number, { marcadas: number; total: number }> = {};
+    for (const mc of (mealCheckins ?? [])) {
+      const i = Number(mc.meal_index);
+      (adesaoPorIndice[i] ??= { marcadas: 0, total: 0 });
+      adesaoPorIndice[i].total++;
+      if (mc.checked) adesaoPorIndice[i].marcadas++;
+    }
+    const opcoesValidas = new Map<string, { refeicaoIndex: number; optionKey: string }>();
+    const dietaAtual = meals.map((m, i) => {
+      const ad = adesaoPorIndice[i];
+      const opts = ((m.options as Array<Record<string, unknown>>) || []).map((o) => {
+        const key = mealOptionKey(o);
+        opcoesValidas.set(`${i}|${key}`, { refeicaoIndex: i, optionKey: key });
+        return {
+          optionKey: key,
+          titulo: o.title ?? "",
+          itens: ((o.items as Array<Record<string, unknown>>) || []).map((it) => ({
+            alimento: it.food ?? it.name ?? "", quantidade: it.qty ?? it.amount ?? "",
+          })),
+        };
+      });
+      return {
+        refeicaoIndex: i,
+        nome: m.name ?? m.label ?? `Refeição ${i + 1}`,
+        horario: m.time ?? null,
+        adesao14d: ad ? `${Math.round((ad.marcadas / Math.max(1, ad.total)) * 100)}% (${ad.marcadas}/${ad.total})` : "sem registro",
+        opcoes: opts,
+      };
+    });
+
+    // Estratégia alimentar declarada nas diretrizes (respeitar, nunca contrariar).
+    const guidelinesTxt = Object.values((payload.guidelines as Record<string, string>) ?? {})
+      .filter((v) => typeof v === "string").join(" \n").toLowerCase();
+    const estrategiaDetectada = ESTRATEGIA_KEYWORDS.filter((k) => guidelinesTxt.includes(k));
+
+    const SYSTEM_PROMPT = `Você faz a TRIAGEM do check-in de um aluno e, só quando fizer sentido, propõe ajustes cirúrgicos no protocolo dele.
 Responda SOMENTE com um JSON válido, sem markdown, exatamente neste formato:
 {
+  "acao": "nenhuma_alteracao" | "orientar_coach" | "investigar_antes" | "recomendar_exame" | "reduzir_carga_treino" | "acompanhar_mais_um_ciclo" | "ajustar",
+  "motivo_acao": "1-2 frases explicando a triagem",
+  "estrategia_identificada": "estratégia alimentar/treino que o coach já usa e que você respeitou (ou vazio)",
   "resumo": "texto corrido curto (4-8 frases), visão geral do ciclo",
   "sugestoes": [
     {
-      "categoria": "treino" | "dieta" | "diretrizes",
+      "categoria": "treino" | "dieta" | "refeicao" | "diretrizes",
       "exercicioId": "(obrigatório só se categoria=treino — use exatamente um dos ids fornecidos em treinoAtual)",
-      "campo": "(treino: sets|reps|cadence|rest — dieta: calories|protein|carbs|fat|water — diretrizes: training|diet|weekOrganization|supplementation)",
+      "refeicaoIndex": 0,
+      "optionKey": "(obrigatório só se categoria=refeicao — use exatamente um optionKey de dietaAtual)",
+      "campo": "(treino: sets|reps|cadence|rest — dieta: calories|protein|carbs|fat|water — refeicao: trocar_alimento|quantidade|redistribuir_macro|horario — diretrizes: training|diet|weekOrganization|supplementation)",
       "alvo": "nome curto e humano do que está sendo sugerido (ex: 'Cadeira Flexora — dia A', 'Água diária', 'Diretrizes de treino')",
       "valorAtual": "valor atual, se aplicável",
       "valorSugerido": "novo valor sugerido (número como string pra treino/dieta; texto completo revisado pra diretrizes)",
@@ -146,8 +241,18 @@ Responda SOMENTE com um JSON válido, sem markdown, exatamente neste formato:
   ]
 }
 Regras:
+- Comece pela triagem. Se o check-in não justifica mexer no protocolo, use
+  "acao": "nenhuma_alteracao" (ou "acompanhar_mais_um_ciclo") e devolva
+  "sugestoes": []. Não invente ajuste só pra ter o que dizer.
+- Sinais clínicos (dor, sono péssimo, exaustão, sintomas) → "investigar_antes",
+  "recomendar_exame" ou "reduzir_carga_treino", com sugestoes vazias ou mínimas.
 - Máximo ${MAX_SUGESTOES} sugestões no total, só as mais relevantes.
 - categoria "treino": exercicioId TEM que ser um dos ids em treinoAtual — nunca invente id.
+- categoria "refeicao": refeicaoIndex e optionKey TÊM que existir em dietaAtual — nunca invente.
+  Prefira ajustes cirúrgicos em refeições com adesão baixa, no lugar de mexer nos macros globais.
+- estrategiaDoCoach lista a estratégia alimentar que ele já usa (ex: jejum,
+  low carb). NUNCA proponha algo que contrarie essa estratégia; se propuser
+  algo próximo do limite, explique no "motivo".
 - diasDaSemana mostra a semana real: qual dia é qual treino, e qual dia é
   "Descanso". Cada treino em treinoAtual já vem com diaDaSemana preenchido.
   NUNCA presuma que a letra do treino (A/B/C/D) indica um dia da semana ou
@@ -164,10 +269,15 @@ Regras:
     const userContent = JSON.stringify({
       macrosAtuais: payload.macros ?? null,
       diretrizesAtuais: payload.guidelines ?? null,
+      estrategiaDoCoach: estrategiaDetectada,
       diasDaSemana,
       notasDescanso: payload.restNotes || null,
       treinoAtual: resumoTreino,
+      dietaAtual,
       dnaDoCoach,
+      checkInAtual: { respostas: checkIn.payload ?? null, metricas: checkIn.current_metrics ?? null, data: checkIn.submitted_at },
+      insightDoCheckIn: insight?.summary ?? null,
+      analiseDeFotos: fotoAnalise?.tags ?? null,
       ultimosCheckins: (checkins ?? []).map((c) => ({ metrics: c.current_metrics, data: c.submitted_at })),
       resumoAnamnese: anamnese?.ai_summary ?? null,
     });
@@ -193,7 +303,7 @@ Regras:
     const aiJson = await aiRes.json();
     const raw = aiJson?.choices?.[0]?.message?.content ?? "{}";
 
-    let parsed: { resumo?: string; sugestoes?: unknown[] } = {};
+    let parsed: { acao?: string; motivo_acao?: string; estrategia_identificada?: string; resumo?: string; sugestoes?: unknown[] } = {};
     try {
       parsed = JSON.parse(String(raw).replace(/```json|```/g, "").trim());
     } catch {
@@ -226,6 +336,19 @@ Regras:
           alvo: String(s.alvo ?? campo), valorAtual: s.valorAtual != null ? String(s.valorAtual) : "",
           valorSugerido: String(clamped), motivo: String(s.motivo ?? ""),
         });
+      } else if (categoria === "refeicao") {
+        const campo = String(s.campo ?? "");
+        if (!REFEICAO_CAMPOS.includes(campo as typeof REFEICAO_CAMPOS[number])) continue;
+        const refeicaoIndex = Number(s.refeicaoIndex);
+        const optionKey = String(s.optionKey ?? "");
+        if (!opcoesValidas.has(`${refeicaoIndex}|${optionKey}`)) continue;
+        const valorSugerido = String(s.valorSugerido ?? "").trim();
+        if (!valorSugerido) continue;
+        sugestoesValidadas.push({
+          id: crypto.randomUUID(), categoria, campo, refeicaoIndex, optionKey,
+          alvo: String(s.alvo ?? "Refeição"), valorAtual: s.valorAtual != null ? String(s.valorAtual) : "",
+          valorSugerido, motivo: String(s.motivo ?? ""),
+        });
       } else if (categoria === "diretrizes") {
         const campo = String(s.campo ?? "");
         if (!DIRETRIZES_CAMPOS.includes(campo as typeof DIRETRIZES_CAMPOS[number])) continue;
@@ -238,11 +361,30 @@ Regras:
       }
     }
 
-    return new Response(JSON.stringify({
-      ok: true,
+    const acaoBruta = String(parsed.acao ?? "");
+    let acao = ACOES.includes(acaoBruta as typeof ACOES[number]) ? acaoBruta : "ajustar";
+    // Coerência: sem sugestões válidas, nunca reportar "ajustar".
+    if (acao === "ajustar" && sugestoesValidadas.length === 0) acao = "nenhuma_alteracao";
+
+    const resultado = {
+      acao,
+      motivo_acao: String(parsed.motivo_acao ?? "").trim(),
+      estrategia_identificada: String(parsed.estrategia_identificada ?? estrategiaDetectada.join(", ")).trim(),
       resumo: typeof parsed.resumo === "string" ? parsed.resumo.trim() : "",
       sugestoes: sugestoesValidadas,
-    }), {
+    };
+
+    await adminClient.from("checkin_ai_adjustment_draft").upsert({
+      check_in_id: checkInId,
+      action: resultado.acao,
+      action_rationale: resultado.motivo_acao,
+      estrategia_identificada: resultado.estrategia_identificada,
+      resumo: resultado.resumo,
+      sugestoes: resultado.sugestoes,
+      generated_at: new Date().toISOString(),
+    }, { onConflict: "check_in_id" });
+
+    return new Response(JSON.stringify({ ok: true, protocolId, ...resultado }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

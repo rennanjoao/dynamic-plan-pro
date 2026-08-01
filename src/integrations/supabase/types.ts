@@ -278,6 +278,47 @@ export type Database = {
         }
         Relationships: []
       }
+      checkin_ai_adjustment_draft: {
+        Row: {
+          action: string
+          action_rationale: string | null
+          check_in_id: string
+          estrategia_identificada: string | null
+          generated_at: string
+          id: string
+          resumo: string | null
+          sugestoes: Json
+        }
+        Insert: {
+          action?: string
+          action_rationale?: string | null
+          check_in_id: string
+          estrategia_identificada?: string | null
+          generated_at?: string
+          id?: string
+          resumo?: string | null
+          sugestoes?: Json
+        }
+        Update: {
+          action?: string
+          action_rationale?: string | null
+          check_in_id?: string
+          estrategia_identificada?: string | null
+          generated_at?: string
+          id?: string
+          resumo?: string | null
+          sugestoes?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkin_ai_adjustment_draft_check_in_id_fkey"
+            columns: ["check_in_id"]
+            isOneToOne: true
+            referencedRelation: "check_ins"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       checkin_ai_insights: {
         Row: {
           check_in_id: string

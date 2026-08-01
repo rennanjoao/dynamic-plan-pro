@@ -118,6 +118,17 @@ interface ProtocolRow {
   updated_at: string;
 }
 
+/** Rótulos humanos da triagem gerada por `protocol-renewal-draft`. */
+const RENEWAL_ACTION_LABEL: Record<string, string> = {
+  nenhuma_alteracao: "Sem alteração no protocolo",
+  orientar_coach: "Orientar o aluno",
+  investigar_antes: "Investigar antes de ajustar",
+  recomendar_exame: "Recomendar exame",
+  reduzir_carga_treino: "Reduzir carga de treino",
+  acompanhar_mais_um_ciclo: "Acompanhar mais um ciclo",
+  ajustar: "Ajuste sugerido no protocolo",
+};
+
 function computeCompletion(payload: ProtocolPayload | null) {
   if (!payload) return { macros: false, guidelines: false, workouts: false, diet: false, cycle: false };
   return {
@@ -171,14 +182,17 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [renewalText, setRenewalText] = useState("");
   const [renewalSuggestions, setRenewalSuggestions] = useState<Array<{
     id: string;
-    categoria: "treino" | "dieta" | "diretrizes";
+    categoria: "treino" | "dieta" | "refeicao" | "diretrizes";
     exercicioId?: string;
+    refeicaoIndex?: number;
+    optionKey?: string;
     campo: string;
     alvo: string;
     valorAtual: string;
     valorSugerido: string;
     motivo: string;
   }>>([]);
+  const [renewalAction, setRenewalAction] = useState<{ acao: string; motivo: string; estrategia: string } | null>(null);
   const [renewalAccepted, setRenewalAccepted] = useState<Set<string>>(new Set());
   const [renewalEdited, setRenewalEdited] = useState<Record<string, string>>({});
   const [showRenewalSuggestions, setShowRenewalSuggestions] = useState(false);
@@ -397,13 +411,28 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
     setRenewalSuggestions([]);
     setRenewalAccepted(new Set());
     setRenewalEdited({});
+    setRenewalAction(null);
     setShowRenewalSuggestions(false);
     try {
-      const { data, error } = await sb.functions.invoke("protocol-renewal-draft", { body: { studentId, protocolId } });
+      // O novo contrato é por check-in: sempre o mais recente do aluno.
+      const { data: lastCheckin } = await sb
+        .from("check_ins")
+        .select("id")
+        .eq("student_id", studentId)
+        .order("submitted_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!lastCheckin?.id) throw new Error("Aluno ainda não enviou nenhum check-in");
+      const { data, error } = await sb.functions.invoke("protocol-renewal-draft", { body: { checkInId: lastCheckin.id } });
       if (error) throw error;
       if (!data?.ok) throw new Error(data?.error || "Falha ao gerar sugestão");
       setRenewalText(data.resumo || "");
       setRenewalSuggestions(data.sugestoes || []);
+      setRenewalAction({
+        acao: String(data.acao ?? ""),
+        motivo: String(data.motivo_acao ?? ""),
+        estrategia: String(data.estrategia_identificada ?? ""),
+      });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Não foi possível gerar sugestão agora");
       setRenewalOpen(false);
@@ -427,6 +456,21 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       } else if (s.categoria === "dieta") {
         next.macros = { ...next.macros, [s.campo]: Number(valor) || 0 };
         count++;
+      } else if (s.categoria === "refeicao" && typeof s.refeicaoIndex === "number") {
+        // Ajuste cirúrgico: só a refeição/opção que a IA identificou.
+        const meal = (next.meals as any[])?.[s.refeicaoIndex];
+        if (!meal) continue;
+        if (s.campo === "horario") {
+          meal.time = valor;
+          count++;
+        } else {
+          const opt = (meal.options as any[] | undefined)?.find(
+            (o) => `${o?.kind ?? ""}::${String(o?.title ?? "").trim()}` === s.optionKey
+          );
+          if (!opt) continue;
+          opt.notes = [opt.notes, valor].filter(Boolean).join(" · ");
+          count++;
+        }
       } else if (s.categoria === "diretrizes") {
         next.guidelines = { ...next.guidelines, [s.campo]: valor };
         count++;
@@ -927,6 +971,21 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
               <>
                 <p className="text-sm whitespace-pre-wrap text-foreground/90">{renewalText}</p>
 
+                {renewalAction && (
+                  <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2 space-y-1">
+                    <p className="text-xs font-semibold text-emerald-700">
+                      Triagem: {RENEWAL_ACTION_LABEL[renewalAction.acao] ?? renewalAction.acao}
+                    </p>
+                    {renewalAction.motivo && <p className="text-[11px] text-foreground/80">{renewalAction.motivo}</p>}
+                    {renewalAction.estrategia && (
+                      <p className="text-[11px] text-muted-foreground">Estratégia respeitada: {renewalAction.estrategia}</p>
+                    )}
+                    {renewalSuggestions.length === 0 && (
+                      <p className="text-[11px] text-muted-foreground">Nenhum ajuste de protocolo sugerido agora.</p>
+                    )}
+                  </div>
+                )}
+
                 {renewalSuggestions.length > 0 && !showRenewalSuggestions && (
                   <Button
                     type="button"
@@ -957,11 +1016,12 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                   </div>
                 )}
 
-                {showRenewalSuggestions && (["treino", "dieta", "diretrizes"] as const).map((cat) => {
+                {showRenewalSuggestions && (["treino", "dieta", "refeicao", "diretrizes"] as const).map((cat) => {
                   const items = renewalSuggestions.filter((s) => s.categoria === cat);
                   if (items.length === 0) return null;
-                  const Icon = cat === "treino" ? Dumbbell : cat === "dieta" ? UtensilsCrossed : FileText;
-                  const label = cat === "treino" ? "Treino" : cat === "dieta" ? "Dieta" : "Diretrizes";
+                  const Icon = cat === "treino" ? Dumbbell : cat === "diretrizes" ? FileText : UtensilsCrossed;
+                  const label =
+                    cat === "treino" ? "Treino" : cat === "dieta" ? "Macros" : cat === "refeicao" ? "Refeições" : "Diretrizes";
                   return (
                     <div key={cat} className="space-y-2">
                       <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -983,6 +1043,12 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                           <div className="flex-1 space-y-1">
                             <p className="text-xs font-medium">{s.alvo}</p>
                             {s.categoria === "diretrizes" ? (
+                              <Textarea
+                                className="text-xs min-h-[72px]"
+                                value={renewalEdited[s.id] ?? s.valorSugerido}
+                                onChange={(e) => setRenewalEdited((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                              />
+                            ) : s.categoria === "refeicao" ? (
                               <Textarea
                                 className="text-xs min-h-[72px]"
                                 value={renewalEdited[s.id] ?? s.valorSugerido}
