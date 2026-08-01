@@ -47,7 +47,15 @@ const n = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ?
 // Chave de identidade insensível a caixa/acentos-livres — usada para decidir
 // "isto é o mesmo item" ao comparar exercícios, refeições, itens e suplementos.
 // O texto exibido continua vindo de s(item.name) preservando a caixa original.
-const nameKey = (v: unknown): string => s(v).toLowerCase();
+export const nameKey = (v: unknown): string => s(v).toLowerCase();
+
+/**
+ * Chave de identidade de uma opção de refeição — `kind::title`.
+ * Exportada para que o fluxo de sugestões da IA (rascunho de ajuste) case
+ * exatamente com a mesma opção que o diff reconheceria.
+ */
+export const mealOptionKey = (o: { kind?: unknown; title?: unknown }): string =>
+  `${o?.kind ?? ""}::${s(o?.title)}`;
 
 type AnyRec = Record<string, any>;
 
