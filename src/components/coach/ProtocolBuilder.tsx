@@ -118,8 +118,18 @@ interface ProtocolRow {
   updated_at: string;
 }
 
-function computeCompletion(payload: ProtocolPayload | null) {
+/** Rótulos humanos da triagem gerada por `protocol-renewal-draft`. */
+const RENEWAL_ACTION_LABEL: Record<string, string> = {
+  nenhuma_alteracao: "Sem alteração no protocolo",
+  orientar_coach: "Orientar o aluno",
+  investigar_antes: "Investigar antes de ajustar",
+  recomendar_exame: "Recomendar exame",
+  reduzir_carga_treino: "Reduzir carga de treino",
+  acompanhar_mais_um_ciclo: "Acompanhar mais um ciclo",
+  ajustar: "Ajuste sugerido no protocolo",
+};
 
+function computeCompletion(payload: ProtocolPayload | null) {
   if (!payload) return { macros: false, guidelines: false, workouts: false, diet: false, cycle: false };
   return {
     macros: (payload.macros?.calories ?? 0) > 0 && (payload.macros?.protein ?? 0) > 0,
