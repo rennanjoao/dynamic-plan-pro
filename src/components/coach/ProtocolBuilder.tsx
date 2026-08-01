@@ -119,6 +119,7 @@ interface ProtocolRow {
 }
 
 function computeCompletion(payload: ProtocolPayload | null) {
+
   if (!payload) return { macros: false, guidelines: false, workouts: false, diet: false, cycle: false };
   return {
     macros: (payload.macros?.calories ?? 0) > 0 && (payload.macros?.protein ?? 0) > 0,
