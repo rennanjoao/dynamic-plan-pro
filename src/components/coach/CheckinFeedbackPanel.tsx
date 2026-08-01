@@ -74,6 +74,13 @@ export default function CheckinFeedbackPanel(props: Props) {
   const [sending, setSending] = useState(false);
   const [showAnamnesis, setShowAnamnesis] = useState(false);
   const [insight, setInsight] = useState<{ changes?: string[]; hypotheses?: string[]; alerts?: string[] } | null>(null);
+  const [adjustDraft, setAdjustDraft] = useState<{
+    action: string;
+    action_rationale: string | null;
+    estrategia_identificada: string | null;
+    resumo: string | null;
+    sugestoes: Array<{ id: string; categoria: string; alvo: string; valorAtual?: string; valorSugerido: string; motivo: string }>;
+  } | null>(null);
   const [generatingDraft, setGeneratingDraft] = useState(false);
   const [fullEditorOpen, setFullEditorOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -116,6 +123,20 @@ export default function CheckinFeedbackPanel(props: Props) {
         .eq("check_in_id", ci.id)
         .maybeSingle();
       if (!cancelled) setInsight(data?.summary ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [ci?.id]);
+
+  useEffect(() => {
+    if (!ci?.id) { setAdjustDraft(null); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await sb
+        .from("checkin_ai_adjustment_draft")
+        .select("action, action_rationale, estrategia_identificada, resumo, sugestoes")
+        .eq("check_in_id", ci.id)
+        .maybeSingle();
+      if (!cancelled) setAdjustDraft(data ?? null);
     })();
     return () => { cancelled = true; };
   }, [ci?.id]);
