@@ -41,6 +41,17 @@ const CHECKIN_PDF_SECTIONS = CHECKIN_SECTIONS.map((s) => ({
   fields: (s.fields || []).map((f) => ({ key: f.key, label: f.label })),
 }));
 
+/** Rótulos humanos da triagem gerada por `protocol-renewal-draft`. */
+const ADJUST_ACTION_LABEL: Record<string, string> = {
+  nenhuma_alteracao: "Sem alteração no protocolo",
+  orientar_coach: "Orientar o aluno",
+  investigar_antes: "Investigar antes de ajustar",
+  recomendar_exame: "Recomendar exame",
+  reduzir_carga_treino: "Reduzir carga de treino",
+  acompanhar_mais_um_ciclo: "Acompanhar mais um ciclo",
+  ajustar: "Ajuste sugerido no protocolo",
+};
+
 interface CheckinRow {
   id: string;
   submitted_at: string;
