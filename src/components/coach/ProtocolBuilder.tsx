@@ -400,13 +400,28 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
     setRenewalSuggestions([]);
     setRenewalAccepted(new Set());
     setRenewalEdited({});
+    setRenewalAction(null);
     setShowRenewalSuggestions(false);
     try {
-      const { data, error } = await sb.functions.invoke("protocol-renewal-draft", { body: { studentId, protocolId } });
+      // O novo contrato é por check-in: sempre o mais recente do aluno.
+      const { data: lastCheckin } = await sb
+        .from("check_ins")
+        .select("id")
+        .eq("student_id", studentId)
+        .order("submitted_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!lastCheckin?.id) throw new Error("Aluno ainda não enviou nenhum check-in");
+      const { data, error } = await sb.functions.invoke("protocol-renewal-draft", { body: { checkInId: lastCheckin.id } });
       if (error) throw error;
       if (!data?.ok) throw new Error(data?.error || "Falha ao gerar sugestão");
       setRenewalText(data.resumo || "");
       setRenewalSuggestions(data.sugestoes || []);
+      setRenewalAction({
+        acao: String(data.acao ?? ""),
+        motivo: String(data.motivo_acao ?? ""),
+        estrategia: String(data.estrategia_identificada ?? ""),
+      });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Não foi possível gerar sugestão agora");
       setRenewalOpen(false);
@@ -430,6 +445,21 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       } else if (s.categoria === "dieta") {
         next.macros = { ...next.macros, [s.campo]: Number(valor) || 0 };
         count++;
+      } else if (s.categoria === "refeicao" && typeof s.refeicaoIndex === "number") {
+        // Ajuste cirúrgico: só a refeição/opção que a IA identificou.
+        const meal = (next.meals as any[])?.[s.refeicaoIndex];
+        if (!meal) continue;
+        if (s.campo === "horario") {
+          meal.time = valor;
+          count++;
+        } else {
+          const opt = (meal.options as any[] | undefined)?.find(
+            (o) => `${o?.kind ?? ""}::${String(o?.title ?? "").trim()}` === s.optionKey
+          );
+          if (!opt) continue;
+          opt.notes = [opt.notes, valor].filter(Boolean).join(" · ");
+          count++;
+        }
       } else if (s.categoria === "diretrizes") {
         next.guidelines = { ...next.guidelines, [s.campo]: valor };
         count++;
