@@ -5,7 +5,19 @@ import { buildCorsHeaders } from "../_shared/cors.ts";
 const TREINO_CAMPOS = ["sets", "reps", "cadence", "rest"] as const;
 const DIETA_CAMPOS = ["calories", "protein", "carbs", "fat", "water"] as const;
 const DIRETRIZES_CAMPOS = ["training", "diet", "weekOrganization", "supplementation"] as const;
+const REFEICAO_CAMPOS = ["trocar_alimento", "quantidade", "redistribuir_macro", "horario"] as const;
+const ACOES = [
+  "nenhuma_alteracao", "orientar_coach", "investigar_antes", "recomendar_exame",
+  "reduzir_carga_treino", "acompanhar_mais_um_ciclo", "ajustar",
+] as const;
 const MAX_SUGESTOES = 10;
+
+// Mesma normalização de identidade de src/lib/protocolChangeDetector.ts
+const sTrim = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
+const nameKey = (v: unknown): string => sTrim(v).toLowerCase();
+const mealOptionKey = (o: Record<string, unknown>): string => `${o?.kind ?? ""}::${sTrim(o?.title)}`;
+
+const ESTRATEGIA_KEYWORDS = ["jejum", "cetog", "low carb", "flexível", "flexivel", "equivalente"];
 
 function clampNum(n: unknown, min: number, max: number): number | null {
   const v = typeof n === "number" ? n : Number(n);
@@ -33,8 +45,16 @@ serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    const { studentId, protocolId } = await req.json();
-    if (!studentId || !protocolId) throw new Error("studentId e protocolId são obrigatórios");
+    const { checkInId } = await req.json();
+    if (!checkInId) throw new Error("checkInId é obrigatório");
+
+    const { data: checkIn } = await adminClient
+      .from("check_ins")
+      .select("id, student_id, payload, current_metrics, submitted_at, updated_at")
+      .eq("id", checkInId)
+      .maybeSingle();
+    if (!checkIn) throw new Error("Check-in não encontrado");
+    const studentId = checkIn.student_id as string;
 
     const { data: isAdmin } = await adminClient.rpc("has_role", { _user_id: user.id, _role: "admin" });
     let allowed = !!isAdmin;
@@ -49,8 +69,33 @@ serve(async (req) => {
     }
     if (!allowed) throw new Error("Acesso negado");
 
-    const [{ data: protocolo }, { data: checkins }, { data: anamnese }] = await Promise.all([
-      adminClient.from("protocols").select("payload, name").eq("id", protocolId).eq("student_id", studentId).maybeSingle(),
+    // Idempotência — não chama a IA de novo se o rascunho já é mais novo que o check-in.
+    const { data: existente } = await adminClient
+      .from("checkin_ai_adjustment_draft")
+      .select("action, action_rationale, estrategia_identificada, resumo, sugestoes, generated_at")
+      .eq("check_in_id", checkInId)
+      .maybeSingle();
+    if (existente && new Date(existente.generated_at) >= new Date(checkIn.updated_at ?? checkIn.submitted_at)) {
+      return new Response(JSON.stringify({
+        ok: true,
+        cached: true,
+        acao: existente.action,
+        motivo_acao: existente.action_rationale ?? "",
+        estrategia_identificada: existente.estrategia_identificada ?? "",
+        resumo: existente.resumo ?? "",
+        sugestoes: existente.sugestoes ?? [],
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const [{ data: protocolo }, { data: checkins }, { data: anamnese }, { data: insight }, { data: fotoAnalise }, { data: mealCheckins }] = await Promise.all([
+      adminClient
+        .from("protocols")
+        .select("id, payload, name, coach_id")
+        .eq("student_id", studentId)
+        .eq("active", true)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
       adminClient
         .from("check_ins")
         .select("current_metrics, submitted_at")
@@ -64,8 +109,16 @@ serve(async (req) => {
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle(),
+      adminClient.from("checkin_ai_insights").select("summary").eq("check_in_id", checkInId).maybeSingle(),
+      adminClient.from("checkin_photo_analysis").select("tags").eq("check_in_id", checkInId).maybeSingle(),
+      adminClient
+        .from("meal_checkins")
+        .select("meal_index, checked, date")
+        .eq("student_id", studentId)
+        .gte("date", new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10)),
     ]);
-    if (!protocolo) throw new Error("Protocolo não encontrado");
+    if (!protocolo) throw new Error("Protocolo ativo não encontrado");
+    const protocolId = protocolo.id as string;
 
     const payload = (protocolo.payload as Record<string, unknown>) || {};
     const coachIdDoProtocolo = String((protocolo as Record<string, unknown>).coach_id ?? user.id);
