@@ -171,14 +171,17 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [renewalText, setRenewalText] = useState("");
   const [renewalSuggestions, setRenewalSuggestions] = useState<Array<{
     id: string;
-    categoria: "treino" | "dieta" | "diretrizes";
+    categoria: "treino" | "dieta" | "refeicao" | "diretrizes";
     exercicioId?: string;
+    refeicaoIndex?: number;
+    optionKey?: string;
     campo: string;
     alvo: string;
     valorAtual: string;
     valorSugerido: string;
     motivo: string;
   }>>([]);
+  const [renewalAction, setRenewalAction] = useState<{ acao: string; motivo: string; estrategia: string } | null>(null);
   const [renewalAccepted, setRenewalAccepted] = useState<Set<string>>(new Set());
   const [renewalEdited, setRenewalEdited] = useState<Record<string, string>>({});
   const [showRenewalSuggestions, setShowRenewalSuggestions] = useState(false);
