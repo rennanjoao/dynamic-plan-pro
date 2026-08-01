@@ -15,9 +15,13 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Loader2, BookmarkPlus, Trash2, Dumbbell, Utensils, FileText, ClipboardList, Eye } from "lucide-react";
+import { Loader2, BookmarkPlus, Trash2, Dumbbell, Utensils, FileText, ClipboardList, Eye, History } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { ProtocolPayloadSchema, type ProtocolPayload } from "@/lib/protocolSchema";
+import { SYSTEM_TEMPLATES } from "@/data/workoutSystemTemplates";
+import { checkMuscleRecovery } from "@/lib/muscleRecovery";
+import TemplateHistoryDialog from "./TemplateHistoryDialog";
+import { cn } from "@/lib/utils";
 
 type TplType = "workout" | "meal" | "protocol";
 type TplItem = {
@@ -26,6 +30,9 @@ type TplItem = {
   name: string;
   createdAt: string;
   raw: any;
+  isSystem?: boolean;
+  division?: string;
+  profile?: string;
 };
 
 const TYPE_META: Record<TplType, { label: string; icon: any; badge: string }> = {
@@ -35,6 +42,24 @@ const TYPE_META: Record<TplType, { label: string; icon: any; badge: string }> = 
 };
 
 const MAX_WORKOUT_TEMPLATES = 30;
+
+const DIVISIONS = ["todos", "AB", "ABC", "ABCD", "ABCDE"] as const;
+const PROFILES: { value: string; label: string }[] = [
+  { value: "todos",                       label: "Todos os perfis" },
+  { value: "masculino_geral",             label: "Masculino Geral" },
+  { value: "masculino_posterior",         label: "Masculino Posterior" },
+  { value: "masculino_foco_biceps",       label: "Masculino Foco Bíceps" },
+  { value: "masculino_foco_peito",        label: "Masculino Foco Peito" },
+  { value: "masculino_foco_pernas",       label: "Masculino Foco Pernas" },
+  { value: "masculino_ombro_epicondilite",label: "Masculino Ombro/Epicondilite" },
+  { value: "feminino_gluteo",             label: "Feminino Glúteo" },
+  { value: "feminino_femoral_gluteo",     label: "Feminino Femoral/Glúteo" },
+  { value: "feminino_quadriceps_gluteo",  label: "Feminino Quadríceps/Glúteo" },
+  { value: "feminino_musculatura",        label: "Feminino Musculatura" },
+  { value: "feminino_superior_ombro",     label: "Feminino Superior/Ombro" },
+  { value: "reabilitacao_ombro",          label: "Reabilitação de Ombro" },
+  { value: "reabilitacao_joelho_lombar",  label: "Reabilitação Joelho/Lombar" },
+];
 
 export default function TemplateLibraryDialog({
   open, onOpenChange, coachId, payload, setPayload, protocolName,
@@ -50,10 +75,14 @@ export default function TemplateLibraryDialog({
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<TplItem[]>([]);
   const [filter, setFilter] = useState<"all" | TplType>("all");
+  const [filterDiv, setFilterDiv] = useState<string>("todos");
+  const [filterProfile, setFilterProfile] = useState<string>("todos");
   const [saveOpen, setSaveOpen] = useState<null | "workout" | "protocol">(null);
   const [saveName, setSaveName] = useState("");
+  const [saveScope, setSaveScope] = useState<"full" | "periodization">("full");
   const [saving, setSaving] = useState(false);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [historyItem, setHistoryItem] = useState<{ id: string; name: string } | null>(null);
 
   async function reload() {
     if (!coachId) return;
@@ -79,9 +108,13 @@ export default function TemplateLibraryDialog({
       ]);
 
       const merged: TplItem[] = [
-        ...(workoutRes.data ?? []).map((r) => ({ id: r.id, type: "workout" as const, name: r.name, createdAt: r.created_at, raw: r })),
+        ...(workoutRes.data ?? []).map((r) => ({ id: r.id, type: "workout" as const, name: r.name, createdAt: r.created_at, raw: r, isSystem: false })),
         ...(mealRes.data ?? []).map((r) => ({ id: r.id, type: "meal" as const, name: r.name, createdAt: r.created_at, raw: r })),
         ...(protoRes.data ?? []).map((r) => ({ id: r.id, type: "protocol" as const, name: r.name, createdAt: r.created_at, raw: r })),
+        ...SYSTEM_TEMPLATES.map((t): TplItem => ({
+          id: `sys_${t.id}`, type: "workout", name: t.name, createdAt: "",
+          raw: { treinos: t.treinos }, isSystem: true, division: t.division, profile: t.profile,
+        })),
       ].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
       setItems(merged);
@@ -90,20 +123,30 @@ export default function TemplateLibraryDialog({
 
   useEffect(() => { if (open) reload(); /* eslint-disable-next-line */ }, [open, coachId]);
 
-  const filtered = useMemo(
-    () => (filter === "all" ? items : items.filter((i) => i.type === filter)),
-    [items, filter],
-  );
+  const filtered = useMemo(() => {
+    let list = filter === "all" ? items : items.filter((i) => i.type === filter);
+    if (filter === "workout") {
+      list = list.filter((i) =>
+        (filterDiv === "todos" || i.division === filterDiv) &&
+        (filterProfile === "todos" || i.profile === filterProfile)
+      );
+    }
+    return list;
+  }, [items, filter, filterDiv, filterProfile]);
 
-  async function applyItem(item: TplItem) {
+  async function applyItem(item: TplItem, mode: "filled" | "empty" = "filled") {
     if (!payload) return;
     if (item.type === "workout") {
       const treinos = item.raw.treinos || {};
+      const baseWorkouts = Array.isArray(treinos.workouts) ? treinos.workouts : [];
+      const finalWorkouts = mode === "filled"
+        ? baseWorkouts
+        : baseWorkouts.map((d: any) => ({ key: d.key, focus: d.focus, exercises: [] }));
       const next = { ...payload };
-      if (Array.isArray(treinos.workouts) && treinos.workouts.length) next.workouts = treinos.workouts;
+      if (baseWorkouts.length) next.workouts = finalWorkouts;
       if (treinos.periodization) next.periodization = treinos.periodization;
       setPayload(next);
-      toast.success("Treino aplicado");
+      toast.success(mode === "filled" ? "Treino aplicado com exercícios" : "Estrutura aplicada — adicione seus exercícios");
     } else if (item.type === "meal") {
       const meal = item.raw.meal_data;
       setPayload({ ...payload, meals: [...payload.meals, { ...meal, name: meal?.name || item.name }] });
@@ -124,6 +167,7 @@ export default function TemplateLibraryDialog({
   }
 
   async function deleteItem(item: TplItem) {
+    if (item.isSystem) return;
     if (!(await confirm({
       title: `Excluir template`,
       description: `Excluir "${item.name}"? Essa ação não pode ser desfeita.`,
@@ -153,24 +197,27 @@ export default function TemplateLibraryDialog({
         toast.error(`Limite de ${MAX_WORKOUT_TEMPLATES} templates de treino atingido`);
         return;
       }
-      const treinos = { workouts: payload.workouts, periodization: payload.periodization, scope: "full" };
+      const treinos = saveScope === "full"
+        ? { workouts: payload.workouts, periodization: payload.periodization, scope: "full" }
+        : { periodization: payload.periodization, scope: "periodization" };
+      const description = saveScope === "full" ? "Treino + Periodização" : "Periodização";
       const { data: prof } = await supabase.from("profiles").select("full_name").eq("user_id", coachId).maybeSingle();
       const authorName = prof?.full_name || "Coach";
       const { data: inserted, error } = await supabase.from("workout_templates").insert({
         created_by: coachId,
         updated_by: coachId,
         name: trimmed,
-        level: "full",
-        description: "Treino + Periodização",
+        level: saveScope,
+        description,
         treinos,
       }).select("id").single();
       if (error) throw error;
       await supabase.from("workout_template_versions").insert({
         template_id: inserted.id,
         version: 1,
-        scope: "full",
+        scope: saveScope,
         name: trimmed,
-        description: "Treino + Periodização",
+        description,
         treinos,
         updated_by: coachId,
         updated_by_name: authorName,
@@ -178,6 +225,7 @@ export default function TemplateLibraryDialog({
       toast.success("Template de treino salvo");
       setSaveOpen(null);
       setSaveName("");
+      setSaveScope("full");
       reload();
     } catch (e: any) {
       toast.error(e?.message || "Falha ao salvar");
@@ -209,19 +257,39 @@ export default function TemplateLibraryDialog({
     } finally { setSaving(false); }
   }
 
+  function restoreFromVersion(treinos: any) {
+    if (!payload) return;
+    const next = { ...payload };
+    if (treinos?.workouts) next.workouts = treinos.workouts;
+    if (treinos?.periodization) next.periodization = treinos.periodization;
+    setPayload(next);
+    toast.success("Versão restaurada");
+  }
+
   function renderTemplatePreview(item: TplItem) {
     if (item.type === "workout") {
       const treinos = item.raw.treinos || {};
       const workouts = Array.isArray(treinos.workouts) ? treinos.workouts : [];
       if (workouts.length === 0) return <p className="text-[11px] text-muted-foreground">Sem dias de treino salvos.</p>;
+      const warnings = checkMuscleRecovery(workouts.map((w: any) => ({ key: w.key || "", focus: w.focus || "" })));
       return (
-        <div className="text-[11px] text-muted-foreground space-y-1">
-          {workouts.map((w: any, i: number) => (
-            <p key={i}>
-              <span className="font-medium text-foreground">{w.key}{w.focus ? ` — ${w.focus}` : ""}:</span>{" "}
-              {(w.exercises || []).map((e: any) => e.name).filter(Boolean).join(", ") || "sem exercícios"}
-            </p>
-          ))}
+        <div className="space-y-2">
+          <div className="text-[11px] text-muted-foreground space-y-1">
+            {workouts.map((w: any, i: number) => (
+              <p key={i}>
+                <span className="font-medium text-foreground">{w.key}{w.focus ? ` — ${w.focus}` : ""}:</span>{" "}
+                {(w.exercises || []).map((e: any) => e.name).filter(Boolean).join(", ") || "sem exercícios"}
+              </p>
+            ))}
+          </div>
+          {warnings.length > 0 ? (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2">
+              <p className="text-[10px] font-bold text-amber-500 mb-1">⚠ Aviso de recuperação muscular</p>
+              {warnings.map((w, i) => <p key={i} className="text-[10px] text-amber-600">{w}</p>)}
+            </div>
+          ) : workouts.length > 1 ? (
+            <p className="text-[10px] text-emerald-500">✓ Recuperação muscular adequada entre os dias.</p>
+          ) : null}
         </div>
       );
     }
@@ -252,7 +320,7 @@ export default function TemplateLibraryDialog({
           <DialogHeader>
             <DialogTitle>Biblioteca de Templates</DialogTitle>
             <DialogDescription className="text-xs">
-              Treinos, refeições e protocolos salvos por você.
+              Treinos, refeições e protocolos salvos por você — e uma biblioteca de treinos prontos do sistema.
             </DialogDescription>
           </DialogHeader>
 
@@ -283,6 +351,34 @@ export default function TemplateLibraryDialog({
             </div>
           </div>
 
+          {filter === "workout" && (
+            <div className="flex flex-wrap gap-1.5 pb-2 border-b border-border/40">
+              {DIVISIONS.map((d) => (
+                <button
+                  key={d} type="button" onClick={() => setFilterDiv(d)}
+                  className={cn(
+                    "px-2.5 py-1 rounded-full text-[10px] font-bold border transition",
+                    filterDiv === d ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/50"
+                  )}
+                >
+                  {d === "todos" ? "Todas divisões" : d}
+                </button>
+              ))}
+              <span className="w-px bg-border/60 mx-1" />
+              {PROFILES.map((pf) => (
+                <button
+                  key={pf.value} type="button" onClick={() => setFilterProfile(pf.value)}
+                  className={cn(
+                    "px-2.5 py-1 rounded-full text-[10px] font-bold border transition",
+                    filterProfile === pf.value ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/50"
+                  )}
+                >
+                  {pf.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="flex-1 overflow-y-auto -mx-1 px-1 py-2">
             {loading ? (
               <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
@@ -307,10 +403,26 @@ export default function TemplateLibraryDialog({
                             <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${meta.badge}`}>
                               {meta.label}
                             </span>
+                            {item.division && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-muted text-muted-foreground">
+                                {item.division}
+                              </span>
+                            )}
+                            {item.isSystem ? (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-primary/10 text-primary border-primary/30">
+                                Sistema
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-amber-500/10 text-amber-600 border-amber-500/30">
+                                Seu
+                              </span>
+                            )}
                           </div>
-                          <p className="text-[10px] text-muted-foreground">
-                            {new Date(item.createdAt).toLocaleDateString("pt-BR")}
-                          </p>
+                          {item.createdAt && (
+                            <p className="text-[10px] text-muted-foreground">
+                              {new Date(item.createdAt).toLocaleDateString("pt-BR")}
+                            </p>
+                          )}
                         </div>
                         <button
                           onClick={() => setExpandedKey(expandedKey === key ? null : key)}
@@ -319,16 +431,38 @@ export default function TemplateLibraryDialog({
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </button>
-                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => applyItem(item)}>
-                          Aplicar
-                        </Button>
-                        <button
-                          onClick={() => deleteItem(item)}
-                          className="text-muted-foreground hover:text-destructive p-1"
-                          title="Excluir"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {item.type === "workout" ? (
+                          <>
+                            <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" title="Aplicar com exercícios" onClick={() => applyItem(item, "filled")}>
+                              ▶
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" title="Aplicar só a estrutura (sem exercícios)" onClick={() => applyItem(item, "empty")}>
+                              ○
+                            </Button>
+                          </>
+                        ) : (
+                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => applyItem(item)}>
+                            Aplicar
+                          </Button>
+                        )}
+                        {item.type === "workout" && !item.isSystem && (
+                          <button
+                            onClick={() => setHistoryItem({ id: item.id, name: item.name })}
+                            className="text-muted-foreground hover:text-foreground p-1"
+                            title="Histórico de versões"
+                          >
+                            <History className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {!item.isSystem && (
+                          <button
+                            onClick={() => deleteItem(item)}
+                            className="text-muted-foreground hover:text-destructive p-1"
+                            title="Excluir"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                       {expandedKey === key && (
                         <div className="mt-2 pt-2 border-t border-border/40">
@@ -361,6 +495,19 @@ export default function TemplateLibraryDialog({
               <Label className="text-xs">Nome</Label>
               <Input value={saveName} onChange={(e) => setSaveName(e.target.value)} className="h-9 text-sm mt-1" />
             </div>
+            {saveOpen === "workout" && (
+              <div>
+                <Label className="text-xs">Escopo</Label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <Button type="button" variant={saveScope === "full" ? "default" : "outline"} size="sm" onClick={() => setSaveScope("full")}>
+                    Treino + Periodização
+                  </Button>
+                  <Button type="button" variant={saveScope === "periodization" ? "default" : "outline"} size="sm" onClick={() => setSaveScope("periodization")}>
+                    Só Periodização
+                  </Button>
+                </div>
+              </div>
+            )}
             <Button
               onClick={saveOpen === "workout" ? saveWorkoutTemplate : saveProtocolTemplate}
               disabled={saving}
@@ -372,6 +519,14 @@ export default function TemplateLibraryDialog({
           </div>
         </DialogContent>
       </Dialog>
+
+      <TemplateHistoryDialog
+        open={!!historyItem}
+        onOpenChange={(v) => !v && setHistoryItem(null)}
+        templateId={historyItem?.id ?? null}
+        templateName={historyItem?.name ?? ""}
+        onRestore={restoreFromVersion}
+      />
     </>
   );
 }
