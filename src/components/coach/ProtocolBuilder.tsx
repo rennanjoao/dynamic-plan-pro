@@ -51,14 +51,14 @@ import {
 } from "@/components/ui/command";
 import {
   Loader2, Save, Plus, Trash2, FileText, Dumbbell, UtensilsCrossed,
-  Calendar, Sparkles, BarChart3, Activity, Pill, TrendingUp, TrendingDown, Minus,
+  Sparkles, BarChart3, Activity, Pill, TrendingUp,
   CheckCircle2, ChevronDown, Copy, BookmarkPlus, Library, ClipboardList,
   ArrowUp, ArrowDown, Eye, Settings2, History, AlertCircle, GripVertical, RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
 import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
 import {
-  ProtocolPayloadSchema, ProtocolPayload, SPLIT_OPTIONS, WEEKDAYS,
+  ProtocolPayloadSchema, ProtocolPayload, SPLIT_OPTIONS,
   buildBasePayload, makeEmptyExercise, makeEmptyMeal, type SplitValue, MEAL_NAME_PRESETS,
   SUPPLEMENT_OBJECTIVES,
 } from "@/lib/protocolSchema";
@@ -186,6 +186,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
     exercicioId?: string;
     refeicaoIndex?: number;
     optionKey?: string;
+    itemRef?: string;
     campo: string;
     alvo: string;
     valorAtual: string;
@@ -463,12 +464,32 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         if (s.campo === "horario") {
           meal.time = valor;
           count++;
-        } else {
+        } else if (s.campo === "quantidade" && s.itemRef) {
           const opt = (meal.options as any[] | undefined)?.find(
             (o) => `${o?.kind ?? ""}::${String(o?.title ?? "").trim()}` === s.optionKey
           );
-          if (!opt) continue;
-          opt.notes = [opt.notes, valor].filter(Boolean).join(" · ");
+          const itemIndex = Number(String(s.itemRef).split("|")[2]);
+          const item = opt?.items?.[itemIndex];
+          if (item) {
+            // Mesmo contrato de atualização que a edição manual de peso já usa
+            // (onChangeWeight de FoodRow) — mantém rawWeight coerente pra itens TACO.
+            item.weight = valor;
+            if (item.isTaco || item.isIndustrial) {
+              const tacoRef = TACO_FOODS.find(
+                (t) => t.name.toLowerCase() === String(item.baseName || item.name).toLowerCase()
+              );
+              const unitW = tacoRef && typeof (tacoRef as any).unitWeight === "number" ? (tacoRef as any).unitWeight : 50;
+              const { grams } = parseWeightString(valor, unitW);
+              item.rawWeight = isFinite(grams) && grams > 0 ? grams : 0;
+            }
+            count++;
+          }
+        } else {
+          // trocar_alimento / redistribuir_macro: ainda não é um valor que dá pra
+          // aplicar sozinho num campo (é troca de alimento ou reorganização) — registra
+          // como observação na refeição (campo que existe e é exibido), não num campo
+          // inexistente que o schema descarta silenciosamente.
+          meal.notes = [meal.notes, `IA: ${valor}`].filter(Boolean).join(" · ");
           count++;
         }
       } else if (s.categoria === "diretrizes") {
@@ -833,7 +854,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             </TabsList>
             <TabsContent value="macros" className="mt-4"><MacrosTab payload={payload} setPayload={updatePayload} /></TabsContent>
             <TabsContent value="guidelines" className="mt-4"><GuidelinesTab payload={payload} setPayload={updatePayload} /></TabsContent>
-            <TabsContent value="workouts" className="mt-4"><WorkoutsTab payload={payload} setPayload={updatePayload} coachId={coachId} /></TabsContent>
+            <TabsContent value="workouts" className="mt-4"><WorkoutsTab payload={payload} setPayload={updatePayload} coachId={coachId} onOpenTemplateLibrary={() => setLibraryOpen(true)} /></TabsContent>
             <TabsContent value="diet" className="mt-4"><DietTab payload={payload} setPayload={updatePayload} /></TabsContent>
           </Tabs>
 
@@ -1048,7 +1069,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                                 value={renewalEdited[s.id] ?? s.valorSugerido}
                                 onChange={(e) => setRenewalEdited((prev) => ({ ...prev, [s.id]: e.target.value }))}
                               />
-                            ) : s.categoria === "refeicao" ? (
+                            ) : s.categoria === "refeicao" && s.campo !== "quantidade" ? (
                               <Textarea
                                 className="text-xs min-h-[72px]"
                                 value={renewalEdited[s.id] ?? s.valorSugerido}
@@ -1164,7 +1185,7 @@ function SortableExerciseRow({
   );
 }
 
-function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void; coachId: string | null }) {
+function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrary }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void; coachId: string | null; onOpenTemplateLibrary?: () => void }) {
   // [FIX Tarefa 10] Backfill de __id em exercícios carregados de protocolos
   // antigos (que não tinham esse campo). Roda uma única vez por payload,
   // apenas se algum exercício estiver sem __id — evita loop de setPayload.
@@ -1261,7 +1282,7 @@ function WorkoutsTab({ payload, setPayload, coachId }: { payload: ProtocolPayloa
 
   return (
     <div className="space-y-3">
-      <WorkoutPeriodizationEditor payload={payload} setPayload={setPayload} coachId={coachId} />
+      <WorkoutPeriodizationEditor payload={payload} setPayload={setPayload} coachId={coachId} onOpenTemplateLibrary={onOpenTemplateLibrary} />
 
       {/* ── Week strip: pílulas Seg→Dom ── */}
       <Card className="bg-card/40 border-border p-2.5">
@@ -2146,56 +2167,6 @@ function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-// ─── WeekCycleTab ─────────────────────────────────────────────────────────────
-
-function WeekCycleTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void }) {
-  if (!payload.setup.carbCycle) {
-    return (
-      <Card className="bg-card/60 border-border p-8 text-center">
-        <Calendar className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
-        <p className="text-sm text-muted-foreground">Ciclo de carboidratos desativado nesse protocolo.</p>
-      </Card>
-    );
-  }
-
-  const upd = (day: string, v: "high" | "base" | "off") =>
-    setPayload({ ...payload, carbCycle: { ...payload.carbCycle, [day]: v } });
-
-  return (
-    <Card className="bg-card/60 border-border p-4">
-      <p className="text-xs text-muted-foreground mb-4">Define o tipo de dia. A dieta exibirá a gramatura correta para o aluno.</p>
-      <div className="space-y-2">
-        {WEEKDAYS.map((d) => {
-          const raw = payload.carbCycle[d.key] ?? "base";
-          const cur: "high" | "base" | "off" = raw === "low" ? "off" : (raw as "high" | "base" | "off");
-          return (
-            <div key={d.key} className="flex items-center gap-3">
-              <div className="w-20 text-sm font-medium text-foreground shrink-0">{d.label}</div>
-              <div className="flex flex-1 gap-1.5">
-                {(["high", "base", "off"] as const).map((opt) => {
-                  const Icon = opt === "high" ? TrendingUp : opt === "off" ? TrendingDown : Minus;
-                  const label = opt === "high" ? "Alto" : opt === "off" ? "Baixo" : "Base";
-                  const activeCls = cur === opt
-                    ? opt === "high" ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-600 font-bold"
-                      : opt === "off" ? "bg-amber-500/15 border-amber-500/50 text-amber-600 font-bold"
-                      : "bg-blue-500/15 border-blue-500/50 text-blue-600 font-bold"
-                    : "border-border/50 text-muted-foreground hover:border-border";
-                  return (
-                    <button key={opt} type="button" onClick={() => upd(d.key, opt)}
-                      className={`flex-1 h-8 flex items-center justify-center gap-1 rounded-lg border text-xs transition-colors ${activeCls}`}>
-                      <Icon className="w-3.5 h-3.5" />{label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </Card>
   );
 }
 
