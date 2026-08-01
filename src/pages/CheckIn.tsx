@@ -425,6 +425,21 @@ export default function CheckIn() {
         console.warn("Disparo de photo-analysis falhou (não bloqueia o check-in)", photoOuterErr);
       }
 
+      // Triagem/rascunho de ajuste de protocolo (fire-and-forget, nunca bloqueia).
+      try {
+        const checkInIdForAdjust = mode === "update" && lastCheckin ? lastCheckin.id : newCheckInId;
+        if (checkInIdForAdjust) {
+          void supabase.functions
+            .invoke("protocol-renewal-draft", { body: { checkInId: checkInIdForAdjust } })
+            .then(({ error }) => {
+              if (error) console.warn("protocol-renewal-draft falhou", error);
+            })
+            .catch((e) => console.warn("protocol-renewal-draft exceção", e));
+        }
+      } catch (adjustOuterErr) {
+        console.warn("Disparo de protocol-renewal-draft falhou (não bloqueia o check-in)", adjustOuterErr);
+      }
+
       toast.success(
         mode === "update"
           ? "Check-in atualizado e enviado ao seu coach."
