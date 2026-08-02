@@ -1,6 +1,7 @@
 import type { StudentStatus } from "@/hooks/useCoachStudents";
 import { ClipboardList, Dumbbell, History, Sparkles, Settings2, X, MessageSquare } from "lucide-react";
 import { AlertBadge, ClinicalSignalBadge, WeightTrendBadge } from "./dashboardUtils";
+import { Private, usePrivacyMode } from "@/components/coach/PrivacyMode";
 
 export function StudentRow({
   student, onAnamnesis, onProtocol, onUnlink, onHistory, onChangeHistory, onLatestFeedback, onSettings,
@@ -26,6 +27,7 @@ export function StudentRow({
 
   const safeName = student.name || "Aluno";
   const initials = safeName.split(" ").slice(0, 2).map((n) => n[0] || "").join("");
+  const { privacy } = usePrivacyMode();
 
   let displayWeight: string | number | undefined;
   if (typeof student.currentWeight === "object" && student.currentWeight !== null) {
@@ -40,12 +42,12 @@ export function StudentRow({
       student.alertLevel === "warning"  ? "bg-amber-50/50 border-amber-100 dark:bg-amber-950/20 dark:border-amber-900" :
       "bg-card border-border"
     }`}>
-      <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 bg-primary/10 text-primary uppercase">
-        {initials}
-      </div>
+      <Private as="div" className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 bg-primary/10 text-primary uppercase">
+        {privacy ? "••" : initials}
+      </Private>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-sm font-semibold text-foreground truncate">{safeName}</p>
+          <Private as="p" className="text-sm font-semibold text-foreground truncate">{safeName}</Private>
           <AlertBadge
             level={student.alertLevel || "ok"}
             daysSinceLastFeedback={student.daysSinceLastFeedback}
