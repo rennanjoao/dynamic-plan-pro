@@ -20,6 +20,7 @@ import { FileDown, Loader2, ImageIcon, Pencil, Save, X, UploadCloud } from "luci
 import MeasurementsEditor from "@/components/coach/MeasurementsEditor";
 import CheckinFullEditor from "@/components/coach/CheckinFullEditor";
 import { exportAnamnesisPDF } from "@/lib/coachPdfExport";
+import { Private } from "@/components/coach/PrivacyMode";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -28,6 +29,9 @@ interface Props {
   studentId: string;
   studentName?: string;
 }
+
+// Campos que identificam o aluno — respeitam o Modo Privacidade do coach.
+const PERSONAL_FIELD_KEYS = new Set(["nome", "data_nasc", "whatsapp", "email", "cidade"]);
 
 const PHOTO_KEYS: Array<{ key: string; label: string }> = [
   { key: "frente", label: "Frente" },
@@ -236,7 +240,7 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
     <div className="space-y-4">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold">{(data.nome as string) || studentName || "Aluno"}</h2>
+          <Private as="p" className="text-xl font-bold">{(data.nome as string) || studentName || "Aluno"}</Private>
           {updatedAt && (
             <p className="text-sm text-muted-foreground">
               Atualizado em {new Date(updatedAt).toLocaleDateString("pt-BR")}
@@ -361,7 +365,11 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
                         />
                       </div>
                     ) : (
-                      <span className="font-medium text-right max-w-[55%] text-foreground">{fmt(data[f.key])}</span>
+                      PERSONAL_FIELD_KEYS.has(f.key) ? (
+                        <Private className="font-medium text-right max-w-[55%] text-foreground">{fmt(data[f.key])}</Private>
+                      ) : (
+                        <span className="font-medium text-right max-w-[55%] text-foreground">{fmt(data[f.key])}</span>
+                      )
                     )}
                   </div>
                 ))}
@@ -392,7 +400,7 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
       <Dialog open={showPhotoCompare} onOpenChange={setShowPhotoCompare}>
         <DialogContent className="max-w-4xl bg-card max-h-[90vh] overflow-y-auto">
           <DialogTitle>
-            Comparação de Fotos — {(data.nome as string) || studentName || "Aluno"}
+            Comparação de Fotos — <Private>{(data.nome as string) || studentName || "Aluno"}</Private>
           </DialogTitle>
 
           <div className="space-y-6 mt-2">
