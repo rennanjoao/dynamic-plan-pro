@@ -272,6 +272,7 @@ function MacroSection({
 }) {
   const cfg = KIND_META[kind];
   const isCarb = kind === "carb";
+  const [showAlternatives, setShowAlternatives] = useState(false);
 
   const filledOpts = opts.filter(
     (o: any) =>
@@ -280,48 +281,60 @@ function MacroSection({
   );
   if (!filledOpts.length) return null;
 
+  const hasAlternatives = filledOpts.length > 1;
+  // A macro no topo da tela sempre soma a primeira opção — então é ela que
+  // fica em destaque por padrão. As demais são substituições, não itens
+  // extras: ficam escondidas atrás de um toque explícito, em vez de
+  // empilhadas junto da opção principal.
+  const visibleOpts = showAlternatives ? filledOpts : filledOpts.slice(0, 1);
+
+  const renderItems = (opt: any) => {
+    const items = (opt.items as any[])
+      .map((it: any) => {
+        const name = stripHtml(it?.baseName || it?.name || "");
+        if (!name) return null;
+        // CORREÇÃO: prioriza o weight textual do coach (preserva 'unidades', 'fatias', etc.).
+        // rawWeight (gramas internas TACO) é usado apenas quando weight está vazio ou é só número.
+        const weightStr = stripHtml(it.weight || "");
+        const hasUnitWord = /un|unid|fatia|ovo|colher|copo|porc/i.test(weightStr);
+        const rawText = hasUnitWord
+          ? weightStr
+          : (it.rawWeight ? `${it.rawWeight}g` : weightStr);
+        const weight = rawText
+          ? applySmartMath(rawText, mode, isCooked, isCarb, name, highPct, lowPct)
+          : "";
+        return { name, weight };
+      })
+      .filter(Boolean) as { name: string; weight: string }[];
+    return items;
+  };
+
   return (
     <div className={`rounded-xl border ${cfg.border} ${cfg.bg} p-3`}>
       <p className={`text-[10px] uppercase tracking-[0.18em] font-black mb-3 ${cfg.color} flex items-center gap-1.5`}>
         {kind === "veg" && <Salad className="w-3 h-3" />}
-        {kind === "veg" ? cfg.label : `ESCOLHA UMA ${cfg.label}`}
+        {cfg.label}
       </p>
 
       <div className="space-y-3">
-        {filledOpts.map((opt: any, optIdx: number) => {
-          const items = (opt.items as any[])
-            .map((it: any) => {
-              const name = stripHtml(it?.baseName || it?.name || "");
-              if (!name) return null;
-              // CORREÇÃO: prioriza o weight textual do coach (preserva 'unidades', 'fatias', etc.).
-              // rawWeight (gramas internas TACO) é usado apenas quando weight está vazio ou é só número.
-              const weightStr = stripHtml(it.weight || "");
-              const hasUnitWord = /un|unid|fatia|ovo|colher|copo|porc/i.test(weightStr);
-              const rawText = hasUnitWord
-                ? weightStr
-                : (it.rawWeight ? `${it.rawWeight}g` : weightStr);
-              const weight = rawText
-                ? applySmartMath(rawText, mode, isCooked, isCarb, name, highPct, lowPct)
-                : "";
-              return { name, weight };
-            })
-            .filter(Boolean) as { name: string; weight: string }[];
+        {visibleOpts.map((opt: any, i: number) => {
+          const optIdx = filledOpts.indexOf(opt);
+          const items = renderItems(opt);
           if (!items.length) return null;
 
-          const showLabel = filledOpts.length > 1;
           const optTitle = String(opt?.title || `Opção ${optIdx + 1}`);
           const anchorBase = `meal-${slug(mealName)}-${kind}-${slug(optTitle)}`;
           return (
-            <div key={optIdx} className={optIdx > 0 ? "pt-3 border-t border-white/5" : ""}>
-              {showLabel && (
+            <div key={optIdx} className={i > 0 ? "pt-3 border-t border-white/5" : ""}>
+              {hasAlternatives && (
                 <p className="text-[9px] uppercase tracking-[0.15em] text-muted-foreground font-bold mb-1.5">
                   {OPTION_LABELS[optIdx] ?? `OPÇÃO ${optIdx + 1}`}
                 </p>
               )}
               <ul className="space-y-1">
-                {items.map((item, i) => (
+                {items.map((item, ii) => (
                   <li
-                    key={i}
+                    key={ii}
                     id={`${anchorBase}-item-${slug(item.name)}`}
                     className="flex items-baseline justify-between gap-3 px-1"
                   >
@@ -345,6 +358,18 @@ function MacroSection({
           );
         })}
       </div>
+
+      {hasAlternatives && (
+        <button
+          type="button"
+          onClick={() => setShowAlternatives((v) => !v)}
+          className={`mt-3 text-[11px] font-bold ${cfg.color} opacity-80 hover:opacity-100 transition-opacity`}
+        >
+          {showAlternatives
+            ? "Ocultar outras opções"
+            : `Trocar por outra opção (${filledOpts.length - 1})`}
+        </button>
+      )}
     </div>
   );
 }
