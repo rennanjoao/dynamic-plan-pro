@@ -707,7 +707,7 @@ export default function StudentArea() {
 
           const slots: { key: string; node: React.ReactNode; known?: boolean }[] = [
             { key: "billing",   node: billingNode || null, known: billingActive },
-            { key: "trainer",   node: <TrainerAlert /> },
+            { key: "trainer",   node: <TrainerAlert coachName={coachLink?.full_name} /> },
             { key: "countdown", node: userId ? <FeedbackCountdownAlert userId={userId} dismissed={dismissedAlerts} onDismiss={dismissAlert} /> : null },
             { key: "updates",   node: <CoachUpdatesCard /> },
           ];

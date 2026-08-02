@@ -95,6 +95,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { TACO_FOODS } from "@/data/tacoFoods";
 const TACO_DATA = TACO_FOODS.map((t, i) => ({ ...t, id: String(i), cookFactor: t.cookFactor ?? 1 }));
 import { searchFoods, type FoodHit } from "@/lib/foodSearch";
+import { Private } from "@/components/coach/PrivacyMode";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -720,10 +721,10 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             <div className="flex items-center gap-2 min-w-0 max-w-[55%] sm:max-w-[40%] shrink-0">
               <div className="min-w-0 text-right">
                 <p className="text-[9px] uppercase tracking-wider text-muted-foreground leading-none mb-0.5">Aluno</p>
-                <p className="text-sm font-semibold text-foreground truncate">{studentName}</p>
+                <Private as="p" className="text-sm font-semibold text-foreground truncate">{studentName}</Private>
               </div>
               <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold uppercase text-xs shrink-0">
-                {studentName.slice(0, 2)}
+                <Private>{studentName.slice(0, 2)}</Private>
               </div>
             </div>
           </div>

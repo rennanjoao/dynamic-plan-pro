@@ -3,6 +3,7 @@ import { Loader2, ClipboardList } from "lucide-react";
 import type { StudentStatus } from "@/hooks/useCoachStudents";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Private } from "@/components/coach/PrivacyMode";
 
 const EvolutionComparisonLazy = lazy(() => import("@/components/coach/EvolutionComparison"));
 const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
@@ -14,7 +15,7 @@ export function EvolutionDialog({ student, open, onClose }: { student: StudentSt
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ClipboardList className="w-4 h-4 text-primary" />
-            Anamnese — {student?.name || "Aluno"}
+            Anamnese — <Private>{student?.name || "Aluno"}</Private>
           </DialogTitle>
         </DialogHeader>
         {student && (

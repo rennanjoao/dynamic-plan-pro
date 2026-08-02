@@ -33,6 +33,7 @@ import CheckinPayloadAnswers from "@/components/coach/CheckinPayloadAnswers";
 import CheckinFullEditor from "@/components/coach/CheckinFullEditor";
 import { CheckinHistoryDialog } from "@/components/coach/dashboard/CheckinHistoryDialog";
 import { AlertBadge, WeightTrendBadge } from "@/components/coach/dashboard/dashboardUtils";
+import { Private } from "@/components/coach/PrivacyMode";
 
 const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
 
@@ -300,7 +301,7 @@ export default function CheckinFeedbackPanel(props: Props) {
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Resumo do Check-in — {studentName}</DialogTitle>
+          <DialogTitle>Resumo do Check-in — <Private>{studentName}</Private></DialogTitle>
         </DialogHeader>
 
         {student && (

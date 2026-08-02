@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
 import { CheckCircle2, Flame, Rocket, Trophy } from "lucide-react";
+import { storeDirectCoach } from "@/lib/referralCapture";
 
 const GOLD = "#C9A84C";
 
@@ -25,7 +26,7 @@ export default function ReferralWelcome() {
       try {
         const { data } = await supabase
           .from("profiles")
-          .select("full_name, team_name")
+          .select("full_name, team_name, notification_email")
           .eq("id", coachId)
           .single();
 
@@ -34,6 +35,8 @@ export default function ReferralWelcome() {
             name: data.full_name || "Coach",
             team_name: data.team_name,
           });
+          // Guarda o coach do link para que a Anamnese não peça código de convite.
+          storeDirectCoach(coachId, data.full_name || "Seu Treinador", (data as any).notification_email ?? null);
         }
       } catch (err) {
         console.error("Error fetching coach:", err);
@@ -133,7 +136,7 @@ export default function ReferralWelcome() {
           className="w-full space-y-4 mt-auto"
         >
           <button
-            onClick={() => navigate(`/register?invite=${coachId || ""}`)}
+            onClick={() => navigate("/anamnesis")}
             className="w-full py-5 bg-white text-black font-black text-lg rounded-2xl shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all"
           >
             Começar Agora

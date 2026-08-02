@@ -10,6 +10,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertTriangle, LifeBuoy, ListChecks } from "lucide-react";
+import { Private } from "@/components/coach/PrivacyMode";
 import type { StudentLite } from "@/hooks/useCoachStudents";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -102,7 +103,7 @@ export function PriorityQueuePanel({ coachId, students, onSelectStudent }: Props
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="text-xs font-semibold text-foreground">{r.title}</p>
-                  {studentName && <span className="text-xs text-muted-foreground">— {studentName}</span>}
+                  {studentName && <Private className="text-xs text-muted-foreground">— {studentName}</Private>}
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">{r.message}</p>
                 {r.suggested_action && (

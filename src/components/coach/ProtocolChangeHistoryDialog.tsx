@@ -18,6 +18,7 @@ import type { StudentLite, StudentStatus } from "@/hooks/useCoachStudents";
 import {
   Sparkles, Dumbbell, Apple, Pill, ClipboardList, Loader2,
 } from "lucide-react";
+import { Private } from "@/components/coach/PrivacyMode";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -82,7 +83,7 @@ export default function ProtocolChangeHistoryDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Histórico de Alterações — {studentName}</DialogTitle>
+          <DialogTitle>Histórico de Alterações — <Private>{studentName}</Private></DialogTitle>
         </DialogHeader>
 
         {isLoading ? (
