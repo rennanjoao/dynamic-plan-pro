@@ -557,10 +557,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
 
   const confirmFinishWorkout = async () => {
     if (isFinishingRef.current) return;
-    if (pwSleep == null || pwFeeling == null) {
-      toast.error("Responda como foi o sono e a sensação antes de finalizar.");
-      return;
-    }
     isFinishingRef.current = true;
     setIsFinishing(true);
     try {
@@ -919,6 +915,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
             <DialogTitle className="text-xl font-black italic uppercase tracking-tight">
               Como foi este treino?
             </DialogTitle>
+            <p className="text-xs text-white/50 -mt-1">Opcional — ajuda seu coach, mas não é obrigatório pra finalizar.</p>
           </DialogHeader>
           <div className="space-y-6 mt-2">
             <div className="space-y-3">
@@ -981,7 +978,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
             </div>
             <Button
               onClick={confirmFinishWorkout}
-              disabled={isFinishing || pwSleep == null || pwFeeling == null}
+              disabled={isFinishing}
               className="w-full h-14 rounded-2xl font-black uppercase italic tracking-tighter bg-primary text-black hover:bg-primary/90 disabled:opacity-40"
             >
               {isFinishing ? "Salvando..." : "Confirmar e Finalizar"}
