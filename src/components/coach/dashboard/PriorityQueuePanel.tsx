@@ -10,6 +10,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertTriangle, LifeBuoy, ListChecks } from "lucide-react";
+import { Private } from "@/components/coach/PrivacyMode";
 import type { StudentLite } from "@/hooks/useCoachStudents";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
