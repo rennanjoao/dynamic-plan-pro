@@ -114,7 +114,7 @@ export default function WorkoutShareCard({
   totalSets,
   completedExercises,
   totalExercises,
-  coachName = "Rennan João",
+  coachName = "seu coach",
   teamName,
   streak,
   coachId,
