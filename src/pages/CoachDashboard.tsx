@@ -40,6 +40,7 @@ import { CheckinHistoryDialog } from "@/components/coach/dashboard/CheckinHistor
 import { FinancesTab } from "@/components/coach/dashboard/FinancesTab";
 import { ProfileDialog } from "@/components/coach/dashboard/ProfileDialog";
 import { usePlatformBilling, worstPlatformStatus } from "@/hooks/usePlatformBilling";
+import { PrivacyProvider, PrivacyToggle, Private } from "@/components/coach/PrivacyMode";
 
 const ProtocolBuilder = lazy(() => import("@/components/coach/ProtocolBuilder"));
 const CheckinFeedbackPanel = lazy(() => import("@/components/coach/CheckinFeedbackPanel"));
@@ -48,7 +49,7 @@ const ProtocolChangeHistoryDialog = lazy(() => import("@/components/coach/Protoc
 
 type CoachView = "list" | "protocol";
 
-export default function CoachDashboard() {
+function CoachDashboardInner() {
   const coachId = useCoachId();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | AlertLevel>("all");
@@ -131,7 +132,7 @@ export default function CoachDashboard() {
           <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={goBack}><ArrowLeft className="w-4 h-4" /></Button>
             <h1 className="text-sm font-bold text-foreground">
-              {view === "protocol" ? "Protocolo" : ""} — {selectedStudent.name || "Aluno"}
+              {view === "protocol" ? "Protocolo" : ""} — <Private>{selectedStudent.name || "Aluno"}</Private>
             </h1>
           </div>
         </header>
@@ -154,6 +155,7 @@ export default function CoachDashboard() {
           </div>
           <div className="flex items-center gap-2">
             <CoachNotificationBell />
+            <PrivacyToggle />
             <ThemeToggle />
             <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-destructive h-9">
               <LogOut className="w-4 h-4 mr-1.5" /> Sair
@@ -308,7 +310,7 @@ export default function CoachDashboard() {
                       : { background: "transparent", borderColor: "hsl(var(--border))", color: "hsl(var(--muted-foreground))" }
                   }
                 >
-                  {s.name}
+                  <Private>{s.name}</Private>
                 </button>
                 ));
               })()}
@@ -338,7 +340,7 @@ export default function CoachDashboard() {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Desvincular aluno?</AlertDialogTitle>
-              <AlertDialogDescription>{unlinkTarget?.name} perderá acesso ao protocolo.</AlertDialogDescription>
+              <AlertDialogDescription><Private>{unlinkTarget?.name}</Private> perderá acesso ao protocolo.</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
