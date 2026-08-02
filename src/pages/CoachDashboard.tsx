@@ -388,3 +388,12 @@ function CoachDashboardInner() {
     </div>
   );
 }
+
+// Modo Privacidade envolve todo o painel do coach (inclui diálogos em portal).
+export default function CoachDashboard() {
+  return (
+    <PrivacyProvider>
+      <CoachDashboardInner />
+    </PrivacyProvider>
+  );
+}
