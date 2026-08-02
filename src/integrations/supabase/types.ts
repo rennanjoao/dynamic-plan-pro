@@ -747,6 +747,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           message: string
+          read_at: string | null
           student_id: string
           target_date: string | null
           trainer_id: string
@@ -758,6 +759,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           message: string
+          read_at?: string | null
           student_id: string
           target_date?: string | null
           trainer_id: string
@@ -769,6 +771,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           message?: string
+          read_at?: string | null
           student_id?: string
           target_date?: string | null
           trainer_id?: string
