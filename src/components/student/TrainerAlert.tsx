@@ -1,12 +1,13 @@
 /**
  * TrainerAlert.tsx
  *
- * CORREÇÕES DESTA VERSÃO:
- * - Botão X adicionado — aluno consegue fechar a mensagem do coach
- * - Dismiss persiste em localStorage por chave única (id + created_at do alerta)
- *   → Não volta ao recarregar a página
- * - Alert "once" continua exibindo por até 7 dias, mas agora o aluno controla
- * - Busca também o campo "id" da tabela daily_alerts para gerar a chave de dismiss
+ * - Botão X fecha a mensagem do coach.
+ * - Estado de "lido" é gravado no servidor (daily_alerts.read_at, via RPC
+ *   mark_daily_alert_read) — não em localStorage. Antes, fechar a mensagem
+ *   só marcava "lido" no navegador atual; trocar de aparelho ou limpar dados
+ *   do navegador fazia o mesmo recado do coach reaparecer como se fosse novo.
+ * - Alert "once" continua elegível a aparecer por até 7 dias após criado,
+ *   mas só é exibido enquanto read_at ainda for nulo.
  */
 
 import { useEffect, useState } from "react";
@@ -15,26 +16,6 @@ import { useStudentData } from "@/hooks/useStudentData";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Info, X, ChevronRight } from "lucide-react";
-
-// ─── Persistência de dismiss ──────────────────────────────────────────────────
-const TRAINER_DISMISSED_KEY = (uid: string) => `trainer_alert_dismissed_${uid}`;
-
-function loadDismissedTrainer(uid: string): string[] {
-  try {
-    const raw = localStorage.getItem(TRAINER_DISMISSED_KEY(uid));
-    return raw ? (JSON.parse(raw) as string[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveDismissedTrainer(uid: string, keys: string[]) {
-  try {
-    localStorage.setItem(TRAINER_DISMISSED_KEY(uid), JSON.stringify(keys));
-  } catch {
-    /* noop */
-  }
-}
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 export const TrainerAlert = ({ coachName }: { coachName?: string | null }) => {
@@ -45,18 +26,12 @@ export const TrainerAlert = ({ coachName }: { coachName?: string | null }) => {
   const alertLabel = firstName ? `Mensagem de ${firstName}` : "Mensagem do Treinador";
 
   const [alertData, setAlertData] = useState<{
-    dismissKey: string;
+    id: string;
     message: string;
   } | null>(null);
 
-  const [dismissed, setDismissed] = useState<string[]>([]);
   const [expanded, setExpanded] = useState(false);
-
-  // Carrega dismissed do localStorage assim que temos o studentId
-  useEffect(() => {
-    if (!studentId) return;
-    setDismissed(loadDismissedTrainer(studentId));
-  }, [studentId]);
+  const [dismissing, setDismissing] = useState(false);
 
   // Busca alerta do coach no banco
   useEffect(() => {
@@ -65,7 +40,7 @@ export const TrainerAlert = ({ coachName }: { coachName?: string | null }) => {
     const fetchAlert = async () => {
       const { data } = await supabase
         .from("daily_alerts")
-        .select("id, message, frequency, target_date, created_at")
+        .select("id, message, frequency, target_date, created_at, read_at")
         .eq("student_id", studentId)
         .eq("is_active", true)
         .order("created_at", { ascending: false })
@@ -77,6 +52,13 @@ export const TrainerAlert = ({ coachName }: { coachName?: string | null }) => {
       }
 
       const alert = data[0];
+
+      // Já lido (marcado no servidor) — não mostra de novo, em nenhum aparelho.
+      if (alert.read_at) {
+        setAlertData(null);
+        return;
+      }
+
       const today = new Date();
       const todayString = today.toISOString().split("T")[0];
       const currentDay = today.getDay();
@@ -106,14 +88,7 @@ export const TrainerAlert = ({ coachName }: { coachName?: string | null }) => {
         }
       }
 
-      if (shouldShow) {
-        // Chave única: combina id + created_at para que um novo alerta
-        // do mesmo coach apareça mesmo que o anterior tenha sido dispensado
-        const dismissKey = `trainer_${alert.id}_${alert.created_at ?? alert.target_date ?? ""}`;
-        setAlertData({ dismissKey, message: alert.message });
-      } else {
-        setAlertData(null);
-      }
+      setAlertData(shouldShow ? { id: alert.id, message: alert.message } : null);
     };
 
     fetchAlert();
@@ -137,16 +112,18 @@ export const TrainerAlert = ({ coachName }: { coachName?: string | null }) => {
     };
   }, [studentId]);
 
-  // ─── Dismiss do alerta do coach ────────────────────────────────────────────
-  const handleDismissMessage = () => {
-    if (!alertData || !studentId) return;
-    const updated = [...dismissed, alertData.dismissKey];
-    setDismissed(updated);
-    saveDismissedTrainer(studentId, updated);
+  // ─── Dismiss do alerta do coach — grava no servidor, não no navegador ──────
+  const handleDismissMessage = async () => {
+    if (!alertData || dismissing) return;
+    setDismissing(true);
+    const id = alertData.id;
+    setAlertData(null); // resposta imediata na UI, não espera a rede
+    const { error } = await (supabase as any).rpc("mark_daily_alert_read", { p_alert_id: id });
+    if (error) console.warn("mark_daily_alert_read falhou", error);
+    setDismissing(false);
   };
 
-  const messageVisible =
-    alertData !== null && !dismissed.includes(alertData.dismissKey);
+  const messageVisible = alertData !== null;
 
   if (!messageVisible) return null;
 
