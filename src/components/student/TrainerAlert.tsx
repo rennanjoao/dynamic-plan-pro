@@ -37,8 +37,12 @@ function saveDismissedTrainer(uid: string, keys: string[]) {
 }
 
 // ─── Componente ───────────────────────────────────────────────────────────────
-export const TrainerAlert = () => {
+export const TrainerAlert = ({ coachName }: { coachName?: string | null }) => {
   const { studentId } = useStudentData();
+
+  // Usa o primeiro nome real do coach quando disponível.
+  const firstName = (coachName || "").trim().split(/\s+/)[0] || "";
+  const alertLabel = firstName ? `Mensagem de ${firstName}` : "Mensagem do Treinador";
 
   const [alertData, setAlertData] = useState<{
     dismissKey: string;
@@ -177,7 +181,7 @@ export const TrainerAlert = () => {
               type="button"
               onClick={(e) => { e.stopPropagation(); handleDismissMessage(); }}
               className="absolute top-3 right-3 opacity-60 hover:opacity-100 transition-opacity"
-              aria-label="Fechar mensagem do treinador"
+              aria-label={`Fechar ${alertLabel.toLowerCase()}`}
               style={{ color: "hsl(145, 63%, 49%)" }}
             >
               <X className="w-4 h-4" />
@@ -189,7 +193,7 @@ export const TrainerAlert = () => {
                 className="font-bold tracking-wide mb-1"
                 style={{ color: "hsl(145, 63%, 49%)" }}
               >
-                Mensagem do Treinador
+                {alertLabel}
               </AlertTitle>
               <AlertDescription
                 className="mt-1 text-sm break-words line-clamp-1"
@@ -213,7 +217,7 @@ export const TrainerAlert = () => {
                   className="flex items-center gap-2"
                   style={{ color: "hsl(145, 63%, 42%)" }}
                 >
-                  <Info className="w-4 h-4" /> Mensagem do Treinador
+                  <Info className="w-4 h-4" /> {alertLabel}
                 </DialogTitle>
               </DialogHeader>
               <p className="text-sm whitespace-pre-wrap leading-relaxed break-words">

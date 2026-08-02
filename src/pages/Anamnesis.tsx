@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { uploadToCloudinary, NEURO_SLIDERS } from "@/lib/anamnesisSchema";
 import { notifyCoach } from "@/lib/notifyCoach";
-import { consumeStoredReferral, peekStoredReferral } from "@/lib/referralCapture";
+import { consumeStoredReferral, peekStoredReferral, consumeStoredDirectCoach } from "@/lib/referralCapture";
 import { FotoSlot } from "@/components/shared/FotoSlot";
 import { cn } from "@/lib/utils";
 import { ShieldCheck, ArrowRight } from "lucide-react";
@@ -243,6 +243,17 @@ const Anamnesis = () => {
   // a porta do site mas ela ainda precisaria de um segundo código pra entrar.
   useEffect(() => {
     if (bootstrapping || step !== "code" || loggedUserId) return;
+
+    // 1) Coach vindo do link direto do treinador (/c/:coachId) — já sabemos
+    //    quem é, então entra direto na anamnese sem pedir código.
+    const direct = consumeStoredDirectCoach();
+    if (direct?.coachId) {
+      setCoach({ id: direct.coachId, name: direct.coachName, email: direct.notificationEmail });
+      setStep("form");
+      return;
+    }
+
+    // 2) Caso contrário, segue o fluxo já existente de indicação (?ref=).
     const stored = peekStoredReferral();
     if (!stored?.code) return;
 
