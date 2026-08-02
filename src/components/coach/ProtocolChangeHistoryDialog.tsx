@@ -16,9 +16,9 @@ import {
 } from "@/components/ui/dialog";
 import type { StudentLite, StudentStatus } from "@/hooks/useCoachStudents";
 import {
-import { Private } from "@/components/coach/PrivacyMode";
   Sparkles, Dumbbell, Apple, Pill, ClipboardList, Loader2,
 } from "lucide-react";
+import { Private } from "@/components/coach/PrivacyMode";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
