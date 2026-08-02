@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import CheckinPayloadAnswers from "@/components/coach/CheckinPayloadAnswers";
 import { sb } from "./dashboardUtils";
+import { Private } from "@/components/coach/PrivacyMode";
 
 interface CheckinRow {
   id: string;
@@ -199,7 +200,7 @@ export function CheckinHistoryDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Check-ins — {student?.name ?? "Aluno"}</DialogTitle>
+          <DialogTitle>Check-ins — <Private>{student?.name ?? "Aluno"}</Private></DialogTitle>
         </DialogHeader>
 
         {loading ? (

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { sb } from "./dashboardUtils";
+import { Private } from "@/components/coach/PrivacyMode";
 
 export function StudentFeedbackConfigDialog({
   student, coachId, open, onClose, onSaved,
@@ -66,7 +67,7 @@ export function StudentFeedbackConfigDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Feedback — {student?.name ?? "Aluno"}</DialogTitle>
+          <DialogTitle>Feedback — <Private>{student?.name ?? "Aluno"}</Private></DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">

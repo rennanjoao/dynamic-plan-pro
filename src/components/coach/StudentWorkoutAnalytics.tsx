@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import { Private } from "@/components/coach/PrivacyMode";
 
 /* ── Constantes ─────────────────────────────────────────────────────────────── */
 
@@ -484,7 +485,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
     return (
       <div className="flex items-center justify-center py-16 gap-2 text-white/40">
         <Loader2 className="w-5 h-5 animate-spin" />
-        <span className="text-sm">Carregando dados de {studentName}…</span>
+        <span className="text-sm">Carregando dados de <Private>{studentName}</Private>…</span>
       </div>
     );
   }

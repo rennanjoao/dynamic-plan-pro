@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatCard } from "./dashboardUtils";
+import { Private } from "@/components/coach/PrivacyMode";
 
 export function FinancesTab({ coachId, students }: { coachId: string; students: StudentLite[] }) {
   const { data: finances = [], isLoading } = useCoachFinances(coachId);
@@ -186,7 +187,7 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
 
                 return (
                   <TableRow key={student.id}>
-                    <TableCell className="text-sm font-semibold">{student.name}</TableCell>
+                    <TableCell className="text-sm font-semibold"><Private>{student.name}</Private></TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {student.lastAnamnesis ? formatDatePtBR(student.lastAnamnesis) : "Aguardando"}
                     </TableCell>
