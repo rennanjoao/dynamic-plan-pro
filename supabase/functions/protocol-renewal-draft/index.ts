@@ -269,6 +269,23 @@ Regras:
 - campo "trocar_alimento" e "redistribuir_macro" não têm um valor numérico único (é troca de
   alimento ou reorganização) — nesses dois, itemRef é opcional e valorSugerido pode ser uma
   frase curta e objetiva.
+- APLICAÇÃO PRÁTICA OBRIGATÓRIA: nunca devolva só a meta nova ("subir para 2400 kcal").
+  Sempre que sugerir mudança de meta (categoria "dieta"), traduza a diferença em ajustes
+  concretos de quantidade nos itens que JÁ existem em dietaAtual (categoria "refeicao",
+  campo "quantidade", com itemRef real). A soma dos ajustes deve fechar, aproximadamente,
+  a diferença proposta na meta — explique no "motivo" quanto cada ajuste representa
+  (ex: "+50 kcal: arroz 100g -> 120g").
+- MENOR INTERVENÇÃO POSSÍVEL: escolha o menor número de refeições capaz de fechar a
+  diferença (de preferência UMA, normalmente a de maior adesão ou a mais próxima do
+  treino). Não redistribua a dieta inteira, não recrie refeições, não remova alimentos,
+  não mude horários sem motivo e não altere refeições que não precisam mudar.
+- EQUIVALÊNCIAS SINCRONIZADAS: quando ajustar um item de uma refeição, ajuste
+  proporcionalmente o item correspondente de TODAS as outras opções equivalentes daquela
+  mesma refeição (cada optionKey da refeição), para que as opções continuem equivalentes
+  entre si. Cada opção ajustada é uma sugestão própria, com seu optionKey e itemRef.
+- Ao propor nova meta, use uma sugestão categoria "dieta" por macro alterado
+  (calories/protein/carbs/fat), com valorAtual e valorSugerido numéricos, e justifique em
+  uma frase. Mantenha inalterados os macros que não precisam mudar.
 - estrategiaDoCoach lista a estratégia alimentar que ele já usa (ex: jejum,
   low carb). NUNCA proponha algo que contrarie essa estratégia; se propuser
   algo próximo do limite, explique no "motivo".
