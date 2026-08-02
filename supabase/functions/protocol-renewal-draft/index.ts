@@ -10,7 +10,7 @@ const ACOES = [
   "nenhuma_alteracao", "orientar_coach", "investigar_antes", "recomendar_exame",
   "reduzir_carga_treino", "acompanhar_mais_um_ciclo", "ajustar",
 ] as const;
-const MAX_SUGESTOES = 10;
+const MAX_SUGESTOES = 16;
 
 // Mesma normalização de identidade de src/lib/protocolChangeDetector.ts
 const sTrim = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
