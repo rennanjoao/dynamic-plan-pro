@@ -67,3 +67,50 @@ export function consumeStoredReferral(): StoredReferral | null {
   try { localStorage.removeItem(STORAGE_KEY); } catch { /* noop */ }
   return data;
 }
+
+// ─── Coach direto (link /c/:coachId) ─────────────────────────────────────────
+// Mesmo padrão do referral: captura na landing do convite e consome no
+// cadastro (Anamnesis.tsx), evitando pedir o código do treinador a quem já
+// chegou por um link identificado.
+
+const DIRECT_COACH_KEY = "epx_direct_coach";
+
+interface StoredDirectCoach {
+  coachId: string;
+  coachName: string;
+  notificationEmail: string | null;
+  capturedAt: number;
+}
+
+export function storeDirectCoach(
+  coachId: string,
+  coachName: string,
+  notificationEmail: string | null,
+): void {
+  try {
+    const payload: StoredDirectCoach = {
+      coachId,
+      coachName: coachName || "Seu Treinador",
+      notificationEmail: notificationEmail ?? null,
+      capturedAt: Date.now(),
+    };
+    localStorage.setItem(DIRECT_COACH_KEY, JSON.stringify(payload));
+  } catch {
+    /* localStorage bloqueado — não é crítico */
+  }
+}
+
+/** Lê o coach armazenado e APAGA em seguida — usar só no momento da conversão. */
+export function consumeStoredDirectCoach(): StoredDirectCoach | null {
+  try {
+    const raw = localStorage.getItem(DIRECT_COACH_KEY);
+    localStorage.removeItem(DIRECT_COACH_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredDirectCoach;
+    const ageDays = (Date.now() - parsed.capturedAt) / (1000 * 60 * 60 * 24);
+    if (!parsed.coachId || ageDays > TTL_DAYS) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
