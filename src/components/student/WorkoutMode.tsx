@@ -918,8 +918,55 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
       </div>
 
       {/* Drawer de Exercícios */}
+      <Dialog open={showSwap} onOpenChange={setShowSwap}>
+        <DialogContent className="max-w-md bg-neutral-950 border-white/10 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-black italic uppercase">Trocar exercício</DialogTitle>
+          </DialogHeader>
+          <p className="text-[11px] text-white/60 -mt-2">
+            {swapGroup
+              ? `Alternativas de ${MUSCLE_GROUP_LABELS[swapGroup]} — o estímulo prescrito é mantido.`
+              : "Não identificamos o grupo muscular deste exercício."}
+          </p>
+          <div className="max-h-[50vh] overflow-y-auto space-y-1.5 mt-2">
+            {swapLoading ? (
+              <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+            ) : swapOptions.length === 0 ? (
+              <p className="text-xs text-white/50 py-6 text-center">Nenhuma alternativa disponível na biblioteca.</p>
+            ) : (
+              swapOptions.map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => {
+                    setSwapMap((prev) => ({ ...prev, [currentExKey]: { name: opt.displayName, gifKey: opt.key } }));
+                    setShowSwap(false);
+                    toast.success(`Exercício trocado por ${opt.displayName}`);
+                  }}
+                  className="w-full flex items-center gap-3 p-2 rounded-xl border border-white/10 hover:border-primary/60 text-left"
+                >
+                  <img src={opt.url} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" loading="lazy" />
+                  <span className="text-sm font-bold">{opt.displayName}</span>
+                </button>
+              ))
+            )}
+          </div>
+          {swapMap[currentExKey] && (
+            <Button
+              variant="ghost"
+              className="w-full text-xs"
+              onClick={() => {
+                setSwapMap((prev) => { const n = { ...prev }; delete n[currentExKey]; return n; });
+                setShowSwap(false);
+              }}
+            >
+              Voltar ao exercício original
+            </Button>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showExList} onOpenChange={setShowExList}>
-        {null}
         <DialogContent className="max-w-md bg-black border-white/10 p-0 overflow-hidden rounded-t-3xl sm:rounded-3xl">
           <DialogHeader className="p-6 border-b border-white/5"><DialogTitle className="text-xl font-black italic uppercase">Mapa do Treino</DialogTitle></DialogHeader>
           <div className="max-h-[60vh] overflow-y-auto p-4 space-y-2">
