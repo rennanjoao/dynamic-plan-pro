@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Bell, Trash2, Check, Loader2, Inbox, Reply, Send, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { formatDateTimePtBR } from "@/lib/formatDate";
+import { Private, usePrivacyMode } from "@/components/coach/PrivacyMode";
 
 interface Notification {
   id: string;
@@ -40,6 +41,9 @@ function fmtWhen(iso: string) {
 
 export default function CoachNotificationBell() {
   const [coachId, setCoachId] = useState<string | null>(null);
+  const { privacy } = usePrivacyMode();
+  const privacyRef = useRef(privacy);
+  useEffect(() => { privacyRef.current = privacy; }, [privacy]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
@@ -113,12 +117,15 @@ export default function CoachNotificationBell() {
           (payload) => {
             const n = payload.new as Notification;
             setNotifications((prev) => [n, ...prev]);
+            const who = privacyRef.current ? "Aluno" : n.student_name;
             const title =
-              n.context === "Anamnese" ? `📋 ${n.student_name} enviou uma anamnese`
-              : n.context === "Check-in" ? `✅ ${n.student_name} enviou um check-in`
-              : `Nova dúvida de ${n.student_name}`;
+              n.context === "Anamnese" ? `📋 ${who} enviou uma anamnese`
+              : n.context === "Check-in" ? `✅ ${who} enviou um check-in`
+              : `Nova dúvida de ${who}`;
             toast(title, {
-              description: `${n.context}: "${n.message.substring(0, 60)}${n.message.length > 60 ? "…" : ""}"`,
+              description: privacyRef.current
+                ? `${n.context}: mensagem oculta (Modo Privacidade)`
+                : `${n.context}: "${n.message.substring(0, 60)}${n.message.length > 60 ? "…" : ""}"`,
               icon: <Bell className="w-4 h-4 text-primary" />,
               duration: 6000,
               action: { label: "Ver", onClick: () => setOpen(true) },
@@ -146,7 +153,7 @@ export default function CoachNotificationBell() {
                 .select("full_name")
                 .eq("user_id", studentId)
                 .maybeSingle();
-              const nome = prof?.full_name ?? "Aluno";
+              const nome = privacyRef.current ? "Aluno" : (prof?.full_name ?? "Aluno");
               toast(`✅ ${nome} enviou um check-in!`, {
                 description: `Check-in · Recebido em ${formatDateTimePtBR(new Date())}`,
                 duration: 8000,
@@ -276,7 +283,7 @@ export default function CoachNotificationBell() {
                 className="rounded-lg border border-border bg-card p-3 space-y-2"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-semibold text-sm text-foreground truncate">{n.student_name}</span>
+                  <Private className="font-semibold text-sm text-foreground truncate">{n.student_name}</Private>
                   <Badge variant="outline" className={`text-[10px] ${contextBadgeColor(n.context)}`}>
                     {n.context}
                   </Badge>
