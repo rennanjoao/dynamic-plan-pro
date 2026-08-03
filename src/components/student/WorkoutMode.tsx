@@ -325,8 +325,29 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   }, [userId, day?.key]);
 
   useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify({ activeWeek, completed, setDataMap, sessionId: session.sessionId, startedAt, restBaseSec, restSegStartedAt }));
-  }, [activeWeek, completed, setDataMap, session.sessionId, startedAt, restBaseSec, restSegStartedAt]);
+    localStorage.setItem(storageKey, JSON.stringify({ activeWeek, completed, setDataMap, swapMap, sessionId: session.sessionId, startedAt, restBaseSec, restSegStartedAt }));
+  }, [activeWeek, completed, setDataMap, swapMap, session.sessionId, startedAt, restBaseSec, restSegStartedAt]);
+
+  /** Abre o seletor de troca, resolvendo o grupo muscular do exercício atual. */
+  const openSwapDialog = useCallback(async () => {
+    setShowSwap(true);
+    setSwapLoading(true);
+    try {
+      const entry = await getLibraryEntry(currentEx?.name, currentEx?.gifKey);
+      const group =
+        entry?.primaryMuscleGroup ??
+        classifyExerciseByName(currentEx?.name ?? "").primary ??
+        null;
+      setSwapGroup(group);
+      setSwapOptions(group ? await listExercisesByMuscleGroup(group, entry?.key ?? null) : []);
+    } catch {
+      setSwapGroup(null);
+      setSwapOptions([]);
+    } finally {
+      setSwapLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentEx?.name, currentEx?.gifKey]);
 
   // Pré-carrega o melhor histórico de cada exercício do dia — 1 query só,
   // usada para saber em tempo real se a série atual é um Recorde Pessoal.
