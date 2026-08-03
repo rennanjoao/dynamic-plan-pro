@@ -22,6 +22,8 @@ import {
   Play,
   Maximize2,
   ListTodo,
+  Repeat,
+  Loader2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -38,6 +40,12 @@ import { effortLabel, toExerciseKey } from "@/lib/workoutTypes";
 import { useExerciseGif } from "@/hooks/useExerciseGif";
 import { CompactWeekSelector } from "./CompactWeekSelector";
 import { DEFAULT_WEEKS, parseRepsMin, parseRepsMax } from "@/lib/periodizationDefaults";
+import {
+  getLibraryEntry,
+  listExercisesByMuscleGroup,
+  type LibraryEntry,
+} from "@/lib/exerciseLibrary";
+import { classifyExerciseByName, MUSCLE_GROUP_LABELS, type MuscleGroup } from "@/lib/muscleGroupClassifier";
 
 /* ── Constantes ─────────────────────────────────────────────────────────────── */
 const GOLD = "#C9A84C";
@@ -155,6 +163,13 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const [showShare, setShowShare] = useState(false);
   const [showGifDialog, setShowGifDialog] = useState(false);
   const [showExList, setShowExList] = useState(false);
+  // Troca de exercício (aparelho ocupado): mantém o estímulo prescrito trocando
+  // apenas o movimento por outro do mesmo grupo muscular. Escopo: sessão atual.
+  const [swapMap, setSwapMap] = useState<Record<string, { name: string; gifKey?: string }>>(_saved?.swapMap ?? {});
+  const [showSwap, setShowSwap] = useState(false);
+  const [swapLoading, setSwapLoading] = useState(false);
+  const [swapGroup, setSwapGroup] = useState<MuscleGroup | null>(null);
+  const [swapOptions, setSwapOptions] = useState<LibraryEntry[]>([]);
 
   // ── Retenção comportamental: histórico p/ detecção de PR, streak real e overlay ──
   const [historyMap, setHistoryMap] = useState<Record<string, ExerciseHistory[]>>({});
@@ -174,6 +189,9 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     const override = periodization?.overrides?.[String(activeWeek)]?.[`${day!.key}_${idx}`] ?? {};
     const wm = weeks[activeWeek];
     return { ...ex, sets: override.sets ?? wm.sets ?? ex.sets, reps: override.reps ?? wm.reps ?? ex.reps, rest: override.rest ?? wm.rest ?? ex.rest };
+  }).map((ex: any, idx: number) => {
+    const sw = swapMap[`${day?.key}::${idx}`];
+    return sw ? { ...ex, name: sw.name, gifKey: sw.gifKey, swappedFrom: (day?.exercises ?? [])[idx]?.name } : ex;
   });
 
   const currentEx = exercises[currentExIdx];
