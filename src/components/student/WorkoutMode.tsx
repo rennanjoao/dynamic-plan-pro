@@ -919,6 +919,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
 
       {/* Drawer de Exercícios */}
       <Dialog open={showExList} onOpenChange={setShowExList}>
+        {null}
         <DialogContent className="max-w-md bg-black border-white/10 p-0 overflow-hidden rounded-t-3xl sm:rounded-3xl">
           <DialogHeader className="p-6 border-b border-white/5"><DialogTitle className="text-xl font-black italic uppercase">Mapa do Treino</DialogTitle></DialogHeader>
           <div className="max-h-[60vh] overflow-y-auto p-4 space-y-2">
