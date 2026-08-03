@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, AlertTriangle, Activity, Info, History, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -55,6 +55,7 @@ const WORKOUT_MODE_UI_KEY = (uid: string) => `workout_mode_ui_${uid}`;
 
 export default function WorkoutPlan() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const userId = useAuthUserId({ redirectTo: "/auth" });
   const [showWorkoutMode, setShowWorkoutMode] = useState(false);
   const [workoutModeDay, setWorkoutModeDay] = useState<string | undefined>(undefined);
@@ -63,6 +64,18 @@ export default function WorkoutPlan() {
   const queryClient = useQueryClient();
   useWakeLock(showWorkoutMode);
   useHighlightTarget();
+
+  // Entrada em 1 toque a partir da Home: /workout-plan?start=<dayKey>
+  useEffect(() => {
+    const startKey = searchParams.get("start");
+    if (!startKey) return;
+    setWorkoutModeDay(startKey);
+    setShowWorkoutMode(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("start");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // ── Resiliência ao Reload (F5): restaura o Modo Treino aberto ──────────────
   // Sem isto, recarregar a página durante um treino em curso derruba o aluno
