@@ -443,7 +443,7 @@ export default function CheckinFeedbackPanel(props: Props) {
                     {(["frente","lateral_dir","lateral_esq","costas"] as const).map((k) =>
                       fotos[k] ? (
                         <div key={k} className="aspect-[3/4] rounded-md overflow-hidden border border-border/50">
-                          <img src={fotos[k]} alt={k} className="w-full h-full object-cover" />
+                          <PrivateImg src={fotos[k]} alt={k} className="w-full h-full object-cover" />
                         </div>
                       ) : null
                     )}

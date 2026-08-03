@@ -70,7 +70,7 @@ export default function CheckinPayloadAnswers({
                 onClick={() => setLightbox(url!)}
                 className="rounded-lg overflow-hidden border border-border bg-black/40 aspect-[3/4] relative group"
               >
-                <img src={url!} alt={POSE_LABEL[key]} className="w-full h-full object-cover" loading="lazy" />
+                <PrivateImg src={url!} alt={POSE_LABEL[key]} className="w-full h-full object-cover" loading="lazy" />
                 <span className="absolute bottom-0 left-0 right-0 text-[10px] bg-black/60 text-white py-0.5 text-center">
                   {POSE_LABEL[key]}
                 </span>
@@ -122,7 +122,7 @@ export default function CheckinPayloadAnswers({
           className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 cursor-zoom-out"
           onClick={() => setLightbox(null)}
         >
-          <img src={lightbox} alt="Foto" className="max-w-full max-h-full object-contain" />
+          <PrivateImg src={lightbox} alt="Foto" className="max-w-full max-h-full object-contain" />
         </div>
       )}
     </div>
