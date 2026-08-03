@@ -1,3 +1,42 @@
+/**
+ * DietTab.tsx — aba "Dieta" do ProtocolBuilder.
+ * Extraído de ProtocolBuilder.tsx sem alteração de comportamento.
+ */
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import {
+  Plus, Trash2, ChevronDown, Copy, BookmarkPlus, Library, UtensilsCrossed, Pill,
+  ArrowUp, ArrowDown, Eye, AlertCircle, Sparkles, CheckCircle2, Loader2,
+} from "lucide-react";
+import { loadCoachProfile } from "@/lib/prescriptionMemory";
+import {
+  ProtocolPayload, makeEmptyMeal, MEAL_NAME_PRESETS, SUPPLEMENT_OBJECTIVES,
+} from "@/lib/protocolSchema";
+import { DAY_KEYS } from "@/lib/weekCycle";
+import {
+  calcMealMacros, calcDayMacros, tacoGroupToKind, parseWeightString,
+  optionMacros, compareOptions, type SubstitutionSeverity,
+} from "@/lib/macroCalc";
+import { searchFoods, type FoodHit } from "@/lib/foodSearch";
+import { TACO_FOODS } from "@/data/tacoFoods";
+
+const TACO_DATA = TACO_FOODS.map((t, i) => ({ ...t, id: String(i), cookFactor: t.cookFactor ?? 1 }));
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const sb: any = supabase;
+
 
 // ─── DietTab ─────────────────────────────────────────────────────────────────
 

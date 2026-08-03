@@ -1,3 +1,31 @@
+/**
+ * WorkoutsTab.tsx — aba "Treinos" do ProtocolBuilder.
+ * Extraído de ProtocolBuilder.tsx sem alteração de comportamento.
+ */
+import React, { useEffect, useState } from "react";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import {
+  Plus, Trash2, ArrowUp, ArrowDown, ChevronDown, CheckCircle2, GripVertical, Activity,
+} from "lucide-react";
+import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
+import WorkoutPeriodizationEditor from "../WorkoutPeriodizationEditor";
+import { ProtocolPayload, makeEmptyExercise } from "@/lib/protocolSchema";
+import { normalizeCarb, cycleCarb, CARB_LABEL, DAY_KEYS } from "@/lib/weekCycle";
+import {
+  DndContext, closestCenter, PointerSensor, KeyboardSensor,
+  useSensor, useSensors, type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, sortableKeyboardCoordinates,
+  useSortable, verticalListSortingStrategy, arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
 // ─── WorkoutsTab ─────────────────────────────────────────────────────────────
 
 // Linha sortable para drag-and-drop de exercícios. Aplica transform no
