@@ -727,6 +727,16 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                 <div className="flex-1">
                   <h2 className="text-xl font-black leading-tight uppercase italic">{currentEx.name}</h2>
                   <p className="text-[11px] text-white/60 font-bold uppercase tracking-[0.2em] mt-1">{currentEx.sets} · {currentEx.reps} · {currentEx.rest}</p>
+                  {currentEx.swappedFrom && (
+                    <p className="text-[10px] text-amber-400 mt-1">Substituindo: {currentEx.swappedFrom}</p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={openSwapDialog}
+                    className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-white/70 hover:text-white border border-white/10 rounded-full px-2.5 py-1"
+                  >
+                    <Repeat className="w-3 h-3" /> Trocar exercício
+                  </button>
                 </div>
               </div>
               <div className="flex gap-2">
