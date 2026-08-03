@@ -61,6 +61,17 @@ export function Private({
 }
 
 /** Texto pessoal usado onde não é possível renderizar um elemento (títulos de exportação, etc). */
+export function PrivateImg({ className = "", ...rest }: React.ImgHTMLAttributes<HTMLImageElement>) {
+  const { privacy } = usePrivacyMode();
+  return (
+    <img
+      {...rest}
+      className={`${className} ${privacy ? "blur-xl select-none pointer-events-none" : ""}`.trim()}
+    />
+  );
+}
+
+/** Texto pessoal usado onde não é possível renderizar um elemento (títulos de exportação, etc). */
 export function usePrivateText() {
   const { privacy } = usePrivacyMode();
   return useCallback((value?: string | null) => (privacy ? "Aluno" : value ?? ""), [privacy]);
