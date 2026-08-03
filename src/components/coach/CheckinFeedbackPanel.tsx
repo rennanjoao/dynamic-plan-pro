@@ -33,7 +33,7 @@ import CheckinPayloadAnswers from "@/components/coach/CheckinPayloadAnswers";
 import CheckinFullEditor from "@/components/coach/CheckinFullEditor";
 import { CheckinHistoryDialog } from "@/components/coach/dashboard/CheckinHistoryDialog";
 import { AlertBadge, WeightTrendBadge } from "@/components/coach/dashboard/dashboardUtils";
-import { Private } from "@/components/coach/PrivacyMode";
+import { Private, PrivateImg } from "@/components/coach/PrivacyMode";
 
 const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
 
@@ -443,7 +443,7 @@ export default function CheckinFeedbackPanel(props: Props) {
                     {(["frente","lateral_dir","lateral_esq","costas"] as const).map((k) =>
                       fotos[k] ? (
                         <div key={k} className="aspect-[3/4] rounded-md overflow-hidden border border-border/50">
-                          <img src={fotos[k]} alt={k} className="w-full h-full object-cover" />
+                          <PrivateImg src={fotos[k]} alt={k} className="w-full h-full object-cover" />
                         </div>
                       ) : null
                     )}

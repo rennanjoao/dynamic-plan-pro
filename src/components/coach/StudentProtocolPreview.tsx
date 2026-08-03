@@ -11,6 +11,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Activity, Dumbbell, UtensilsCrossed, FileText, BarChart3, Calendar } from "lucide-react";
 import type { ProtocolPayload } from "@/lib/protocolSchema";
 import { WEEKDAYS } from "@/lib/protocolSchema";
+import { Private } from "@/components/coach/PrivacyMode";
 
 export type PreviewSection = "macros" | "guidelines" | "workouts" | "diet" | "cycle";
 
@@ -44,7 +45,8 @@ export default function StudentProtocolPreview({ open, onClose, payload, student
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <HeaderIcon className="w-5 h-5 text-primary" />
-            Visão do Aluno — {meta.title}{studentName ? ` · ${studentName}` : ""}
+            Visão do Aluno — {meta.title}
+            {studentName ? <> · <Private>{studentName}</Private></> : null}
           </SheetTitle>
           <SheetDescription className="text-xs">
             Preview em tempo real. Salve o protocolo para publicar.

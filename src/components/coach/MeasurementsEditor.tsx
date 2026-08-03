@@ -16,6 +16,7 @@ import { Loader2, Save, Upload } from "lucide-react";
 import { BASELINE_KEYS, uploadToCloudinary } from "@/lib/anamnesisSchema";
 import { estimateBF } from "@/lib/bfEstimate";
 import BFDisplay from "@/components/shared/BFDisplay";
+import { PrivateImg } from "@/components/coach/PrivacyMode";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -225,7 +226,7 @@ export default function MeasurementsEditor({ open, onOpenChange, studentId, targ
                   <label key={s.key} className="block cursor-pointer space-y-1">
                     <div className="aspect-[3/4] rounded-lg border border-border bg-muted/20 overflow-hidden flex items-center justify-center relative">
                       {fotos[s.key] ? (
-                        <img src={fotos[s.key]} alt={s.label} className="w-full h-full object-cover" />
+                        <PrivateImg src={fotos[s.key]} alt={s.label} className="w-full h-full object-cover" />
                       ) : (
                         <Upload className="w-5 h-5 text-muted-foreground" />
                       )}

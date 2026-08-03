@@ -22,6 +22,8 @@ import {
   Play,
   Maximize2,
   ListTodo,
+  Repeat,
+  Loader2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -38,6 +40,12 @@ import { effortLabel, toExerciseKey } from "@/lib/workoutTypes";
 import { useExerciseGif } from "@/hooks/useExerciseGif";
 import { CompactWeekSelector } from "./CompactWeekSelector";
 import { DEFAULT_WEEKS, parseRepsMin, parseRepsMax } from "@/lib/periodizationDefaults";
+import {
+  getLibraryEntry,
+  listExercisesByMuscleGroup,
+  type LibraryEntry,
+} from "@/lib/exerciseLibrary";
+import { classifyExerciseByName, MUSCLE_GROUP_LABELS, type MuscleGroup } from "@/lib/muscleGroupClassifier";
 
 /* ── Constantes ─────────────────────────────────────────────────────────────── */
 const GOLD = "#C9A84C";
@@ -155,6 +163,13 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const [showShare, setShowShare] = useState(false);
   const [showGifDialog, setShowGifDialog] = useState(false);
   const [showExList, setShowExList] = useState(false);
+  // Troca de exercício (aparelho ocupado): mantém o estímulo prescrito trocando
+  // apenas o movimento por outro do mesmo grupo muscular. Escopo: sessão atual.
+  const [swapMap, setSwapMap] = useState<Record<string, { name: string; gifKey?: string }>>(_saved?.swapMap ?? {});
+  const [showSwap, setShowSwap] = useState(false);
+  const [swapLoading, setSwapLoading] = useState(false);
+  const [swapGroup, setSwapGroup] = useState<MuscleGroup | null>(null);
+  const [swapOptions, setSwapOptions] = useState<LibraryEntry[]>([]);
 
   // ── Retenção comportamental: histórico p/ detecção de PR, streak real e overlay ──
   const [historyMap, setHistoryMap] = useState<Record<string, ExerciseHistory[]>>({});
@@ -174,6 +189,9 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     const override = periodization?.overrides?.[String(activeWeek)]?.[`${day!.key}_${idx}`] ?? {};
     const wm = weeks[activeWeek];
     return { ...ex, sets: override.sets ?? wm.sets ?? ex.sets, reps: override.reps ?? wm.reps ?? ex.reps, rest: override.rest ?? wm.rest ?? ex.rest };
+  }).map((ex: any, idx: number) => {
+    const sw = swapMap[`${day?.key}::${idx}`];
+    return sw ? { ...ex, name: sw.name, gifKey: sw.gifKey, swappedFrom: (day?.exercises ?? [])[idx]?.name } : ex;
   });
 
   const currentEx = exercises[currentExIdx];
@@ -307,8 +325,29 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   }, [userId, day?.key]);
 
   useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify({ activeWeek, completed, setDataMap, sessionId: session.sessionId, startedAt, restBaseSec, restSegStartedAt }));
-  }, [activeWeek, completed, setDataMap, session.sessionId, startedAt, restBaseSec, restSegStartedAt]);
+    localStorage.setItem(storageKey, JSON.stringify({ activeWeek, completed, setDataMap, swapMap, sessionId: session.sessionId, startedAt, restBaseSec, restSegStartedAt }));
+  }, [activeWeek, completed, setDataMap, swapMap, session.sessionId, startedAt, restBaseSec, restSegStartedAt]);
+
+  /** Abre o seletor de troca, resolvendo o grupo muscular do exercício atual. */
+  const openSwapDialog = useCallback(async () => {
+    setShowSwap(true);
+    setSwapLoading(true);
+    try {
+      const entry = await getLibraryEntry(currentEx?.name, currentEx?.gifKey);
+      const group =
+        entry?.primaryMuscleGroup ??
+        classifyExerciseByName(currentEx?.name ?? "").primary ??
+        null;
+      setSwapGroup(group);
+      setSwapOptions(group ? await listExercisesByMuscleGroup(group, entry?.key ?? null) : []);
+    } catch {
+      setSwapGroup(null);
+      setSwapOptions([]);
+    } finally {
+      setSwapLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentEx?.name, currentEx?.gifKey]);
 
   // Pré-carrega o melhor histórico de cada exercício do dia — 1 query só,
   // usada para saber em tempo real se a série atual é um Recorde Pessoal.
@@ -688,6 +727,16 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                 <div className="flex-1">
                   <h2 className="text-xl font-black leading-tight uppercase italic">{currentEx.name}</h2>
                   <p className="text-[11px] text-white/60 font-bold uppercase tracking-[0.2em] mt-1">{currentEx.sets} · {currentEx.reps} · {currentEx.rest}</p>
+                  {currentEx.swappedFrom && (
+                    <p className="text-[10px] text-amber-400 mt-1">Substituindo: {currentEx.swappedFrom}</p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={openSwapDialog}
+                    className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-white/70 hover:text-white border border-white/10 rounded-full px-2.5 py-1"
+                  >
+                    <Repeat className="w-3 h-3" /> Trocar exercício
+                  </button>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -869,6 +918,54 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
       </div>
 
       {/* Drawer de Exercícios */}
+      <Dialog open={showSwap} onOpenChange={setShowSwap}>
+        <DialogContent className="max-w-md bg-neutral-950 border-white/10 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-black italic uppercase">Trocar exercício</DialogTitle>
+          </DialogHeader>
+          <p className="text-[11px] text-white/60 -mt-2">
+            {swapGroup
+              ? `Alternativas de ${MUSCLE_GROUP_LABELS[swapGroup]} — o estímulo prescrito é mantido.`
+              : "Não identificamos o grupo muscular deste exercício."}
+          </p>
+          <div className="max-h-[50vh] overflow-y-auto space-y-1.5 mt-2">
+            {swapLoading ? (
+              <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+            ) : swapOptions.length === 0 ? (
+              <p className="text-xs text-white/50 py-6 text-center">Nenhuma alternativa disponível na biblioteca.</p>
+            ) : (
+              swapOptions.map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => {
+                    setSwapMap((prev) => ({ ...prev, [currentExKey]: { name: opt.displayName, gifKey: opt.key } }));
+                    setShowSwap(false);
+                    toast.success(`Exercício trocado por ${opt.displayName}`);
+                  }}
+                  className="w-full flex items-center gap-3 p-2 rounded-xl border border-white/10 hover:border-primary/60 text-left"
+                >
+                  <img src={opt.url} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" loading="lazy" />
+                  <span className="text-sm font-bold">{opt.displayName}</span>
+                </button>
+              ))
+            )}
+          </div>
+          {swapMap[currentExKey] && (
+            <Button
+              variant="ghost"
+              className="w-full text-xs"
+              onClick={() => {
+                setSwapMap((prev) => { const n = { ...prev }; delete n[currentExKey]; return n; });
+                setShowSwap(false);
+              }}
+            >
+              Voltar ao exercício original
+            </Button>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showExList} onOpenChange={setShowExList}>
         <DialogContent className="max-w-md bg-black border-white/10 p-0 overflow-hidden rounded-t-3xl sm:rounded-3xl">
           <DialogHeader className="p-6 border-b border-white/5"><DialogTitle className="text-xl font-black italic uppercase">Mapa do Treino</DialogTitle></DialogHeader>

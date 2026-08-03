@@ -617,7 +617,20 @@ export default function StudentArea() {
 
         {/* Hoje: plano do dia (determinístico, do weekDays) + recado da IA (cacheado 1x/dia) */}
         {userId && (todayPlanLoading || todayPlan) && (
-          <Card className="border-primary/20 bg-primary/5">
+          <Card
+            className={`border-primary/20 bg-primary/5 ${todayPlan?.tipo === "treino" ? "cursor-pointer hover:bg-primary/10 transition-colors" : ""}`}
+            role={todayPlan?.tipo === "treino" ? "button" : undefined}
+            tabIndex={todayPlan?.tipo === "treino" ? 0 : undefined}
+            onClick={() => {
+              if (todayPlan?.tipo === "treino") navigate(`/workout-plan?start=${encodeURIComponent(todayPlan.letra)}`);
+            }}
+            onKeyDown={(e) => {
+              if (todayPlan?.tipo === "treino" && (e.key === "Enter" || e.key === " ")) {
+                e.preventDefault();
+                navigate(`/workout-plan?start=${encodeURIComponent(todayPlan.letra)}`);
+              }
+            }}
+          >
             <CardContent className="p-4 flex items-start gap-3">
               {todayPlanLoading ? (
                 <Skeleton className="w-9 h-9 rounded-full shrink-0" />
@@ -642,6 +655,9 @@ export default function StudentArea() {
                 )}
                 {dailyNudge && (
                   <p className="text-xs text-muted-foreground mt-1">{dailyNudge}</p>
+                )}
+                {todayPlan?.tipo === "treino" && (
+                  <p className="text-[11px] font-semibold text-primary mt-1">Toque para iniciar o treino</p>
                 )}
               </div>
             </CardContent>

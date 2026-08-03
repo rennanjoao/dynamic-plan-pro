@@ -5,6 +5,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { PrivateImg } from "@/components/coach/PrivacyMode";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -268,7 +269,7 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
                   <label key={s.key} className="block cursor-pointer space-y-1">
                     <div className="aspect-[3/4] rounded-lg border border-border bg-muted/20 overflow-hidden flex items-center justify-center relative">
                       {fotos[s.key] ? (
-                        <img src={fotos[s.key]} alt={s.label} className="w-full h-full object-cover" />
+                        <PrivateImg src={fotos[s.key]} alt={s.label} className="w-full h-full object-cover" />
                       ) : (
                         <Upload className="w-5 h-5 text-muted-foreground" />
                       )}

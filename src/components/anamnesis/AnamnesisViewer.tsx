@@ -20,7 +20,7 @@ import { FileDown, Loader2, ImageIcon, Pencil, Save, X, UploadCloud } from "luci
 import MeasurementsEditor from "@/components/coach/MeasurementsEditor";
 import CheckinFullEditor from "@/components/coach/CheckinFullEditor";
 import { exportAnamnesisPDF } from "@/lib/coachPdfExport";
-import { Private } from "@/components/coach/PrivacyMode";
+import { Private, PrivateImg } from "@/components/coach/PrivacyMode";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -323,7 +323,7 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
                       </div>
                     ) : currentUrl ? (
                       <>
-                        <img src={currentUrl} alt={p.label} className="absolute inset-0 w-full h-full object-cover group-hover:opacity-40 transition-opacity" />
+                        <PrivateImg src={currentUrl} alt={p.label} className="absolute inset-0 w-full h-full object-cover group-hover:opacity-40 transition-opacity" />
                         <div className="z-10 bg-background/90 p-2 rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity">
                           <Pencil className="w-5 h-5 text-primary" />
                         </div>
@@ -423,7 +423,7 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
                         onClick={() => setZoomPhoto({ url: fotos[p.key], label: `Anamnese — ${p.label}` })}
                         className="block w-full overflow-hidden rounded-lg border border-border hover:border-primary transition-colors"
                       >
-                        <img src={fotos[p.key]} alt={p.label} loading="lazy" className="w-full aspect-[3/4] object-cover" />
+                        <PrivateImg src={fotos[p.key]} alt={p.label} loading="lazy" className="w-full aspect-[3/4] object-cover" />
                       </button>
                     ) : (
                       <div className="w-full aspect-[3/4] rounded-lg border border-dashed border-border bg-muted/30 flex items-center justify-center text-[10px] text-muted-foreground">
@@ -466,7 +466,7 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
                           onClick={() => setZoomPhoto({ url: lastCheckin.fotos[p.key], label: `Check-in — ${p.label}` })}
                           className="block w-full overflow-hidden rounded-lg border border-border hover:border-primary transition-colors"
                         >
-                          <img src={lastCheckin.fotos[p.key]} alt={p.label} loading="lazy" className="w-full aspect-[3/4] object-cover" />
+                          <PrivateImg src={lastCheckin.fotos[p.key]} alt={p.label} loading="lazy" className="w-full aspect-[3/4] object-cover" />
                         </button>
                       ) : (
                         <div className="w-full aspect-[3/4] rounded-lg border border-dashed border-border bg-muted/30 flex items-center justify-center text-[10px] text-muted-foreground">

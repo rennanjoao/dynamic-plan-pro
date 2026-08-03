@@ -18,6 +18,7 @@ import { Loader2, TrendingDown, TrendingUp, Minus, FileText, ArrowLeft, ZoomIn }
 import { CHECKIN_METRICS, colorForDelta } from "@/lib/checkInSchema";
 import { estimateBF } from "@/lib/bfEstimate";
 import CheckinPayloadAnswers from "@/components/coach/CheckinPayloadAnswers";
+import { PrivateImg } from "@/components/coach/PrivacyMode";
 import { formatDatePtBR } from "@/lib/formatDate";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -220,7 +221,7 @@ export default function EvolutionComparison({
               {POSE_KEYS.map((k) => fb.fotos[k] ? (
                 <div key={k} className="aspect-[3/4] rounded-md overflow-hidden border border-border/50 cursor-zoom-in"
                      onClick={() => setZoomedImage(fb.fotos[k])}>
-                  <img src={fb.fotos[k]} alt={POSE_LABEL[k]} className="w-full h-full object-cover" />
+                  <PrivateImg src={fb.fotos[k]} alt={POSE_LABEL[k]} className="w-full h-full object-cover" />
                 </div>
               ) : null)}
             </div>
@@ -253,7 +254,7 @@ export default function EvolutionComparison({
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 cursor-zoom-out backdrop-blur-sm"
             onClick={() => setZoomedImage(null)}
           >
-            <img src={zoomedImage} alt="Zoom" className="max-w-full max-h-full object-contain rounded-md shadow-2xl" />
+            <PrivateImg src={zoomedImage} alt="Zoom" className="max-w-full max-h-full object-contain rounded-md shadow-2xl" />
           </div>
         )}
       </div>
@@ -363,7 +364,7 @@ export default function EvolutionComparison({
                       onClick={() => point.fotos[k] && setZoomedImage(point.fotos[k])}
                     >
                       {point.fotos[k] ? (
-                        <img src={point.fotos[k]} alt={POSE_LABEL[k]} className="w-full h-full object-cover" />
+                        <PrivateImg src={point.fotos[k]} alt={POSE_LABEL[k]} className="w-full h-full object-cover" />
                       ) : (
                         <span className="text-[9px] text-muted-foreground">—</span>
                       )}
@@ -446,7 +447,7 @@ export default function EvolutionComparison({
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 cursor-zoom-out backdrop-blur-sm transition-opacity"
           onClick={() => setZoomedImage(null)}
         >
-          <img src={zoomedImage} alt="Zoom Visualização" className="max-w-full max-h-full object-contain rounded-md shadow-2xl" />
+          <PrivateImg src={zoomedImage} alt="Zoom Visualização" className="max-w-full max-h-full object-contain rounded-md shadow-2xl" />
           <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-white/70">Clique para fechar</p>
         </div>
       )}

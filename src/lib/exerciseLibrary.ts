@@ -129,6 +129,34 @@ export async function searchExerciseLibrary(
   return results.slice(0, limit).map(({ key, displayName, url }) => ({ key, displayName, url }));
 }
 
+/** Entrada da biblioteca por gifKey (preferencial) ou nome. */
+export async function getLibraryEntry(
+  exerciseName?: string | null,
+  gifKey?: string | null,
+): Promise<LibraryEntry | null> {
+  const lib = await loadLibrary();
+  if (gifKey && lib.has(gifKey)) return lib.get(gifKey)!;
+  if (!exerciseName) return null;
+  return lib.get(toExerciseKey(exerciseName)) ?? null;
+}
+
+/**
+ * Lista alternativas da biblioteca que compartilham o mesmo grupo muscular
+ * primário — usado pelo aluno no Modo Treino para trocar um exercício
+ * (ex.: aparelho ocupado) sem sair do estímulo prescrito.
+ */
+export async function listExercisesByMuscleGroup(
+  group: MuscleGroup,
+  excludeKey?: string | null,
+  limit = 40,
+): Promise<LibraryEntry[]> {
+  const lib = await loadLibrary();
+  return [...lib.values()]
+    .filter((e) => e.primaryMuscleGroup === group && e.key !== excludeKey)
+    .sort((a, b) => a.displayName.localeCompare(b.displayName))
+    .slice(0, limit);
+}
+
 /**
  * Upsert de classificação de grupo muscular para um exercício. Usado pelo
  * picker do coach (quando o coach digita um exercício novo, silenciosamente)
