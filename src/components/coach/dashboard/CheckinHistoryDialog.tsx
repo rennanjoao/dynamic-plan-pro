@@ -34,6 +34,7 @@ export function CheckinHistoryDialog({
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [exportingAll, setExportingAll] = useState(false);
+  const { privacy } = usePrivacyMode();
   const PAGE = 30;
 
   useEffect(() => {
