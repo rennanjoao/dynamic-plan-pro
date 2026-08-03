@@ -571,3 +571,4 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
       </div>
     </div>
   );
+}
