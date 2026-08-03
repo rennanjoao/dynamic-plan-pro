@@ -6,7 +6,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import CheckinPayloadAnswers from "@/components/coach/CheckinPayloadAnswers";
 import { sb } from "./dashboardUtils";
-import { Private } from "@/components/coach/PrivacyMode";
+import { Private, usePrivacyMode } from "@/components/coach/PrivacyMode";
+
+const PRIVACY_EXPORT_TITLE = "Desativado no Modo Privacidade — o PDF abriria com nome e fotos do aluno visíveis.";
 
 interface CheckinRow {
   id: string;
@@ -210,9 +212,11 @@ export function CheckinHistoryDialog({
         ) : (
           <div className="space-y-3">
             <div className="flex justify-end">
-              <Button size="sm" variant="outline" onClick={exportAll} disabled={exportingAll}>
-                <FileDown className="w-4 h-4 mr-1.5" /> Exportar todos em PDF
-              </Button>
+              <span title={privacy ? PRIVACY_EXPORT_TITLE : undefined}>
+                <Button size="sm" variant="outline" onClick={exportAll} disabled={exportingAll || privacy}>
+                  <FileDown className="w-4 h-4 mr-1.5" /> Exportar todos em PDF
+                </Button>
+              </span>
             </div>
             {items.map((c) => {
               const isOpen = !!expanded[c.id];
@@ -246,9 +250,11 @@ export function CheckinHistoryDialog({
                       onClick={() => setExpanded((p) => ({ ...p, [c.id]: !isOpen }))}>
                       {isOpen ? "Ocultar" : "Ver detalhes"}
                     </Button>
-                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => exportOne(c)}>
-                      <FileDown className="w-3 h-3 mr-1" /> Exportar PDF
-                    </Button>
+                    <span title={privacy ? PRIVACY_EXPORT_TITLE : undefined}>
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => exportOne(c)} disabled={privacy}>
+                        <FileDown className="w-3 h-3 mr-1" /> Exportar PDF
+                      </Button>
+                    </span>
                   </div>
                   {isOpen && (
                     <div className="border-t border-border pt-2 mt-1 space-y-1">
