@@ -218,6 +218,17 @@ export default function WorkoutPlan() {
   );
   const currentWeek = currentWeekRaw ?? 0;
 
+  // Treino de hoje (a partir do weekDays do protocolo) — abre por padrão e recebe badge.
+  const WEEKDAY_ORDER = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
+  const todayWorkoutKey: string | null = (() => {
+    const weekDays = (safePayload?.weekDays as Record<string, string>) || {};
+    const k = weekDays[WEEKDAY_ORDER[new Date().getDay()]];
+    return k && k !== "REST" ? k : null;
+  })();
+  const todayIndex = todayWorkoutKey
+    ? workouts.findIndex((w: any) => String(w.key) === todayWorkoutKey)
+    : -1;
+
   if (isLoading) return <PageLoader />;
 
 
@@ -233,18 +244,24 @@ export default function WorkoutPlan() {
       Treinos ainda não publicados.
     </p>
   ) : (
-    <Accordion type="single" collapsible className="w-full space-y-4">
+    <Accordion
+      type="single"
+      collapsible
+      className="w-full space-y-4"
+      defaultValue={todayIndex >= 0 ? `workout-${todayIndex}` : undefined}
+    >
       {workouts.map((day: any, i: number) => {
         // [FIX Tarefa 9] Letra exibida = posição no array (A, B, C, D…).
         // day.key permanece como identificador estável — usado em
         // handleStartWorkout, filtros de cardio e ID de âncora — para
         // não quebrar workout_sessions/periodização/CoachUpdates anchors.
         const letter = String.fromCharCode(65 + i);
+        const isToday = i === todayIndex;
         return (
         <AccordionItem
           key={i}
           value={`workout-${i}`}
-          className="bg-card border border-border rounded-xl shadow-sm overflow-hidden"
+          className={`bg-card border rounded-xl shadow-sm overflow-hidden ${isToday ? "border-primary/60 ring-1 ring-primary/30" : "border-border"}`}
         >
           <AccordionTrigger className="px-4 py-4 hover:no-underline hover:bg-muted/30">
             <div className="flex items-center gap-3 text-left w-full">
@@ -252,7 +269,12 @@ export default function WorkoutPlan() {
                 {letter}
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-base">Treino {letter}</h3>
+                <h3 className="font-bold text-base flex items-center gap-2">
+                  Treino {letter}
+                  {isToday && (
+                    <Badge className="text-[10px] px-1.5 py-0 h-4">Hoje</Badge>
+                  )}
+                </h3>
                 <p className="text-xs text-muted-foreground">{day.focus || "Geral"}</p>
               </div>
             </div>
