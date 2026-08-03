@@ -18,6 +18,7 @@ import { Loader2, TrendingDown, TrendingUp, Minus, FileText, ArrowLeft, ZoomIn }
 import { CHECKIN_METRICS, colorForDelta } from "@/lib/checkInSchema";
 import { estimateBF } from "@/lib/bfEstimate";
 import CheckinPayloadAnswers from "@/components/coach/CheckinPayloadAnswers";
+import { PrivateImg } from "@/components/coach/PrivacyMode";
 import { formatDatePtBR } from "@/lib/formatDate";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

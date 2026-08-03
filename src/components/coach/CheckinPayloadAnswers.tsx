@@ -10,6 +10,7 @@
 import { useState } from "react";
 import { CHECKIN_SECTIONS } from "@/lib/checkInSchema";
 import { FileText, ExternalLink } from "lucide-react";
+import { PrivateImg } from "@/components/coach/PrivacyMode";
 
 const IGNORED = new Set(["metrics_raw", "fotos", "_updated", "exames"]);
 
