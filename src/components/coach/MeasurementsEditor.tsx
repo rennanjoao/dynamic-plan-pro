@@ -16,6 +16,7 @@ import { Loader2, Save, Upload } from "lucide-react";
 import { BASELINE_KEYS, uploadToCloudinary } from "@/lib/anamnesisSchema";
 import { estimateBF } from "@/lib/bfEstimate";
 import BFDisplay from "@/components/shared/BFDisplay";
+import { PrivateImg } from "@/components/coach/PrivacyMode";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
