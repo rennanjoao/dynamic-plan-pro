@@ -1819,6 +1819,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      mark_daily_alert_read: {
+        Args: { p_alert_id: string }
+        Returns: undefined
+      }
       refresh_coach_ai_profile: {
         Args: { p_coach_id?: string }
         Returns: undefined
