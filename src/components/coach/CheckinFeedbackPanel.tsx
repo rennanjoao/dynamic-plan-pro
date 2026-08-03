@@ -33,7 +33,7 @@ import CheckinPayloadAnswers from "@/components/coach/CheckinPayloadAnswers";
 import CheckinFullEditor from "@/components/coach/CheckinFullEditor";
 import { CheckinHistoryDialog } from "@/components/coach/dashboard/CheckinHistoryDialog";
 import { AlertBadge, WeightTrendBadge } from "@/components/coach/dashboard/dashboardUtils";
-import { Private } from "@/components/coach/PrivacyMode";
+import { Private, PrivateImg } from "@/components/coach/PrivacyMode";
 
 const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
 

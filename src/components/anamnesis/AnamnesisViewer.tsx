@@ -20,7 +20,7 @@ import { FileDown, Loader2, ImageIcon, Pencil, Save, X, UploadCloud } from "luci
 import MeasurementsEditor from "@/components/coach/MeasurementsEditor";
 import CheckinFullEditor from "@/components/coach/CheckinFullEditor";
 import { exportAnamnesisPDF } from "@/lib/coachPdfExport";
-import { Private } from "@/components/coach/PrivacyMode";
+import { Private, PrivateImg } from "@/components/coach/PrivacyMode";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
