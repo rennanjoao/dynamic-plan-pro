@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   Plus, Trash2, ChevronDown, Copy, BookmarkPlus, Library, UtensilsCrossed, Pill,
-  ArrowUp, ArrowDown, Eye, AlertCircle, Sparkles, CheckCircle2, Loader2,
+  ArrowUp, ArrowDown, Eye, AlertCircle, Sparkles, CheckCircle2, Loader2, TrendingUp,
 } from "lucide-react";
 import { loadCoachProfile } from "@/lib/prescriptionMemory";
 import {
