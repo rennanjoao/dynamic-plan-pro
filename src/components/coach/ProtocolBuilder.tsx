@@ -178,6 +178,8 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const ENABLE_AI_INITIAL_DRAFT = true;
   const [aiSuggestion, setAiSuggestion] = useState<{
     calories: number; protein: number; carbs: number; fat: number; water: number; goal: string; rationale: string;
+    treino?: string;
+    meals?: Array<{ nome: string; kcal: number; protein: number; carbs: number; fat: number; sugestao: string }>;
   } | null>(null);
   const [loadingAiSuggestion, setLoadingAiSuggestion] = useState(false);
   const [renewalOpen, setRenewalOpen] = useState(false);
@@ -393,10 +395,21 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
     if (!studentId) return;
     setLoadingAiSuggestion(true);
     try {
-      const { data, error } = await sb.functions.invoke("protocol-initial-draft", { body: { studentId } });
+      const { data, error } = await sb.functions.invoke("protocol-initial-draft", {
+        body: {
+          studentId,
+          mealsCount: setupMeals,
+          split: SPLIT_OPTIONS.find((s) => s.value === setupSplit)?.label ?? setupSplit,
+          carbCycle: setupCarbCycle,
+        },
+      });
       if (error) throw error;
       if (!data?.ok) {
-        toast.error(data?.reason === "sem_anamnese" ? "Aluno ainda não tem anamnese preenchida" : "Não foi possível gerar sugestão agora");
+        toast.error(
+          data?.reason === "sem_anamnese"
+            ? "Sem dados do aluno ainda (anamnese, medidas ou check-in)"
+            : "Não foi possível gerar sugestão agora",
+        );
         return;
       }
       setAiSuggestion(data);
@@ -518,6 +531,20 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         water: aiSuggestion.water,
         goal: aiSuggestion.goal,
       };
+      // Aplica a distribuição por refeição sugerida (nomes, macros e dica de alimentos).
+      const suggestedMeals = aiSuggestion.meals ?? [];
+      if (suggestedMeals.length) {
+        base.meals = base.meals.map((m, i) => {
+          const s = suggestedMeals[i];
+          if (!s) return m;
+          return {
+            ...m,
+            name: s.nome || m.name,
+            macros: { carbs: s.carbs, protein: s.protein, fat: s.fat },
+            notes: s.sugestao ? `Sugestão IA: ${s.sugestao}` : m.notes,
+          };
+        });
+      }
     }
     updatePayload(base);
     setName(`Protocolo — ${studentName}`);
