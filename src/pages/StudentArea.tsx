@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -336,6 +336,50 @@ export default function StudentArea() {
       const w = workouts.find((w) => String(w.key) === treinoKey);
       return { tipo: "treino" as const, letra: treinoKey, foco: (w?.focus as string) || null };
     },
+  });
+
+  // ─── Confirmação manual do treino de hoje ───────────────────────────────────
+  // Para quem treina sem o Modo Treino: registra uma sessão fechada do dia,
+  // alimentando assiduidade e alertas do coach sem inventar séries.
+  const queryClientSA = useQueryClient();
+  const todayKeyStr = new Date().toISOString().slice(0, 10);
+  const { data: todayConfirmed } = useQuery({
+    queryKey: ["student-today-session", userId, todayKeyStr],
+    enabled: !!userId && todayPlan?.tipo === "treino",
+    staleTime: 1000 * 60,
+    queryFn: async () => {
+      const start = new Date(); start.setHours(0, 0, 0, 0);
+      const { data } = await (supabase as never as { from: (t: string) => any }).from("workout_sessions")
+        .select("id")
+        .eq("user_id", userId)
+        .gte("started_at", start.toISOString())
+        .limit(1)
+        .maybeSingle();
+      return !!data;
+    },
+  });
+
+  const confirmWorkout = useMutation({
+    mutationFn: async () => {
+      if (!userId || todayPlan?.tipo !== "treino") return;
+      const now = new Date().toISOString();
+      const { error } = await (supabase as never as { from: (t: string) => any }).from("workout_sessions").insert({
+        user_id: userId,
+        workout_key: todayPlan.letra,
+        workout_label: todayPlan.foco ?? null,
+        started_at: now,
+        ended_at: now,
+        block_number: 1,
+        is_deload_week: false,
+        notes: "Confirmado manualmente pelo aluno",
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Treino de hoje confirmado!");
+      queryClientSA.invalidateQueries({ queryKey: ["student-today-session", userId, todayKeyStr] });
+    },
+    onError: () => toast.error("Não foi possível confirmar o treino."),
   });
 
   // ─── Recado motivacional do dia (IA, cacheado 1x/dia no backend) ───
