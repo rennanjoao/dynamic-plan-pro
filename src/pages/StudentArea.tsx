@@ -703,6 +703,23 @@ export default function StudentArea() {
                 {todayPlan?.tipo === "treino" && (
                   <p className="text-[11px] font-semibold text-primary mt-1">Toque para iniciar o treino</p>
                 )}
+                {todayPlan?.tipo === "treino" && (
+                  todayConfirmed ? (
+                    <p className="text-[11px] text-emerald-500 mt-2 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Treino de hoje registrado
+                    </p>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-2 h-7 text-[11px]"
+                      disabled={confirmWorkout.isPending}
+                      onClick={(e) => { e.stopPropagation(); confirmWorkout.mutate(); }}
+                    >
+                      Já treinei hoje (confirmar)
+                    </Button>
+                  )
+                )}
               </div>
             </CardContent>
           </Card>
