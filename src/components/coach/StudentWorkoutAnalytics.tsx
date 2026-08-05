@@ -919,6 +919,53 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
             ════════════════════════════════════════════════════════════ */}
             <TabsContent value="volume" className="space-y-3 mt-3">
 
+              {/* Volume semanal por grupamento muscular */}
+              <Panel>
+                <SectionTitle>
+                  <BarChart2 className="w-3 h-3 inline mr-1 mb-0.5" />
+                  Volume por grupamento — últimos 7 dias
+                  <span className="text-white/20 ml-1">(séries efetivas vs MEV/MAV/MRV)</span>
+                </SectionTitle>
+                {volumeByMuscleGroup.rows.length === 0 ? (
+                  <EmptyState text="Sem séries registradas nos últimos 7 dias." />
+                ) : (
+                  <>
+                    {volumeSummary && (
+                      <p className="text-[11px] text-white/55 leading-relaxed mb-3">{volumeSummary}</p>
+                    )}
+                    <div className="space-y-2">
+                      {volumeByMuscleGroup.rows.map((r) => {
+                        const meta = VOLUME_STATUS_META[r.status];
+                        const pct = Math.min(100, Math.round((r.series / r.lm.mrv) * 100));
+                        const mevPct = Math.min(100, Math.round((r.lm.mev / r.lm.mrv) * 100));
+                        const mavPct = Math.min(100, Math.round((r.lm.mavMin / r.lm.mrv) * 100));
+                        return (
+                          <div key={r.group}>
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="text-[11px] font-semibold text-white/70">{r.label}</span>
+                              <span className="text-[10px] text-white/40">
+                                {r.series} séries · alvo {r.lm.mavMin}–{r.lm.mavMax} · teto {r.lm.mrv}
+                              </span>
+                            </div>
+                            <div className="relative h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                              <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${pct}%`, background: meta.color }} />
+                              <div className="absolute inset-y-0 w-px" style={{ left: `${mevPct}%`, background: "rgba(255,255,255,0.35)" }} />
+                              <div className="absolute inset-y-0 w-px" style={{ left: `${mavPct}%`, background: "rgba(255,255,255,0.35)" }} />
+                            </div>
+                            <span className="text-[10px]" style={{ color: meta.color }}>{meta.label}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {volumeByMuscleGroup.unclassified > 0 && (
+                      <p className="text-[10px] text-white/30 mt-3">
+                        {volumeByMuscleGroup.unclassified} série(s) sem grupamento identificado — classifique o exercício na biblioteca.
+                      </p>
+                    )}
+                  </>
+                )}
+              </Panel>
+
               {/* Volume total por sessão do exercício selecionado */}
               {uniqueExercises.length > 0 && (
                 <Panel>
