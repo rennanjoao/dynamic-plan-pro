@@ -33,6 +33,8 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { Private } from "@/components/coach/PrivacyMode";
+import { classifyExerciseByName, MUSCLE_GROUP_LABELS, type MuscleGroup } from "@/lib/muscleGroupClassifier";
+import { VOLUME_LANDMARKS, VOLUME_STATUS_META, classifyWeeklyVolume } from "@/lib/volumeLandmarks";
 
 /* ── Constantes ─────────────────────────────────────────────────────────────── */
 
@@ -396,6 +398,47 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
   }, [completedSets, activeExKey, sessions]);
 
   // ── MÉTRICA 4: Duração média por tipo de treino ────────────────────────────
+  // ── Volume semanal por grupamento muscular (últimos 7 dias) ────────────────
+  // Série do exercício conta 1 para o grupo primário e 0,5 para cada secundário
+  // (convenção usual de "séries efetivas" em análise de volume).
+  const volumeByMuscleGroup = useMemo(() => {
+    const since = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const tally = new Map<MuscleGroup, number>();
+    let unclassified = 0;
+    for (const s of completedSets) {
+      if (new Date(s.executed_at).getTime() < since) continue;
+      const cls = classifyExerciseByName(s.exercise_name);
+      if (!cls.primary) { unclassified++; continue; }
+      tally.set(cls.primary, (tally.get(cls.primary) ?? 0) + 1);
+      for (const sec of cls.secondary) {
+        tally.set(sec, (tally.get(sec) ?? 0) + 0.5);
+      }
+    }
+    const rows = Array.from(tally.entries())
+      .map(([group, sets]) => {
+        const series = Math.round(sets * 10) / 10;
+        const lm = VOLUME_LANDMARKS[group];
+        const status = classifyWeeklyVolume(group, series);
+        return { group, label: MUSCLE_GROUP_LABELS[group], series, lm, status };
+      })
+      .sort((a, b) => b.series - a.series);
+    return { rows, unclassified };
+  }, [completedSets]);
+
+  // Resumo em linguagem natural do quadro de volume (determinístico).
+  const volumeSummary = useMemo(() => {
+    const { rows } = volumeByMuscleGroup;
+    if (rows.length === 0) return null;
+    const acima = rows.filter((r) => r.status === "acima_mrv").map((r) => r.label);
+    const baixo = rows.filter((r) => r.status === "abaixo_mev").map((r) => r.label);
+    const otimo = rows.filter((r) => r.status === "otimo").length;
+    const parts: string[] = [];
+    parts.push(`${otimo} de ${rows.length} grupamentos estão na faixa ideal de volume nos últimos 7 dias.`);
+    if (acima.length) parts.push(`Acima do teto recuperável: ${acima.join(", ")} — considere reduzir séries ou inserir deload.`);
+    if (baixo.length) parts.push(`Abaixo do mínimo efetivo: ${baixo.join(", ")} — há espaço para adicionar volume.`);
+    return parts.join(" ");
+  }, [volumeByMuscleGroup]);
+
   const durationByType = useMemo(() => {
     const byKey = new Map<string, number[]>();
     for (const s of sessions) {
