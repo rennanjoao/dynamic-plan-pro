@@ -33,6 +33,8 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { Private } from "@/components/coach/PrivacyMode";
+import { classifyExerciseByName, MUSCLE_GROUP_LABELS, type MuscleGroup } from "@/lib/muscleGroupClassifier";
+import { VOLUME_LANDMARKS, VOLUME_STATUS_META, classifyWeeklyVolume } from "@/lib/volumeLandmarks";
 
 /* ── Constantes ─────────────────────────────────────────────────────────────── */
 
@@ -396,6 +398,47 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
   }, [completedSets, activeExKey, sessions]);
 
   // ── MÉTRICA 4: Duração média por tipo de treino ────────────────────────────
+  // ── Volume semanal por grupamento muscular (últimos 7 dias) ────────────────
+  // Série do exercício conta 1 para o grupo primário e 0,5 para cada secundário
+  // (convenção usual de "séries efetivas" em análise de volume).
+  const volumeByMuscleGroup = useMemo(() => {
+    const since = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const tally = new Map<MuscleGroup, number>();
+    let unclassified = 0;
+    for (const s of completedSets) {
+      if (new Date(s.executed_at).getTime() < since) continue;
+      const cls = classifyExerciseByName(s.exercise_name);
+      if (!cls.primary) { unclassified++; continue; }
+      tally.set(cls.primary, (tally.get(cls.primary) ?? 0) + 1);
+      for (const sec of cls.secondary) {
+        tally.set(sec, (tally.get(sec) ?? 0) + 0.5);
+      }
+    }
+    const rows = Array.from(tally.entries())
+      .map(([group, sets]) => {
+        const series = Math.round(sets * 10) / 10;
+        const lm = VOLUME_LANDMARKS[group];
+        const status = classifyWeeklyVolume(group, series);
+        return { group, label: MUSCLE_GROUP_LABELS[group], series, lm, status };
+      })
+      .sort((a, b) => b.series - a.series);
+    return { rows, unclassified };
+  }, [completedSets]);
+
+  // Resumo em linguagem natural do quadro de volume (determinístico).
+  const volumeSummary = useMemo(() => {
+    const { rows } = volumeByMuscleGroup;
+    if (rows.length === 0) return null;
+    const acima = rows.filter((r) => r.status === "acima_mrv").map((r) => r.label);
+    const baixo = rows.filter((r) => r.status === "abaixo_mev").map((r) => r.label);
+    const otimo = rows.filter((r) => r.status === "otimo").length;
+    const parts: string[] = [];
+    parts.push(`${otimo} de ${rows.length} grupamentos estão na faixa ideal de volume nos últimos 7 dias.`);
+    if (acima.length) parts.push(`Acima do teto recuperável: ${acima.join(", ")} — considere reduzir séries ou inserir deload.`);
+    if (baixo.length) parts.push(`Abaixo do mínimo efetivo: ${baixo.join(", ")} — há espaço para adicionar volume.`);
+    return parts.join(" ");
+  }, [volumeByMuscleGroup]);
+
   const durationByType = useMemo(() => {
     const byKey = new Map<string, number[]>();
     for (const s of sessions) {
@@ -875,6 +918,53 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                 + distribuição de esforço RPE
             ════════════════════════════════════════════════════════════ */}
             <TabsContent value="volume" className="space-y-3 mt-3">
+
+              {/* Volume semanal por grupamento muscular */}
+              <Panel>
+                <SectionTitle>
+                  <BarChart2 className="w-3 h-3 inline mr-1 mb-0.5" />
+                  Volume por grupamento — últimos 7 dias
+                  <span className="text-white/20 ml-1">(séries efetivas vs MEV/MAV/MRV)</span>
+                </SectionTitle>
+                {volumeByMuscleGroup.rows.length === 0 ? (
+                  <EmptyState text="Sem séries registradas nos últimos 7 dias." />
+                ) : (
+                  <>
+                    {volumeSummary && (
+                      <p className="text-[11px] text-white/55 leading-relaxed mb-3">{volumeSummary}</p>
+                    )}
+                    <div className="space-y-2">
+                      {volumeByMuscleGroup.rows.map((r) => {
+                        const meta = VOLUME_STATUS_META[r.status];
+                        const pct = Math.min(100, Math.round((r.series / r.lm.mrv) * 100));
+                        const mevPct = Math.min(100, Math.round((r.lm.mev / r.lm.mrv) * 100));
+                        const mavPct = Math.min(100, Math.round((r.lm.mavMin / r.lm.mrv) * 100));
+                        return (
+                          <div key={r.group}>
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="text-[11px] font-semibold text-white/70">{r.label}</span>
+                              <span className="text-[10px] text-white/40">
+                                {r.series} séries · alvo {r.lm.mavMin}–{r.lm.mavMax} · teto {r.lm.mrv}
+                              </span>
+                            </div>
+                            <div className="relative h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                              <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${pct}%`, background: meta.color }} />
+                              <div className="absolute inset-y-0 w-px" style={{ left: `${mevPct}%`, background: "rgba(255,255,255,0.35)" }} />
+                              <div className="absolute inset-y-0 w-px" style={{ left: `${mavPct}%`, background: "rgba(255,255,255,0.35)" }} />
+                            </div>
+                            <span className="text-[10px]" style={{ color: meta.color }}>{meta.label}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {volumeByMuscleGroup.unclassified > 0 && (
+                      <p className="text-[10px] text-white/30 mt-3">
+                        {volumeByMuscleGroup.unclassified} série(s) sem grupamento identificado — classifique o exercício na biblioteca.
+                      </p>
+                    )}
+                  </>
+                )}
+              </Panel>
 
               {/* Volume total por sessão do exercício selecionado */}
               {uniqueExercises.length > 0 && (

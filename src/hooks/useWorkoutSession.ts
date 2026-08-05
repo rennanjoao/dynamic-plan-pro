@@ -449,6 +449,14 @@ export function useWorkoutSession() {
       } catch { /* noop */ }
 
       setIsActive(false);
+
+      // Dispara o motor determinístico de alertas (fadiga/estagnação/assiduidade).
+      // Nunca bloqueia o encerramento do treino.
+      try {
+        await (supabase as any).functions.invoke("workout-alert-engine", {
+          body: { studentId: userIdRef.current },
+        });
+      } catch { /* noop */ }
     },
     [sessionId, syncPendingSets]
   );
