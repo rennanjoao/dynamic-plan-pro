@@ -84,6 +84,7 @@ import {
   type ProtocolChange,
 } from "@/lib/protocolChangeDetector";
 import { mergeProtocolChanges } from "@/lib/protocolChangeMerge";
+import { saveProtocolAsTemplate } from "@/lib/protocolTemplates";
 import {
   DndContext, closestCenter, PointerSensor, KeyboardSensor,
   useSensor, useSensors, type DragEndEvent,
