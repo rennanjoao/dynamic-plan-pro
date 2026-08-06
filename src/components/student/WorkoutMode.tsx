@@ -32,7 +32,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "sonner";
 import WorkoutShareCard from "./WorkoutShareCard";
 import { useConfirm } from "@/components/ConfirmProvider";
-import { useWorkoutSession } from "@/hooks/useWorkoutSession";
+import { useWorkoutSession, isSessionStale } from "@/hooks/useWorkoutSession";
 import { useAdaptiveWeightStep } from "@/hooks/useAdaptiveWeightStep";
 import { supabase } from "@/integrations/supabase/client";
 import type { ExerciseHistory } from "@/lib/workoutTypes";
@@ -265,60 +265,101 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     sessionBootstrapped.current = true;
     let cancelled = false;
 
-    if (_saved?.sessionId && !String(_saved.sessionId).startsWith("local_")) {
-      session.resumeSession({
-        sessionId: _saved.sessionId,
-        userId,
-        workoutKey: day.key,
-        startedAt: _saved.startedAt ?? Date.now(),
+    const beginNew = () => {
+      session.startSession({ userId, coachId, workoutKey: day.key, periodizationWeek: isPeriodizationOn ? activeWeek : undefined });
+    };
+
+    // Pergunta antes de retomar uma sessão fora da janela de validade. Sem
+    // isto, um treino abandonado semanas atrás voltava como "em andamento"
+    // (cronômetro e progresso antigos) sem o aluno ter escolhido isso.
+    const askResume = async (startedAt: number) => {
+      const hours = Math.floor((Date.now() - startedAt) / 3_600_000);
+      const quando = hours >= 24 ? `${Math.floor(hours / 24)} dia(s)` : `${Math.max(hours, 1)} hora(s)`;
+      return confirm({
+        title: "Treino em aberto",
+        description: `Você tem um treino iniciado há ${quando} e não finalizado. Quer continuar de onde parou ou começar um treino novo?`,
+        confirmLabel: "Continuar de onde parei",
+        cancelLabel: "Começar novo",
       });
-      return;
-    }
+    };
 
-    session
-      .findActiveSession(userId, day.key)
-      .then((active) => {
-        if (cancelled) return;
-        if (active) {
-          session.resumeSession({ sessionId: active.sessionId, userId, workoutKey: day.key, startedAt: active.startedAt });
+    const resetLocalProgress = () => {
+      try { localStorage.removeItem(storageKey); } catch { /* noop */ }
+      setSetDataMap({});
+    };
 
-          // Sem rascunho local (localStorage limpo, outro dispositivo, aba
-          // anônima etc.) mas com sessão ativa no servidor: reconstrói
-          // setDataMap a partir das séries já registradas, senão o treino
-          // aparece "zerado" na tela mesmo com progresso salvo no banco.
-          const hasLocalProgress = _saved?.setDataMap && Object.keys(_saved.setDataMap).length > 0;
-          if (!hasLocalProgress) {
-            session
-              .getSessionSets(active.sessionId)
-              .then((sets) => {
-                if (cancelled || !sets.length) return;
-                const rebuilt: Record<string, any[]> = {};
-                sets.forEach((s) => {
-                  const idx = exercises.findIndex((ex: any) => toExerciseKey(ex.name) === s.exercise_key);
-                  if (idx === -1) return;
-                  const key = `${day.key}::${idx}`;
-                  const arr = rebuilt[key] ?? [];
-                  arr[s.set_number - 1] = { weight: s.weight_kg ?? 0, reps: s.reps ?? 0, done: s.completed, skipped: s.skipped };
-                  rebuilt[key] = arr;
-                });
-                // `prev` por cima do reconstruído: preserva qualquer série que
-                // o aluno já tenha marcado localmente enquanto a busca corria.
-                setSetDataMap((prev) => ({ ...rebuilt, ...prev }));
-              })
-              .catch((err) => {
-                console.warn("[WorkoutMode] Falha ao reconstruir progresso da sessão recuperada:", err);
-              });
+    const rebuildFromServer = (activeSessionId: string) => {
+      // Sem rascunho local (localStorage limpo, outro dispositivo, aba
+      // anônima etc.) mas com sessão ativa no servidor: reconstrói
+      // setDataMap a partir das séries já registradas, senão o treino
+      // aparece "zerado" na tela mesmo com progresso salvo no banco.
+      session
+        .getSessionSets(activeSessionId)
+        .then((sets) => {
+          if (cancelled || !sets.length) return;
+          const rebuilt: Record<string, any[]> = {};
+          sets.forEach((s) => {
+            const idx = exercises.findIndex((ex: any) => toExerciseKey(ex.name) === s.exercise_key);
+            if (idx === -1) return;
+            const key = `${day.key}::${idx}`;
+            const arr = rebuilt[key] ?? [];
+            arr[s.set_number - 1] = { weight: s.weight_kg ?? 0, reps: s.reps ?? 0, done: s.completed, skipped: s.skipped };
+            rebuilt[key] = arr;
+          });
+          // `prev` por cima do reconstruído: preserva qualquer série que
+          // o aluno já tenha marcado localmente enquanto a busca corria.
+          setSetDataMap((prev) => ({ ...rebuilt, ...prev }));
+        })
+        .catch((err) => {
+          console.warn("[WorkoutMode] Falha ao reconstruir progresso da sessão recuperada:", err);
+        });
+    };
+
+    (async () => {
+      try {
+        // 1) Rascunho local desta mesma sessão
+        if (_saved?.sessionId && !String(_saved.sessionId).startsWith("local_")) {
+          const startedAt = _saved.startedAt ?? Date.now();
+          if (isSessionStale(startedAt)) {
+            const keep = await askResume(startedAt);
+            if (cancelled) return;
+            if (!keep) {
+              await session.abandonSession(String(_saved.sessionId));
+              if (cancelled) return;
+              resetLocalProgress();
+              beginNew();
+              return;
+            }
           }
-        } else {
-          session.startSession({ userId, coachId, workoutKey: day.key, periodizationWeek: isPeriodizationOn ? activeWeek : undefined });
+          session.resumeSession({ sessionId: _saved.sessionId, userId, workoutKey: day.key, startedAt });
+          return;
         }
-      })
-      .catch((err) => {
+
+        // 2) Sessão aberta no servidor
+        const active = await session.findActiveSession(userId, day.key);
+        if (cancelled) return;
+        if (!active) { beginNew(); return; }
+
+        if (active.isStale) {
+          const keep = await askResume(active.startedAt);
+          if (cancelled) return;
+          if (!keep) {
+            await session.abandonSession(active.sessionId);
+            if (cancelled) return;
+            resetLocalProgress();
+            beginNew();
+            return;
+          }
+        }
+
+        session.resumeSession({ sessionId: active.sessionId, userId, workoutKey: day.key, startedAt: active.startedAt });
+        const hasLocalProgress = _saved?.setDataMap && Object.keys(_saved.setDataMap).length > 0;
+        if (!hasLocalProgress) rebuildFromServer(active.sessionId);
+      } catch (err) {
         console.warn("[WorkoutMode] Falha ao localizar sessão ativa, iniciando uma nova:", err);
-        if (!cancelled) {
-          session.startSession({ userId, coachId, workoutKey: day.key, periodizationWeek: isPeriodizationOn ? activeWeek : undefined });
-        }
-      });
+        if (!cancelled) beginNew();
+      }
+    })();
 
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps

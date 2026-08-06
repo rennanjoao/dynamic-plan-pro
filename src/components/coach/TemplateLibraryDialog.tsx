@@ -22,6 +22,7 @@ import { SYSTEM_TEMPLATES } from "@/data/workoutSystemTemplates";
 import { checkMuscleRecovery } from "@/lib/muscleRecovery";
 import TemplateHistoryDialog from "./TemplateHistoryDialog";
 import { cn } from "@/lib/utils";
+import { saveProtocolAsTemplate } from "@/lib/protocolTemplates";
 
 type TplType = "workout" | "meal" | "protocol";
 type TplItem = {
@@ -238,16 +239,7 @@ export default function TemplateLibraryDialog({
     if (!trimmed) { toast.error("Dê um nome"); return; }
     setSaving(true);
     try {
-      const parsed = ProtocolPayloadSchema.parse(payload);
-      const { error } = await supabase.from("protocols").insert({
-        coach_id: coachId,
-        student_id: coachId, // templates ficam na conta do coach (sem aluno alvo)
-        name: trimmed,
-        is_template: true,
-        payload: parsed,
-        active: false,
-      });
-      if (error) throw error;
+      await saveProtocolAsTemplate(coachId, trimmed, payload);
       toast.success("Protocolo salvo como template");
       setSaveOpen(null);
       setSaveName("");

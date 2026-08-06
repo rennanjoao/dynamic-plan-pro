@@ -22,6 +22,7 @@ import { useCurrentPeriodizationWeek } from "@/hooks/useCurrentPeriodizationWeek
 import { DEFAULT_WEEKS } from "@/lib/periodizationDefaults";
 import { useAuthUserId } from "@/hooks/useAuthUserId";
 import { PageLoader } from "@/components/ui/PageLoader";
+import { isSessionStale } from "@/hooks/useWorkoutSession";
 
 const WEEKDAYS_LABEL: Record<string, string> = {
   seg: "Segunda", ter: "Terça", qua: "Quarta",
@@ -87,10 +88,16 @@ export default function WorkoutPlan() {
       const raw = localStorage.getItem(WORKOUT_MODE_UI_KEY(userId));
       if (!raw) return;
       const saved = JSON.parse(raw);
-      if (saved?.showWorkoutMode) {
+      // Só restaura se o registro for recente. Sem esse limite, o Modo Treino
+      // reabria sozinho dias depois de um treino abandonado, pulando a tela
+      // inicial e dando a impressão de treino em andamento.
+      const fresh = !isSessionStale(saved?.savedAt);
+      if (saved?.showWorkoutMode && fresh) {
         setShowWorkoutMode(true);
         setWorkoutModeDay(saved.workoutModeDay ?? undefined);
         setWorkoutModeWeek(saved.workoutModeWeek ?? 0);
+      } else if (!fresh) {
+        localStorage.removeItem(WORKOUT_MODE_UI_KEY(userId));
       }
     } catch { /* rascunho corrompido — ignora */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -104,7 +111,7 @@ export default function WorkoutPlan() {
       if (showWorkoutMode) {
         localStorage.setItem(
           WORKOUT_MODE_UI_KEY(userId),
-          JSON.stringify({ showWorkoutMode, workoutModeDay, workoutModeWeek })
+          JSON.stringify({ showWorkoutMode, workoutModeDay, workoutModeWeek, savedAt: Date.now() })
         );
       } else {
         localStorage.removeItem(WORKOUT_MODE_UI_KEY(userId));

@@ -84,6 +84,7 @@ import {
   type ProtocolChange,
 } from "@/lib/protocolChangeDetector";
 import { mergeProtocolChanges } from "@/lib/protocolChangeMerge";
+import { saveProtocolAsTemplate } from "@/lib/protocolTemplates";
 import {
   DndContext, closestCenter, PointerSensor, KeyboardSensor,
   useSensor, useSensors, type DragEndEvent,
@@ -570,6 +571,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
     setSaving(true);
     try {
       const parsed = ProtocolPayloadSchema.parse(payload);
+      if (!coachId) throw new Error("Coach não identificado");
       if (isEditMode && protocolId) {
         // Snapshot da versão publicada antes de sobrescrever — só em publicação real.
         if (!opts.asDraft) {
@@ -600,32 +602,43 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             if (insErr) throw insErr;
           }
         }
-        const updateFields: Record<string, unknown> = {
-          name,
-          payload: parsed,
-          active: publishActive,
-          updated_at: new Date().toISOString(),
-        };
-        if (!opts.asDraft) updateFields.draft_payload = null;
-        const { error } = await sb.from("protocols").update(updateFields).eq("id", protocolId);
-        if (error) throw error;
+      }
+
+      // ─── Gravação atômica: protocols + coach_plans numa única transação ───
+      // Antes eram dois writes independentes no client; quando o segundo
+      // falhava, o protocolo ficava salvo e o plano lido pelas telas do aluno
+      // (WorkoutPlan, DynamicRoutine, Supplements, useStudentData) ficava
+      // desatualizado, sem nenhuma forma de reprocessar. O RPC garante que ou
+      // as duas tabelas gravam, ou nenhuma grava.
+      const goalMap: Record<string, string> = { hipertrofia: "hipertrofia", emagrecimento: "emagrecer", emagrecer: "emagrecer", recomposicao: "recomposicao", performance: "manter", manter: "manter" };
+      const safeGoal = goalMap[(parsed.macros?.goal ?? "manter").toLowerCase()] ?? "manter";
+      const { data: savedId, error: rpcError } = await sb.rpc("save_protocol_with_plan", {
+        p_protocol_id: isEditMode && protocolId ? protocolId : null,
+        p_student_id:  studentId,
+        p_coach_id:    coachId,
+        p_name:        name,
+        p_payload:     parsed as unknown as Record<string, unknown>,
+        p_active:      publishActive,
+        p_as_draft:    !!opts.asDraft,
+        p_goal:        safeGoal,
+        p_calories:    parsed.macros?.calories ?? 2200,
+        p_protein:     parsed.macros?.protein ?? 160,
+        p_carbs:       parsed.macros?.carbs ?? 250,
+        p_fat:         parsed.macros?.fat ?? 55,
+        p_water:       parsed.macros?.water ?? 2.5,
+      });
+      if (rpcError) throw rpcError;
+
+      if (isEditMode && protocolId) {
         if (!opts.asDraft) setHasDraft(false);
         toast.success(opts.asDraft ? "Rascunho salvo — aluno ainda não vê esta versão" : "Protocolo atualizado");
       } else {
-        const { data, error } = await sb.from("protocols").insert({ student_id: studentId, coach_id: coachId, name, is_template: false, payload: parsed, active: publishActive }).select().single();
-        if (error) throw error;
-        setProtocolId(data.id);
+        if (savedId) setProtocolId(savedId as string);
         toast.success(opts.asDraft ? "Rascunho criado — aluno ainda não vê esta versão" : "Protocolo criado");
       }
-      if (!opts.asDraft) setActive(publishActive);
-      if (coachId && !opts.asDraft) {
-        try {
-          const goalMap: Record<string, string> = { hipertrofia: "hipertrofia", emagrecimento: "emagrecer", emagrecer: "emagrecer", recomposicao: "recomposicao", performance: "manter", manter: "manter" };
-          const safeGoal = goalMap[(parsed.macros?.goal ?? "manter").toLowerCase()] ?? "manter";
-          const { error: planError } = await sb.from("coach_plans").upsert({ student_id: studentId, coach_id: coachId, diet_strategy_json: parsed, workout_periodization_json: parsed, base_calories: parsed.macros?.calories ?? 2200, base_protein_g: parsed.macros?.protein ?? 160, base_carbs_g: parsed.macros?.carbs ?? 250, base_fat_g: parsed.macros?.fat ?? 55, calories: parsed.macros?.calories ?? 2200, protein_g: parsed.macros?.protein ?? 160, carbs_g: parsed.macros?.carbs ?? 250, fat_g: parsed.macros?.fat ?? 55, water_l: parsed.macros?.water ?? 2.5, goal: safeGoal, updated_at: new Date().toISOString() }, { onConflict: "coach_id,student_id" });
-          if (planError) toast.error("Protocolo salvo, mas sincronização com aluno falhou", { description: planError.message, duration: 9000 });
-          else toast.success("Dieta e Treino sincronizados com o aluno");
-        } catch (syncErr) { console.error(syncErr); }
+      if (!opts.asDraft) {
+        setActive(publishActive);
+        toast.success("Dieta e Treino sincronizados com o aluno");
       }
       // ─── Geração best-effort de eventos de mudança do protocolo ───
       // Só roda em UPDATE (protocolo já existia), publicação real (não rascunho),
@@ -692,20 +705,12 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
 
   async function saveAsTemplate() {
     if (!payload) { toast.error("Sem protocolo para salvar"); return; }
+    if (!coachId) { toast.error("Coach não identificado"); return; }
     const tplName = window.prompt("Nome do template", name || "Template");
     if (!tplName?.trim()) return;
     setSaving(true);
     try {
-      const parsed = ProtocolPayloadSchema.parse(payload);
-      const { error } = await sb.from("protocols").insert({
-        student_id: studentId,
-        coach_id: coachId,
-        name: tplName.trim(),
-        is_template: true,
-        payload: parsed,
-        active: false,
-      });
-      if (error) throw error;
+      await saveProtocolAsTemplate(coachId, tplName, payload);
       toast.success("Template salvo na sua biblioteca");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao salvar template");
