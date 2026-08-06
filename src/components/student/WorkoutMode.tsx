@@ -32,7 +32,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "sonner";
 import WorkoutShareCard from "./WorkoutShareCard";
 import { useConfirm } from "@/components/ConfirmProvider";
-import { useWorkoutSession } from "@/hooks/useWorkoutSession";
+import { useWorkoutSession, isSessionStale } from "@/hooks/useWorkoutSession";
 import { useAdaptiveWeightStep } from "@/hooks/useAdaptiveWeightStep";
 import { supabase } from "@/integrations/supabase/client";
 import type { ExerciseHistory } from "@/lib/workoutTypes";
