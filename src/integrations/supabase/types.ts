@@ -1827,6 +1827,24 @@ export type Database = {
         Args: { p_coach_id?: string }
         Returns: undefined
       }
+      save_protocol_with_plan: {
+        Args: {
+          p_active: boolean
+          p_as_draft: boolean
+          p_calories: number
+          p_carbs: number
+          p_coach_id: string
+          p_fat: number
+          p_goal: string
+          p_name: string
+          p_payload: Json
+          p_protein: number
+          p_protocol_id: string
+          p_student_id: string
+          p_water: number
+        }
+        Returns: string
+      }
       unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
