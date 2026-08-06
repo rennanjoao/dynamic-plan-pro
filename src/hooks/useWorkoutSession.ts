@@ -9,6 +9,18 @@ import type { ExerciseHistory } from "@/lib/workoutTypes";
 
 /* ── Parâmetros ──────────────────────────────────────────────────────────────── */
 
+// Janela em que uma sessão aberta ainda é considerada "o treino de agora" e
+// pode ser retomada automaticamente, sem perguntar nada ao aluno. Fora dela a
+// sessão é tratada como abandonada (app fechado, conexão perdida) e o aluno
+// precisa escolher entre continuar ou começar do zero.
+// Ajuste aqui para mudar o comportamento em todo o app.
+export const SESSION_RESUME_MAX_AGE_MS = 6 * 60 * 60 * 1000; // 6 horas
+
+export function isSessionStale(startedAt: number | null | undefined): boolean {
+  if (!startedAt) return true;
+  return Date.now() - startedAt > SESSION_RESUME_MAX_AGE_MS;
+}
+
 interface StartSessionParams {
   userId: string;
   coachId?: string;
@@ -130,7 +142,10 @@ export function useWorkoutSession() {
   // abrir uma sessão nova (e perder o progresso do aluno), verificamos se já
   // existe uma sessão sem ended_at para esse usuário+treino no banco.
   const findActiveSession = useCallback(
-    async (userId: string, workoutKey: string): Promise<{ sessionId: string; startedAt: number } | null> => {
+    async (
+      userId: string,
+      workoutKey: string
+    ): Promise<{ sessionId: string; startedAt: number; isStale: boolean } | null> => {
       const { data, error } = await (supabase as any)
         .from("workout_sessions")
         .select("id, started_at")
@@ -147,10 +162,25 @@ export function useWorkoutSession() {
       }
       if (!data) return null;
 
-      return { sessionId: data.id, startedAt: new Date(data.started_at).getTime() };
+      const startedAt = new Date(data.started_at).getTime();
+      return { sessionId: data.id, startedAt, isStale: isSessionStale(startedAt) };
     },
     []
   );
+
+  // ── Encerrar sessão abandonada ──────────────────────────────────────────────
+  // Quando o aluno decide começar um treino novo, a sessão antiga precisa ser
+  // fechada: se ficar com ended_at nulo ela continua sendo devolvida por
+  // findActiveSession e reaparece como "sessão zumbi" em qualquer consulta que
+  // trate ended_at IS NULL como treino em andamento.
+  const abandonSession = useCallback(async (staleSessionId: string) => {
+    if (!staleSessionId || staleSessionId.startsWith("local_")) return;
+    const { error } = await (supabase as any)
+      .from("workout_sessions")
+      .update({ ended_at: new Date().toISOString(), notes: "Sessão abandonada (encerrada automaticamente)" })
+      .eq("id", staleSessionId);
+    if (error) console.warn("[abandonSession] Falha ao encerrar sessão antiga:", error.message);
+  }, []);
 
   // ── Iniciar sessão ──────────────────────────────────────────────────────────
   const startSession = useCallback(async (params: StartSessionParams) => {
@@ -569,6 +599,7 @@ export function useWorkoutSession() {
     startSession,
     resumeSession,
     findActiveSession,
+    abandonSession,
     getSessionSets,
     registerSet,
     deleteSet,
