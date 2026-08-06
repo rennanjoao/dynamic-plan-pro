@@ -22,6 +22,7 @@ import { useCurrentPeriodizationWeek } from "@/hooks/useCurrentPeriodizationWeek
 import { DEFAULT_WEEKS } from "@/lib/periodizationDefaults";
 import { useAuthUserId } from "@/hooks/useAuthUserId";
 import { PageLoader } from "@/components/ui/PageLoader";
+import { isSessionStale } from "@/hooks/useWorkoutSession";
 
 const WEEKDAYS_LABEL: Record<string, string> = {
   seg: "Segunda", ter: "Terça", qua: "Quarta",
