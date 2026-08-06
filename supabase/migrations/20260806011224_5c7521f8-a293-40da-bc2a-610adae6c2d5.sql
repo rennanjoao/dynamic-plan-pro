@@ -1,0 +1,2 @@
+REVOKE EXECUTE ON FUNCTION public.save_protocol_with_plan(uuid,uuid,uuid,text,jsonb,boolean,boolean,text,integer,integer,integer,integer,numeric) FROM anon, public;
+GRANT EXECUTE ON FUNCTION public.save_protocol_with_plan(uuid,uuid,uuid,text,jsonb,boolean,boolean,text,integer,integer,integer,integer,numeric) TO authenticated, service_role;
