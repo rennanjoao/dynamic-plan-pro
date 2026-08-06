@@ -692,20 +692,12 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
 
   async function saveAsTemplate() {
     if (!payload) { toast.error("Sem protocolo para salvar"); return; }
+    if (!coachId) { toast.error("Coach não identificado"); return; }
     const tplName = window.prompt("Nome do template", name || "Template");
     if (!tplName?.trim()) return;
     setSaving(true);
     try {
-      const parsed = ProtocolPayloadSchema.parse(payload);
-      const { error } = await sb.from("protocols").insert({
-        student_id: studentId,
-        coach_id: coachId,
-        name: tplName.trim(),
-        is_template: true,
-        payload: parsed,
-        active: false,
-      });
-      if (error) throw error;
+      await saveProtocolAsTemplate(coachId, tplName, payload);
       toast.success("Template salvo na sua biblioteca");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao salvar template");
