@@ -16,7 +16,7 @@ import { Loader2, Save, Upload } from "lucide-react";
 import { BASELINE_KEYS, uploadToCloudinary } from "@/lib/anamnesisSchema";
 import { estimateBF } from "@/lib/bfEstimate";
 import BFDisplay from "@/components/shared/BFDisplay";
-import { PrivateImg } from "@/components/coach/PrivacyMode";
+import { PrivateImg, PrivateField, Private } from "@/components/coach/PrivacyMode";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -183,6 +183,7 @@ export default function MeasurementsEditor({ open, onOpenChange, studentId, targ
           </div>
         ) : (
           <div className="space-y-5 mt-2">
+            <PrivateField label="Revelar medidas para editar">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {FIELDS.map((f) => (
                 <div key={f.key} className="space-y-1">
@@ -199,12 +200,13 @@ export default function MeasurementsEditor({ open, onOpenChange, studentId, targ
                 </div>
               ))}
             </div>
+            </PrivateField>
 
             <div className="rounded-lg border border-border bg-muted/10 p-3">
               <div className="flex items-center justify-between">
                 <Label className="text-xs text-muted-foreground">BF% estimado (automático)</Label>
                 {bf.value != null ? (
-                  <BFDisplay value={bf.value} showLabel={false} />
+                  <Private><BFDisplay value={bf.value} showLabel={false} /></Private>
                 ) : (
                   <span className="text-sm text-muted-foreground">—</span>
                 )}

@@ -9,7 +9,7 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const SESSION_KEY = "epx_privacy_mode";
@@ -32,7 +32,27 @@ export function PrivacyProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(() => ({ privacy, setPrivacy }), [privacy, setPrivacy]);
-  return <PrivacyContext.Provider value={value}>{children}</PrivacyContext.Provider>;
+  return (
+    <PrivacyContext.Provider value={value}>
+      <PrivacyBanner />
+      {children}
+    </PrivacyContext.Provider>
+  );
+}
+
+/** Faixa fixa e discreta indicando que o modo privado está ativo. */
+export function PrivacyBanner() {
+  const { privacy } = usePrivacyMode();
+  if (!privacy) return null;
+  return (
+    <div
+      role="status"
+      className="fixed top-0 inset-x-0 z-[60] flex items-center justify-center gap-1.5 py-1 text-[11px] font-semibold uppercase tracking-wider bg-primary/90 text-primary-foreground shadow-sm pointer-events-none"
+    >
+      <ShieldCheck className="w-3.5 h-3.5" />
+      Modo privado ativo
+    </div>
+  );
 }
 
 export function usePrivacyMode() {
@@ -75,6 +95,41 @@ export function PrivateImg({ className = "", ...rest }: React.ImgHTMLAttributes<
 export function usePrivateText() {
   const { privacy } = usePrivacyMode();
   return useCallback((value?: string | null) => (privacy ? "Aluno" : value ?? ""), [privacy]);
+}
+
+/**
+ * Bloco de campos de formulário com dados sensíveis (peso, medidas).
+ * Em modo privado o conteúdo fica borrado e não-interativo até o coach
+ * revelar explicitamente — evita editar um valor que não dá pra conferir.
+ */
+export function PrivateField({ children, label = "Revelar para editar" }: { children: ReactNode; label?: string }) {
+  const { privacy } = usePrivacyMode();
+  const [revealed, setRevealed] = useState(false);
+
+  useEffect(() => {
+    if (!privacy) setRevealed(false);
+  }, [privacy]);
+
+  const hidden = privacy && !revealed;
+
+  return (
+    <div className="relative">
+      <fieldset
+        disabled={hidden}
+        className={hidden ? "blur-sm select-none pointer-events-none" : undefined}
+      >
+        {children}
+      </fieldset>
+      {hidden && (
+        <div className="absolute inset-0 flex items-start justify-center pt-2">
+          <Button type="button" size="sm" variant="secondary" className="h-8 text-xs gap-1.5" onClick={() => setRevealed(true)}>
+            <Eye className="w-3.5 h-3.5" />
+            {label}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** Botão discreto + indicador de estado. */
