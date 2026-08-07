@@ -30,6 +30,61 @@ function getGreeting(): string {
   return "Boa noite";
 }
 
+/** Parse seguro de hora no formato HH:MM. Retorna minutos desde 00:00 ou null. */
+function parseTimeMinutes(time: unknown): number | null {
+  if (typeof time !== "string") return null;
+  const trimmed = time.trim();
+  const match = trimmed.match(/^([0-9]{1,2}):([0-9]{2})$/);
+  if (!match) return null;
+  const hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+/**
+ * Decide qual refeição deve vir aberta com base no horário local.
+ * Regras:
+ * - Só confia em meal.time quando estiver no padrão HH:MM.
+ * - Não reordena o array: retorna o índice posicional do array original.
+ * - Preferência: a refeição futura mais próxima da hora atual. Se todas já
+ *   passaram, a última do dia. Se nenhum horário for válido, volta para 0.
+ */
+function getCurrentMealIndex(meals: any[]): number {
+  if (!meals.length) return 0;
+  const currentMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+
+  let bestIndex = 0;
+  let bestFutureDiff: number | null = null;
+  let bestPastDiff: number | null = null;
+  let bestPastIndex = 0;
+  let hasAnyValidTime = false;
+
+  meals.forEach((meal, index) => {
+    const mealMinutes = parseTimeMinutes(meal?.time);
+    if (mealMinutes === null) return;
+    hasAnyValidTime = true;
+
+    if (mealMinutes >= currentMinutes) {
+      const diff = mealMinutes - currentMinutes;
+      if (bestFutureDiff === null || diff < bestFutureDiff) {
+        bestFutureDiff = diff;
+        bestIndex = index;
+      }
+    } else {
+      const diff = currentMinutes - mealMinutes;
+      if (bestPastDiff === null || diff < bestPastDiff) {
+        bestPastDiff = diff;
+        bestPastIndex = index;
+      }
+    }
+  });
+
+  if (!hasAnyValidTime) return 0;
+  return bestFutureDiff !== null ? bestIndex : bestPastIndex;
+}
+
+
 function getCookedMultiplier(name: string): number {
   const s = name.toLowerCase();
   if (/\barroz(?!\s+integral)/.test(s)) return 2.5;
