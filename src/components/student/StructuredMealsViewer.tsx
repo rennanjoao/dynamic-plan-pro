@@ -30,6 +30,61 @@ function getGreeting(): string {
   return "Boa noite";
 }
 
+/** Parse seguro de hora no formato HH:MM. Retorna minutos desde 00:00 ou null. */
+function parseTimeMinutes(time: unknown): number | null {
+  if (typeof time !== "string") return null;
+  const trimmed = time.trim();
+  const match = trimmed.match(/^([0-9]{1,2}):([0-9]{2})$/);
+  if (!match) return null;
+  const hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+/**
+ * Decide qual refeição deve vir aberta com base no horário local.
+ * Regras:
+ * - Só confia em meal.time quando estiver no padrão HH:MM.
+ * - Não reordena o array: retorna o índice posicional do array original.
+ * - Preferência: a refeição futura mais próxima da hora atual. Se todas já
+ *   passaram, a última do dia. Se nenhum horário for válido, volta para 0.
+ */
+function getCurrentMealIndex(meals: any[]): number {
+  if (!meals.length) return 0;
+  const currentMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+
+  let bestIndex = 0;
+  let bestFutureDiff: number | null = null;
+  let bestPastDiff: number | null = null;
+  let bestPastIndex = 0;
+  let hasAnyValidTime = false;
+
+  meals.forEach((meal, index) => {
+    const mealMinutes = parseTimeMinutes(meal?.time);
+    if (mealMinutes === null) return;
+    hasAnyValidTime = true;
+
+    if (mealMinutes >= currentMinutes) {
+      const diff = mealMinutes - currentMinutes;
+      if (bestFutureDiff === null || diff < bestFutureDiff) {
+        bestFutureDiff = diff;
+        bestIndex = index;
+      }
+    } else {
+      const diff = currentMinutes - mealMinutes;
+      if (bestPastDiff === null || diff < bestPastDiff) {
+        bestPastDiff = diff;
+        bestPastIndex = index;
+      }
+    }
+  });
+
+  if (!hasAnyValidTime) return 0;
+  return bestFutureDiff !== null ? bestIndex : bestPastIndex;
+}
+
+
 function getCookedMultiplier(name: string): number {
   const s = name.toLowerCase();
   if (/\barroz(?!\s+integral)/.test(s)) return 2.5;
@@ -378,7 +433,7 @@ function MacroSection({
 const MEAL_ICONS = ["☀️", "🥗", "💪", "🍽️", "🌙", "⚡", "🥤", "🌿"];
 
 function MealCard({
-  meal, index, mode, isCooked, highPct, lowPct, supplements, isChecked, onToggleChecked,
+  meal, index, mode, isCooked, highPct, lowPct, supplements, isChecked, onToggleChecked, isCurrent,
 }: {
   meal: any;
   index: number;
@@ -389,8 +444,10 @@ function MealCard({
   supplements?: any[];
   isChecked?: boolean;
   onToggleChecked?: (index: number) => void;
+  isCurrent?: boolean;
 }) {
-  const [open, setOpen] = useState(index === 0);
+  const [open, setOpen] = useState(isCurrent ?? index === 0);
+
 
   const allOptions: any[] = Array.isArray(meal.options) ? meal.options : [];
   const hiddenKinds: string[] = Array.isArray(meal.hiddenKinds) ? meal.hiddenKinds : [];
@@ -416,6 +473,7 @@ function MealCard({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
         className="w-full flex items-center justify-between px-5 py-4 text-left"
       >
         <div className="flex items-center gap-3 min-w-0">
@@ -544,7 +602,15 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
     [meals],
   );
 
+  // Índice da refeição que deve vir aberta por padrão (baseado no horário local).
+  // NÃO reordena o array — mantém a referência posicional usada por meal_checkins.
+  const currentMealIndex = useMemo(
+    () => getCurrentMealIndex(meals),
+    [meals],
+  );
+
   if (meals.length === 0) return null;
+
 
   const carbCfg = CARB_COLOR[todayInfo.carb];
   const carbCfgT = CARB_COLOR[tomorrowInfo.carb];
@@ -649,6 +715,7 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
             supplements={safeData.supplements}
             isChecked={!!checked[i]}
             onToggleChecked={uid ? toggle : undefined}
+            isCurrent={i === currentMealIndex}
           />
         ))}
       </div>
