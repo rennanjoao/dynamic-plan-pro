@@ -62,19 +62,14 @@ function wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe("StructuredMealsViewer - abertura automática da refeição atual", () => {
-  let originalDate: DateConstructor;
-
-  beforeEach(() => {
-    originalDate = globalThis.Date;
-  });
-
   afterEach(() => {
     vi.useRealTimers();
   });
 
   function mockTime(hours: number, minutes: number) {
-    vi.useFakeTimers({ now: new originalDate(2026, 7, 7, hours, minutes, 0) });
+    vi.useFakeTimers({ now: new Date(2026, 7, 7, hours, minutes, 0) });
   }
+
 
 
   it("abre o lanche matinal pela manhã (08:00)", () => {
