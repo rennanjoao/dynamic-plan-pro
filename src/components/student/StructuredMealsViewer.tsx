@@ -601,7 +601,15 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
     [meals],
   );
 
+  // Índice da refeição que deve vir aberta por padrão (baseado no horário local).
+  // NÃO reordena o array — mantém a referência posicional usada por meal_checkins.
+  const currentMealIndex = useMemo(
+    () => getCurrentMealIndex(meals),
+    [meals],
+  );
+
   if (meals.length === 0) return null;
+
 
   const carbCfg = CARB_COLOR[todayInfo.carb];
   const carbCfgT = CARB_COLOR[tomorrowInfo.carb];
