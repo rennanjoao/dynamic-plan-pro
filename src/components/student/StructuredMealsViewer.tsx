@@ -433,7 +433,7 @@ function MacroSection({
 const MEAL_ICONS = ["☀️", "🥗", "💪", "🍽️", "🌙", "⚡", "🥤", "🌿"];
 
 function MealCard({
-  meal, index, mode, isCooked, highPct, lowPct, supplements, isChecked, onToggleChecked,
+  meal, index, mode, isCooked, highPct, lowPct, supplements, isChecked, onToggleChecked, isCurrent,
 }: {
   meal: any;
   index: number;
@@ -444,8 +444,10 @@ function MealCard({
   supplements?: any[];
   isChecked?: boolean;
   onToggleChecked?: (index: number) => void;
+  isCurrent?: boolean;
 }) {
-  const [open, setOpen] = useState(index === 0);
+  const [open, setOpen] = useState(isCurrent ?? index === 0);
+
 
   const allOptions: any[] = Array.isArray(meal.options) ? meal.options : [];
   const hiddenKinds: string[] = Array.isArray(meal.hiddenKinds) ? meal.hiddenKinds : [];
