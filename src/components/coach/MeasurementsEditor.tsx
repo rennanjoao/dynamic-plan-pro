@@ -16,7 +16,7 @@ import { Loader2, Save, Upload } from "lucide-react";
 import { BASELINE_KEYS, uploadToCloudinary } from "@/lib/anamnesisSchema";
 import { estimateBF } from "@/lib/bfEstimate";
 import BFDisplay from "@/components/shared/BFDisplay";
-import { PrivateImg, PrivateField, Private, usePrivacyMode } from "@/components/coach/PrivacyMode";
+import { PrivateImg, PrivateField, Private } from "@/components/coach/PrivacyMode";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -55,7 +55,6 @@ interface Props {
 }
 
 export default function MeasurementsEditor({ open, onOpenChange, studentId, target, onSaved }: Props) {
-  const { privacy } = usePrivacyMode();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
