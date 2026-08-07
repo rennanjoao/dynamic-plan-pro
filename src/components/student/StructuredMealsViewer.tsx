@@ -714,6 +714,7 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
             supplements={safeData.supplements}
             isChecked={!!checked[i]}
             onToggleChecked={uid ? toggle : undefined}
+            isCurrent={i === currentMealIndex}
           />
         ))}
       </div>
