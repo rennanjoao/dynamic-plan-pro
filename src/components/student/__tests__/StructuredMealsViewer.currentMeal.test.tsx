@@ -69,22 +69,13 @@ describe("StructuredMealsViewer - abertura automática da refeição atual", () 
   });
 
   afterEach(() => {
-    globalThis.Date = originalDate;
+    vi.useRealTimers();
   });
 
   function mockTime(hours: number, minutes: number) {
-    const frozen = new originalDate(2026, 7, 7, hours, minutes, 0);
-    globalThis.Date = class extends originalDate {
-      constructor(...args: any[]) {
-        super(...args);
-      }
-      static now() {
-        return frozen.getTime();
-      }
-    } as unknown as DateConstructor;
-    // Preserva instanciação sem argumentos para cair no frozen
-    Object.setPrototypeOf(globalThis.Date, originalDate);
+    vi.useFakeTimers({ now: new originalDate(2026, 7, 7, hours, minutes, 0) });
   }
+
 
   it("abre o lanche matinal pela manhã (08:00)", () => {
     mockTime(8, 0);
