@@ -75,23 +75,20 @@ describe("StructuredMealsViewer - abertura automática da refeição atual", () 
   it("abre o lanche matinal pela manhã (08:00)", () => {
     mockTime(8, 0);
     render(<StructuredMealsViewer payload={buildPayload()} />, { wrapper });
-    const lanche = screen.getByText("Lanche matinal");
-    expect(lanche).toBeVisible();
-    // O card aberto mostra o botão de seta para cima; cards fechados não revelam detalhes.
-    // Aqui verificamos que o card está presente na tela — a lógica de abertura é validada
-    // indiretamente pelo teste unitário de getCurrentMealIndex.
+    const button = screen.getByRole("button", { name: /Lanche matinal/i });
+    expect(button).toHaveAttribute("aria-expanded", "true");
   });
 
   it("abre o lanche da tarde à tarde (14:00)", () => {
     mockTime(14, 0);
     render(<StructuredMealsViewer payload={buildPayload()} />, { wrapper });
-    expect(screen.getByText("Lanche da tarde")).toBeVisible();
+    expect(screen.getByRole("button", { name: /Lanche da tarde/i })).toHaveAttribute("aria-expanded", "true");
   });
 
   it("abre a ceia à noite (20:00)", () => {
     mockTime(20, 0);
     render(<StructuredMealsViewer payload={buildPayload()} />, { wrapper });
-    expect(screen.getByText("Ceia")).toBeVisible();
+    expect(screen.getByRole("button", { name: /Ceia/i })).toHaveAttribute("aria-expanded", "true");
   });
 
   it("mantém o primeiro card aberto quando não há horários válidos", () => {
@@ -102,6 +99,7 @@ describe("StructuredMealsViewer - abertura automática da refeição atual", () 
       { name: "Refeição 2", time: "manhã", macros: { carbs: 0, protein: 0, fat: 0 }, options: [], substitutions: { carb: [], protein: [], fat: [] } },
     ];
     render(<StructuredMealsViewer payload={payload} />, { wrapper });
-    expect(screen.getByText("Refeição 1")).toBeVisible();
+    expect(screen.getByRole("button", { name: /Refeição 1/i })).toHaveAttribute("aria-expanded", "true");
   });
+
 });
