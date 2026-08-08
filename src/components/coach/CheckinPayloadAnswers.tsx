@@ -11,6 +11,7 @@ import { useState } from "react";
 import { CHECKIN_SECTIONS } from "@/lib/checkInSchema";
 import { FileText, ExternalLink } from "lucide-react";
 import { PrivateImg } from "@/components/coach/PrivacyMode";
+import { openMedia } from "@/lib/studentMedia";
 
 const IGNORED = new Set(["metrics_raw", "fotos", "_updated", "exames"]);
 
@@ -85,11 +86,10 @@ export default function CheckinPayloadAnswers({
           <p className="text-[10px] font-bold uppercase text-primary mb-1">Exames</p>
           <div className="flex flex-wrap gap-1.5">
             {exames.map((ex, i) => (
-              <a
+              <button
                 key={i}
-                href={ex.url}
-                target="_blank"
-                rel="noopener noreferrer"
+                type="button"
+                onClick={() => openMedia(ex.url)}
                 className="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-full border border-border bg-muted/40 hover:bg-muted/70 hover:border-primary/50 transition-colors"
               >
                 <FileText className="w-3 h-3 text-primary" />
@@ -98,7 +98,7 @@ export default function CheckinPayloadAnswers({
                   <span className="text-muted-foreground">({ex.tamanho_kb}KB)</span>
                 )}
                 <ExternalLink className="w-2.5 h-2.5 text-muted-foreground" />
-              </a>
+              </button>
             ))}
           </div>
         </div>
