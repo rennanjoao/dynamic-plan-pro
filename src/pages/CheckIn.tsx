@@ -12,7 +12,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { CHECKIN_SECTIONS, CHECKIN_METRICS } from "@/lib/checkInSchema";
 import { notifyCoach } from "@/lib/notifyCoach";
-import { uploadToCloudinary, uploadRawToCloudinary, isFieldVisible } from "@/lib/anamnesisSchema";
+import { isFieldVisible } from "@/lib/anamnesisSchema";
+import { uploadStudentPhoto, uploadStudentExam } from "@/lib/studentMedia";
 import type { FieldRenderContext, SectionDef } from "@/lib/anamnesisSchema";
 import { FormField } from "@/components/student/FormField";
 import { FotoSlot } from "@/components/shared/FotoSlot";
@@ -288,7 +289,7 @@ export default function CheckIn() {
         try {
           toast.loading(`Enviando foto (${FOTO_LABELS[key] ?? key})...`, { id: toastId });
           const result = await Promise.race([
-            uploadToCloudinary(file),
+            uploadStudentPhoto(studentId, file),
             new Promise<never>((_, reject) =>
               setTimeout(() => reject(new Error("timeout")), 30_000)
             ),
@@ -314,7 +315,7 @@ export default function CheckIn() {
         try {
           toast.loading(`Enviando exame (${file.name})...`, { id: toastId });
           const url = await Promise.race([
-            uploadRawToCloudinary(file),
+            uploadStudentExam(studentId, file),
             new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 60_000)),
           ]);
           exames.push({
