@@ -96,6 +96,29 @@ serve(async (req) => {
     }
     const hasReference = !!refFrente && !!refCostas;
 
+    // Fotos agora ficam no bucket PRIVADO `student-media`: o modelo precisa de
+    // URL assinada temporária. Valores legados (http) passam direto.
+    const signMedia = async (ref: string | null): Promise<string | null> => {
+      if (!ref) return null;
+      if (/^https?:/i.test(ref)) return ref;
+      const { data } = await adminClient.storage
+        .from("student-media")
+        .createSignedUrl(ref, 900);
+      return data?.signedUrl ?? null;
+    };
+    const [frenteUrl, costasUrl, refFrenteUrl, refCostasUrl] = await Promise.all([
+      signMedia(fotos.frente),
+      signMedia(fotos.costas),
+      signMedia(refFrente),
+      signMedia(refCostas),
+    ]);
+    if (!frenteUrl || !costasUrl) {
+      return new Response(JSON.stringify({ ok: true, skipped: "fotos_inacessiveis" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const useReference = hasReference && !!refFrenteUrl && !!refCostasUrl;
+
     // Contexto de objetivo/condição do aluno (mesmo resumo já usado no coach — nunca cru)
     const { data: anamneseRow } = await adminClient
       .from("anamnesis")
@@ -120,20 +143,20 @@ Responda SOMENTE com um JSON válido, sem markdown, sem texto fora do JSON, exat
     const userContent: Array<Record<string, unknown>> = [
       {
         type: "text",
-        text: `Comparação em pares por pose (frente com frente, costas com costas).${hasReference ? "" : " Sem par anterior completo (frente+costas) — analise só as fotos atuais."}${anamneseContexto ? `\n\nContexto do aluno (objetivo/condição, da anamnese): ${anamneseContexto}` : ""}`,
+        text: `Comparação em pares por pose (frente com frente, costas com costas).${useReference ? "" : " Sem par anterior completo (frente+costas) — analise só as fotos atuais."}${anamneseContexto ? `\n\nContexto do aluno (objetivo/condição, da anamnese): ${anamneseContexto}` : ""}`,
       },
       { type: "text", text: "Frente atual:" },
-      { type: "image_url", image_url: { url: fotos.frente } },
+      { type: "image_url", image_url: { url: frenteUrl } },
     ];
-    if (hasReference) {
+    if (useReference) {
       userContent.push({ type: "text", text: "Frente anterior (referência):" });
-      userContent.push({ type: "image_url", image_url: { url: refFrente! } });
+      userContent.push({ type: "image_url", image_url: { url: refFrenteUrl! } });
     }
     userContent.push({ type: "text", text: "Costas atual:" });
-    userContent.push({ type: "image_url", image_url: { url: fotos.costas } });
-    if (hasReference) {
+    userContent.push({ type: "image_url", image_url: { url: costasUrl } });
+    if (useReference) {
       userContent.push({ type: "text", text: "Costas anterior (referência):" });
-      userContent.push({ type: "image_url", image_url: { url: refCostas! } });
+      userContent.push({ type: "image_url", image_url: { url: refCostasUrl! } });
     }
 
     const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -179,7 +202,7 @@ Responda SOMENTE com um JSON válido, sem markdown, sem texto fora do JSON, exat
     const reliability =
       typeof parsed.reliability === "number" && isFinite(parsed.reliability)
         ? Math.max(0, Math.min(1, parsed.reliability))
-        : (hasReference ? null : 0);
+        : (useReference ? null : 0);
 
     const { error: upsertErr } = await adminClient
       .from("checkin_photo_analysis")

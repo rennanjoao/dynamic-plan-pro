@@ -13,7 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2, Save, Upload } from "lucide-react";
-import { BASELINE_KEYS, uploadToCloudinary } from "@/lib/anamnesisSchema";
+import { BASELINE_KEYS } from "@/lib/anamnesisSchema";
+import { uploadStudentPhoto } from "@/lib/studentMedia";
 import { estimateBF } from "@/lib/bfEstimate";
 import BFDisplay from "@/components/shared/BFDisplay";
 import { PrivateImg, PrivateField, Private } from "@/components/coach/PrivacyMode";
@@ -104,8 +105,8 @@ export default function MeasurementsEditor({ open, onOpenChange, studentId, targ
   async function handlePhoto(slot: string, file: File) {
     setUploadingKey(slot);
     try {
-      const url = await uploadToCloudinary(file);
-      setFotos((prev) => ({ ...prev, [slot]: url }));
+      const path = await uploadStudentPhoto(studentId, file);
+      setFotos((prev) => ({ ...prev, [slot]: path }));
       toast.success(`Foto ${slot} enviada`);
     } catch {
       toast.error("Falha ao enviar foto");

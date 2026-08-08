@@ -11,6 +11,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useMediaUrl } from "@/lib/studentMedia";
 
 const SESSION_KEY = "epx_privacy_mode";
 
@@ -81,11 +82,13 @@ export function Private({
 }
 
 /** Texto pessoal usado onde não é possível renderizar um elemento (títulos de exportação, etc). */
-export function PrivateImg({ className = "", ...rest }: React.ImgHTMLAttributes<HTMLImageElement>) {
+export function PrivateImg({ className = "", src, ...rest }: React.ImgHTMLAttributes<HTMLImageElement>) {
   const { privacy } = usePrivacyMode();
+  const resolved = useMediaUrl(typeof src === "string" ? src : null);
   return (
     <img
       {...rest}
+      src={resolved || undefined}
       className={`${className} ${privacy ? "blur-xl select-none pointer-events-none" : ""}`.trim()}
     />
   );

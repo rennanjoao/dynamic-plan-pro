@@ -2,7 +2,8 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { uploadToCloudinary, NEURO_SLIDERS } from "@/lib/anamnesisSchema";
+import { NEURO_SLIDERS } from "@/lib/anamnesisSchema";
+import { uploadStudentPhoto, isStoragePath } from "@/lib/studentMedia";
 import { notifyCoach } from "@/lib/notifyCoach";
 import { consumeStoredReferral, peekStoredReferral, consumeStoredDirectCoach } from "@/lib/referralCapture";
 import { FotoSlot } from "@/components/shared/FotoSlot";
@@ -347,11 +348,11 @@ const Anamnesis = () => {
       if (isEditMode) {
         for (const k of ["frente","lateral_dir","lateral_esq","costas"]) {
           const url = fotoPreviews[k];
-          if (url && url.startsWith("http")) fotos[k] = url;
+          if (url && (url.startsWith("http") || isStoragePath(url))) fotos[k] = url;
         }
       }
       for (const [key, file] of Object.entries(fotoFiles)) {
-        if (file) { try { fotos[key] = await uploadToCloudinary(file); } catch { fotos[key] = ""; } }
+        if (file) { try { fotos[key] = await uploadStudentPhoto(studentId, file); } catch { fotos[key] = ""; } }
       }
 
       const coachIdOrNull = coach.id || null;

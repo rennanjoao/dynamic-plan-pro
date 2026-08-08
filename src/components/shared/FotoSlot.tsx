@@ -6,6 +6,7 @@
 
 import { useRef } from "react";
 import { cn } from "@/lib/utils";
+import { useMediaUrl } from "@/lib/studentMedia";
 
 interface Props {
   label: string;
@@ -51,6 +52,7 @@ async function compressImage(file: File): Promise<File> {
 
 export function FotoSlot({ label, preview, onFile, onRemove }: Props) {
   const inp = useRef<HTMLInputElement>(null);
+  const previewUrl = useMediaUrl(preview);
 
   return (
     <div
@@ -78,7 +80,7 @@ export function FotoSlot({ label, preview, onFile, onRemove }: Props) {
       {preview ? (
         <>
           <img
-            src={preview}
+            src={previewUrl || undefined}
             alt={label}
             className="absolute inset-0 w-full h-full object-cover"
           />

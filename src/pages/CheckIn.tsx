@@ -12,7 +12,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { CHECKIN_SECTIONS, CHECKIN_METRICS } from "@/lib/checkInSchema";
 import { notifyCoach } from "@/lib/notifyCoach";
-import { uploadToCloudinary, uploadRawToCloudinary, isFieldVisible } from "@/lib/anamnesisSchema";
+import { isFieldVisible } from "@/lib/anamnesisSchema";
+import { uploadStudentPhoto, uploadStudentExam, openMedia } from "@/lib/studentMedia";
 import type { FieldRenderContext, SectionDef } from "@/lib/anamnesisSchema";
 import { FormField } from "@/components/student/FormField";
 import { FotoSlot } from "@/components/shared/FotoSlot";
@@ -288,7 +289,7 @@ export default function CheckIn() {
         try {
           toast.loading(`Enviando foto (${FOTO_LABELS[key] ?? key})...`, { id: toastId });
           const result = await Promise.race([
-            uploadToCloudinary(file),
+            uploadStudentPhoto(studentId, file),
             new Promise<never>((_, reject) =>
               setTimeout(() => reject(new Error("timeout")), 30_000)
             ),
@@ -314,7 +315,7 @@ export default function CheckIn() {
         try {
           toast.loading(`Enviando exame (${file.name})...`, { id: toastId });
           const url = await Promise.race([
-            uploadRawToCloudinary(file),
+            uploadStudentExam(studentId, file),
             new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 60_000)),
           ]);
           exames.push({
@@ -693,9 +694,9 @@ export default function CheckIn() {
             {existingExames.map((ex, i) => (
               <div key={`ex-${i}`} className="flex items-center gap-2 text-xs bg-muted/30 border border-border rounded-lg px-3 py-2">
                 <FileText className="w-4 h-4 text-primary shrink-0" />
-                <a href={ex.url} target="_blank" rel="noopener noreferrer" className="flex-1 truncate hover:underline">
+                <button type="button" onClick={() => openMedia(ex.url)} className="flex-1 truncate text-left hover:underline">
                   {ex.nome}
-                </a>
+                </button>
                 <span className="text-muted-foreground text-[10px]">{ex.tamanho_kb}KB</span>
                 <button type="button" onClick={() => removeExistingExame(i)} className="text-muted-foreground hover:text-destructive" aria-label="Remover">
                   <Trash2 className="w-3.5 h-3.5" />

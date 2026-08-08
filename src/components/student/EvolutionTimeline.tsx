@@ -1,3 +1,4 @@
+import { MediaImg } from "@/components/shared/MediaImg";
 /**
  * EvolutionTimeline.tsx
  * Timeline vertical estilo feed com Gráfico de Evolução.
@@ -141,7 +142,7 @@ return [...checkIns].sort((a, b) => new Date(a.submitted_at).getTime() - new Dat
                       return (
                         <div className="grid grid-cols-4 gap-1.5 mt-1">
                           {urls.map((url, idx) => (
-                            <img key={idx} src={url} alt={`foto-${idx}`} className="w-full aspect-[3/4] object-cover rounded-lg border border-border/40" />
+                            <MediaImg key={idx} src={url} alt={`foto-${idx}`} className="w-full aspect-[3/4] object-cover rounded-lg border border-border/40" />
                           ))}
                         </div>
                       );
@@ -174,7 +175,7 @@ return [...checkIns].sort((a, b) => new Date(a.submitted_at).getTime() - new Dat
                     <div className="grid grid-cols-4 gap-2">
                       {entries.map(([key, url]) => (
                         <div key={key} className="space-y-1">
-                          <img src={url} alt={key} className="w-full aspect-[3/4] object-cover rounded-xl border border-border/40" />
+                          <MediaImg src={url} alt={key} className="w-full aspect-[3/4] object-cover rounded-xl border border-border/40" />
                           <p className="text-[10px] text-center text-muted-foreground">{LABELS[key] ?? key}</p>
                         </div>
                       ))}
