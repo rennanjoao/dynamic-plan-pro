@@ -694,9 +694,9 @@ export default function CheckIn() {
             {existingExames.map((ex, i) => (
               <div key={`ex-${i}`} className="flex items-center gap-2 text-xs bg-muted/30 border border-border rounded-lg px-3 py-2">
                 <FileText className="w-4 h-4 text-primary shrink-0" />
-                <a href={ex.url} target="_blank" rel="noopener noreferrer" className="flex-1 truncate hover:underline">
+                <button type="button" onClick={() => openMedia(ex.url)} className="flex-1 truncate text-left hover:underline">
                   {ex.nome}
-                </a>
+                </button>
                 <span className="text-muted-foreground text-[10px]">{ex.tamanho_kb}KB</span>
                 <button type="button" onClick={() => removeExistingExame(i)} className="text-muted-foreground hover:text-destructive" aria-label="Remover">
                   <Trash2 className="w-3.5 h-3.5" />
