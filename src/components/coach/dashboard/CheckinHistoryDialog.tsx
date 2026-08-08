@@ -190,7 +190,7 @@ export function CheckinHistoryDialog({
       .checkin{page-break-after:always;margin-bottom:30px}
       @media print{body{padding:0}}</style></head><body>
       <h1>Histórico de Check-ins — ${student.name}</h1>
-      ${all.map((c) => `<div class="checkin">${renderCheckinHTML(c)}</div>`).join("")}
+      ${allHtml}
       <script>window.onload=()=>setTimeout(()=>window.print(),300);</script>
       </body></html>`);
       w.document.close();
