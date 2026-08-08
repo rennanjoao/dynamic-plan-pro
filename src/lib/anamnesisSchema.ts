@@ -3,9 +3,6 @@
  * Constantes, helpers de upload e funções de envio de email.
  */
 
-export const CLOUDINARY_CLOUD = "dkpgoisly";
-export const CLOUDINARY_PRESET = "Fitness";
-
 export const NEURO_SLIDERS = [
   { key: "neuro_motivacao",    label: "Motivação" },
   { key: "neuro_concentracao", label: "Concentração" },
@@ -168,35 +165,9 @@ export function extractBaseline(payload: Record<string, unknown>) {
   return b;
 }
 
-export async function uploadToCloudinary(file: File): Promise<string> {
-  const fd = new FormData();
-  fd.append("file", file);
-  fd.append("upload_preset", CLOUDINARY_PRESET);
-  const res = await fetch(
-    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,
-    { method: "POST", body: fd }
-  );
-  const data = await res.json();
-  return data.secure_url as string;
-}
-
-/**
- * Upload de arquivo bruto (PDF, docs) para o Cloudinary usando o mesmo
- * upload_preset das fotos. Endpoint `raw/upload` preserva o tipo original
- * sem tentar tratar como imagem.
- */
-export async function uploadRawToCloudinary(file: File): Promise<string> {
-  const fd = new FormData();
-  fd.append("file", file);
-  fd.append("upload_preset", CLOUDINARY_PRESET);
-  const res = await fetch(
-    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/raw/upload`,
-    { method: "POST", body: fd }
-  );
-  const data = await res.json();
-  if (!data.secure_url) throw new Error(data.error?.message || "Falha no upload");
-  return data.secure_url as string;
-}
+// Uploads de fotos/exames agora vão para o bucket PRIVADO `student-media`
+// (ver `src/lib/studentMedia.ts`). O Cloudinary foi removido: o preset era
+// unsigned e entregava URLs públicas e adivinháveis.
 
 // Envio de email ao coach agora é feito exclusivamente pela edge function
 // `notify-coach` (Resend). As funções legadas Web3Forms foram removidas

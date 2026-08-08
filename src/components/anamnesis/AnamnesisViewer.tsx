@@ -6,7 +6,8 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ANAMNESIS_SECTIONS, BASELINE_KEYS, NEURO_SLIDERS, uploadToCloudinary, type AnamnesisField } from "@/lib/anamnesisSchema";
+import { ANAMNESIS_SECTIONS, BASELINE_KEYS, NEURO_SLIDERS, type AnamnesisField } from "@/lib/anamnesisSchema";
+import { uploadStudentPhoto } from "@/lib/studentMedia";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FormField } from "@/components/student/FormField";
@@ -164,7 +165,7 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
   async function handlePhotoUpload(key: string, file: File) {
     setUploadingPhoto(key);
     try {
-      const url = await uploadToCloudinary(file);
+      const url = await uploadStudentPhoto(studentId, file);
       setEditPayload(prev => ({
         ...prev,
         fotos: {
@@ -390,7 +391,7 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
           <DialogTitle className="sr-only">{zoomPhoto?.label ?? "Foto do aluno"}</DialogTitle>
           {zoomPhoto && (
             <div className="flex flex-col items-center">
-              <img
+              <PrivateImg
                 src={zoomPhoto.url}
                 alt={zoomPhoto.label}
                 className="max-h-[80vh] w-auto rounded-md object-contain"

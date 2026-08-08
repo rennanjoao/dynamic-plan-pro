@@ -14,7 +14,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FormField } from "@/components/student/FormField";
 import { CHECKIN_METRICS, CHECKIN_SECTIONS } from "@/lib/checkInSchema";
-import { uploadToCloudinary, isFieldVisible } from "@/lib/anamnesisSchema";
+import { isFieldVisible } from "@/lib/anamnesisSchema";
+import { uploadStudentPhoto, openMedia } from "@/lib/studentMedia";
 import type { FieldRenderContext } from "@/lib/anamnesisSchema";
 import { toast } from "sonner";
 import { Loader2, Save, Upload, FileText, Trash2 } from "lucide-react";
@@ -125,8 +126,8 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
   async function handlePhoto(slot: string, file: File) {
     setUploadingKey(slot);
     try {
-      const url = await uploadToCloudinary(file);
-      setFotos((p) => ({ ...p, [slot]: url }));
+      const path = await uploadStudentPhoto(studentId, file);
+      setFotos((p) => ({ ...p, [slot]: path }));
       toast.success(`Foto ${slot} enviada`);
     } catch {
       toast.error("Falha ao enviar foto");
@@ -303,9 +304,13 @@ export default function CheckinFullEditor({ open, onOpenChange, studentId, onSav
                   {exames.map((ex, i) => (
                     <div key={i} className="flex items-center gap-2 text-xs bg-muted/30 border border-border rounded-lg px-3 py-2">
                       <FileText className="w-4 h-4 text-primary shrink-0" />
-                      <a href={ex.url} target="_blank" rel="noopener noreferrer" className="flex-1 truncate hover:underline">
+                      <button
+                        type="button"
+                        onClick={() => openMedia(ex.url)}
+                        className="flex-1 truncate text-left hover:underline"
+                      >
                         {ex.nome || `Exame ${i + 1}`}
-                      </a>
+                      </button>
                       {typeof ex.tamanho_kb === "number" && (
                         <span className="text-muted-foreground text-[10px]">{ex.tamanho_kb}KB</span>
                       )}
