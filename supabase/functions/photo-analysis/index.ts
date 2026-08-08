@@ -202,7 +202,7 @@ Responda SOMENTE com um JSON válido, sem markdown, sem texto fora do JSON, exat
     const reliability =
       typeof parsed.reliability === "number" && isFinite(parsed.reliability)
         ? Math.max(0, Math.min(1, parsed.reliability))
-        : (hasReference ? null : 0);
+        : (useReference ? null : 0);
 
     const { error: upsertErr } = await adminClient
       .from("checkin_photo_analysis")
