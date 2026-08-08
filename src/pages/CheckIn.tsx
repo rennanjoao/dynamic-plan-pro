@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { CHECKIN_SECTIONS, CHECKIN_METRICS } from "@/lib/checkInSchema";
 import { notifyCoach } from "@/lib/notifyCoach";
 import { isFieldVisible } from "@/lib/anamnesisSchema";
-import { uploadStudentPhoto, uploadStudentExam } from "@/lib/studentMedia";
+import { uploadStudentPhoto, uploadStudentExam, openMedia } from "@/lib/studentMedia";
 import type { FieldRenderContext, SectionDef } from "@/lib/anamnesisSchema";
 import { FormField } from "@/components/student/FormField";
 import { FotoSlot } from "@/components/shared/FotoSlot";
