@@ -104,7 +104,7 @@ export function CheckinHistoryDialog({
     return Array.isArray(ex) && ex.length > 0;
   };
 
-  const renderCheckinHTML = (c: CheckinRow) => {
+  const renderCheckinHTML = async (c: CheckinRow) => {
     const metrics = c.current_metrics || {};
     const rows = Object.entries(metrics)
       .map(([k, v]) => `<div class="row"><span class="lbl">${k}</span><span class="val">${typeof v === "object" ? JSON.stringify(v) : String(v ?? "—")}</span></div>`)
@@ -113,25 +113,30 @@ export function CheckinHistoryDialog({
     const POSES: Array<[string, string]> = [
       ["frente", "Frente"], ["lateral_dir", "Lado Dir."], ["lateral_esq", "Lado Esq."], ["costas", "Costas"],
     ];
-    const photoImgs = POSES
-      .map(([key, label]) => {
-        const url = key === "frente"
-          ? (fotos.frente || fotos.front || c.photo_url || "")
-          : (fotos[key] || "");
-        if (!url) return "";
-        return `<figure class="photo"><img src="${url}" alt="${label}"/><figcaption>${label}</figcaption></figure>`;
-      })
-      .join("");
-    return `
+    const photoImgs = (
+      await Promise.all(
+        POSES.map(async ([key, label]) => {
+          const ref = key === "frente"
+            ? (fotos.frente || fotos.front || c.photo_url || "")
+            : (fotos[key] || "");
+          const url = await resolveMediaUrl(ref);
+          if (!url) return "";
+          return `<figure class="photo"><img src="${url}" alt="${label}"/><figcaption>${label}</figcaption></figure>`;
+        }),
+      )
+    ).join("");
+    const body = `
       <h2>Check-in — ${fmtDate(c.submitted_at)}</h2>
       ${rows}
       ${photoImgs ? `<h3>Fotos</h3><div class="photos">${photoImgs}</div>` : ""}
       ${c.coach_feedback ? `<h3>Feedback do Coach</h3><p>${c.coach_feedback}</p>` : ""}
     `;
+    return body;
   };
 
-  const exportOne = (c: CheckinRow) => {
+  const exportOne = async (c: CheckinRow) => {
     if (!student) return;
+    const html = await renderCheckinHTML(c);
     const w = window.open("", "_blank");
     if (!w) { toast.error("Permita popups para exportar"); return; }
     w.document.write(`
@@ -148,7 +153,7 @@ export function CheckinHistoryDialog({
       .photo figcaption{font-size:11px;color:#555;text-align:center;margin-top:2px}
       @media print{body{padding:0}}</style></head><body>
       <h1>Check-in — ${student.name}</h1>
-      ${renderCheckinHTML(c)}
+      ${html}
       <script>window.onload=()=>setTimeout(()=>window.print(),300);</script>
       </body></html>`);
     w.document.close();
