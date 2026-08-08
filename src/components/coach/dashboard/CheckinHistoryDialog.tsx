@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import CheckinPayloadAnswers from "@/components/coach/CheckinPayloadAnswers";
 import { sb } from "./dashboardUtils";
 import { Private, usePrivacyMode } from "@/components/coach/PrivacyMode";
+import { resolveMediaUrl } from "@/lib/studentMedia";
 
 const PRIVACY_EXPORT_TITLE = "Desativado no Modo Privacidade — o PDF abriria com nome e fotos do aluno visíveis.";
 
@@ -173,6 +174,9 @@ export function CheckinHistoryDialog({
       if (error) throw error;
       const all = (data || []) as CheckinRow[];
       if (all.length === 0) { toast.dismiss(t); toast.info("Nenhum check-in para exportar"); return; }
+      const allHtml = (
+        await Promise.all(all.map(async (c) => `<div class="checkin">${await renderCheckinHTML(c)}</div>`))
+      ).join("");
       const w = window.open("", "_blank");
       if (!w) { toast.dismiss(t); toast.error("Permita popups para exportar"); return; }
       w.document.write(`
