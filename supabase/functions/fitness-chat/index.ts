@@ -32,6 +32,35 @@ Seja objetivo, encorajador e prático.
 - Para dúvidas sobre o plano ou ajustes: instrua a contatar o coach pela plataforma.
 - Se o aluno perguntar sobre atualizações recentes do coach (ex.: "quais foram as últimas atualizações", "o que mudou no meu treino ou dieta", "meu coach atualizou algo?"), responda com base na lista em recentCoachUpdates do contexto — resuma por data e categoria, do mais recente pro mais antigo. Se a lista estiver vazia, diga que não há atualizações recentes registradas.`;
 
+/** Reduz o contexto para caber no limite de tokens do gateway (413). */
+function compactContext(ctx: unknown): unknown {
+  if (!ctx || typeof ctx !== "object") return ctx;
+  const c = { ...(ctx as Record<string, unknown>) };
+
+  // Payloads gigantes (protocolo completo, anamnese bruta) estouram o limite.
+  if (c.activeProtocol && typeof c.activeProtocol === "object") {
+    const p = c.activeProtocol as Record<string, unknown>;
+    c.activeProtocol = { name: p.name };
+  }
+  delete c.anamnesis;
+  if (Array.isArray(c.recentCheckIns)) c.recentCheckIns = c.recentCheckIns.slice(0, 2);
+  if (Array.isArray(c.recentCoachUpdates)) c.recentCoachUpdates = c.recentCoachUpdates.slice(0, 5);
+  if (c.coachContext && typeof c.coachContext === "object") {
+    const cc = { ...(c.coachContext as Record<string, unknown>) };
+    if (Array.isArray(cc.students)) cc.students = cc.students.slice(0, 8);
+    if (Array.isArray(cc.recentCheckins)) cc.recentCheckins = cc.recentCheckins.slice(0, 3);
+    c.coachContext = cc;
+  }
+
+  // Guarda-chuva final: nunca enviar mais que ~6k caracteres de contexto.
+  const json = JSON.stringify(c);
+  if (json.length > 6000) {
+    delete c.baselineMetrics;
+    delete c.recentCheckIns;
+  }
+  return c;
+}
+
 serve(async (req) => {
   const corsHeaders = buildCorsHeaders(req.headers.get("origin"));
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -44,14 +73,17 @@ serve(async (req) => {
 
     let systemContent = SYSTEM_PROMPT;
     if (athleteContext) {
-      systemContent += `\n\nDADOS E CONTEXTO DO USUÁRIO ATUAL:\n${JSON.stringify(athleteContext, null, 2)}`;
+      systemContent += `\n\nDADOS E CONTEXTO DO USUÁRIO ATUAL:\n${JSON.stringify(compactContext(athleteContext))}`;
     }
+
+    // Só as últimas trocas — histórico longo também estoura o limite de tokens.
+    const recent = (Array.isArray(messages) ? messages : []).slice(-8);
 
     const chatMessages = [
       { role: "system", content: systemContent },
-      ...messages.map((m: { role: string; content: string }) => ({
+      ...recent.map((m: { role: string; content: string }) => ({
         role: m.role === "assistant" ? "assistant" : "user",
-        content: m.content,
+        content: String(m.content ?? "").slice(0, 4000),
       })),
     ];
 
