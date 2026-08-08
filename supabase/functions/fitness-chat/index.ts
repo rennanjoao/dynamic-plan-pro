@@ -110,6 +110,9 @@ serve(async (req) => {
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Limite excedido. Tente novamente em instantes." }), { status: 429, headers: corsHeaders });
       }
+      if (response.status === 413) {
+        return new Response(JSON.stringify({ error: "Conversa muito longa. Limpe o chat e tente novamente." }), { status: 413, headers: corsHeaders });
+      }
       return new Response(JSON.stringify({ error: `Erro no gateway de IA (${response.status})` }), { status: 500, headers: corsHeaders });
     }
 
