@@ -1,3 +1,4 @@
+import { MediaImg } from "@/components/shared/MediaImg";
 /**
  * ComparisonBoard.tsx
  * "Máquina do tempo": baseline (anamnese) vs último check-in.
@@ -68,7 +69,7 @@ export default function ComparisonBoard({ anamnesis, latestCheckIn }: Props) {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             {anamFront ? (
-              <img src={anamFront} alt="Anamnese — frente" className="w-full aspect-[3/4] object-cover rounded-xl border border-border/40" />
+              <MediaImg src={anamFront} alt="Anamnese — frente" className="w-full aspect-[3/4] object-cover rounded-xl border border-border/40" />
             ) : (
               <div className="w-full aspect-[3/4] rounded-xl border border-dashed border-border/40 flex items-center justify-center text-[10px] text-muted-foreground">Sem foto</div>
             )}
@@ -82,7 +83,7 @@ export default function ComparisonBoard({ anamnesis, latestCheckIn }: Props) {
           </div>
           <div className="space-y-2">
             {checkFront ? (
-              <img src={checkFront} alt="Check-in — frente" className="w-full aspect-[3/4] object-cover rounded-xl border border-border/40" />
+              <MediaImg src={checkFront} alt="Check-in — frente" className="w-full aspect-[3/4] object-cover rounded-xl border border-border/40" />
             ) : (
               <div className="w-full aspect-[3/4] rounded-xl border border-dashed border-border/40 flex items-center justify-center text-[10px] text-muted-foreground">Sem check-in</div>
             )}
