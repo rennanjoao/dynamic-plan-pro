@@ -11,6 +11,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useMediaUrl } from "@/lib/studentMedia";
 
 const SESSION_KEY = "epx_privacy_mode";
 
