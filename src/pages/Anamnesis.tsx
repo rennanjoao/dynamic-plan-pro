@@ -49,6 +49,9 @@ const Anamnesis = () => {
   const [searchParams] = useSearchParams();
   const isEditMode = searchParams.get("mode") === "edit";
   const [step, setStep] = useState<"code" | "form" | "done">("code");
+  // Card curto de descrição mostrado só na primeira vez (usuário ainda
+  // anônimo) entre a validação do código e a etapa 1 do formulário.
+  const [showIntro, setShowIntro] = useState(false);
   // Etapa visual do formulário (1..4) — apenas apresentação; nenhum campo
   // deixa de existir e o autosave continua igual.
   const [formStep, setFormStep] = useState(1);
