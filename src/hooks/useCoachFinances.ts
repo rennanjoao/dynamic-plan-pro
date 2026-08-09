@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const sb: any = supabase;
 
 export interface FinanceRecord {
   id: string;
@@ -25,14 +27,13 @@ export function useCoachFinances(coachId: string | null) {
           .select("*")
           .eq("coach_id", coachId)
           .order("created_at", { ascending: false }),
-        supabase
+        sb
           .from("coach_students")
           .select("student_id")
           .eq("coach_id", coachId)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .eq("is_exempt" as any, true),
+          .eq("is_exempt", true),
       ]);
-      const exemptIds = new Set((exempt ?? []).map((e) => e.student_id));
+      const exemptIds = new Set(((exempt ?? []) as { student_id: string }[]).map((e) => e.student_id));
       // Alunos isentos somem de qualquer leitura financeira.
       return (data || []).filter((f) => !f.student_id || !exemptIds.has(f.student_id));
     },
