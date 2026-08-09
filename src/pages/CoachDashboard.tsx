@@ -200,6 +200,8 @@ function CoachDashboardInner() {
                 coachId={coachId}
                 students={allStudents}
                 onSelectStudent={(sid) => {
+                  return;
+                }}
                   // Tanto 'fatigue' quanto 'checkin_urgent' são sobre o check-in
                   // do aluno → abre direto o mesmo painel de feedback usado na
                   // StudentRow ("Último check-in").
