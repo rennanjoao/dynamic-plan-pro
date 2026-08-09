@@ -1,1 +1,7 @@
 project_id = "firqzdnmwfhcbykixxbu"
+
+# A InfinityPay chama esse endpoint direto dos servidores dela, sem JWT do
+# Supabase — sem isso, o gateway rejeita a chamada antes de chegar na function
+# e a confirmação automática de pagamento nunca funciona.
+[functions.infinitepay-webhook]
+verify_jwt = false
