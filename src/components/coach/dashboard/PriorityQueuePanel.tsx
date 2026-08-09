@@ -9,7 +9,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertTriangle, LifeBuoy, ListChecks } from "lucide-react";
+import { AlertTriangle, LifeBuoy, ListChecks, Wallet } from "lucide-react";
 import { Private } from "@/components/coach/PrivacyMode";
 import type { StudentLite } from "@/hooks/useCoachStudents";
 
@@ -17,7 +17,7 @@ import type { StudentLite } from "@/hooks/useCoachStudents";
 const sb: any = supabase;
 
 type QueueSeverity = "critical" | "warning" | "info";
-type QueueSource = "fatigue" | "checkin_urgent";
+export type QueueSource = "fatigue" | "checkin_urgent" | "payment_overdue";
 
 interface QueueRow {
   source_id: string;
@@ -42,6 +42,7 @@ const SEVERITY_RANK: Record<QueueSeverity, number> = { critical: 0, warning: 1, 
 const SOURCE_ICON: Record<QueueSource, typeof AlertTriangle> = {
   fatigue: AlertTriangle,
   checkin_urgent: LifeBuoy,
+  payment_overdue: Wallet,
 };
 
 export function PriorityQueuePanel({ coachId, students, onSelectStudent }: Props) {
