@@ -74,6 +74,8 @@ export interface StudentLite {
   id: string;
   name: string;
   lastAnamnesis: string | null;
+  /** Aluno isento de cobrança — some de totais, alertas e fila de prioridade. */
+  isExempt: boolean;
 }
 
 export function useCoachStudentsLite(coachId: string | null) {
@@ -85,12 +87,16 @@ export function useCoachStudentsLite(coachId: string | null) {
 
       const { data: links } = await supabase
         .from("coach_students")
-        .select("student_id")
+        .select("student_id, is_exempt")
         .eq("coach_id", coachId)
         .eq("status", "active");
 
       if (!links || links.length === 0) return [];
       const ids = links.map((l) => l.student_id);
+      const exemptById = new Map<string, boolean>(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        links.map((l: any) => [l.student_id, !!l.is_exempt])
+      );
 
       const [{ data: sProfiles }, { data: profiles }, { data: ana }] = await Promise.all([
         supabase.from("student_profiles").select("user_id, full_name").in("user_id", ids),
@@ -119,6 +125,7 @@ export function useCoachStudentsLite(coachId: string | null) {
           id: sid,
           name,
           lastAnamnesis: a?.submitted_at || a?.updated_at || null,
+          isExempt: exemptById.get(sid) ?? false,
         };
       });
     },
