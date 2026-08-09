@@ -285,17 +285,26 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
 
                 return (
                   <TableRow key={student.id}>
-                    <TableCell className="text-sm font-semibold"><Private>{student.name}</Private></TableCell>
+                    <TableCell className="text-sm font-semibold">
+                      <div className="flex items-center gap-2">
+                        <Private>{student.name}</Private>
+                        {student.isExempt && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-sky-100 text-sky-700 border-sky-200">Isento</span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {student.lastAnamnesis ? formatDatePtBR(student.lastAnamnesis) : "Aguardando"}
                     </TableCell>
                     <TableCell className="text-xs font-medium">
-                      {activeFinance?.due_date ? formatDatePtBR(activeFinance.due_date) : "Sem pendências"}
+                      {student.isExempt ? "—" : activeFinance?.due_date ? formatDatePtBR(activeFinance.due_date) : "Sem pendências"}
                     </TableCell>
                     <TableCell>
-                      {activeFinance ? (
+                      {student.isExempt ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-muted text-muted-foreground">Sem cobrança</span>
+                      ) : activeFinance ? (
                         <button
-                          onClick={() => togglePaid(activeFinance.id, false)}
+                          onClick={() => { setPayMethod("pix_plataforma"); setPayDialog({ id: activeFinance.id }); }}
                           className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors hover:opacity-80 ${
                             isOverdue ? "bg-red-100 text-red-700 border-red-200" : "bg-amber-100 text-amber-700 border-amber-200"
                           }`}
@@ -307,14 +316,34 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      {activeFinance ? (
+                      <div className="flex justify-end items-center gap-1">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-sky-500"
+                        onClick={() => toggleExempt(student.id, !student.isExempt)}
+                        title={student.isExempt ? "Remover isenção" : "Marcar como isento"}>
+                        {student.isExempt ? <ShieldCheck className="w-4 h-4" /> : <ShieldOff className="w-4 h-4" />}
+                      </Button>
+                      {student.isExempt ? null : activeFinance ? (
                         <div className="flex justify-end gap-1">
+                          {hasInfinitePay && (
+                            <>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                disabled={busyCheckout === activeFinance.id}
+                                onClick={() => createInfinitePayLink(activeFinance.id)} title="Cobrar via InfinityPay">
+                                <Wallet className="w-4 h-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                disabled={busyCheckout === activeFinance.id}
+                                onClick={() => checkInfinitePayPayment(activeFinance.id)} title="Verificar pagamento">
+                                <RefreshCw className="w-4 h-4" />
+                              </Button>
+                            </>
+                          )}
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
                             onClick={() => setEditingFinance({ id: activeFinance.id, due_date: activeFinance.due_date || "" })} title="Alterar Data">
                             <Calendar className="w-4 h-4" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-emerald-500"
-                            onClick={() => togglePaid(activeFinance.id, false)} title="Marcar como Pago">
+                            onClick={() => { setPayMethod("pix_plataforma"); setPayDialog({ id: activeFinance.id }); }} title="Marcar como Pago">
                             <CheckCircle2 className="w-4 h-4" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
@@ -328,6 +357,7 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
                           <Plus className="w-3 h-3" /> Gerar Cobrança
                         </Button>
                       )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -369,6 +399,8 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
       </Dialog>
 
       <Dialog open={!!editingFinance} onOpenChange={(open) => !open && setEditingFinance(null)}>
+        <DialogContent className="sm:max-w-[300px]">
+          <DialogHeader><DialogTitle>Alterar Vencimento</DialogTitle></DialogHeader>
         <DialogContent className="sm:max-w-[300px]">
           <DialogHeader><DialogTitle>Alterar Vencimento</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
