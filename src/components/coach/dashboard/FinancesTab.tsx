@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, DollarSign, Calendar, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Loader2, Plus, Trash2, DollarSign, Calendar, AlertTriangle, CheckCircle2, Users, Wallet, RefreshCw, ShieldOff, ShieldCheck } from "lucide-react";
 import { useCoachFinances } from "@/hooks/useCoachFinances";
 import { usePlatformBilling, worstPlatformStatus } from "@/hooks/usePlatformBilling";
 import type { StudentLite } from "@/hooks/useCoachStudents";
@@ -18,6 +18,25 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { StatCard } from "./dashboardUtils";
 import { Private } from "@/components/coach/PrivacyMode";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const sb: any = supabase;
+
+const PAYMENT_METHODS: { value: string; label: string }[] = [
+  { value: "pix_plataforma", label: "PIX (pela plataforma)" },
+  { value: "pix_infinitepay", label: "PIX fora da plataforma" },
+  { value: "cartao", label: "Cartão" },
+  { value: "dinheiro", label: "Dinheiro" },
+  { value: "transferencia", label: "Transferência" },
+  { value: "outro", label: "Outro" },
+];
+
+function isSameMonth(dateStr: string | null | undefined) {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+}
+
 export function FinancesTab({ coachId, students }: { coachId: string; students: StudentLite[] }) {
   const { data: finances = [], isLoading } = useCoachFinances(coachId);
   const { data: platformCharges = [] } = usePlatformBilling(coachId);
@@ -32,6 +51,22 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
   const [quickForm, setQuickForm] = useState({ description: "Mensalidade", amount: "", due_date: "" });
   const [savingDueDate, setSavingDueDate] = useState(false);
   const [creatingBilling, setCreatingBilling] = useState(false);
+  const [payDialog, setPayDialog] = useState<{ id: string } | null>(null);
+  const [payMethod, setPayMethod] = useState("pix_plataforma");
+  const [savingPayment, setSavingPayment] = useState(false);
+  const [busyCheckout, setBusyCheckout] = useState<string | null>(null);
+
+  const { data: coachProfile } = useQuery({
+    queryKey: ["coach-infinitepay-handle", coachId],
+    enabled: !!coachId,
+    queryFn: async () => {
+      const { data } = await sb.from("profiles").select("infinitepay_handle").eq("user_id", coachId).maybeSingle();
+      return (data ?? null) as { infinitepay_handle: string | null } | null;
+    },
+  });
+  const hasInfinitePay = !!coachProfile?.infinitepay_handle;
+
+  const activeStudents = students.filter((s) => !s.isExempt);
 
   const addFinance = useMutation({
     mutationFn: async () => {
@@ -55,17 +90,78 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const togglePaid = async (id: string, currentlyPaid: boolean) => {
+  const togglePaid = async (id: string, currentlyPaid: boolean, method?: string) => {
     try {
-      const { error } = await supabase.from("coach_finances").update({
+      const { error } = await sb.from("coach_finances").update({
         status: currentlyPaid ? "pending" : "paid",
         paid_at: currentlyPaid ? null : new Date().toISOString(),
+        payment_method: currentlyPaid ? null : (method ?? null),
       }).eq("id", id);
       if (error) throw error;
       qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
+      qc.invalidateQueries({ queryKey: ["coach-priority-queue", coachId] });
       toast.success(currentlyPaid ? "Marcado como pendente" : "Marcado como pago");
     } catch (e) {
       toast.error("Erro ao atualizar status: " + (e instanceof Error ? e.message : "erro desconhecido"));
+    }
+  };
+
+  const confirmPayment = async () => {
+    if (!payDialog || savingPayment) return;
+    setSavingPayment(true);
+    await togglePaid(payDialog.id, false, payMethod);
+    setSavingPayment(false);
+    setPayDialog(null);
+    setPayMethod("pix_plataforma");
+  };
+
+  const toggleExempt = async (studentId: string, nextExempt: boolean) => {
+    try {
+      const { error } = await sb.from("coach_students")
+        .update({ is_exempt: nextExempt })
+        .eq("coach_id", coachId).eq("student_id", studentId);
+      if (error) throw error;
+      qc.invalidateQueries({ queryKey: ["coach-students-lite", coachId] });
+      qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
+      qc.invalidateQueries({ queryKey: ["coach-priority-queue", coachId] });
+      toast.success(nextExempt ? "Aluno isento de cobranças" : "Isenção removida");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao atualizar isenção");
+    }
+  };
+
+  const createInfinitePayLink = async (financeId: string) => {
+    setBusyCheckout(financeId);
+    try {
+      const { data, error } = await supabase.functions.invoke("infinitepay-create-link", {
+        body: { coach_id: coachId, finance_id: financeId },
+      });
+      if (error) throw error;
+      if (!data?.url) throw new Error(data?.error || "Não foi possível gerar o link");
+      await navigator.clipboard.writeText(data.url).catch(() => undefined);
+      window.open(data.url, "_blank", "noopener");
+      qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
+      toast.success("Link InfinityPay gerado e copiado.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao gerar link");
+    } finally {
+      setBusyCheckout(null);
+    }
+  };
+
+  const checkInfinitePayPayment = async (financeId: string) => {
+    setBusyCheckout(financeId);
+    try {
+      const { data, error } = await supabase.functions.invoke("infinitepay-create-link", {
+        body: { coach_id: coachId, finance_id: financeId, action: "check" },
+      });
+      if (error) throw error;
+      qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
+      toast[data?.paid ? "success" : "info"](data?.paid ? "Pagamento confirmado!" : "Ainda sem pagamento confirmado.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao verificar pagamento");
+    } finally {
+      setBusyCheckout(null);
     }
   };
 
@@ -122,9 +218,10 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
     }
   };
 
-  const totalReceita  = finances.filter((f) => f.status === "paid").reduce((s, f) => s + Number(f.amount), 0);
-  const totalPendente = finances.filter((f) => f.status === "pending").reduce((s, f) => s + Number(f.amount), 0);
-  const totalAtrasado = finances.filter((f) => f.status === "pending" && f.due_date && new Date(f.due_date) < new Date()).reduce((s, f) => s + Number(f.amount), 0);
+  // Cards escopados ao mês corrente (receita por paid_at, pendências por due_date).
+  const totalReceita  = finances.filter((f) => f.status === "paid" && isSameMonth(f.paid_at)).reduce((s, f) => s + Number(f.amount), 0);
+  const totalPendente = finances.filter((f) => f.status === "pending" && isSameMonth(f.due_date)).reduce((s, f) => s + Number(f.amount), 0);
+  const totalAtrasado = finances.filter((f) => f.status === "pending" && isSameMonth(f.due_date) && f.due_date && new Date(f.due_date) < new Date()).reduce((s, f) => s + Number(f.amount), 0);
 
   return (
     <div className="space-y-4">
@@ -148,10 +245,11 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatCard label="Receita (Pago)"  value={`R$ ${totalReceita.toFixed(0)}`}  icon={<DollarSign className="w-4 h-4" />}   accent="#10B981" />
         <StatCard label="Pendente"         value={`R$ ${totalPendente.toFixed(0)}`} icon={<Calendar className="w-4 h-4" />}     accent="#F59E0B" />
         <StatCard label="Atrasado"         value={`R$ ${totalAtrasado.toFixed(0)}`} icon={<AlertTriangle className="w-4 h-4" />} accent="#EF4444" />
+        <StatCard label="Alunos ativos"    value={activeStudents.length}            icon={<Users className="w-4 h-4" />}        accent="#3B82F6" />
       </div>
 
       <div className="flex items-center justify-between mt-6">
