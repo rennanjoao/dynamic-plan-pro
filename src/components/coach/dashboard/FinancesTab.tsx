@@ -219,9 +219,10 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
   };
 
   // Cards escopados ao mês corrente (receita por paid_at, pendências por due_date).
+  // "Atrasado" NÃO é escopado por mês: dívida vencida continua contando mesmo depois que o mês vira.
   const totalReceita  = finances.filter((f) => f.status === "paid" && isSameMonth(f.paid_at)).reduce((s, f) => s + Number(f.amount), 0);
   const totalPendente = finances.filter((f) => f.status === "pending" && isSameMonth(f.due_date)).reduce((s, f) => s + Number(f.amount), 0);
-  const totalAtrasado = finances.filter((f) => f.status === "pending" && isSameMonth(f.due_date) && f.due_date && new Date(f.due_date) < new Date()).reduce((s, f) => s + Number(f.amount), 0);
+  const totalAtrasado = finances.filter((f) => f.status === "pending" && f.due_date && new Date(f.due_date) < new Date()).reduce((s, f) => s + Number(f.amount), 0);
 
   return (
     <div className="space-y-4">
