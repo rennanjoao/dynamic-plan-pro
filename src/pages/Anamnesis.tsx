@@ -525,6 +525,33 @@ const Anamnesis = () => {
   }
 
   if (step === "done") {
+    // (card de descrição nunca aparece aqui)
+  }
+
+  if (step === "form" && showIntro && !isEditMode) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 relative overflow-hidden">
+        <div className="absolute inset-0 gradient-hero" />
+        <div className="max-w-md w-full glass-strong rounded-3xl p-8 space-y-6 relative z-10 text-center">
+          <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto text-primary glow-primary">
+            <ShieldCheck size={32} />
+          </div>
+          <h1 className="text-2xl font-black text-foreground">Sua ficha de anamnese</h1>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            A ficha tem {TOTAL_FORM_STEPS} etapas: dados pessoais, histórico de saúde, rotina e medidas/fotos.
+            Você avança etapa por etapa e o que preencher fica salvo automaticamente, mesmo se sair no meio.
+            {coach?.name ? ` Ela vai direto para ${coach.name}.` : ""}
+          </p>
+          <Button size="lg" className="w-full h-14 text-base font-bold glow-primary" onClick={() => { setShowIntro(false); setFormStep(1); }}>
+            Começar
+            <ArrowRight className="w-5 h-5 ml-2" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === "done") {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 text-center gap-5 relative z-10">
         <div className="w-20 h-20 rounded-full border-4 border-primary bg-primary/10 flex items-center justify-center text-4xl text-primary glow-primary">✓</div>
