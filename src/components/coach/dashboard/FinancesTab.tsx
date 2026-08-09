@@ -401,8 +401,6 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
       <Dialog open={!!editingFinance} onOpenChange={(open) => !open && setEditingFinance(null)}>
         <DialogContent className="sm:max-w-[300px]">
           <DialogHeader><DialogTitle>Alterar Vencimento</DialogTitle></DialogHeader>
-        <DialogContent className="sm:max-w-[300px]">
-          <DialogHeader><DialogTitle>Alterar Vencimento</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div>
               <Label className="text-xs">Nova Data de Vencimento</Label>
