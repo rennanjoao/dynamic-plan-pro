@@ -524,10 +524,6 @@ const Anamnesis = () => {
     );
   }
 
-  if (step === "done") {
-    // (card de descrição nunca aparece aqui)
-  }
-
   if (step === "form" && showIntro && !isEditMode) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 relative overflow-hidden">
