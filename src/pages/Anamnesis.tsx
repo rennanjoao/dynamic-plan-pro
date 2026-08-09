@@ -534,7 +534,7 @@ const Anamnesis = () => {
           </div>
           <h1 className="text-2xl font-black text-foreground">Sua ficha de anamnese</h1>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            A ficha tem {TOTAL_FORM_STEPS} etapas: dados pessoais, histórico de saúde, rotina e medidas/fotos.
+            A ficha tem {TOTAL_FORM_STEPS} etapas: dados e medidas, rotina e histórico de treino, alimentação e descanso, e por fim saúde e fotos de avaliação.
             Você avança etapa por etapa e o que preencher fica salvo automaticamente, mesmo se sair no meio.
             {coach?.name ? ` Ela vai direto para ${coach.name}.` : ""}
           </p>
