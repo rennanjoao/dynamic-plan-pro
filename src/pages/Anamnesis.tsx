@@ -49,6 +49,9 @@ const Anamnesis = () => {
   const [searchParams] = useSearchParams();
   const isEditMode = searchParams.get("mode") === "edit";
   const [step, setStep] = useState<"code" | "form" | "done">("code");
+  // Card curto de descrição mostrado só na primeira vez (usuário ainda
+  // anônimo) entre a validação do código e a etapa 1 do formulário.
+  const [showIntro, setShowIntro] = useState(false);
   // Etapa visual do formulário (1..4) — apenas apresentação; nenhum campo
   // deixa de existir e o autosave continua igual.
   const [formStep, setFormStep] = useState(1);
@@ -250,6 +253,7 @@ const Anamnesis = () => {
     const direct = consumeStoredDirectCoach();
     if (direct?.coachId) {
       setCoach({ id: direct.coachId, name: direct.coachName, email: direct.notificationEmail });
+      setShowIntro(true);
       setStep("form");
       return;
     }
@@ -265,6 +269,7 @@ const Anamnesis = () => {
         });
         if (!error && data?.coach_id) {
           setCoach({ id: data.coach_id, name: data.coach_name, email: data.notification_email });
+          setShowIntro(true);
           setStep("form");
         }
         // Falhou (código expirado, indicador sem coach ativo etc.) → fica na
@@ -285,6 +290,7 @@ const Anamnesis = () => {
       if (error || !data?.coach_id) throw new Error(data?.error || "Código inválido ou inexistente.");
       
       setCoach({ id: data.coach_id, name: data.coach_name, email: data.notification_email });
+      setShowIntro(true);
       setStep("form"); // Avança para a Anamnese
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : "Erro ao validar código.");
@@ -514,6 +520,29 @@ const Anamnesis = () => {
           </form>
         </div>
         {toast && <div className="fixed bottom-6 bg-card border border-border px-5 py-3 rounded-xl text-sm shadow-lg z-50">{toast}</div>}
+      </div>
+    );
+  }
+
+  if (step === "form" && showIntro && !isEditMode) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 relative overflow-hidden">
+        <div className="absolute inset-0 gradient-hero" />
+        <div className="max-w-md w-full glass-strong rounded-3xl p-8 space-y-6 relative z-10 text-center">
+          <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto text-primary glow-primary">
+            <ShieldCheck size={32} />
+          </div>
+          <h1 className="text-2xl font-black text-foreground">Sua ficha de anamnese</h1>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            A ficha tem {TOTAL_FORM_STEPS} etapas: dados pessoais, histórico de saúde, rotina e medidas/fotos.
+            Você avança etapa por etapa e o que preencher fica salvo automaticamente, mesmo se sair no meio.
+            {coach?.name ? ` Ela vai direto para ${coach.name}.` : ""}
+          </p>
+          <Button size="lg" className="w-full h-14 text-base font-bold glow-primary" onClick={() => { setShowIntro(false); setFormStep(1); }}>
+            Começar
+            <ArrowRight className="w-5 h-5 ml-2" />
+          </Button>
+        </div>
       </div>
     );
   }
