@@ -19,6 +19,17 @@ Deno.serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const admin = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
+    // Só o próprio coach pode gerar link ou consultar pagamento das cobranças dele —
+    // sem isso, qualquer usuário autenticado poderia passar o coach_id de outra pessoa.
+    const authHeader = req.headers.get("Authorization") || "";
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    const { data: authData, error: authErr } = await admin.auth.getUser(token);
+    if (authErr || !authData?.user || authData.user.id !== coach_id) {
+      return new Response(JSON.stringify({ error: "Não autorizado" }), {
+        status: 401, headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
+
     const { data: profile } = await admin
       .from("profiles").select("infinitepay_handle").eq("user_id", coach_id).maybeSingle();
     const handle = (profile?.infinitepay_handle || "").trim().replace(/^\$/, "");
