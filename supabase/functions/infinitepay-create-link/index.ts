@@ -9,7 +9,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
   try {
-    const { coach_id, finance_id } = await req.json();
+    const { coach_id, finance_id, action } = await req.json();
     if (!coach_id || !finance_id) {
       return new Response(JSON.stringify({ error: "coach_id e finance_id são obrigatórios" }), {
         status: 400, headers: { ...cors, "Content-Type": "application/json" },
@@ -35,6 +35,30 @@ Deno.serve(async (req) => {
     if (!finance) {
       return new Response(JSON.stringify({ error: "Cobrança não encontrada" }), {
         status: 404, headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
+
+    // Reconciliação manual ("Verificar pagamento") — fallback caso o webhook falhe.
+    if (action === "check") {
+      const check = await fetch(
+        `https://api.infinitepay.io/invoices/public/checkout/payment_check/${handle}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ external_order_nsu: finance.id }),
+        },
+      );
+      const checkJson = await check.json().catch(() => ({}));
+      const paid = check.ok && (checkJson?.paid === true || checkJson?.success === true);
+      if (paid && finance.status !== "paid") {
+        await admin.from("coach_finances").update({
+          status: "paid",
+          payment_method: checkJson?.capture_method === "credit_card" ? "cartao" : "pix_infinitepay",
+          paid_at: new Date().toISOString(),
+        }).eq("id", finance.id);
+      }
+      return new Response(JSON.stringify({ paid: !!paid }), {
+        headers: { ...cors, "Content-Type": "application/json" },
       });
     }
 
