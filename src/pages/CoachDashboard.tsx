@@ -199,9 +199,10 @@ function CoachDashboardInner() {
               <PriorityQueuePanel
                 coachId={coachId}
                 students={allStudents}
-                onSelectStudent={(sid) => {
-                  return;
-                }}
+                onSelectStudent={(sid, source) => {
+                  // Cobrança em atraso não é assunto de check-in: leva o coach
+                  // direto para a aba Financeiro.
+                  if (source === "payment_overdue") { setActiveTab("finances"); return; }
                   // Tanto 'fatigue' quanto 'checkin_urgent' são sobre o check-in
                   // do aluno → abre direto o mesmo painel de feedback usado na
                   // StudentRow ("Último check-in").
