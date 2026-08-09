@@ -253,6 +253,7 @@ const Anamnesis = () => {
     const direct = consumeStoredDirectCoach();
     if (direct?.coachId) {
       setCoach({ id: direct.coachId, name: direct.coachName, email: direct.notificationEmail });
+      setShowIntro(true);
       setStep("form");
       return;
     }
@@ -268,6 +269,7 @@ const Anamnesis = () => {
         });
         if (!error && data?.coach_id) {
           setCoach({ id: data.coach_id, name: data.coach_name, email: data.notification_email });
+          setShowIntro(true);
           setStep("form");
         }
         // Falhou (código expirado, indicador sem coach ativo etc.) → fica na
@@ -288,6 +290,7 @@ const Anamnesis = () => {
       if (error || !data?.coach_id) throw new Error(data?.error || "Código inválido ou inexistente.");
       
       setCoach({ id: data.coach_id, name: data.coach_name, email: data.notification_email });
+      setShowIntro(true);
       setStep("form"); // Avança para a Anamnese
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : "Erro ao validar código.");
