@@ -10,6 +10,8 @@ export interface FinanceRecord {
   due_date: string | null;
   paid_at: string | null;
   created_at: string;
+  payment_method?: string | null;
+  checkout_url?: string | null;
 }
 
 export function useCoachFinances(coachId: string | null) {
@@ -17,12 +19,22 @@ export function useCoachFinances(coachId: string | null) {
     queryKey: ["coach-finances", coachId],
     queryFn: async (): Promise<FinanceRecord[]> => {
       if (!coachId) return [];
-      const { data } = await supabase
-        .from("coach_finances")
-        .select("*")
-        .eq("coach_id", coachId)
-        .order("created_at", { ascending: false });
-      return data || [];
+      const [{ data }, { data: exempt }] = await Promise.all([
+        supabase
+          .from("coach_finances")
+          .select("*")
+          .eq("coach_id", coachId)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("coach_students")
+          .select("student_id")
+          .eq("coach_id", coachId)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .eq("is_exempt" as any, true),
+      ]);
+      const exemptIds = new Set((exempt ?? []).map((e) => e.student_id));
+      // Alunos isentos somem de qualquer leitura financeira.
+      return (data || []).filter((f) => !f.student_id || !exemptIds.has(f.student_id));
     },
     enabled: !!coachId,
   });
