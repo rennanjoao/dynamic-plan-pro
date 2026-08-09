@@ -30,6 +30,7 @@ import FeedbackCountdownAlert from "@/components/student/FeedbackCountdownAlert"
 import { TrainerAlert } from "@/components/student/TrainerAlert";
 import CoachUpdatesCard from "@/components/student/CoachUpdatesCard";
 import CoachUpdatesHistoryDialog from "@/components/student/CoachUpdatesHistoryDialog";
+import StudentOnboardingCard from "@/components/student/StudentOnboardingCard";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { buildPixBrCode } from "@/lib/pixBrCode";
 import QRCode from "qrcode";
@@ -605,6 +606,7 @@ export default function StudentArea() {
 
   return (
     <div className="min-h-screen bg-background pb-12">
+      <StudentOnboardingCard userId={userId} />
 
       {/* ── Header ── */}
       <header className="bg-card border-b border-border/50 sticky top-0 z-10 shadow-sm">
