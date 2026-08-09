@@ -418,6 +418,26 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!payDialog} onOpenChange={(open) => !open && setPayDialog(null)}>
+        <DialogContent className="sm:max-w-[320px]">
+          <DialogHeader><DialogTitle>Registrar pagamento</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="text-xs">Forma de pagamento</Label>
+              <Select value={payMethod} onValueChange={setPayMethod}>
+                <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PAYMENT_METHODS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={confirmPayment} disabled={savingPayment} className="w-full">
+              {savingPayment ? "Salvando..." : "Confirmar pagamento"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader><DialogTitle>Lançar Cobrança Manual</DialogTitle></DialogHeader>
