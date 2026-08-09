@@ -494,36 +494,45 @@ export type Database = {
       coach_finances: {
         Row: {
           amount: number
+          checkout_created_at: string | null
+          checkout_url: string | null
           coach_id: string
           created_at: string
           description: string
           due_date: string | null
           id: string
           paid_at: string | null
+          payment_method: string | null
           status: string
           student_id: string | null
           updated_at: string
         }
         Insert: {
           amount?: number
+          checkout_created_at?: string | null
+          checkout_url?: string | null
           coach_id: string
           created_at?: string
           description: string
           due_date?: string | null
           id?: string
           paid_at?: string | null
+          payment_method?: string | null
           status?: string
           student_id?: string | null
           updated_at?: string
         }
         Update: {
           amount?: number
+          checkout_created_at?: string | null
+          checkout_url?: string | null
           coach_id?: string
           created_at?: string
           description?: string
           due_date?: string | null
           id?: string
           paid_at?: string | null
+          payment_method?: string | null
           status?: string
           student_id?: string | null
           updated_at?: string
@@ -708,6 +717,7 @@ export type Database = {
           critical_days: number | null
           feedback_interval_days: number | null
           id: string
+          is_exempt: boolean
           notes: string | null
           status: string
           student_id: string
@@ -720,6 +730,7 @@ export type Database = {
           critical_days?: number | null
           feedback_interval_days?: number | null
           id?: string
+          is_exempt?: boolean
           notes?: string | null
           status?: string
           student_id: string
@@ -732,6 +743,7 @@ export type Database = {
           critical_days?: number | null
           feedback_interval_days?: number | null
           id?: string
+          is_exempt?: boolean
           notes?: string | null
           status?: string
           student_id?: string
@@ -1044,8 +1056,10 @@ export type Database = {
           feedback_interval_days: number
           full_name: string | null
           id: string
+          infinitepay_handle: string | null
           invite_code: string | null
           notification_email: string | null
+          onboarding_seen_at: string | null
           pix_city: string | null
           pix_holder_name: string | null
           pix_key: string | null
@@ -1063,8 +1077,10 @@ export type Database = {
           feedback_interval_days?: number
           full_name?: string | null
           id?: string
+          infinitepay_handle?: string | null
           invite_code?: string | null
           notification_email?: string | null
+          onboarding_seen_at?: string | null
           pix_city?: string | null
           pix_holder_name?: string | null
           pix_key?: string | null
@@ -1082,8 +1098,10 @@ export type Database = {
           feedback_interval_days?: number
           full_name?: string | null
           id?: string
+          infinitepay_handle?: string | null
           invite_code?: string | null
           notification_email?: string | null
+          onboarding_seen_at?: string | null
           pix_city?: string | null
           pix_holder_name?: string | null
           pix_key?: string | null
