@@ -495,16 +495,30 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const doneSets = (setDataMap[currentExKey] ?? []).filter(s => s.done);
   const todasFeitas = doneSets.length >= setsMax;
 
-  // Pré-preencher carga/reps do histórico ao trocar de exercício,
-  // apenas se ainda não há nenhuma série feita neste exercício nesta sessão.
+  // Pré-preencher carga/reps do histórico ao trocar de exercício.
+  // Ao MUDAR de exercício (manual, avanço automático do descanso ou Mapa do
+  // Treino), os campos são zerados ANTES do pré-preenchimento — sem isso o
+  // valor do exercício anterior "vazava" para o próximo, já que a condição
+  // `!activeWeight` nunca voltava a valer depois do primeiro exercício.
+  const lastPrefillKeyRef = useRef<string | null>(null);
   useEffect(() => {
+    const keyChanged = lastPrefillKeyRef.current !== currentExKey;
+    lastPrefillKeyRef.current = currentExKey;
+
     const currentSets = setDataMap[currentExKey] ?? [];
-    if (currentSets.some((s: any) => s.done)) return;
+    const hasDoneSets = currentSets.some((s: any) => s.done);
+
+    // Reset silencioso ao trocar de exercício.
+    let weight = keyChanged ? 0 : activeWeight;
+    let reps = keyChanged ? 0 : activeReps;
+    if (keyChanged) { setActiveWeight(0); setActiveReps(0); }
+
+    if (hasDoneSets) return;
     const history = historyMap[currentEx?.name] ?? [];
     if (history.length > 0) {
       const last = history[0];
-      if (last?.weightKg && !activeWeight) setActiveWeight(last.weightKg);
-      if (last?.reps && !activeReps) setActiveReps(last.reps);
+      if (last?.weightKg && !weight) setActiveWeight(last.weightKg);
+      if (last?.reps && !reps) setActiveReps(last.reps);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentExKey, historyMap]);
