@@ -72,6 +72,7 @@ interface SetRow {
   perceived_effort: number | null;
   executed_at:      string;
   skipped:          boolean;
+  swapped_from_name: string | null;
 }
 
 interface AlertRow {
@@ -246,7 +247,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
       const since = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
       const { data, error } = await sb
         .from("workout_sets")
-        .select("session_id, exercise_name, exercise_key, set_number, weight_kg, reps, reps_target_min, reps_target_max, perceived_effort, executed_at, skipped")
+        .select("session_id, exercise_name, exercise_key, set_number, weight_kg, reps, reps_target_min, reps_target_max, perceived_effort, executed_at, skipped, swapped_from_name")
         .eq("user_id", studentId)
         .eq("completed", true)
         .gte("executed_at", since)
@@ -517,6 +518,42 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
       reps:   s.reps ?? 0,
     }));
 
+  /* ── F3: recordes pessoais (PR) ─────────────────────────────────────────
+     Mesma comparação usada no Modo Treino do aluno: uma série é PR quando a
+     carga supera o maior peso já registrado naquele exercício até então. */
+  const personalRecords = useMemo(() => {
+    const best = new Map<string, number>();
+    const prs: { exerciseName: string; weightKg: number; reps: number | null; executedAt: string }[] = [];
+    for (const s of completedSets) {
+      const w = s.weight_kg ?? 0;
+      if (w <= 0) continue;
+      const prev = best.get(s.exercise_key) ?? 0;
+      if (w > prev) {
+        if (prev > 0) prs.push({ exerciseName: s.exercise_name, weightKg: w, reps: s.reps, executedAt: s.executed_at });
+        best.set(s.exercise_key, w);
+      }
+    }
+    return prs.sort((a, b) => (a.executedAt < b.executedAt ? 1 : -1));
+  }, [completedSets]);
+
+  /* ── F4: trocas de exercício durante o treino ───────────────────────────── */
+  const exerciseSwaps = useMemo(() => {
+    const map = new Map<string, { from: string; to: Set<string>; sessions: Set<string>; lastAt: string }>();
+    for (const s of allSets) {
+      const from = s.swapped_from_name;
+      if (!from) continue;
+      const k = from.toLowerCase().trim();
+      const cur = map.get(k) ?? { from, to: new Set<string>(), sessions: new Set<string>(), lastAt: s.executed_at };
+      cur.to.add(s.exercise_name);
+      cur.sessions.add(s.session_id);
+      if (s.executed_at > cur.lastAt) cur.lastAt = s.executed_at;
+      map.set(k, cur);
+    }
+    return Array.from(map.values())
+      .map((v) => ({ from: v.from, to: Array.from(v.to), count: v.sessions.size, lastAt: v.lastAt }))
+      .sort((a, b) => b.count - a.count || (a.lastAt < b.lastAt ? 1 : -1));
+  }, [allSets]);
+
   const unreadAlerts   = alerts.filter((a) => !a.is_read);
   const criticalAlerts = alerts.filter((a) => a.severity === "critical" && !a.is_read);
   const isLoading      = loadingSessions || loadingSets || loadingAlerts;
@@ -661,6 +698,62 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
               sub="média das sessões"
             />
           </div>
+
+          {/* ── Recordes e trocas de exercício ──────────────────────────── */}
+          {(personalRecords.length > 0 || exerciseSwaps.length > 0) && (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {personalRecords.length > 0 && (
+                <div className="rounded-xl p-3 space-y-2" style={{ border: `1px solid ${GOLD}66`, background: "rgba(201,168,76,0.06)" }}>
+                  <div className="flex items-center gap-2">
+                    <Trophy className="w-4 h-4 shrink-0" style={{ color: GOLD }} />
+                    <p className="font-bold text-xs flex-1" style={{ color: GOLD }}>
+                      {personalRecords.length} recorde(s) pessoal(is)
+                    </p>
+                    <Badge style={{ background: GOLD + "22", color: GOLD, border: "none" }}>{personalRecords.length}</Badge>
+                  </div>
+                  <div className="space-y-1">
+                    {personalRecords.slice(0, 4).map((pr, i) => (
+                      <p key={`${pr.exerciseName}-${i}`} className="text-[11px] text-white/80 leading-relaxed">
+                        <span className="font-semibold">{pr.exerciseName}</span> — {pr.weightKg}kg
+                        {pr.reps ? ` x ${pr.reps}` : ""} <span className="text-white/40">· {fmtDate(pr.executedAt)}</span>
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {exerciseSwaps.length > 0 && (() => {
+                const recurring = exerciseSwaps.some((sw) => sw.count >= 3);
+                const color = recurring ? RED : GOLD;
+                return (
+                  <div className="rounded-xl p-3 space-y-2" style={{ border: `1px solid ${color}66`, background: recurring ? "rgba(204,0,0,0.06)" : "rgba(201,168,76,0.06)" }}>
+                    <div className="flex items-center gap-2">
+                      <Repeat className="w-4 h-4 shrink-0" style={{ color }} />
+                      <p className="font-bold text-xs flex-1" style={{ color }}>
+                        {recurring ? "Troca recorrente de exercício" : "Trocas de exercício"}
+                      </p>
+                      <Badge style={{ background: color + "22", color, border: "none" }}>{exerciseSwaps.length}</Badge>
+                    </div>
+                    <div className="space-y-1">
+                      {exerciseSwaps.slice(0, 4).map((sw) => (
+                        <p key={sw.from} className={`text-[11px] leading-relaxed ${sw.count >= 3 ? "font-semibold" : "text-white/80"}`} style={sw.count >= 3 ? { color: RED } : undefined}>
+                          Trocou <span className="font-semibold">{sw.from}</span> por{" "}
+                          <span className="font-semibold">{sw.to.join(", ")}</span>
+                          {sw.count >= 3 && ` — ${sw.count}x nas últimas semanas`}
+                          <span className="text-white/40"> · {fmtDate(sw.lastAt)}</span>
+                        </p>
+                      ))}
+                    </div>
+                    {recurring && (
+                      <p className="text-[10px] text-white/60">
+                        💡 Pode indicar dor, falta de equipamento ou aversão ao movimento — vale conversar.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
 
           {/* ── Tabs principais ─────────────────────────────────────────── */}
           <Tabs defaultValue="execution">
