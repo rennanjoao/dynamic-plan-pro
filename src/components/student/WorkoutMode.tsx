@@ -467,6 +467,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         repsTargetMax: parseRepsMax(currentEx?.reps),
         perceivedEffort: effort,
         completed: true,
+        swappedFromName: currentEx?.swappedFrom ?? null,
       });
       // Toast com ação "Desfazer" — reduz o custo de um clique errado
       if (!isPR) {
@@ -509,8 +510,8 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     const hasDoneSets = currentSets.some((s: any) => s.done);
 
     // Reset silencioso ao trocar de exercício.
-    let weight = keyChanged ? 0 : activeWeight;
-    let reps = keyChanged ? 0 : activeReps;
+    const weight = keyChanged ? 0 : activeWeight;
+    const reps = keyChanged ? 0 : activeReps;
     if (keyChanged) { setActiveWeight(0); setActiveReps(0); }
 
     if (hasDoneSets) return;
@@ -568,6 +569,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         repsTargetMax: parseRepsMax(currentEx?.reps),
         completed: false,
         skipped: true,
+        swappedFromName: currentEx?.swappedFrom ?? null,
       });
     } catch (err) {
       console.warn("[WorkoutMode] Falha ao registrar série pulada:", err);
@@ -595,6 +597,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         perceivedEffort: target.effort ?? undefined,
         completed: !target.skipped,
         skipped: !!target.skipped,
+        swappedFromName: currentEx?.swappedFrom ?? null,
       });
     } catch (err) {
       console.warn("[WorkoutMode] Falha ao editar série:", err);
