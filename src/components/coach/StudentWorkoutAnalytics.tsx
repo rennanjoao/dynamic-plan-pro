@@ -28,7 +28,7 @@ import {
   TrendingUp, Activity, Calendar, AlertTriangle,
   CheckCircle2, Dumbbell, Clock, Moon, Smile,
   BellOff, Loader2, ChevronDown, ChevronUp,
-  Target, TrendingDown, BarChart2, Flame,
+  Target, TrendingDown, BarChart2, Flame, Trophy, Repeat,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
