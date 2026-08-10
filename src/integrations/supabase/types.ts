@@ -1634,6 +1634,7 @@ export type Database = {
           session_id: string
           set_number: number
           skipped: boolean
+          swapped_from_name: string | null
           user_id: string
           weight_kg: number | null
         }
@@ -1653,6 +1654,7 @@ export type Database = {
           session_id: string
           set_number: number
           skipped?: boolean
+          swapped_from_name?: string | null
           user_id: string
           weight_kg?: number | null
         }
@@ -1672,6 +1674,7 @@ export type Database = {
           session_id?: string
           set_number?: number
           skipped?: boolean
+          swapped_from_name?: string | null
           user_id?: string
           weight_kg?: number | null
         }

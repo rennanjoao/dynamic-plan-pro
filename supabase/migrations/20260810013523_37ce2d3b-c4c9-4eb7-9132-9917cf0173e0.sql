@@ -1,0 +1,1 @@
+ALTER TABLE public.workout_sets ADD COLUMN IF NOT EXISTS swapped_from_name text;
