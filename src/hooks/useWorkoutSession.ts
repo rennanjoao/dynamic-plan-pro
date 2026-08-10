@@ -43,6 +43,8 @@ interface RegisterSetParams {
   completed?: boolean;
   skipped?: boolean;
   notes?: string;
+  /** Nome do exercício prescrito originalmente, quando o aluno trocou por outro. */
+  swappedFromName?: string | null;
 }
 
 interface FinishSessionParams {
@@ -72,6 +74,7 @@ function buildSetRow(sessionId: string, userId: string, params: RegisterSetParam
     completed:        params.completed ?? true,
     skipped:          params.skipped ?? false,
     notes:            params.notes ?? null,
+    swapped_from_name: params.swappedFromName ?? null,
     executed_at:      new Date().toISOString(),
   };
 }
