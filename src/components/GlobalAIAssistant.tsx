@@ -82,17 +82,12 @@ async function fetchAthleteContext() {
       .select("student_id, source, severity, title, message, reference_at")
       .eq("coach_id", uid);
     if (queueRes.error) console.error("[AI context] coach_priority_queue:", queueRes.error.message);
-    const SEVERITY_RANK: Record<string, number> = { critical: 0, warning: 1, info: 2 };
-    const queueRows = ((queueRes.data ?? []) as Array<{
-      student_id: string; source: string; severity: string;
-      title: string; message: string; reference_at: string;
-    }>)
-      .sort((a, b) => {
-        const diff = (SEVERITY_RANK[a.severity] ?? 3) - (SEVERITY_RANK[b.severity] ?? 3);
-        if (diff !== 0) return diff;
-        return new Date(b.reference_at).getTime() - new Date(a.reference_at).getTime();
-      })
-      .slice(0, 10);
+    const queueRows = sortPriorityQueue(
+      (queueRes.data ?? []) as Array<{
+        student_id: string; source: string; severity: string;
+        title: string; message: string; reference_at: string;
+      }>,
+    ).slice(0, AI_QUEUE_LIMIT);
 
     // Alunos da fila podem estar fora do recorte de 8 acima — resolvemos os nomes
     // faltantes numa consulta própria.
