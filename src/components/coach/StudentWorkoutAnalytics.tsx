@@ -690,7 +690,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
       {hasData && (
         <>
           {/* ── Cards de resumo ─────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
             <StatCard
               icon={<CheckCircle2 className="w-3.5 h-3.5" />}
               label="Adesão"
@@ -713,9 +713,19 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
             />
             <StatCard
               icon={<Moon className="w-3.5 h-3.5" />}
-              label="Sono"
+              label="Sono (treino)"
               value={sleepAvg !== "—" ? `${SLEEP_META[Math.round(Number(sleepAvg))]?.emoji ?? ""} ${sleepAvg}` : "—"}
               sub="média das sessões"
+            />
+            <StatCard
+              icon={<Moon className="w-3.5 h-3.5" />}
+              label={`Sono/estresse (check-in${lastCheckin?.submitted_at ? `, ${fmtDate(lastCheckin.submitted_at)}` : ""})`}
+              value={lastCheckin ? String((lastCheckin.payload as Record<string, string>)?.sono_disp ?? "—") : "—"}
+              sub={
+                lastCheckin
+                  ? `Humor: ${(lastCheckin.payload as Record<string, string>)?.humor_geral ?? "—"} · Estresse: ${(lastCheckin.payload as Record<string, string>)?.stress ?? "—"}`
+                  : "sem check-in"
+              }
             />
           </div>
 
