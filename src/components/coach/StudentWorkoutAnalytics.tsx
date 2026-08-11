@@ -644,6 +644,19 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                           <span className="text-[9px] text-white/40">{fmtDate(alert.created_at)}</span>
                         </div>
                         <p className="text-xs text-white/80 mt-0.5 leading-relaxed">{alert.message}</p>
+                        {alert.alert_type === "volume_mrv" && formatMrvGroups(alert.context).length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {formatMrvGroups(alert.context).map((g) => (
+                              <span
+                                key={g.label}
+                                className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md"
+                                style={{ background: RED + "1F", color: RED, border: `1px solid ${RED}44` }}
+                              >
+                                {g.label} · {g.series} séries
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       <div className="flex gap-1 shrink-0">
                         <button type="button"
