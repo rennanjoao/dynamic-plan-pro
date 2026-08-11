@@ -141,6 +141,8 @@ const ALERT_META: Record<string, { label: string; icon: string }> = {
   stagnation:    { label: "Estagnação",     icon: "📉" },
   low_adherence: { label: "Baixa adesão",   icon: "⚠️" },
   overreaching:  { label: "Overreaching",   icon: "💀" },
+  volume_mrv:        { label: "Volume acima do limite", icon: "📊" },
+  insufficient_data: { label: "Dados insuficientes",    icon: "❓" },
 };
 
 /* ── Tooltip personalizado ──────────────────────────────────────────────────── */
