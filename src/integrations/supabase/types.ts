@@ -1776,6 +1776,7 @@ export type Database = {
       coach_priority_queue: {
         Row: {
           coach_id: string | null
+          context: Json | null
           message: string | null
           reference_at: string | null
           severity: string | null
