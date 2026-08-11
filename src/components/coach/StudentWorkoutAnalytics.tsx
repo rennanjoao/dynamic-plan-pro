@@ -35,6 +35,7 @@ import { toast } from "sonner";
 import { Private } from "@/components/coach/PrivacyMode";
 import { classifyExerciseByName, MUSCLE_GROUP_LABELS, type MuscleGroup } from "@/lib/muscleGroupClassifier";
 import { VOLUME_LANDMARKS, VOLUME_STATUS_META, classifyWeeklyVolume } from "@/lib/volumeLandmarks";
+import { formatMrvGroups } from "@/lib/coachPriorityQueue";
 
 /* ── Constantes ─────────────────────────────────────────────────────────────── */
 
