@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertTriangle, LifeBuoy, ListChecks, Wallet } from "lucide-react";
 import { Private } from "@/components/coach/PrivacyMode";
+import { sortPriorityQueue, formatMrvGroups } from "@/lib/coachPriorityQueue";
 import type { StudentLite } from "@/hooks/useCoachStudents";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -28,6 +29,7 @@ interface QueueRow {
   title: string;
   message: string;
   suggested_action: string | null;
+  context: Record<string, unknown> | null;
   reference_at: string;
 }
 
@@ -36,8 +38,6 @@ interface Props {
   students: StudentLite[];
   onSelectStudent?: (studentId: string, source: QueueSource) => void;
 }
-
-const SEVERITY_RANK: Record<QueueSeverity, number> = { critical: 0, warning: 1, info: 2 };
 
 const SOURCE_ICON: Record<QueueSource, typeof AlertTriangle> = {
   fatigue: AlertTriangle,
@@ -53,7 +53,7 @@ export function PriorityQueuePanel({ coachId, students, onSelectStudent }: Props
     queryFn: async () => {
       const { data, error } = await sb
         .from("coach_priority_queue")
-        .select("source_id, coach_id, student_id, source, severity, title, message, suggested_action, reference_at")
+        .select("source_id, coach_id, student_id, source, severity, title, message, suggested_action, context, reference_at")
         .eq("coach_id", coachId);
       if (error) throw error;
       return (data as QueueRow[]) ?? [];
@@ -62,11 +62,7 @@ export function PriorityQueuePanel({ coachId, students, onSelectStudent }: Props
 
   if (isLoading) return null;
 
-  const rows = [...(data ?? [])].sort((a, b) => {
-    const diff = SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity];
-    if (diff !== 0) return diff;
-    return new Date(b.reference_at).getTime() - new Date(a.reference_at).getTime();
-  });
+  const rows = sortPriorityQueue(data ?? []);
 
   if (rows.length === 0) return null;
 
@@ -87,6 +83,7 @@ export function PriorityQueuePanel({ coachId, students, onSelectStudent }: Props
             r.severity === "warning" ? "text-amber-500" :
             "text-sky-500";
           const studentName = r.student_id ? nameById.get(r.student_id) : undefined;
+          const mrvGroups = r.title === "Volume acima do limite" ? formatMrvGroups(r.context) : [];
           const clickable = !!r.student_id && !!onSelectStudent;
           return (
             <button
@@ -107,6 +104,18 @@ export function PriorityQueuePanel({ coachId, students, onSelectStudent }: Props
                   {studentName && <Private className="text-xs text-muted-foreground">— {studentName}</Private>}
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">{r.message}</p>
+                {mrvGroups.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {mrvGroups.map((g) => (
+                      <span
+                        key={g.label}
+                        className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md border border-red-500/30 bg-red-500/10 text-red-500"
+                      >
+                        {g.label} · {g.series} séries
+                      </span>
+                    ))}
+                  </div>
+                )}
                 {r.suggested_action && (
                   <p className="text-[11px] text-primary mt-1 font-medium">Sugestão: {r.suggested_action}</p>
                 )}

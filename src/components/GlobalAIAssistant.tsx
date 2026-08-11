@@ -4,6 +4,7 @@ import { useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { FitnessChatBot } from "@/components/fitness/FitnessChatBot";
 import { supabase } from "@/integrations/supabase/client";
+import { sortPriorityQueue, AI_QUEUE_LIMIT, buildOpenAlerts } from "@/lib/coachPriorityQueue";
 
 const HIDDEN_ROUTES = new Set(["/", "/auth", "/admin-login", "/student", "/anamnesis", "/workout-plan"]);
 
@@ -82,23 +83,18 @@ async function fetchAthleteContext() {
       .select("student_id, source, severity, title, message, reference_at")
       .eq("coach_id", uid);
     if (queueRes.error) console.error("[AI context] coach_priority_queue:", queueRes.error.message);
-    const SEVERITY_RANK: Record<string, number> = { critical: 0, warning: 1, info: 2 };
-    const queueRows = ((queueRes.data ?? []) as Array<{
-      student_id: string; source: string; severity: string;
-      title: string; message: string; reference_at: string;
-    }>)
-      .sort((a, b) => {
-        const diff = (SEVERITY_RANK[a.severity] ?? 3) - (SEVERITY_RANK[b.severity] ?? 3);
-        if (diff !== 0) return diff;
-        return new Date(b.reference_at).getTime() - new Date(a.reference_at).getTime();
-      })
-      .slice(0, 10);
+    const queueRows = sortPriorityQueue(
+      (queueRes.data ?? []) as Array<{
+        student_id: string; source: string; severity: string;
+        title: string; message: string; reference_at: string;
+      }>,
+    ).slice(0, AI_QUEUE_LIMIT);
 
     // Alunos da fila podem estar fora do recorte de 8 acima — resolvemos os nomes
     // faltantes numa consulta própria.
     const queueNameById = new Map(nameById);
-    const missingIds = Array.from(new Set(queueRows.map((r) => r.student_id)))
-      .filter((sid) => !!sid && !queueNameById.has(sid));
+    const missingIds = Array.from(new Set(queueRows.map((r) => r.student_id as string)))
+      .filter((sid): sid is string => !!sid && !queueNameById.has(sid));
     if (missingIds.length) {
       const { data: extraProfiles } = await supabase
         .from("profiles").select("user_id, full_name").in("user_id", missingIds);
@@ -122,13 +118,7 @@ async function fetchAthleteContext() {
           hasFeedback: !!c.coach_feedback,
         })),
         savedTemplates: (templatesRes.data ?? []).map((t) => t.name),
-        openAlerts: queueRows.map((r) => ({
-          studentName: queueNameById.get(r.student_id) ?? "Aluno",
-          source: r.source,
-          severity: r.severity,
-          title: r.title,
-          message: r.message,
-        })),
+        openAlerts: buildOpenAlerts(queueRows, queueNameById),
         platformCapabilities: [
           "Construtor de protocolo com dieta por macros (carbo/proteína/gordura)",
           "Opções de substituição por refeição",
