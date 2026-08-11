@@ -260,6 +260,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
   });
 
   /* ── Alertas de fadiga ───────────────────────────────────────────────────── */
+  /* ── Último check-in (sono/estresse subjetivo — origem diferente do pós-treino) */
   const { data: alerts = [], isLoading: loadingAlerts } = useQuery<AlertRow[]>({
     queryKey: ["coach_fatigue_alerts", coachId, studentId],
     enabled:  !!coachId && !!studentId,
