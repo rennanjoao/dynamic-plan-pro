@@ -216,6 +216,7 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Uva itália / rubi",               kcal: 68,  p: 0.6,  c: 17.3, g: 0.1, group: "fruit" },
   { name: "Uva thompson / sem semente",      kcal: 75,  p: 0.7,  c: 18.1, g: 0.2, group: "fruit" },
   { name: "Uva-passa (sem semente)",         kcal: 299, p: 3.1,  c: 79.2, g: 0.5, group: "fruit" },
+  { name: "Suco de uva integral",            kcal: 58,  p: 0.0,  c: 14.7, g: 0.0, group: "fruit", unitWeight: 200 }, // 200ml = 1 copo
   { name: "Melancia",                        kcal: 30,  p: 0.6,  c:  7.5, g: 0.1, group: "fruit" },
   { name: "Melão",                           kcal: 34,  p: 0.8,  c:  8.1, g: 0.2, group: "fruit" },
   { name: "Laranja pera",                    kcal: 37,  p: 1.0,  c:  8.9, g: 0.1, group: "fruit", unitWeight: 140 },
