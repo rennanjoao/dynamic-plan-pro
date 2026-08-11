@@ -4,6 +4,7 @@ import { useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { FitnessChatBot } from "@/components/fitness/FitnessChatBot";
 import { supabase } from "@/integrations/supabase/client";
+import { sortPriorityQueue, AI_QUEUE_LIMIT, buildOpenAlerts } from "@/lib/coachPriorityQueue";
 
 const HIDDEN_ROUTES = new Set(["/", "/auth", "/admin-login", "/student", "/anamnesis", "/workout-plan"]);
 
@@ -92,8 +93,8 @@ async function fetchAthleteContext() {
     // Alunos da fila podem estar fora do recorte de 8 acima — resolvemos os nomes
     // faltantes numa consulta própria.
     const queueNameById = new Map(nameById);
-    const missingIds = Array.from(new Set(queueRows.map((r) => r.student_id)))
-      .filter((sid) => !!sid && !queueNameById.has(sid));
+    const missingIds = Array.from(new Set(queueRows.map((r) => r.student_id as string)))
+      .filter((sid): sid is string => !!sid && !queueNameById.has(sid));
     if (missingIds.length) {
       const { data: extraProfiles } = await supabase
         .from("profiles").select("user_id, full_name").in("user_id", missingIds);
