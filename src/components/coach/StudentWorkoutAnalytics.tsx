@@ -259,8 +259,25 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
     },
   });
 
-  /* ── Alertas de fadiga ───────────────────────────────────────────────────── */
   /* ── Último check-in (sono/estresse subjetivo — origem diferente do pós-treino) */
+  const { data: lastCheckin } = useQuery<{ payload: Record<string, unknown>; submitted_at: string } | null>({
+    queryKey: ["coach_student_last_checkin_sleep", studentId],
+    enabled:  !!studentId,
+    staleTime: 1000 * 60 * 5,
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from("check_ins")
+        .select("payload, submitted_at")
+        .eq("student_id", studentId)
+        .order("submitted_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data ?? null;
+    },
+  });
+
+  /* ── Alertas de fadiga ───────────────────────────────────────────────────── */
   const { data: alerts = [], isLoading: loadingAlerts } = useQuery<AlertRow[]>({
     queryKey: ["coach_fatigue_alerts", coachId, studentId],
     enabled:  !!coachId && !!studentId,
