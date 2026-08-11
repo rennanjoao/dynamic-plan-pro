@@ -220,6 +220,7 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Melancia",                        kcal: 30,  p: 0.6,  c:  7.5, g: 0.1, group: "fruit" },
   { name: "Melão",                           kcal: 34,  p: 0.8,  c:  8.1, g: 0.2, group: "fruit" },
   { name: "Laranja pera",                    kcal: 37,  p: 1.0,  c:  8.9, g: 0.1, group: "fruit", unitWeight: 140 },
+  { name: "Suco de laranja pera (integral)", kcal: 33,  p: 0.7,  c:  7.6, g: 0.1, group: "fruit", unitWeight: 200 }, // 200ml = 1 copo
   { name: "Limão tahiti",                    kcal: 22,  p: 0.9,  c:  7.3, g: 0.1, group: "fruit" },
   { name: "Kiwi",                            kcal: 61,  p: 1.1,  c: 14.6, g: 0.5, group: "fruit", unitWeight: 75 },
   { name: "Pera (com casca)",                kcal: 57,  p: 0.4,  c: 15.2, g: 0.1, group: "fruit", unitWeight: 130 },
