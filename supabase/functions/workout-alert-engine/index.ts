@@ -7,6 +7,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCorsHeaders } from "../_shared/cors.ts";
+import { classifyExerciseByName, MUSCLE_GROUP_LABELS, type MuscleGroup } from "../_shared/muscleGroupClassifier.ts";
+import { classifyWeeklyVolume } from "../_shared/volumeLandmarks.ts";
 
 type Severity = "info" | "warning" | "critical";
 interface Candidate {
@@ -149,6 +151,46 @@ serve(async (req) => {
         suggestion: "Considerar semana de deload (redução de ~40% do volume) e reavaliar recuperação.",
         context: {},
       });
+    }
+
+    // 6) Volume semanal acima do MRV (teto recuperável) por grupamento.
+    // Usa a MESMA classificação por nome do gráfico do coach (1 para o primário,
+    // 0,5 para cada secundário). Nunca avalia "abaixo do MEV" — fora de escopo.
+    const tally = new Map<MuscleGroup, number>();
+    for (const s of last7Sets) {
+      const cls = classifyExerciseByName(s.exercise_name);
+      if (!cls.primary) continue;
+      tally.set(cls.primary, (tally.get(cls.primary) ?? 0) + 1);
+      for (const sec of cls.secondary) tally.set(sec, (tally.get(sec) ?? 0) + 0.5);
+    }
+    const overMrv = Array.from(tally.entries())
+      .map(([group, raw]) => ({ group, series: Math.round(raw * 10) / 10 }))
+      .filter((r) => classifyWeeklyVolume(r.group, r.series) === "acima_mrv")
+      .sort((a, b) => b.series - a.series);
+    if (overMrv.length > 0) {
+      candidates.push({
+        alert_type: "volume_mrv",
+        severity: "warning",
+        message: `Volume acima do limite recuperável em: ${overMrv.slice(0, 4).map((r) => MUSCLE_GROUP_LABELS[r.group]).join(", ")}.`,
+        suggestion: "Considerar reduzir séries desses grupamentos ou inserir semana de deload.",
+        context: { groups: overMrv.map((r) => ({ group: r.group, label: MUSCLE_GROUP_LABELS[r.group], series: r.series })) },
+      });
+    }
+
+    // 7) Dados insuficientes: aluno com histórico, mas sem amostra para avaliar.
+    if (S.length >= 3) {
+      const missing: string[] = [];
+      if (last7Sets.length < 10) missing.push("esforço percebido (RIR) nas séries");
+      if (sleepVals.length < 3) missing.push("qualidade de sono no pós-treino");
+      if (missing.length > 0) {
+        candidates.push({
+          alert_type: "insufficient_data",
+          severity: "info",
+          message: `Não foi possível avaliar: ${missing.join(" e ")} — amostra insuficiente nos últimos registros.`,
+          suggestion: "Reforçar com o aluno o preenchimento desses campos a cada treino.",
+          context: { setsLast7d: last7Sets.length, sleepSamples: sleepVals.length },
+        });
+      }
     }
 
     // Antiduplicação: ignora tipos já abertos ou criados nos últimos 7 dias.

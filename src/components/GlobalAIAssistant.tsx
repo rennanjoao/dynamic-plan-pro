@@ -75,6 +75,36 @@ async function fetchAthleteContext() {
     const nameById = new Map((profilesRes.data ?? []).map((p) => [p.user_id, p.full_name]));
     const planById = new Map((plansRes.data ?? []).map((p) => [p.student_id, p]));
 
+    // Fila de prioridade (alertas abertos). Ordenação igual à do PriorityQueuePanel:
+    // severidade (critical → warning → info) e depois reference_at mais recente.
+    const queueRes = await (supabase as any)
+      .from("coach_priority_queue")
+      .select("student_id, source, severity, title, message, reference_at")
+      .eq("coach_id", uid);
+    if (queueRes.error) console.error("[AI context] coach_priority_queue:", queueRes.error.message);
+    const SEVERITY_RANK: Record<string, number> = { critical: 0, warning: 1, info: 2 };
+    const queueRows = ((queueRes.data ?? []) as Array<{
+      student_id: string; source: string; severity: string;
+      title: string; message: string; reference_at: string;
+    }>)
+      .sort((a, b) => {
+        const diff = (SEVERITY_RANK[a.severity] ?? 3) - (SEVERITY_RANK[b.severity] ?? 3);
+        if (diff !== 0) return diff;
+        return new Date(b.reference_at).getTime() - new Date(a.reference_at).getTime();
+      })
+      .slice(0, 10);
+
+    // Alunos da fila podem estar fora do recorte de 8 acima — resolvemos os nomes
+    // faltantes numa consulta própria.
+    const queueNameById = new Map(nameById);
+    const missingIds = Array.from(new Set(queueRows.map((r) => r.student_id)))
+      .filter((sid) => !!sid && !queueNameById.has(sid));
+    if (missingIds.length) {
+      const { data: extraProfiles } = await supabase
+        .from("profiles").select("user_id, full_name").in("user_id", missingIds);
+      for (const p of extraProfiles ?? []) queueNameById.set(p.user_id, p.full_name);
+    }
+
     return {
       name: profileRes.data?.full_name,
       isCoach: true,
@@ -92,6 +122,13 @@ async function fetchAthleteContext() {
           hasFeedback: !!c.coach_feedback,
         })),
         savedTemplates: (templatesRes.data ?? []).map((t) => t.name),
+        openAlerts: queueRows.map((r) => ({
+          studentName: queueNameById.get(r.student_id) ?? "Aluno",
+          source: r.source,
+          severity: r.severity,
+          title: r.title,
+          message: r.message,
+        })),
         platformCapabilities: [
           "Construtor de protocolo com dieta por macros (carbo/proteína/gordura)",
           "Opções de substituição por refeição",

@@ -141,6 +141,8 @@ const ALERT_META: Record<string, { label: string; icon: string }> = {
   stagnation:    { label: "Estagnação",     icon: "📉" },
   low_adherence: { label: "Baixa adesão",   icon: "⚠️" },
   overreaching:  { label: "Overreaching",   icon: "💀" },
+  volume_mrv:        { label: "Volume acima do limite", icon: "📊" },
+  insufficient_data: { label: "Dados insuficientes",    icon: "❓" },
 };
 
 /* ── Tooltip personalizado ──────────────────────────────────────────────────── */
@@ -254,6 +256,24 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
         .order("executed_at", { ascending: true });
       if (error) throw error;
       return (data ?? []) as SetRow[];
+    },
+  });
+
+  /* ── Último check-in (sono/estresse subjetivo — origem diferente do pós-treino) */
+  const { data: lastCheckin } = useQuery<{ payload: Record<string, unknown>; submitted_at: string } | null>({
+    queryKey: ["coach_student_last_checkin_sleep", studentId],
+    enabled:  !!studentId,
+    staleTime: 1000 * 60 * 5,
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from("check_ins")
+        .select("payload, submitted_at")
+        .eq("student_id", studentId)
+        .order("submitted_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data ?? null;
     },
   });
 
@@ -670,7 +690,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
       {hasData && (
         <>
           {/* ── Cards de resumo ─────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
             <StatCard
               icon={<CheckCircle2 className="w-3.5 h-3.5" />}
               label="Adesão"
@@ -693,9 +713,19 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
             />
             <StatCard
               icon={<Moon className="w-3.5 h-3.5" />}
-              label="Sono"
+              label="Sono (treino)"
               value={sleepAvg !== "—" ? `${SLEEP_META[Math.round(Number(sleepAvg))]?.emoji ?? ""} ${sleepAvg}` : "—"}
               sub="média das sessões"
+            />
+            <StatCard
+              icon={<Moon className="w-3.5 h-3.5" />}
+              label={`Sono/estresse (check-in${lastCheckin?.submitted_at ? `, ${fmtDate(lastCheckin.submitted_at)}` : ""})`}
+              value={lastCheckin ? String((lastCheckin.payload as Record<string, string>)?.sono_disp ?? "—") : "—"}
+              sub={
+                lastCheckin
+                  ? `Humor: ${(lastCheckin.payload as Record<string, string>)?.humor_geral ?? "—"} · Estresse: ${(lastCheckin.payload as Record<string, string>)?.stress ?? "—"}`
+                  : "sem check-in"
+              }
             />
           </div>
 
