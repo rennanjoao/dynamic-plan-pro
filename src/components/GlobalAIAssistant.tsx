@@ -118,13 +118,7 @@ async function fetchAthleteContext() {
           hasFeedback: !!c.coach_feedback,
         })),
         savedTemplates: (templatesRes.data ?? []).map((t) => t.name),
-        openAlerts: queueRows.map((r) => ({
-          studentName: queueNameById.get(r.student_id) ?? "Aluno",
-          source: r.source,
-          severity: r.severity,
-          title: r.title,
-          message: r.message,
-        })),
+        openAlerts: buildOpenAlerts(queueRows, queueNameById),
         platformCapabilities: [
           "Construtor de protocolo com dieta por macros (carbo/proteína/gordura)",
           "Opções de substituição por refeição",
