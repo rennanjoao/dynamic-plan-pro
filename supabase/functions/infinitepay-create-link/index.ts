@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
 
     const { data: finance } = await admin
       .from("coach_finances")
-      .select("id, coach_id, description, amount, status")
+      .select("id, coach_id, student_id, description, amount, amount_cents, status, plan_slug, plan_cycle_months")
       .eq("id", finance_id).eq("coach_id", coach_id).maybeSingle();
     if (!finance) {
       return new Response(JSON.stringify({ error: "Cobrança não encontrada" }), {
@@ -62,11 +62,19 @@ Deno.serve(async (req) => {
       const checkJson = await check.json().catch(() => ({}));
       const paid = check.ok && (checkJson?.paid === true || checkJson?.success === true);
       if (paid && finance.status !== "paid") {
+        // Reconciliação: só marca pago com evidência do gateway (nunca por retorno de página).
         await admin.from("coach_finances").update({
           status: "paid",
           payment_method: checkJson?.capture_method === "credit_card" ? "cartao" : "pix_infinitepay",
           paid_at: new Date().toISOString(),
-        }).eq("id", finance.id);
+          source: "gateway",
+          provider: "infinitepay",
+          external_id: checkJson?.transaction_nsu ?? null,
+          receipt_url: checkJson?.receipt_url ?? null,
+          card_installments: checkJson?.capture_method === "credit_card"
+            ? (Number(checkJson?.installments) || null)
+            : null,
+        }).eq("id", finance.id).neq("status", "paid");
       }
       return new Response(JSON.stringify({ paid: !!paid }), {
         headers: { ...cors, "Content-Type": "application/json" },
@@ -80,7 +88,8 @@ Deno.serve(async (req) => {
       webhook_url: `${SUPABASE_URL}/functions/v1/infinitepay-webhook`,
       items: [{
         quantity: 1,
-        price: Math.round(Number(finance.amount) * 100),
+        // Valor sempre derivado da cobrança interna (nunca do front-end).
+        price: finance.amount_cents ?? Math.round(Number(finance.amount) * 100),
         description: finance.description || "Mensalidade",
       }],
     };
@@ -98,7 +107,12 @@ Deno.serve(async (req) => {
     }
 
     await admin.from("coach_finances")
-      .update({ checkout_url: json.url, checkout_created_at: new Date().toISOString() })
+      .update({
+        checkout_url: json.url,
+        checkout_created_at: new Date().toISOString(),
+        checkout_slug: typeof json.slug === "string" ? json.slug : null,
+        provider: "infinitepay",
+      })
       .eq("id", finance.id);
 
     return new Response(JSON.stringify({ url: json.url }), {

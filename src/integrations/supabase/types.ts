@@ -494,47 +494,80 @@ export type Database = {
       coach_finances: {
         Row: {
           amount: number
+          amount_cents: number | null
+          card_installments: number | null
           checkout_created_at: string | null
+          checkout_slug: string | null
           checkout_url: string | null
           coach_id: string
           created_at: string
+          cycle_number: number | null
           description: string
           due_date: string | null
+          external_id: string | null
           id: string
           paid_at: string | null
           payment_method: string | null
+          plan_cycle_months: number | null
+          plan_slug: string | null
+          provider: string | null
+          receipt_url: string | null
+          source: string | null
           status: string
           student_id: string | null
+          subscription_id: string | null
           updated_at: string
         }
         Insert: {
           amount?: number
+          amount_cents?: number | null
+          card_installments?: number | null
           checkout_created_at?: string | null
+          checkout_slug?: string | null
           checkout_url?: string | null
           coach_id: string
           created_at?: string
+          cycle_number?: number | null
           description: string
           due_date?: string | null
+          external_id?: string | null
           id?: string
           paid_at?: string | null
           payment_method?: string | null
+          plan_cycle_months?: number | null
+          plan_slug?: string | null
+          provider?: string | null
+          receipt_url?: string | null
+          source?: string | null
           status?: string
           student_id?: string | null
+          subscription_id?: string | null
           updated_at?: string
         }
         Update: {
           amount?: number
+          amount_cents?: number | null
+          card_installments?: number | null
           checkout_created_at?: string | null
+          checkout_slug?: string | null
           checkout_url?: string | null
           coach_id?: string
           created_at?: string
+          cycle_number?: number | null
           description?: string
           due_date?: string | null
+          external_id?: string | null
           id?: string
           paid_at?: string | null
           payment_method?: string | null
+          plan_cycle_months?: number | null
+          plan_slug?: string | null
+          provider?: string | null
+          receipt_url?: string | null
+          source?: string | null
           status?: string
           student_id?: string | null
+          subscription_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -1459,6 +1492,45 @@ export type Database = {
         }
         Relationships: []
       }
+      student_plan_catalog: {
+        Row: {
+          benefits: string[]
+          created_at: string
+          description: string | null
+          duration_months: number
+          is_active: boolean
+          name: string
+          price_cents: number
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          benefits?: string[]
+          created_at?: string
+          description?: string | null
+          duration_months: number
+          is_active?: boolean
+          name: string
+          price_cents: number
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          benefits?: string[]
+          created_at?: string
+          description?: string | null
+          duration_months?: number
+          is_active?: boolean
+          name?: string
+          price_cents?: number
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       student_profiles: {
         Row: {
           avatar_url: string | null
@@ -1498,6 +1570,69 @@ export type Database = {
           onboarding_completed_at?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      student_subscriptions: {
+        Row: {
+          coach_id: string
+          created_at: string
+          current_charge_id: string | null
+          cycle_months: number
+          ends_on: string | null
+          external_transaction_id: string | null
+          id: string
+          next_due_date: string | null
+          payment_method: string | null
+          payment_source: string | null
+          plan_name: string
+          plan_slug: string
+          price_cents: number
+          provider: string | null
+          started_on: string
+          status: string
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          current_charge_id?: string | null
+          cycle_months: number
+          ends_on?: string | null
+          external_transaction_id?: string | null
+          id?: string
+          next_due_date?: string | null
+          payment_method?: string | null
+          payment_source?: string | null
+          plan_name: string
+          plan_slug: string
+          price_cents: number
+          provider?: string | null
+          started_on?: string
+          status?: string
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          current_charge_id?: string | null
+          cycle_months?: number
+          ends_on?: string | null
+          external_transaction_id?: string | null
+          id?: string
+          next_due_date?: string | null
+          payment_method?: string | null
+          payment_source?: string | null
+          plan_name?: string
+          plan_slug?: string
+          price_cents?: number
+          provider?: string | null
+          started_on?: string
+          status?: string
+          student_id?: string
+          updated_at?: string
         }
         Relationships: []
       }
