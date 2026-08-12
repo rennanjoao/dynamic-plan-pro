@@ -9,12 +9,21 @@
 //
 // Mantidos do componente anterior:
 //  - Cards de resumo (adesão, séries, sentimento, sono)
-//  - Alertas de fadiga
+//  - Alertas de fadiga (banner reativado em 2026-08 — ver nota abaixo)
 //  - Lista de sessões recentes
 //  - Progressão de carga (série 1 como referência de intensidade)
 //  - Distribuição de esforço RPE
+//
+// Coach Insights (2026-08): CoachInsightCard lê a tabela coach_insights, que
+// é escrita pela edge function coach-insight-summary. Ela NÃO recalcula nada
+// — só sintetiza, em texto, os coach_fatigue_alerts em aberto + o último
+// checkin_ai_insights do aluno. A situação (🟢/🟡/🔴/❓) e a confiança são
+// decididas em código antes de qualquer chamada de IA; o modelo só narra.
+// O banner de alertas logo abaixo estava desligado via `{false && (...)}` —
+// religuei ao adicionar o card, porque markRead (resolver alerta) só existe
+// nessa seção; estava desligado junto e sem outro lugar que resolva alertas.
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -29,13 +38,13 @@ import {
   CheckCircle2, Dumbbell, Clock, Moon, Smile,
   BellOff, Loader2, ChevronDown, ChevronUp,
   Target, TrendingDown, BarChart2, Flame, Trophy, Repeat,
+  Sparkles, RefreshCw,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { Private } from "@/components/coach/PrivacyMode";
 import { classifyExerciseByName, MUSCLE_GROUP_LABELS, type MuscleGroup } from "@/lib/muscleGroupClassifier";
 import { VOLUME_LANDMARKS, VOLUME_STATUS_META, classifyWeeklyVolume } from "@/lib/volumeLandmarks";
-import { formatMrvGroups } from "@/lib/coachPriorityQueue";
 
 /* ── Constantes ─────────────────────────────────────────────────────────────── */
 
@@ -85,6 +94,18 @@ interface AlertRow {
   is_read:    boolean;
   created_at: string;
   context:    Record<string, unknown>;
+}
+
+type CoachInsightSituacao = "boa" | "atencao" | "risco" | "dados_insuficientes";
+
+interface CoachInsightRow {
+  situacao:      CoachInsightSituacao;
+  confianca:     "alta" | "media" | "baixa";
+  resumo:        string;
+  observacoes:   string[];
+  interpretacao: string;
+  sugestao:      string | null;
+  generated_at:  string;
 }
 
 interface Props {
@@ -144,6 +165,19 @@ const ALERT_META: Record<string, { label: string; icon: string }> = {
   overreaching:  { label: "Overreaching",   icon: "💀" },
   volume_mrv:        { label: "Volume acima do limite", icon: "📊" },
   insufficient_data: { label: "Dados insuficientes",    icon: "❓" },
+};
+
+const INSIGHT_META: Record<CoachInsightSituacao, { label: string; emoji: string; color: string; bg: string }> = {
+  boa:                 { label: "Evolução consistente", emoji: "🟢", color: GREEN,      bg: "rgba(34,197,94,0.06)" },
+  atencao:             { label: "Atenção",               emoji: "🟡", color: GOLD,       bg: "rgba(201,168,76,0.06)" },
+  risco:               { label: "Risco — vale intervir", emoji: "🔴", color: RED,        bg: "rgba(204,0,0,0.06)" },
+  dados_insuficientes: { label: "Dados insuficientes",   emoji: "❓", color: "#9ca3af",  bg: "rgba(255,255,255,0.03)" },
+};
+
+const CONFIANCA_LABEL: Record<string, string> = {
+  alta:  "Confiança alta",
+  media: "Confiança média",
+  baixa: "Confiança baixa — poucos dados",
 };
 
 /* ── Tooltip personalizado ──────────────────────────────────────────────────── */
@@ -213,6 +247,83 @@ function Panel({ children }: { children: React.ReactNode }) {
   return (
     <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${MUTED}` }}>
       {children}
+    </div>
+  );
+}
+
+/* ── CoachInsightCard ───────────────────────────────────────────────────────── */
+/* Leitura unificada: sintetiza coach_fatigue_alerts + checkin_ai_insights em
+   uma interpretação única. A situação (🟢/🟡/🔴/❓) e a confiança são decididas
+   de forma determinística no backend (edge function coach-insight-summary),
+   nunca pelo texto do modelo — o card só exibe o que já foi calculado. */
+
+function CoachInsightCard({ insight, loading, refreshing, onRefresh }: {
+  insight:    CoachInsightRow | null;
+  loading:    boolean;
+  refreshing: boolean;
+  onRefresh:  () => void;
+}) {
+  if (loading) return null;
+  const meta = INSIGHT_META[insight?.situacao ?? "dados_insuficientes"];
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${meta.color}66`, background: meta.bg }}>
+      <div className="px-4 py-3 flex items-center gap-2">
+        <Sparkles className="w-4 h-4 shrink-0" style={{ color: meta.color }} />
+        <p className="font-bold text-sm flex-1" style={{ color: meta.color }}>
+          {meta.emoji} {insight ? meta.label : "Coach Insights"}
+        </p>
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={refreshing}
+          className="p-1.5 rounded text-white/40 hover:text-white/70 transition"
+          title="Atualizar leitura"
+        >
+          {refreshing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+
+      {!insight && (
+        <div className="px-4 pb-4">
+          <p className="text-xs text-white/40">
+            {refreshing ? "Gerando a primeira leitura para este aluno…" : "Ainda não há leitura gerada para este aluno."}
+          </p>
+        </div>
+      )}
+
+      {insight && (
+        <div className="px-4 pb-4 space-y-3">
+          {insight.resumo && <p className="text-xs text-white/80 leading-relaxed">{insight.resumo}</p>}
+
+          {insight.observacoes.length > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold text-white/50 uppercase mb-1">O que foi observado</p>
+              <ul className="list-disc pl-4 text-xs space-y-0.5 text-white/70">
+                {insight.observacoes.map((o, i) => <li key={i}>{o}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {insight.interpretacao && (
+            <div>
+              <p className="text-[11px] font-semibold text-white/50 uppercase mb-1">Interpretação</p>
+              <p className="text-xs text-white/70 leading-relaxed">{insight.interpretacao}</p>
+            </div>
+          )}
+
+          {insight.sugestao && (
+            <p className="text-[11px] font-medium p-2 rounded-lg" style={{ color: meta.color, background: "rgba(255,255,255,0.04)" }}>
+              💡 {insight.sugestao}
+            </p>
+          )}
+
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-[10px] text-white/30">{CONFIANCA_LABEL[insight.confianca] ?? insight.confianca}</span>
+            <span className="text-[10px] text-white/30">Gerado {fmtDate(insight.generated_at)}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -311,6 +422,45 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
       toast.success("Alerta resolvido.");
     },
   });
+
+  /* ── Coach Insights — leitura unificada (situação geral do aluno) ─────────── */
+  const { data: coachInsight = null, isLoading: loadingInsight } = useQuery<CoachInsightRow | null>({
+    queryKey: ["coach_insight_summary", studentId],
+    enabled:  !!studentId,
+    staleTime: 1000 * 60 * 2,
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from("coach_insights")
+        .select("situacao, confianca, resumo, observacoes, interpretacao, sugestao, generated_at")
+        .eq("student_id", studentId)
+        .maybeSingle();
+      if (error) throw error;
+      return (data as CoachInsightRow) ?? null;
+    },
+  });
+
+  /* ── Mutation: pede uma (re)geração da leitura via edge function ──────────── */
+  const refreshInsight = useMutation({
+    mutationFn: async () => {
+      const { error } = await sb.functions.invoke("coach-insight-summary", { body: { studentId } });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["coach_insight_summary", studentId] });
+    },
+    onError: () => {
+      toast.error("Não foi possível atualizar a leitura agora.");
+    },
+  });
+
+  // Pede uma leitura atualizada sempre que o coach abre este aluno. A função
+  // tem checagem de staleness no servidor (só chama a IA se os alertas/checkin
+  // mudaram desde a última geração), então repetir essa chamada é barato.
+  useEffect(() => {
+    if (!studentId) return;
+    refreshInsight.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studentId]);
 
   /* ── CÁLCULOS ────────────────────────────────────────────────────────────── */
 
@@ -602,11 +752,15 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
   return (
     <div className="space-y-5">
 
+      {/* ── Coach Insights — leitura unificada (alertas + check-in) ─────────── */}
+      <CoachInsightCard
+        insight={coachInsight}
+        loading={loadingInsight}
+        refreshing={refreshInsight.isPending}
+        onRefresh={() => refreshInsight.mutate()}
+      />
+
       {/* ── Alertas de fadiga ─────────────────────────────────────────────── */}
-      {/* [OCULTO] Banner de alertas de fadiga temporariamente escondido —
-          leitura/resolução via markRead permanece funcional, apenas não
-          renderizamos a seção. */}
-      {false && (
       <AnimatePresence>
         {unreadAlerts.length > 0 && (
           <motion.div
@@ -645,19 +799,6 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                           <span className="text-[9px] text-white/40">{fmtDate(alert.created_at)}</span>
                         </div>
                         <p className="text-xs text-white/80 mt-0.5 leading-relaxed">{alert.message}</p>
-                        {alert.alert_type === "volume_mrv" && formatMrvGroups(alert.context).length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {formatMrvGroups(alert.context).map((g) => (
-                              <span
-                                key={g.label}
-                                className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md"
-                                style={{ background: RED + "1F", color: RED, border: `1px solid ${RED}44` }}
-                              >
-                                {g.label} · {g.series} séries
-                              </span>
-                            ))}
-                          </div>
-                        )}
                       </div>
                       <div className="flex gap-1 shrink-0">
                         <button type="button"
@@ -690,7 +831,6 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
           </motion.div>
         )}
       </AnimatePresence>
-      )}
 
       {/* ── Sem dados ─────────────────────────────────────────────────────── */}
       {!hasData && (

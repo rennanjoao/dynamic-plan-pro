@@ -539,6 +539,48 @@ export type Database = {
         }
         Relationships: []
       }
+      coach_insights: {
+        Row: {
+          coach_id: string
+          confianca: string
+          fontes: Json
+          generated_at: string
+          id: string
+          interpretacao: string
+          observacoes: Json
+          resumo: string
+          situacao: string
+          student_id: string
+          sugestao: string | null
+        }
+        Insert: {
+          coach_id: string
+          confianca?: string
+          fontes?: Json
+          generated_at?: string
+          id?: string
+          interpretacao?: string
+          observacoes?: Json
+          resumo?: string
+          situacao?: string
+          student_id: string
+          sugestao?: string | null
+        }
+        Update: {
+          coach_id?: string
+          confianca?: string
+          fontes?: Json
+          generated_at?: string
+          id?: string
+          interpretacao?: string
+          observacoes?: Json
+          resumo?: string
+          situacao?: string
+          student_id?: string
+          sugestao?: string | null
+        }
+        Relationships: []
+      }
       coach_invites: {
         Row: {
           created_at: string
