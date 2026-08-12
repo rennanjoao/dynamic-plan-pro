@@ -33,6 +33,7 @@ import CoachUpdatesHistoryDialog from "@/components/student/CoachUpdatesHistoryD
 import StudentOnboardingCard from "@/components/student/StudentOnboardingCard";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { buildPixBrCode } from "@/lib/pixBrCode";
+import { StudentPlanCard } from "@/components/student/StudentPlanCard";
 import QRCode from "qrcode";
 
 // ─── localStorage helpers ───────────────────────────────────────────────────
@@ -830,6 +831,9 @@ export default function StudentArea() {
             </div>
           );
         })()}
+
+        {/* Plano contratado (aditivo: some quando o aluno ainda não tem plano) */}
+        <StudentPlanCard userId={userId} />
 
         {/* ── DESTAQUES: Dieta e Treino ── */}
         <div className="space-y-3">

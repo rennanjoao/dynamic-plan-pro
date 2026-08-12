@@ -16,6 +16,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatCard } from "./dashboardUtils";
+import { useStudentPlanCatalog, useCoachSubscriptions } from "@/hooks/useStudentPlans";
+import { centsToAmount, formatCents, nextDueDate } from "@/lib/studentPlans";
+import { computeFinanceMetrics } from "@/lib/coachFinanceMetrics";
 import { Private } from "@/components/coach/PrivacyMode";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -48,7 +51,7 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
   const [form, setForm] = useState({ student_id: "", description: "", amount: "", due_date: "" });
   const [editingFinance, setEditingFinance] = useState<{ id: string; due_date: string } | null>(null);
   const [quickBilling, setQuickBilling] = useState<{ student_id: string; student_name: string } | null>(null);
-  const [quickForm, setQuickForm] = useState({ description: "Mensalidade", amount: "", due_date: "" });
+  const [quickForm, setQuickForm] = useState({ description: "Mensalidade", amount: "", due_date: "", plan_slug: "" });
   const [savingDueDate, setSavingDueDate] = useState(false);
   const [creatingBilling, setCreatingBilling] = useState(false);
   const [payDialog, setPayDialog] = useState<{ id: string } | null>(null);
@@ -65,6 +68,15 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
     },
   });
   const hasInfinitePay = !!coachProfile?.infinitepay_handle;
+
+  const { data: planCatalog = [] } = useStudentPlanCatalog();
+  const { data: subscriptions = [] } = useCoachSubscriptions(coachId);
+  const subByStudent = new Map(
+    subscriptions
+      .filter((s) => ["active", "pending", "overdue"].includes(s.status))
+      .map((s) => [s.student_id, s]),
+  );
+  const selectedPlan = planCatalog.find((p) => p.slug === quickForm.plan_slug) ?? null;
 
   const activeStudents = students.filter((s) => !s.isExempt);
 
@@ -194,23 +206,97 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
     }
   };
 
+  /**
+   * Cria a cobrança do aluno. Quando um plano do catálogo é escolhido, também
+   * cria/atualiza o contrato (student_subscriptions) com nome e preço CONGELADOS.
+   * Sem plano, o comportamento legado (cobrança avulsa) é preservado.
+   */
   const createQuickBilling = async () => {
     if (!quickBilling || creatingBilling) return;
     setCreatingBilling(true);
     try {
-      const { error } = await supabase.from("coach_finances").insert({
+      const startISO = quickForm.due_date || new Date().toISOString().slice(0, 10);
+      let subscriptionId: string | null = null;
+      let cycleMonths: number | null = null;
+      let cycleNumber: number | null = null;
+      let amount = Number(quickForm.amount || 0);
+      let amountCents: number | null = null;
+      let description = quickForm.description || "Mensalidade";
+
+      if (selectedPlan) {
+        // Renovação sem duplicar: se já existe cobrança pendente do plano, aborta.
+        const existingPending = finances.find(
+          (f) => f.student_id === quickBilling.student_id && f.status === "pending",
+        );
+        if (existingPending) {
+          throw new Error("Este aluno já tem uma cobrança pendente. Receba ou remova antes de gerar a próxima.");
+        }
+
+        cycleMonths = selectedPlan.duration_months;
+        amountCents = selectedPlan.price_cents;
+        amount = centsToAmount(selectedPlan.price_cents);
+        description = `Plano ${selectedPlan.name}`;
+
+        const current = subByStudent.get(quickBilling.student_id);
+        if (current) {
+          subscriptionId = current.id;
+          const { data: paidCount } = await sb
+            .from("coach_finances")
+            .select("id", { count: "exact", head: false })
+            .eq("subscription_id", current.id);
+          cycleNumber = ((paidCount?.length as number | undefined) ?? 0) + 1;
+          const { error: upErr } = await sb.from("student_subscriptions").update({
+            plan_slug: selectedPlan.slug,
+            plan_name: selectedPlan.name,
+            price_cents: selectedPlan.price_cents,
+            cycle_months: selectedPlan.duration_months,
+            next_due_date: nextDueDate(startISO, selectedPlan.duration_months),
+            status: "pending",
+          }).eq("id", current.id);
+          if (upErr) throw upErr;
+        } else {
+          cycleNumber = 1;
+          const { data: created, error: subErr } = await sb.from("student_subscriptions").insert({
+            student_id: quickBilling.student_id,
+            coach_id: coachId,
+            plan_slug: selectedPlan.slug,
+            plan_name: selectedPlan.name,
+            price_cents: selectedPlan.price_cents,
+            cycle_months: selectedPlan.duration_months,
+            started_on: startISO,
+            next_due_date: nextDueDate(startISO, selectedPlan.duration_months),
+            status: "pending",
+          }).select("id").single();
+          if (subErr) throw subErr;
+          subscriptionId = created.id as string;
+        }
+      }
+
+      const { data: charge, error } = await sb.from("coach_finances").insert({
         coach_id: coachId,
         student_id: quickBilling.student_id,
-        description: quickForm.description || "Mensalidade",
-        amount: Number(quickForm.amount || 0),
+        description,
+        amount,
         due_date: quickForm.due_date || null,
         status: "pending",
-      });
+        subscription_id: subscriptionId,
+        plan_slug: selectedPlan?.slug ?? null,
+        plan_cycle_months: cycleMonths,
+        cycle_number: cycleNumber,
+        amount_cents: amountCents,
+        source: "manual",
+      }).select("id").single();
       if (error) throw error;
+
+      if (subscriptionId && charge?.id) {
+        await sb.from("student_subscriptions").update({ current_charge_id: charge.id }).eq("id", subscriptionId);
+      }
+
       qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
+      qc.invalidateQueries({ queryKey: ["coach-student-subscriptions", coachId] });
       toast.success(`Cobrança criada para ${quickBilling.student_name}. O aluno receberá o alerta.`);
       setQuickBilling(null);
-      setQuickForm({ description: "Mensalidade", amount: "", due_date: "" });
+      setQuickForm({ description: "Mensalidade", amount: "", due_date: "", plan_slug: "" });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao criar cobrança");
     } finally {
@@ -220,9 +306,12 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
 
   // Cards escopados ao mês corrente (receita por paid_at, pendências por due_date).
   // "Atrasado" NÃO é escopado por mês: dívida vencida continua contando mesmo depois que o mês vira.
-  const totalReceita  = finances.filter((f) => f.status === "paid" && isSameMonth(f.paid_at)).reduce((s, f) => s + Number(f.amount), 0);
-  const totalPendente = finances.filter((f) => f.status === "pending" && isSameMonth(f.due_date)).reduce((s, f) => s + Number(f.amount), 0);
-  const totalAtrasado = finances.filter((f) => f.status === "pending" && f.due_date && new Date(f.due_date) < new Date()).reduce((s, f) => s + Number(f.amount), 0);
+  // Fórmulas centralizadas — consideram só cobranças de ALUNOS.
+  // A assinatura da plataforma (platform_billing_charges) nunca entra aqui.
+  const metrics = computeFinanceMetrics(finances, { inMonth: isSameMonth });
+  const totalReceita  = metrics.receitaRecebida;
+  const totalPendente = metrics.receitaPrevista;
+  const totalAtrasado = metrics.atrasado;
 
   return (
     <div className="space-y-4">
@@ -270,6 +359,7 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
             <TableHeader>
               <TableRow>
                 <TableHead className="text-xs">Aluno</TableHead>
+                <TableHead className="text-xs">Plano</TableHead>
                 <TableHead className="text-xs">Ativação (Anamnese)</TableHead>
                 <TableHead className="text-xs">Vencimento Atual</TableHead>
                 <TableHead className="text-xs">Status</TableHead>
@@ -293,6 +383,16 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-sky-100 text-sky-700 border-sky-200">Isento</span>
                         )}
                       </div>
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {subByStudent.get(student.id) ? (
+                        <span className="font-medium">
+                          {subByStudent.get(student.id)!.plan_name}
+                          <span className="text-muted-foreground"> · {formatCents(subByStudent.get(student.id)!.price_cents)}</span>
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">Sem plano</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {student.lastAnamnesis ? formatDatePtBR(student.lastAnamnesis) : "Aguardando"}
@@ -354,7 +454,7 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
                         </div>
                       ) : (
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
-                          onClick={() => { setQuickBilling({ student_id: student.id, student_name: student.name }); setQuickForm({ description: "Mensalidade", amount: "", due_date: "" }); }}>
+                          onClick={() => { setQuickBilling({ student_id: student.id, student_name: student.name }); setQuickForm({ description: "Mensalidade", amount: "", due_date: "", plan_slug: "" }); }}>
                           <Plus className="w-3 h-3" /> Gerar Cobrança
                         </Button>
                       )}
@@ -376,13 +476,44 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div>
-              <Label className="text-xs">Descrição</Label>
-              <Input value={quickForm.description} onChange={(e) => setQuickForm({ ...quickForm, description: e.target.value })} className="mt-1 h-9 text-sm" />
+              <Label className="text-xs">Plano do aluno</Label>
+              <Select
+                value={quickForm.plan_slug || "none"}
+                onValueChange={(v) => setQuickForm({ ...quickForm, plan_slug: v === "none" ? "" : v })}
+              >
+                <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="Cobrança avulsa" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Cobrança avulsa (sem plano)</SelectItem>
+                  {planCatalog.map((p) => (
+                    <SelectItem key={p.slug} value={p.slug}>
+                      {p.name} — {formatCents(p.price_cents)} / {p.duration_months} {p.duration_months === 1 ? "mês" : "meses"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedPlan?.benefits?.length ? (
+                <ul className="mt-2 space-y-0.5 text-[11px] text-muted-foreground">
+                  {selectedPlan.benefits.map((b) => <li key={b}>• {b}</li>)}
+                </ul>
+              ) : null}
             </div>
+            {!selectedPlan && (
+              <div>
+                <Label className="text-xs">Descrição</Label>
+                <Input value={quickForm.description} onChange={(e) => setQuickForm({ ...quickForm, description: e.target.value })} className="mt-1 h-9 text-sm" />
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Valor (R$)</Label>
-                <Input type="number" value={quickForm.amount} onChange={(e) => setQuickForm({ ...quickForm, amount: e.target.value })} placeholder="0,00" className="mt-1 h-9 text-sm" />
+                <Input
+                  type="number"
+                  value={selectedPlan ? (selectedPlan.price_cents / 100).toFixed(2) : quickForm.amount}
+                  disabled={!!selectedPlan}
+                  onChange={(e) => setQuickForm({ ...quickForm, amount: e.target.value })}
+                  placeholder="0,00"
+                  className="mt-1 h-9 text-sm"
+                />
               </div>
               <div>
                 <Label className="text-xs">Vencimento</Label>
