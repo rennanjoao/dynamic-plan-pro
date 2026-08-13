@@ -45,6 +45,7 @@ import { toast } from "sonner";
 import { Private } from "@/components/coach/PrivacyMode";
 import { classifyExerciseByName, MUSCLE_GROUP_LABELS, type MuscleGroup } from "@/lib/muscleGroupClassifier";
 import { VOLUME_LANDMARKS, VOLUME_STATUS_META, classifyWeeklyVolume } from "@/lib/volumeLandmarks";
+import { INSIGHT_META, type CoachInsightSituacao } from "@/lib/coachInsights";
 
 /* ── Constantes ─────────────────────────────────────────────────────────────── */
 
@@ -96,7 +97,6 @@ interface AlertRow {
   context:    Record<string, unknown>;
 }
 
-type CoachInsightSituacao = "boa" | "atencao" | "risco" | "dados_insuficientes";
 
 interface CoachInsightRow {
   situacao:      CoachInsightSituacao;
@@ -167,12 +167,6 @@ const ALERT_META: Record<string, { label: string; icon: string }> = {
   insufficient_data: { label: "Dados insuficientes",    icon: "❓" },
 };
 
-const INSIGHT_META: Record<CoachInsightSituacao, { label: string; emoji: string; color: string; bg: string }> = {
-  boa:                 { label: "Evolução consistente", emoji: "🟢", color: GREEN,      bg: "rgba(34,197,94,0.06)" },
-  atencao:             { label: "Atenção",               emoji: "🟡", color: GOLD,       bg: "rgba(201,168,76,0.06)" },
-  risco:               { label: "Risco — vale intervir", emoji: "🔴", color: RED,        bg: "rgba(204,0,0,0.06)" },
-  dados_insuficientes: { label: "Dados insuficientes",   emoji: "❓", color: "#9ca3af",  bg: "rgba(255,255,255,0.03)" },
-};
 
 const CONFIANCA_LABEL: Record<string, string> = {
   alta:  "Confiança alta",
