@@ -242,6 +242,7 @@ export function useCoachStudentsPaged(
           criticalDays: critical,
           weightTrend: { deltaKg: null, direction: null, isStagnant: false },
           clinicalSignal: getClinicalSignal(lastCiPayloadByStudent.get(sid) ?? null),
+          insightSituacao: null,
         };
       });
 
