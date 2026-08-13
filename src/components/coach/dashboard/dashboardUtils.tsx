@@ -4,6 +4,7 @@ import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import type { AlertLevel, StudentStatus } from "@/hooks/useCoachStudents";
 import { getMetricPolarity, colorForDelta } from "@/lib/checkInSchema";
 import type { ClinicalSignal } from "@/lib/checkInSchema";
+import { INSIGHT_META, type CoachInsightSituacao } from "@/lib/coachInsights";
 import type { Goal } from "@/utils/macros";
 import { formatDatePtBR } from "@/lib/formatDate";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -121,6 +122,36 @@ export function ClinicalSignalBadge({ signal }: { signal: ClinicalSignal | null 
         </span>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-[240px] text-xs leading-relaxed">{tip}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
+ * Selo resumido do Radar de Evolução (coach_insights) na lista de alunos.
+ * Mesma estrutura do ClinicalSignalBadge, com o emoji de INSIGHT_META no
+ * lugar do ponto colorido.
+ */
+export function InsightBadge({ situacao }: { situacao: CoachInsightSituacao | null | undefined }) {
+  if (!situacao) return null;
+  const meta = INSIGHT_META[situacao];
+  if (!meta) return null;
+  const textCls: Record<CoachInsightSituacao, string> = {
+    boa:                 "text-emerald-600 dark:text-emerald-400",
+    atencao:             "text-amber-600 dark:text-amber-400",
+    risco:               "text-red-600 dark:text-red-400",
+    dados_insuficientes: "text-muted-foreground",
+  };
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={`inline-flex items-center gap-1 text-[10px] font-semibold cursor-default ${textCls[situacao]}`}>
+          <span aria-hidden className="text-[10px] leading-none">{meta.emoji}</span>
+          Radar
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[240px] text-xs leading-relaxed">
+        Radar de Evolução: {meta.label}
+      </TooltipContent>
     </Tooltip>
   );
 }

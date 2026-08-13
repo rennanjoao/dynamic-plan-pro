@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Goal } from "@/utils/macros";
 import { getClinicalSignal, type ClinicalSignal } from "@/lib/checkInSchema";
+import type { CoachInsightSituacao } from "@/lib/coachInsights";
 
 export type AlertLevel = "critical" | "warning" | "ok";
 
@@ -37,6 +38,8 @@ export interface StudentStatus {
   weightTrend: WeightTrend;
   /** Segundo eixo: sinal clínico derivado do conteúdo do último check-in. */
   clinicalSignal: ClinicalSignal | null;
+  /** Situação do Radar de Evolução (coach_insights); null se o aluno ainda não tem leitura. */
+  insightSituacao: CoachInsightSituacao | null;
 }
 
 export interface PagedStudentsResult {
@@ -239,6 +242,7 @@ export function useCoachStudentsPaged(
           criticalDays: critical,
           weightTrend: { deltaKg: null, direction: null, isStagnant: false },
           clinicalSignal: getClinicalSignal(lastCiPayloadByStudent.get(sid) ?? null),
+          insightSituacao: null,
         };
       });
 
@@ -287,7 +291,7 @@ export function useCoachStudentsPaged(
     queryKey: ["coach-students-detail", coachId, page, pageIds.join(",")],
     enabled: !!coachId && pageIds.length > 0,
     queryFn: async () => {
-      const [{ data: ana }, { data: ci }, { data: plans }] = await Promise.all([
+      const [{ data: ana }, { data: ci }, { data: plans }, { data: insights }] = await Promise.all([
         supabase
           .from("anamnesis")
           .select("student_id, submitted_at, updated_at, baseline_metrics")
@@ -309,6 +313,10 @@ export function useCoachStudentsPaged(
           .select("student_id, goal")
           .in("student_id", pageIds)
           .eq("coach_id", coachId!),
+        supabase
+          .from("coach_insights")
+          .select("student_id, situacao")
+          .in("student_id", pageIds),
       ]);
 
       const anaBy = new Map<string, { submitted_at: string | null; updated_at: string | null; baseline_metrics: Record<string, unknown> | null }>();
@@ -349,7 +357,14 @@ export function useCoachStudentsPaged(
         if (!planBy.has(p.student_id)) planBy.set(p.student_id, p.goal || "—");
       });
 
-      return { anaBy, ciBy, ciPrevBy, planBy };
+      const insightBy = new Map<string, CoachInsightSituacao>();
+      insights?.forEach((i) => {
+        if (i.situacao && !insightBy.has(i.student_id)) {
+          insightBy.set(i.student_id, i.situacao as CoachInsightSituacao);
+        }
+      });
+
+      return { anaBy, ciBy, ciPrevBy, planBy, insightBy };
     },
   });
 
@@ -401,6 +416,7 @@ export function useCoachStudentsPaged(
       goal,
       currentWeight,
       weightTrend,
+      insightSituacao: d.insightBy.get(s.id) ?? null,
     };
   });
 

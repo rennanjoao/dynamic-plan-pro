@@ -34,6 +34,7 @@ import CheckinFullEditor from "@/components/coach/CheckinFullEditor";
 import { CheckinHistoryDialog } from "@/components/coach/dashboard/CheckinHistoryDialog";
 import { AlertBadge, WeightTrendBadge } from "@/components/coach/dashboard/dashboardUtils";
 import { Private, PrivateImg } from "@/components/coach/PrivacyMode";
+import { triageClasses, triageLabel } from "@/lib/protocolRenewalTriage";
 
 const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
 
@@ -42,16 +43,6 @@ const CHECKIN_PDF_SECTIONS = CHECKIN_SECTIONS.map((s) => ({
   fields: (s.fields || []).map((f) => ({ key: f.key, label: f.label })),
 }));
 
-/** Rótulos humanos da triagem gerada por `protocol-renewal-draft`. */
-const ADJUST_ACTION_LABEL: Record<string, string> = {
-  nenhuma_alteracao: "Sem alteração no protocolo",
-  orientar_coach: "Orientar o aluno",
-  investigar_antes: "Investigar antes de ajustar",
-  recomendar_exame: "Recomendar exame",
-  reduzir_carga_treino: "Reduzir carga de treino",
-  acompanhar_mais_um_ciclo: "Acompanhar mais um ciclo",
-  ajustar: "Ajuste sugerido no protocolo",
-};
 
 interface CheckinRow {
   id: string;
@@ -377,11 +368,11 @@ export default function CheckinFeedbackPanel(props: Props) {
 
             {/* Chips de aderência a partir de CHECKIN_HIGHLIGHT_KEYS */}
             {adjustDraft && (
-              <div className="space-y-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+              <div className={`space-y-2 rounded-lg border p-3 ${triageClasses(adjustDraft.action).box}`}>
                 <div className="flex items-center gap-2">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
-                    Triagem da IA — {ADJUST_ACTION_LABEL[adjustDraft.action] ?? adjustDraft.action}
+                  <Sparkles className={`w-3.5 h-3.5 ${triageClasses(adjustDraft.action).text}`} />
+                  <span className={`text-xs font-semibold uppercase tracking-wider ${triageClasses(adjustDraft.action).text}`}>
+                    Triagem da IA — {triageLabel(adjustDraft.action)}
                   </span>
                 </div>
                 {adjustDraft.action_rationale && (

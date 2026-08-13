@@ -99,6 +99,7 @@ import { TACO_FOODS } from "@/data/tacoFoods";
 const TACO_DATA = TACO_FOODS.map((t, i) => ({ ...t, id: String(i), cookFactor: t.cookFactor ?? 1 }));
 import { searchFoods, type FoodHit } from "@/lib/foodSearch";
 import { Private } from "@/components/coach/PrivacyMode";
+import { triageClasses, triageLabel } from "@/lib/protocolRenewalTriage";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -122,16 +123,6 @@ interface ProtocolRow {
   updated_at: string;
 }
 
-/** Rótulos humanos da triagem gerada por `protocol-renewal-draft`. */
-const RENEWAL_ACTION_LABEL: Record<string, string> = {
-  nenhuma_alteracao: "Sem alteração no protocolo",
-  orientar_coach: "Orientar o aluno",
-  investigar_antes: "Investigar antes de ajustar",
-  recomendar_exame: "Recomendar exame",
-  reduzir_carga_treino: "Reduzir carga de treino",
-  acompanhar_mais_um_ciclo: "Acompanhar mais um ciclo",
-  ajustar: "Ajuste sugerido no protocolo",
-};
 
 function computeCompletion(payload: ProtocolPayload | null) {
   if (!payload) return { macros: false, guidelines: false, workouts: false, diet: false, cycle: false };
@@ -1045,9 +1036,9 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                 <p className="text-sm whitespace-pre-wrap text-foreground/90">{renewalText}</p>
 
                 {renewalAction && (
-                  <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2 space-y-1">
-                    <p className="text-xs font-semibold text-emerald-700">
-                      Triagem: {RENEWAL_ACTION_LABEL[renewalAction.acao] ?? renewalAction.acao}
+                  <div className={`rounded-md border p-2 space-y-1 ${triageClasses(renewalAction.acao).box}`}>
+                    <p className={`text-xs font-semibold ${triageClasses(renewalAction.acao).text}`}>
+                      Triagem: {triageLabel(renewalAction.acao)}
                     </p>
                     {renewalAction.motivo && <p className="text-[11px] text-foreground/80">{renewalAction.motivo}</p>}
                     {renewalAction.estrategia && (

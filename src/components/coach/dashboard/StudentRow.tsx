@@ -1,6 +1,6 @@
 import type { StudentStatus } from "@/hooks/useCoachStudents";
 import { ClipboardList, Dumbbell, History, Sparkles, Settings2, X, MessageSquare } from "lucide-react";
-import { AlertBadge, ClinicalSignalBadge, WeightTrendBadge } from "./dashboardUtils";
+import { AlertBadge, ClinicalSignalBadge, InsightBadge, WeightTrendBadge } from "./dashboardUtils";
 import { Private, usePrivacyMode } from "@/components/coach/PrivacyMode";
 
 export function StudentRow({
@@ -56,6 +56,7 @@ export function StudentRow({
             lastFeedback={student.lastFeedback}
           />
           <ClinicalSignalBadge signal={student.clinicalSignal} />
+          <InsightBadge situacao={student.insightSituacao} />
         </div>
         <p className="text-xs text-muted-foreground truncate">{student.goal || "Objetivo não definido"}</p>
         <button
