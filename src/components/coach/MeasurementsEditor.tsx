@@ -152,8 +152,32 @@ export default function MeasurementsEditor({ open, onOpenChange, studentId, targ
     }
     // BF% nunca é persistido: é sempre recalculado a partir das medidas.
     delete merged.body_fat;
+
+    const avg = (a: unknown, b: unknown): number | null => {
+      const na = typeof a === "number" && isFinite(a) ? a : null;
+      const nb = typeof b === "number" && isFinite(b) ? b : null;
+      if (na != null && nb != null) return Math.round(((na + nb) / 2) * 10) / 10;
+      return na ?? nb ?? null;
+    };
+    const armRelaxed = avg(merged.braco_d_relaxado, merged.braco_e_relaxado);
+    const armFlexed = avg(merged.braco_d_contraido, merged.braco_e_contraido);
+    const genero = (merged.gender as string) ?? (merged.genero as string) ?? (merged.sexo as string) ?? "M";
+    const bfSaved = estimateBF({
+      altura: merged.altura as number,
+      cintura: merged.cintura as number,
+      pescoco: merged.pescoco as number,
+      quadril: merged.quadril as number,
+      genero,
+    });
+
     const table = target === "anamnesis" ? "anamnesis" : "check_ins";
-    const update: Record<string, unknown> = { payload: merged, updated_at: new Date().toISOString() };
+    const update: Record<string, unknown> = {
+      payload: merged,
+      updated_at: new Date().toISOString(),
+      arm_relaxed: armRelaxed,
+      arm_flexed: armFlexed,
+      body_fat: bfSaved.value,
+    };
     if (target === "anamnesis") update.baseline_metrics = baseline;
     else update.current_metrics = baseline;
 
