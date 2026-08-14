@@ -87,6 +87,7 @@ export default function CheckinFeedbackPanel(props: Props) {
   const [generatingDraft, setGeneratingDraft] = useState(false);
   const [fullEditorOpen, setFullEditorOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [fullHistoryLoaded, setFullHistoryLoaded] = useState(false);
 
   useEffect(() => {
     if (!open || !studentId) return;
@@ -97,10 +98,12 @@ export default function CheckinFeedbackPanel(props: Props) {
         .from("check_ins")
         .select("id, submitted_at, current_metrics, payload, coach_feedback, photo_url, feedback_read_at")
         .eq("student_id", studentId)
-        .order("submitted_at", { ascending: false });
+        .order("submitted_at", { ascending: false })
+        .limit(2);
       if (cancelled) return;
       const rows = (data as CheckinRow[]) || [];
       setHistory(rows);
+      setFullHistoryLoaded(false);
       setSelectedIds(new Set(rows.map((r) => r.id))); // por padrão, tudo selecionado (baixar todos de uma vez)
       const row = rows[0] || null;
       setCi(row);
@@ -109,6 +112,25 @@ export default function CheckinFeedbackPanel(props: Props) {
     })();
     return () => { cancelled = true; };
   }, [open, studentId]);
+
+  // Histórico completo só é buscado quando o coach abre a seção de histórico.
+  useEffect(() => {
+    if (!historyOpen || !studentId || fullHistoryLoaded) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await sb
+        .from("check_ins")
+        .select("id, submitted_at, current_metrics, payload, coach_feedback, photo_url, feedback_read_at")
+        .eq("student_id", studentId)
+        .order("submitted_at", { ascending: false });
+      if (cancelled) return;
+      const rows = (data as CheckinRow[]) || [];
+      setHistory(rows);
+      setSelectedIds(new Set(rows.map((r) => r.id)));
+      setFullHistoryLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, [historyOpen, studentId, fullHistoryLoaded]);
 
   useEffect(() => {
     if (!open) {
@@ -511,7 +533,7 @@ export default function CheckinFeedbackPanel(props: Props) {
               </div>
             </div>
 
-            {history.length > 0 && (
+            {historyOpen && history.length > 0 && (
               <div className="space-y-2 border-t border-border pt-3">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-semibold text-primary uppercase tracking-wider">
