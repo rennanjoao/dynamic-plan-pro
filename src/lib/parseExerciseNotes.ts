@@ -32,9 +32,15 @@ function toYouTubeEmbed(url: string): string | null {
 }
 
 function toDriveEmbed(url: string): string | null {
-  const m = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
-  if (m?.[1]) {
-    return `https://drive.google.com/file/d/${m[1]}/preview`;
+  const mFile = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (mFile?.[1]) {
+    return `https://drive.google.com/file/d/${mFile[1]}/preview`;
+  }
+  // Formato alternativo sem o segmento /file/d/ — ex.: .../open?id=ID ou
+  // .../uc?id=ID, gerado por alguns fluxos de compartilhamento mobile.
+  const mId = url.match(/drive\.google\.com\/(?:open|uc)\?(?:[^#]*&)?id=([a-zA-Z0-9_-]+)/);
+  if (mId?.[1]) {
+    return `https://drive.google.com/file/d/${mId[1]}/preview`;
   }
   if (/drive\.google\.com\/.*\/preview/.test(url)) return url;
   return null;

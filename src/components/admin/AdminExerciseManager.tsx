@@ -44,6 +44,19 @@ function toDisplayRow(row: LibraryRow): DisplayRow {
   return { ...row, thumbUrl };
 }
 
+/**
+ * PostgREST exige que valores de filtro em `.or()` contendo caracteres
+ * reservados (`,` `(` `)` `"` `\`) venham entre aspas duplas — senão a
+ * vírgula/parêntese é interpretada como separador de condição e a query
+ * quebra (erro PGRST100) ou retorna resultado errado. Nomes de exercício
+ * reais frequentemente têm parênteses (ex.: "Supino reto (barra)"), então
+ * isso quebra na prática, não é só teórico.
+ */
+function escapeIlikeValue(v: string): string {
+  const escaped = v.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return `"${escaped}"`;
+}
+
 export function AdminExerciseManager() {
   const [rows, setRows] = useState<DisplayRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,8 +92,9 @@ export function AdminExerciseManager() {
         .order("display_name", { ascending: true, nullsFirst: false });
 
       if (debouncedSearch) {
+        const pattern = escapeIlikeValue(`%${debouncedSearch}%`);
         query = query.or(
-          `display_name.ilike.%${debouncedSearch}%,file_name.ilike.%${debouncedSearch}%,exercise_key.ilike.%${debouncedSearch}%`,
+          `display_name.ilike.${pattern},file_name.ilike.${pattern},exercise_key.ilike.${pattern}`,
         );
       }
 

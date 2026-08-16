@@ -205,6 +205,14 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const restRange = parseRestRange(currentEx?.rest);
   const parsedNotes = useMemo(() => parseExerciseNotes(currentEx?.notes), [currentEx?.notes]);
 
+  // Fecha o player de vídeo se o exercício mudar por baixo dele (ex.: avanço
+  // automático quando o descanso máximo é atingido após a última série) —
+  // evita mostrar o vídeo de um exercício sobre o contexto de outro sem o
+  // aluno perceber a troca.
+  useEffect(() => {
+    setShowVideoSheet(false);
+  }, [currentExKey]);
+
   // Timer Dinâmico por Janela
   const [restBaseSec, setRestBaseSec] = useState(_saved?.restBaseSec ?? 0);
   const [restSegStartedAt, setRestSegStartedAt] = useState<number | null>(_saved?.restSegStartedAt ?? null);
