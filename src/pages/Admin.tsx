@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { TrainerManagement } from "@/components/admin/TrainerManagement";
 import { ExerciseLibraryUploader } from "@/components/admin/ExerciseLibraryUploader";
+import { AdminExerciseManager } from "@/components/admin/AdminExerciseManager";
 import { ExerciseMuscleGroupReviewQueue } from "@/components/admin/ExerciseMuscleGroupReviewQueue";
 import { StudentLinksManagement } from "@/components/admin/StudentLinksManagement";
 import { PlansSettings } from "@/components/admin/PlansSettings";
@@ -106,6 +107,13 @@ const Admin = () => {
             <div className="rounded-xl border border-border bg-card p-6">
               <h2 className="text-lg font-semibold mb-4">Biblioteca de GIFs de Exercícios</h2>
               <ExerciseLibraryUploader />
+            </div>
+            <div className="rounded-xl border border-border bg-card p-6">
+              <h2 className="text-lg font-semibold mb-1">Exercícios cadastrados</h2>
+              <p className="text-xs text-muted-foreground mb-4">
+                Visualize a mídia de cada exercício antes de renomear — clique em um item para editar o nome de exibição.
+              </p>
+              <AdminExerciseManager />
             </div>
             <div className="rounded-xl border border-border bg-card p-6">
               <h2 className="text-lg font-semibold mb-1">Fila de revisão de grupo muscular</h2>

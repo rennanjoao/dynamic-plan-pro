@@ -24,6 +24,7 @@ import {
   ListTodo,
   Repeat,
   Loader2,
+  Video,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,8 @@ import { supabase } from "@/integrations/supabase/client";
 import type { ExerciseHistory } from "@/lib/workoutTypes";
 import { effortLabel, toExerciseKey } from "@/lib/workoutTypes";
 import { useExerciseGif } from "@/hooks/useExerciseGif";
+import { parseExerciseNotes } from "@/lib/parseExerciseNotes";
+import { ExerciseVideoSheet } from "./ExerciseVideoSheet";
 import { CompactWeekSelector } from "./CompactWeekSelector";
 import { DEFAULT_WEEKS, parseRepsMin, parseRepsMax } from "@/lib/periodizationDefaults";
 import {
@@ -162,6 +165,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const [now, setNow] = useState(Date.now());
   const [showShare, setShowShare] = useState(false);
   const [showGifDialog, setShowGifDialog] = useState(false);
+  const [showVideoSheet, setShowVideoSheet] = useState(false);
   const [showExList, setShowExList] = useState(false);
   // Troca de exercício (aparelho ocupado): mantém o estímulo prescrito trocando
   // apenas o movimento por outro do mesmo grupo muscular. Escopo: sessão atual.
@@ -199,7 +203,8 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const gifUrl = useExerciseGif(currentEx?.name, currentEx?.gifKey);
   const setsMax = parseSetsMax(currentEx?.sets);
   const restRange = parseRestRange(currentEx?.rest);
-  
+  const parsedNotes = useMemo(() => parseExerciseNotes(currentEx?.notes), [currentEx?.notes]);
+
   // Timer Dinâmico por Janela
   const [restBaseSec, setRestBaseSec] = useState(_saved?.restBaseSec ?? 0);
   const [restSegStartedAt, setRestSegStartedAt] = useState<number | null>(_saved?.restSegStartedAt ?? null);
@@ -833,6 +838,22 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                   );
                 })}
               </div>
+              {(parsedNotes.text || parsedNotes.rawUrl) && (
+                <div className="space-y-2 pt-1 border-t border-white/5">
+                  {parsedNotes.text && (
+                    <p className="text-xs text-white/70 leading-relaxed whitespace-pre-line">{parsedNotes.text}</p>
+                  )}
+                  {parsedNotes.rawUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setShowVideoSheet(true)}
+                      className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-primary bg-primary/10 border border-primary/30 rounded-full px-3 py-1.5 active:scale-95 transition-transform"
+                    >
+                      <Video className="w-3.5 h-3.5" /> Ver Vídeo de Execução
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Overlay de Novo Record */}
@@ -1149,6 +1170,15 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
           <div className="p-4 text-center"><h3 className="font-black text-lg italic uppercase">{currentEx?.name}</h3><Button onClick={() => setShowGifDialog(false)} variant="secondary" className="w-full mt-4 rounded-xl font-bold uppercase text-[10px]">Fechar</Button></div>
         </DialogContent>
       </Dialog>
+
+      <ExerciseVideoSheet
+        open={showVideoSheet}
+        onOpenChange={setShowVideoSheet}
+        embedUrl={parsedNotes.embedUrl}
+        rawUrl={parsedNotes.rawUrl}
+        provider={parsedNotes.provider}
+        exerciseName={currentEx?.name}
+      />
     </div>
   );
 }
