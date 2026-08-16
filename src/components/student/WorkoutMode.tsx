@@ -165,6 +165,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const [now, setNow] = useState(Date.now());
   const [showShare, setShowShare] = useState(false);
   const [showGifDialog, setShowGifDialog] = useState(false);
+  const [showVideoSheet, setShowVideoSheet] = useState(false);
   const [showExList, setShowExList] = useState(false);
   // Troca de exercício (aparelho ocupado): mantém o estímulo prescrito trocando
   // apenas o movimento por outro do mesmo grupo muscular. Escopo: sessão atual.
@@ -202,7 +203,8 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const gifUrl = useExerciseGif(currentEx?.name, currentEx?.gifKey);
   const setsMax = parseSetsMax(currentEx?.sets);
   const restRange = parseRestRange(currentEx?.rest);
-  
+  const parsedNotes = useMemo(() => parseExerciseNotes(currentEx?.notes), [currentEx?.notes]);
+
   // Timer Dinâmico por Janela
   const [restBaseSec, setRestBaseSec] = useState(_saved?.restBaseSec ?? 0);
   const [restSegStartedAt, setRestSegStartedAt] = useState<number | null>(_saved?.restSegStartedAt ?? null);
