@@ -838,6 +838,22 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                   );
                 })}
               </div>
+              {(parsedNotes.text || parsedNotes.rawUrl) && (
+                <div className="space-y-2 pt-1 border-t border-white/5">
+                  {parsedNotes.text && (
+                    <p className="text-xs text-white/70 leading-relaxed whitespace-pre-line">{parsedNotes.text}</p>
+                  )}
+                  {parsedNotes.rawUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setShowVideoSheet(true)}
+                      className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-primary bg-primary/10 border border-primary/30 rounded-full px-3 py-1.5 active:scale-95 transition-transform"
+                    >
+                      <Video className="w-3.5 h-3.5" /> Ver Vídeo de Execução
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Overlay de Novo Record */}
