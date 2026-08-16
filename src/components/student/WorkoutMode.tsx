@@ -1170,6 +1170,15 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
           <div className="p-4 text-center"><h3 className="font-black text-lg italic uppercase">{currentEx?.name}</h3><Button onClick={() => setShowGifDialog(false)} variant="secondary" className="w-full mt-4 rounded-xl font-bold uppercase text-[10px]">Fechar</Button></div>
         </DialogContent>
       </Dialog>
+
+      <ExerciseVideoSheet
+        open={showVideoSheet}
+        onOpenChange={setShowVideoSheet}
+        embedUrl={parsedNotes.embedUrl}
+        rawUrl={parsedNotes.rawUrl}
+        provider={parsedNotes.provider}
+        exerciseName={currentEx?.name}
+      />
     </div>
   );
 }
