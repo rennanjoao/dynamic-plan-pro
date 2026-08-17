@@ -4,11 +4,11 @@
 // andamento) — este componente nunca navega, só monta um <iframe> dentro de
 // um Drawer (mobile) ou Dialog (desktop), como overlay por cima do treino.
 
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from "@/components/ui/drawer";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { VideoProvider } from "@/lib/parseExerciseNotes";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, X } from "lucide-react";
 
 interface ExerciseVideoSheetProps {
   open: boolean;
@@ -64,8 +64,17 @@ export function ExerciseVideoSheet({
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
         <DrawerContent className="max-h-[85vh]">
-          <DrawerHeader>
+          <DrawerHeader className="flex flex-row items-center justify-between gap-2">
             <DrawerTitle className="text-left">{title}</DrawerTitle>
+            <DrawerClose asChild>
+              <button
+                type="button"
+                aria-label="Fechar vídeo"
+                className="rounded-full p-2 hover:bg-black/10 transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </DrawerClose>
           </DrawerHeader>
           <div className="px-4 pb-6">{body}</div>
         </DrawerContent>

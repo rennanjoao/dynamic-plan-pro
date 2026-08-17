@@ -3,7 +3,7 @@
 // Miniatura + display_name + file_name de cada entrada de `exercise_library`,
 // com paginação real no servidor e renomeio via modal com preview do gif.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -74,15 +74,17 @@ export function AdminExerciseManager() {
     return () => clearTimeout(t);
   }, [search]);
 
-  useEffect(() => {
-    setPage(0);
-  }, [debouncedSearch]);
+  // Busca sempre volta pra página 0. Fica tudo num único efeito: se a busca
+  // mudou, já buscamos direto a página 0 nesta mesma execução — 1
+  // requisição por ação do usuário, nunca 2.
+  const prevSearchRef = useRef(debouncedSearch);
 
   useEffect(() => {
     let alive = true;
-    const load = async () => {
+
+    const load = async (pageToLoad: number) => {
       setLoading(true);
-      const from = page * PAGE_SIZE;
+      const from = pageToLoad * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
       let query = sb
@@ -111,7 +113,16 @@ export function AdminExerciseManager() {
       }
       setLoading(false);
     };
-    load();
+
+    const searchChanged = prevSearchRef.current !== debouncedSearch;
+    prevSearchRef.current = debouncedSearch;
+
+    if (searchChanged && page !== 0) {
+      setPage(0);
+      return;
+    }
+
+    load(searchChanged ? 0 : page);
     return () => {
       alive = false;
     };
@@ -133,14 +144,25 @@ export function AdminExerciseManager() {
     }
 
     setSaving(true);
-    const { error } = await sb
+    const { data, error } = await sb
       .from("exercise_library")
       .update({ display_name: trimmed, updated_at: new Date().toISOString() })
-      .eq("exercise_key", renameTarget.exercise_key);
+      .eq("exercise_key", renameTarget.exercise_key)
+      .select("exercise_key")
+      .maybeSingle();
     setSaving(false);
 
     if (error) {
       toast.error(`Falha ao renomear: ${error.message}`);
+      return;
+    }
+
+    // .update() não gera erro quando 0 linhas batem no filtro — ex.: o
+    // exercício foi removido por outro admin entre a abertura do modal e o
+    // clique em "Salvar". Sem checar `data`, isso apareceria como sucesso
+    // falso-positivo.
+    if (!data) {
+      toast.error("Não foi possível confirmar a atualização — o exercício pode ter sido removido. Recarregue a lista.");
       return;
     }
 
