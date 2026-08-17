@@ -138,7 +138,7 @@ function CoachDashboardInner() {
         </header>
         <main className="max-w-4xl mx-auto px-4 py-6">
           <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
-            {view === "protocol" && <ProtocolBuilder studentId={selectedStudent.id} studentName={selectedStudent.name} />}
+            {view === "protocol" && <ProtocolBuilder key={selectedStudent.id} studentId={selectedStudent.id} studentName={selectedStudent.name} />}
           </Suspense>
         </main>
       </div>
