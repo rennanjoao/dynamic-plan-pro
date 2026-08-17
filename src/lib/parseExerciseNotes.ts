@@ -79,10 +79,14 @@ export function parseExerciseNotes(raw?: string | null): ParsedExerciseNotes {
   }
 
   const rawUrl = trimTrailingPunctuation(matches[0]);
-  const text = source
-    .replace(matches[0], "")
-    .replace(/\s{2,}/g, " ")
-    .trim();
+  // Remove TODAS as URLs do texto exibido, não só a primeira. O botão de
+  // ação só abre a primeira, mas se o coach colar mais de um link nenhuma
+  // URL "suja" pode sobrar visível.
+  let text = source;
+  for (const m of matches) {
+    text = text.split(m).join("");
+  }
+  text = text.replace(/\s{2,}/g, " ").trim();
 
   const { provider, embedUrl } = resolveEmbed(rawUrl);
 
