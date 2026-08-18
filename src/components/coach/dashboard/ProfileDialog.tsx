@@ -15,6 +15,7 @@ export function ProfileDialog({ coachId, open, onClose }: { coachId: string; ope
   const [teamName, setTeamName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [notificationEmail, setNotificationEmail] = useState("");
+  const [supportWhatsapp, setSupportWhatsapp] = useState("");
   const [pixKey, setPixKey] = useState("");
   const [pixHolderName, setPixHolderName] = useState("");
   const [pixCity, setPixCity] = useState("");
@@ -28,7 +29,7 @@ export function ProfileDialog({ coachId, open, onClose }: { coachId: string; ope
     if (!open || !coachId) return;
     supabase
       .from("profiles")
-      .select("full_name, team_name, invite_code, notification_email, pix_key, pix_holder_name, pix_city, infinitepay_handle, billing_alert_days, feedback_interval_days")
+      .select("full_name, team_name, invite_code, notification_email, support_whatsapp, pix_key, pix_holder_name, pix_city, infinitepay_handle, billing_alert_days, feedback_interval_days")
       .eq("user_id", coachId)
       .maybeSingle()
       .then(({ data }) => {
@@ -36,6 +37,7 @@ export function ProfileDialog({ coachId, open, onClose }: { coachId: string; ope
         setTeamName((data as any)?.team_name || "");
         setInviteCode((data as any)?.invite_code || "");
         setNotificationEmail((data as any)?.notification_email || "");
+        setSupportWhatsapp((data as any)?.support_whatsapp || "");
         setPixKey((data as any)?.pix_key || "");
         setPixHolderName((data as any)?.pix_holder_name || "");
         setPixCity((data as any)?.pix_city || "");
@@ -84,6 +86,7 @@ export function ProfileDialog({ coachId, open, onClose }: { coachId: string; ope
         team_name: teamName,
         invite_code: code,
         notification_email: notificationEmail.trim() || null,
+        support_whatsapp: supportWhatsapp.replace(/\D/g, "") || null,
         pix_key: pixKey,
         pix_holder_name: pixHolderName || null,
         pix_city: pixCity || null,
@@ -116,6 +119,19 @@ export function ProfileDialog({ coachId, open, onClose }: { coachId: string; ope
             <Label className="text-xs">E-mail de notificação</Label>
             <Input type="email" value={notificationEmail} onChange={(e) => setNotificationEmail(e.target.value)} placeholder="Para onde os alunos te contatam" className="mt-1 h-9 text-sm" />
             <p className="text-[10px] text-muted-foreground mt-1">Visível para os alunos como seu contato.</p>
+          </div>
+
+          <div>
+            <Label className="text-xs text-emerald-600 font-bold">WhatsApp para dúvidas</Label>
+            <Input
+              value={supportWhatsapp}
+              onChange={(e) => setSupportWhatsapp(e.target.value)}
+              placeholder="Ex: 13991842023 (DDD + número)"
+              className="mt-1 h-9 text-sm"
+            />
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Se preenchido, o aluno vê um botão de WhatsApp que fala direto com você. Em branco, o botão não aparece.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

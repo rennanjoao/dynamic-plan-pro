@@ -51,7 +51,7 @@ serve(async (req) => {
     const { data: coachProfile } = await admin
       .from("profiles")
       .select("full_name, notification_email")
-      .eq("id", access.coach_id)
+      .eq("user_id", access.coach_id)
       .maybeSingle();
 
     return new Response(JSON.stringify({

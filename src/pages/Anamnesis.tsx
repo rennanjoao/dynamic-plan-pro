@@ -58,6 +58,9 @@ const Anamnesis = () => {
   const [formStep, setFormStep] = useState(1);
   const TOTAL_FORM_STEPS = 4;
   const [inviteCode, setInviteCode] = useState("");
+  // Código de parceria (ELT-…) já validado na etapa 1 — quando presente, o
+  // aluno NÃO precisa digitar o código de indicação de novo no formulário.
+  const [resolvedAccessCode, setResolvedAccessCode] = useState<string | null>(null);
   const [coach, setCoach] = useState<CoachInfo | null>(null);
   const [loggedUserId, setLoggedUserId] = useState<string | null>(null);
   const [bootstrapping, setBootstrapping] = useState(true);
@@ -291,6 +294,7 @@ const Anamnesis = () => {
       if (error || !data?.coach_id) throw new Error(data?.error || "Código inválido ou inexistente.");
       
       setCoach({ id: data.coach_id, name: data.coach_name, email: data.notification_email });
+      if (data.access_code) setResolvedAccessCode(String(data.access_code).toUpperCase());
       setShowIntro(true);
       setStep("form"); // Avança para a Anamnese
     } catch (e: unknown) {
@@ -387,9 +391,10 @@ const Anamnesis = () => {
 
       // Código de acesso da influenciadora: resgatado só após a conta existir,
       // porque o resgate exige usuário autenticado e roda 100% no backend.
-      if (!isEditMode && g("access_code").trim()) {
+      const codeToRedeem = (resolvedAccessCode || g("access_code")).trim().toUpperCase();
+      if (!isEditMode && codeToRedeem) {
         const { error: redeemErr } = await supabase.functions.invoke("redeem-access-code", {
-          body: { code: g("access_code").trim().toUpperCase() },
+          body: { code: codeToRedeem },
         });
         if (redeemErr) console.warn("redeem-access-code falhou", redeemErr);
       }
@@ -488,7 +493,7 @@ const Anamnesis = () => {
     }
   // [FIX MÉDIO] 'g' adicionado às dependências — é uma função que lê 'd',
   // mas como está definida fora do useCallback, o linter a exige aqui.
-  }, [d, g, gender, tpm, quedaF, groups, fotoFiles, fotoPreviews, coach, loggedUserId, isEditMode, editingAnamnesisId, studentEditCount, navigate]);
+  }, [d, g, gender, tpm, quedaF, groups, fotoFiles, fotoPreviews, coach, loggedUserId, isEditMode, editingAnamnesisId, studentEditCount, navigate, resolvedAccessCode]);
 
   const chBtn = (id: string) => cn("px-5 py-2.5 rounded-xl text-sm font-bold border-2 transition-all", gender === id ? "border-primary bg-primary/15 text-primary" : "border-border/50 text-muted-foreground hover:border-primary/40");
 
@@ -656,7 +661,12 @@ const Anamnesis = () => {
                   {SELF_REPORTED_SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </Field>
-              {!loggedUserId && (
+              {resolvedAccessCode && (
+                <p className="text-xs text-emerald-500">
+                  Indicação identificada automaticamente pelo código <span className="font-mono font-bold">{resolvedAccessCode}</span>.
+                </p>
+              )}
+              {!loggedUserId && !resolvedAccessCode && (
                 <Field label="Código de indicação (opcional)">
                   <FiInput
                     name="access_code"

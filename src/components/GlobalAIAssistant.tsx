@@ -177,6 +177,33 @@ async function fetchAthleteContext() {
   };
 }
 
+/** WhatsApp de dúvidas do coach do aluno logado (null quando não configurado). */
+async function fetchCoachWhatsapp(): Promise<string | null> {
+  const { data: sess } = await supabase.auth.getSession();
+  const uid = sess.session?.user?.id;
+  if (!uid) return null;
+
+  const { data: link } = await supabase
+    .from("coach_students")
+    .select("coach_id")
+    .eq("student_id", uid)
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle();
+  if (!link?.coach_id) return null;
+
+  const { data: prof } = await supabase
+    .from("profiles")
+    .select("support_whatsapp")
+    .eq("user_id", link.coach_id)
+    .maybeSingle();
+
+  const digits = String((prof as { support_whatsapp?: string | null } | null)?.support_whatsapp ?? "").replace(/\D/g, "");
+  if (!digits) return null;
+  // Normaliza para formato internacional (Brasil) quando vier só com DDD.
+  return digits.length <= 11 ? `55${digits}` : digits;
+}
+
 export const GlobalAIAssistant = () => {
   const { pathname } = useLocation();
   const [chatOpened, setChatOpened] = useState(false);
@@ -194,6 +221,13 @@ export const GlobalAIAssistant = () => {
   // Query leve para detectar feedback novo do coach, mesmo com o chat fechado.
   // Não roda em rotas ocultas e dispara só uma vez por sessão (guarda no effect).
   const hidden = HIDDEN_ROUTES.has(pathname);
+  const { data: coachWhatsapp } = useQuery({
+    queryKey: ["coach-support-whatsapp"],
+    queryFn: fetchCoachWhatsapp,
+    enabled: !hidden,
+    staleTime: 10 * 60_000,
+  });
+
   const { data: proactiveCheck } = useQuery({
     queryKey: ["ai-proactive-triggers"],
     enabled: !hidden && !sessionStorage.getItem("ai-proactive-seen"),
@@ -273,5 +307,12 @@ export const GlobalAIAssistant = () => {
   }, [proactiveCheck]);
 
   if (HIDDEN_ROUTES.has(pathname)) return null;
-  return <FitnessChatBot athleteContext={ctx} onOpen={handleChatOpen} proactiveMessage={proactiveMessage} />;
+  return (
+    <FitnessChatBot
+      athleteContext={ctx}
+      onOpen={handleChatOpen}
+      proactiveMessage={proactiveMessage}
+      whatsappNumber={coachWhatsapp ?? null}
+    />
+  );
 };
