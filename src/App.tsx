@@ -37,6 +37,7 @@ const ShoppingList     = lazyWithRetry(() => import("./pages/ShoppingList"));
 
 // Nova página de Referral
 const ReferralWelcome  = lazyWithRetry(() => import("./pages/ReferralWelcome"));
+const PartnerArea      = lazyWithRetry(() => import("./pages/PartnerArea"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -105,6 +106,7 @@ const App = () => {
               <Route path="/shopping-list" element={<ErrorBoundary label="Erro na área do aluno. Recarregue."><AnamnesisGuard><ShoppingList /></AnamnesisGuard></ErrorBoundary>} />
 
               {/* Coach */}
+              <Route path="/parceria" element={<ErrorBoundary label="Erro na área de parceria. Recarregue."><PartnerArea /></ErrorBoundary>} />
               <Route path="/coach"  element={<ErrorBoundary label="Erro na área do coach. Recarregue."><AdminGuard requiredRole="coach"><CoachGuard><CoachDashboard /></CoachGuard></AdminGuard></ErrorBoundary>} />
               <Route path="/planos" element={<ErrorBoundary label="Algo deu errado. Recarregue a página."><Planos /></ErrorBoundary>} />
 

@@ -14,6 +14,56 @@ export type Database = {
   }
   public: {
     Tables: {
+      access_codes: {
+        Row: {
+          coach_id: string
+          code: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          note: string | null
+          partner_id: string | null
+          status: string
+          student_id: string | null
+          used_at: string | null
+        }
+        Insert: {
+          coach_id: string
+          code: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          note?: string | null
+          partner_id?: string | null
+          status?: string
+          student_id?: string | null
+          used_at?: string | null
+        }
+        Update: {
+          coach_id?: string
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          note?: string | null
+          partner_id?: string | null
+          status?: string
+          student_id?: string | null
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "access_codes_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partner_profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       access_logs: {
         Row: {
           accessed_at: string
@@ -59,6 +109,7 @@ export type Database = {
           created_at: string
           id: string
           payload: Json
+          self_reported_source: string | null
           student_edit_count: number
           student_id: string
           submitted_at: string | null
@@ -75,6 +126,7 @@ export type Database = {
           created_at?: string
           id?: string
           payload?: Json
+          self_reported_source?: string | null
           student_edit_count?: number
           student_id: string
           submitted_at?: string | null
@@ -91,6 +143,7 @@ export type Database = {
           created_at?: string
           id?: string
           payload?: Json
+          self_reported_source?: string | null
           student_edit_count?: number
           student_id?: string
           submitted_at?: string | null
@@ -827,6 +880,50 @@ export type Database = {
         }
         Relationships: []
       }
+      commission_periods: {
+        Row: {
+          coach_id: string
+          created_at: string
+          id: string
+          paid_at: string | null
+          paid_by: string | null
+          partner_id: string
+          period_end: string
+          period_start: string
+          total_amount_cents: number
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          id?: string
+          paid_at?: string | null
+          paid_by?: string | null
+          partner_id: string
+          period_end: string
+          period_start: string
+          total_amount_cents?: number
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          id?: string
+          paid_at?: string | null
+          paid_by?: string | null
+          partner_id?: string
+          period_end?: string
+          period_start?: string
+          total_amount_cents?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_periods_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partner_profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       daily_alerts: {
         Row: {
           created_at: string
@@ -1019,6 +1116,159 @@ export type Database = {
           kind?: string
           meal_data?: Json
           name?: string
+        }
+        Relationships: []
+      }
+      partner_attributions: {
+        Row: {
+          access_code: string | null
+          attributed_at: string
+          attributed_by: string | null
+          coach_id: string
+          locked: boolean
+          partner_id: string
+          student_id: string
+        }
+        Insert: {
+          access_code?: string | null
+          attributed_at?: string
+          attributed_by?: string | null
+          coach_id: string
+          locked?: boolean
+          partner_id: string
+          student_id: string
+        }
+        Update: {
+          access_code?: string | null
+          attributed_at?: string
+          attributed_by?: string | null
+          coach_id?: string
+          locked?: boolean
+          partner_id?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_attributions_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partner_profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      partner_commissions: {
+        Row: {
+          coach_id: string
+          commission_amount_cents: number
+          commission_rate_bp: number
+          created_at: string
+          eligible: boolean
+          gross_amount_cents: number
+          id: string
+          paid_at: string | null
+          partner_id: string
+          period_id: string | null
+          status: string
+          student_id: string
+          subscription_id: string | null
+        }
+        Insert: {
+          coach_id: string
+          commission_amount_cents: number
+          commission_rate_bp: number
+          created_at?: string
+          eligible?: boolean
+          gross_amount_cents: number
+          id?: string
+          paid_at?: string | null
+          partner_id: string
+          period_id?: string | null
+          status?: string
+          student_id: string
+          subscription_id?: string | null
+        }
+        Update: {
+          coach_id?: string
+          commission_amount_cents?: number
+          commission_rate_bp?: number
+          created_at?: string
+          eligible?: boolean
+          gross_amount_cents?: number
+          id?: string
+          paid_at?: string | null
+          partner_id?: string
+          period_id?: string | null
+          status?: string
+          student_id?: string
+          subscription_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_commissions_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partner_profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "partner_commissions_period_id_fkey"
+            columns: ["period_id"]
+            isOneToOne: false
+            referencedRelation: "commission_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_commissions_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "student_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_profiles: {
+        Row: {
+          activated_at: string
+          activated_by_admin: string | null
+          coach_id: string
+          commission_rate_bp: number
+          created_at: string
+          deactivated_at: string | null
+          pix_holder_name: string | null
+          pix_key: string | null
+          pix_type: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          activated_at?: string
+          activated_by_admin?: string | null
+          coach_id: string
+          commission_rate_bp?: number
+          created_at?: string
+          deactivated_at?: string | null
+          pix_holder_name?: string | null
+          pix_key?: string | null
+          pix_type?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          activated_at?: string
+          activated_by_admin?: string | null
+          coach_id?: string
+          commission_rate_bp?: number
+          created_at?: string
+          deactivated_at?: string | null
+          pix_holder_name?: string | null
+          pix_key?: string | null
+          pix_type?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -2001,6 +2251,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      derive_partner_coach: { Args: { p_partner_id: string }; Returns: string }
       get_checkin_streak: { Args: { p_student_id: string }; Returns: number }
       get_coach_by_invite_code: {
         Args: { p_code: string }
@@ -2008,6 +2259,16 @@ export type Database = {
           coach_id: string
           coach_name: string
           notification_email: string
+        }[]
+      }
+      get_partner_referrals: {
+        Args: { p_partner_id: string }
+        Returns: {
+          attributed_at: string
+          commission_amount_cents: number
+          commission_status: string
+          stage: string
+          student_name: string
         }[]
       }
       get_student_hub_context: { Args: { p_student_id: string }; Returns: Json }
@@ -2025,6 +2286,17 @@ export type Database = {
       refresh_coach_ai_profile: {
         Args: { p_coach_id?: string }
         Returns: undefined
+      }
+      resolve_access_code: {
+        Args: { p_code: string }
+        Returns: {
+          coach_id: string
+          code: string
+          expires_at: string
+          id: string
+          partner_id: string
+          status: string
+        }[]
       }
       save_protocol_with_plan: {
         Args: {

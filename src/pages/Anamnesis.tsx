@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { NEURO_SLIDERS } from "@/lib/anamnesisSchema";
+import { SELF_REPORTED_SOURCES } from "@/lib/partnerPricing";
 import { uploadStudentPhoto, isStoragePath } from "@/lib/studentMedia";
 import { notifyCoach } from "@/lib/notifyCoach";
 import { consumeStoredReferral, peekStoredReferral, consumeStoredDirectCoach } from "@/lib/referralCapture";
@@ -379,6 +380,19 @@ const Anamnesis = () => {
         baseline_metrics: baseline,
         submitted_at: new Date().toISOString(),
       };
+      // Origem declarada pelo próprio aluno (pergunta "Como você conheceu…").
+      // É só um sinal informativo — a atribuição de parceria válida é sempre a
+      // do código de acesso, resolvida no backend.
+      if (g("self_reported_source")) anamnesisRow.self_reported_source = g("self_reported_source");
+
+      // Código de acesso da influenciadora: resgatado só após a conta existir,
+      // porque o resgate exige usuário autenticado e roda 100% no backend.
+      if (!isEditMode && g("access_code").trim()) {
+        const { error: redeemErr } = await supabase.functions.invoke("redeem-access-code", {
+          body: { code: g("access_code").trim().toUpperCase() },
+        });
+        if (redeemErr) console.warn("redeem-access-code falhou", redeemErr);
+      }
       let finalAnamnesisId: string | null = null;
       if (isEditMode && editingAnamnesisId) {
         anamnesisRow.student_edit_count = studentEditCount + 1;
@@ -628,6 +642,30 @@ const Anamnesis = () => {
             <div className="grid grid-cols-2 gap-3">
               <button type="button" onClick={() => setGender("F")} className={chBtn("F")}>♀ Feminino</button>
               <button type="button" onClick={() => setGender("M")} className={chBtn("M")}>♂ Masculino</button>
+            </div>
+          </Card>
+          <Card label="Como você chegou até aqui">
+            <div className="space-y-3">
+              <Field label="Como você conheceu a EliteHub?">
+                <select
+                  className="w-full h-11 rounded-lg border border-input bg-background px-3 text-sm"
+                  value={g("self_reported_source")}
+                  onChange={(e) => set("self_reported_source")(e.target.value)}
+                >
+                  <option value="">Selecione…</option>
+                  {SELF_REPORTED_SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </Field>
+              {!loggedUserId && (
+                <Field label="Código de indicação (opcional)">
+                  <FiInput
+                    name="access_code"
+                    placeholder="Se você recebeu um código, digite aqui"
+                    value={g("access_code")}
+                    onChange={(v: string) => set("access_code")(v.toUpperCase())}
+                  />
+                </Field>
+              )}
             </div>
           </Card>
         </section>

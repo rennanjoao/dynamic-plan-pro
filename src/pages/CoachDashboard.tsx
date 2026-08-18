@@ -15,7 +15,7 @@ import {
 } from "@/hooks/useCoachStudents";
 import {
   AlertTriangle, CheckCircle2, Search, Filter, Users,
-  ArrowLeft, Loader2, DollarSign, User, LogOut, Activity,
+  ArrowLeft, Loader2, DollarSign, User, LogOut, Activity, Sparkles,
 } from "lucide-react";
 import CoachNotificationBell from "@/components/coach/CoachNotificationBell";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,7 @@ import { EvolutionDialog } from "@/components/coach/dashboard/EvolutionDialog";
 import { StudentFeedbackConfigDialog } from "@/components/coach/dashboard/StudentFeedbackConfigDialog";
 import { CheckinHistoryDialog } from "@/components/coach/dashboard/CheckinHistoryDialog";
 import { FinancesTab } from "@/components/coach/dashboard/FinancesTab";
+import { PartnersTab } from "@/components/coach/dashboard/PartnersTab";
 import { ProfileDialog } from "@/components/coach/dashboard/ProfileDialog";
 import { usePlatformBilling, worstPlatformStatus } from "@/hooks/usePlatformBilling";
 import { PrivacyProvider, PrivacyToggle, Private } from "@/components/coach/PrivacyMode";
@@ -64,7 +65,7 @@ function CoachDashboardInner() {
   const [settingsStudent, setSettingsStudent] = useState<StudentStatus | null>(null);
   const [studentPage, setStudentPage] = useState(0);
   const STUDENTS_PER_PAGE = 20;
-  const [activeTab, setActiveTab] = useState<"students" | "finances" | "treinos">("students");
+  const [activeTab, setActiveTab] = useState<"students" | "finances" | "treinos" | "parcerias">("students");
   const [treinoSearch, setTreinoSearch] = useState("");
   const qc = useQueryClient();
 
@@ -180,11 +181,12 @@ function CoachDashboardInner() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "students" | "finances" | "treinos")} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "students" | "finances" | "treinos" | "parcerias")} className="space-y-4">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="students" className="gap-1.5 text-xs sm:text-sm"><Users className="w-3.5 h-3.5" /> Alunos</TabsTrigger>
             <TabsTrigger value="finances" className="gap-1.5 text-xs sm:text-sm"><DollarSign className="w-3.5 h-3.5" /> Financeiro</TabsTrigger>
             <TabsTrigger value="treinos" className="gap-1.5 text-xs sm:text-sm"><Activity className="w-3.5 h-3.5" /> Treinos</TabsTrigger>
+            <TabsTrigger value="parcerias" className="gap-1.5 text-xs sm:text-sm"><Sparkles className="w-3.5 h-3.5" /> Parcerias</TabsTrigger>
           </TabsList>
 
           <TabsContent value="students" className="space-y-4">
@@ -282,6 +284,10 @@ function CoachDashboardInner() {
 
           <TabsContent value="finances">
             {coachId && <FinancesTab coachId={coachId} students={allStudents} />}
+          </TabsContent>
+
+          <TabsContent value="parcerias">
+            <PartnersTab coachId={coachId} />
           </TabsContent>
 
           <TabsContent value="treinos" className="space-y-4">
