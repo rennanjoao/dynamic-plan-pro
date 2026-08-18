@@ -43,6 +43,7 @@ import { parseExerciseNotes } from "@/lib/parseExerciseNotes";
 import { ExerciseVideoSheet } from "./ExerciseVideoSheet";
 import { CompactWeekSelector } from "./CompactWeekSelector";
 import { DEFAULT_WEEKS, parseRepsMin, parseRepsMax } from "@/lib/periodizationDefaults";
+import { buildPeriodizationKey, workoutStateStorageKey } from "@/lib/periodizationKey";
 import {
   getLibraryEntry,
   listExercisesByMuscleGroup,
@@ -122,13 +123,30 @@ function playBeep(type: "warn" | "end" = "end") {
 export default function WorkoutMode({ workouts, userId, coachId, coachName, teamName, studentName, initialDay, initialWeek, periodization, onClose }: any) {
   const confirm = useConfirm();
   const session = useWorkoutSession();
-  const storageKey = `workout_session_${userId}_${initialDay ?? workouts[0]?.key ?? "A"}`;
   const isPeriodizationOn = periodization?.enabled ?? false;
   const weeks = periodization?.weeks?.length === 4 ? periodization.weeks : DEFAULT_WEEKS;
 
-  const _saved = (() => { try { return JSON.parse(localStorage.getItem(storageKey) ?? "null"); } catch { return null; } })();
+  const dayKeyForStorage = initialDay ?? workouts[0]?.key ?? "A";
+
+  // A memória de carga é separada por TIPO de periodização (peso/tecnica/
+  // resistencia/deload) — inclusive no localStorage, para o fluxo offline usar
+  // exatamente a mesma separação do servidor.
+  const periodizationKeyOf = (weekIdx: number): string | null =>
+    buildPeriodizationKey({
+      enabled: isPeriodizationOn,
+      reps: weeks[weekIdx]?.reps,
+      label: weeks[weekIdx]?.label,
+      isDeload: weeks[weekIdx]?.isDeload,
+    });
+
+  const initialPeriodizationKey = periodizationKeyOf(initialWeek ?? 0);
+  const initialStorageKey = workoutStateStorageKey(userId, dayKeyForStorage, initialPeriodizationKey);
+
+  const _saved = (() => { try { return JSON.parse(localStorage.getItem(initialStorageKey) ?? "null"); } catch { return null; } })();
 
   const [activeWeek, setActiveWeek] = useState<number>(_saved?.activeWeek ?? initialWeek ?? 0);
+  const periodizationKey = periodizationKeyOf(activeWeek);
+  const storageKey = workoutStateStorageKey(userId, dayKeyForStorage, periodizationKey);
   const [currentExIdx, setCurrentExIdx] = useState(0);
   const [phase, setPhase] = useState<"training" | "conclusion">("training");
   const [setDataMap, setSetDataMap] = useState<Record<string, any[]>>(_saved?.setDataMap ?? {});
