@@ -7,6 +7,41 @@ type ListedUser = { id: string; email?: string | null; created_at?: string };
 
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : "Erro inesperado";
 
+/** Registra uma ação administrativa sensível. Nunca bloqueia a operação principal. */
+async function audit(
+  adminClient: ReturnType<typeof createClient>,
+  entry: {
+    actorId?: string | null;
+    actorEmail?: string | null;
+    action: string;
+    targetUserId?: string | null;
+    targetEmail?: string | null;
+    details?: Record<string, unknown>;
+  },
+) {
+  try {
+    await adminClient.from("admin_audit_log").insert({
+      actor_id: entry.actorId ?? null,
+      actor_email: entry.actorEmail ?? null,
+      action: entry.action,
+      target_user_id: entry.targetUserId ?? null,
+      target_email: entry.targetEmail ?? null,
+      details: entry.details ?? {},
+    });
+  } catch (e) {
+    console.warn("[manage-trainers] auditoria falhou:", e instanceof Error ? e.message : e);
+  }
+}
+
+/** Conta quantos administradores existem — usado para proteger o último admin. */
+async function countAdmins(adminClient: ReturnType<typeof createClient>): Promise<number> {
+  const { count } = await adminClient
+    .from("user_roles")
+    .select("user_id", { count: "exact", head: true })
+    .eq("role", "admin");
+  return count ?? 0;
+}
+
 function generateToken(length = 32): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
   let token = "";
