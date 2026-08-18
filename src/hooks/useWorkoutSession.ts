@@ -154,10 +154,10 @@ export function useWorkoutSession() {
     async (
       userId: string,
       workoutKey: string
-    ): Promise<{ sessionId: string; startedAt: number; isStale: boolean } | null> => {
+    ): Promise<{ sessionId: string; startedAt: number; isStale: boolean; periodizationKey: string | null } | null> => {
       const { data, error } = await (supabase as any)
         .from("workout_sessions")
-        .select("id, started_at")
+        .select("id, started_at, periodization_key")
         .eq("user_id", userId)
         .eq("workout_key", workoutKey)
         .is("ended_at", null)
@@ -172,7 +172,12 @@ export function useWorkoutSession() {
       if (!data) return null;
 
       const startedAt = new Date(data.started_at).getTime();
-      return { sessionId: data.id, startedAt, isStale: isSessionStale(startedAt) };
+      return {
+        sessionId: data.id,
+        startedAt,
+        isStale: isSessionStale(startedAt),
+        periodizationKey: data.periodization_key ?? null,
+      };
     },
     []
   );
