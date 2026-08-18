@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { NEURO_SLIDERS } from "@/lib/anamnesisSchema";
+import { SELF_REPORTED_SOURCES } from "@/lib/partnerPricing";
 import { uploadStudentPhoto, isStoragePath } from "@/lib/studentMedia";
 import { notifyCoach } from "@/lib/notifyCoach";
 import { consumeStoredReferral, peekStoredReferral, consumeStoredDirectCoach } from "@/lib/referralCapture";
