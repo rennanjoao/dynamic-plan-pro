@@ -123,9 +123,9 @@ export function useWorkoutSession() {
 
   // ── Retomar sessão existente (sem inserir nova linha no banco) ─────────────
   const resumeSession = useCallback(
-    (params: { sessionId: string; userId: string; workoutKey: string; startedAt: number }) => {
+    (params: { sessionId: string; userId: string; workoutKey: string; startedAt: number; periodizationKey?: string | null }) => {
       userIdRef.current = params.userId;
-      localDraftKey.current = `workout_session_draft_${params.userId}_${params.workoutKey}`;
+      localDraftKey.current = workoutDraftStorageKey(params.userId, params.workoutKey, params.periodizationKey ?? null);
       // Recupera séries que ficaram no buffer local (offline) de uma sessão
       // anterior sob a mesma chave — sem isso, elas ficam órfãs no
       // localStorage e nunca são reenviadas ao servidor.
@@ -194,7 +194,7 @@ export function useWorkoutSession() {
   // ── Iniciar sessão ──────────────────────────────────────────────────────────
   const startSession = useCallback(async (params: StartSessionParams) => {
     userIdRef.current = params.userId;
-    localDraftKey.current = `workout_session_draft_${params.userId}_${params.workoutKey}`;
+    localDraftKey.current = workoutDraftStorageKey(params.userId, params.workoutKey, params.periodizationKey ?? null);
     // Mesma recuperação de pendências que resumeSession — cobre o caso de uma
     // sessão local (offline) anterior não ter sido encontrada no Supabase e
     // uma nova estar sendo criada em cima da mesma chave de rascunho.
@@ -209,6 +209,7 @@ export function useWorkoutSession() {
         workout_key:        params.workoutKey,
         workout_label:      params.workoutLabel ?? null,
         periodization_week: params.periodizationWeek ?? null,
+        periodization_key:  params.periodizationKey ?? null,
         block_number:       params.blockNumber ?? 1,
         is_deload_week:     params.isDeloadWeek ?? false,
         started_at:         new Date().toISOString(),
