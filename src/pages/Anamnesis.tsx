@@ -493,7 +493,7 @@ const Anamnesis = () => {
     }
   // [FIX MÉDIO] 'g' adicionado às dependências — é uma função que lê 'd',
   // mas como está definida fora do useCallback, o linter a exige aqui.
-  }, [d, g, gender, tpm, quedaF, groups, fotoFiles, fotoPreviews, coach, loggedUserId, isEditMode, editingAnamnesisId, studentEditCount, navigate]);
+  }, [d, g, gender, tpm, quedaF, groups, fotoFiles, fotoPreviews, coach, loggedUserId, isEditMode, editingAnamnesisId, studentEditCount, navigate, resolvedAccessCode]);
 
   const chBtn = (id: string) => cn("px-5 py-2.5 rounded-xl text-sm font-bold border-2 transition-all", gender === id ? "border-primary bg-primary/15 text-primary" : "border-border/50 text-muted-foreground hover:border-primary/40");
 
