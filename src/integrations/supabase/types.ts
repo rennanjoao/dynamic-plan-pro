@@ -103,6 +103,39 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_audit_log: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_id: string | null
+          created_at: string
+          details: Json
+          id: string
+          target_email: string | null
+          target_user_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          id?: string
+          target_email?: string | null
+          target_user_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          id?: string
+          target_email?: string | null
+          target_user_id?: string | null
+        }
+        Relationships: []
+      }
       anamnesis: {
         Row: {
           ai_flags: Json
@@ -2006,6 +2039,7 @@ export type Database = {
           id: string
           is_deload_week: boolean
           notes: string | null
+          periodization_key: string | null
           periodization_week: number | null
           plan_id: string | null
           sleep_quality: number | null
@@ -2024,6 +2058,7 @@ export type Database = {
           id?: string
           is_deload_week?: boolean
           notes?: string | null
+          periodization_key?: string | null
           periodization_week?: number | null
           plan_id?: string | null
           sleep_quality?: number | null
@@ -2042,6 +2077,7 @@ export type Database = {
           id?: string
           is_deload_week?: boolean
           notes?: string | null
+          periodization_key?: string | null
           periodization_week?: number | null
           plan_id?: string | null
           sleep_quality?: number | null
@@ -2064,6 +2100,7 @@ export type Database = {
           muscle_group: string | null
           notes: string | null
           perceived_effort: number | null
+          periodization_key: string | null
           reps: number | null
           reps_target_max: number | null
           reps_target_min: number | null
@@ -2084,6 +2121,7 @@ export type Database = {
           muscle_group?: string | null
           notes?: string | null
           perceived_effort?: number | null
+          periodization_key?: string | null
           reps?: number | null
           reps_target_max?: number | null
           reps_target_min?: number | null
@@ -2104,6 +2142,7 @@ export type Database = {
           muscle_group?: string | null
           notes?: string | null
           perceived_effort?: number | null
+          periodization_key?: string | null
           reps?: number | null
           reps_target_max?: number | null
           reps_target_min?: number | null
@@ -2273,6 +2312,7 @@ export type Database = {
       get_partner_referrals: {
         Args: { p_partner_id: string }
         Returns: {
+          access_code: string
           attributed_at: string
           commission_amount_cents: number
           commission_status: string
@@ -2309,6 +2349,7 @@ export type Database = {
           status: string
         }[]
       }
+      revoke_access_code: { Args: { p_code_id: string }; Returns: undefined }
       save_protocol_with_plan: {
         Args: {
           p_active: boolean
@@ -2326,6 +2367,10 @@ export type Database = {
           p_water: number
         }
         Returns: string
+      }
+      set_partner_commission: {
+        Args: { p_partner_id: string; p_rate_bp: number }
+        Returns: undefined
       }
       unaccent: { Args: { "": string }; Returns: string }
     }

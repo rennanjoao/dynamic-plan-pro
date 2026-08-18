@@ -6,6 +6,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toExerciseKey } from "@/lib/workoutTypes";
 import type { ExerciseHistory } from "@/lib/workoutTypes";
+import { workoutDraftStorageKey } from "@/lib/periodizationKey";
 
 /* ── Parâmetros ──────────────────────────────────────────────────────────────── */
 
@@ -28,6 +29,8 @@ interface StartSessionParams {
   workoutKey: string;
   workoutLabel?: string;
   periodizationWeek?: number;
+  /** Tipo estável da periodização (peso/tecnica/resistencia/deload). `null` = sem periodização. */
+  periodizationKey?: string | null;
   blockNumber?: number;
   isDeloadWeek?: boolean;
 }
@@ -45,6 +48,8 @@ interface RegisterSetParams {
   notes?: string;
   /** Nome do exercício prescrito originalmente, quando o aluno trocou por outro. */
   swappedFromName?: string | null;
+  /** Periodização da sessão — grava junto da série para separar o histórico. */
+  periodizationKey?: string | null;
 }
 
 interface FinishSessionParams {
@@ -75,6 +80,7 @@ function buildSetRow(sessionId: string, userId: string, params: RegisterSetParam
     skipped:          params.skipped ?? false,
     notes:            params.notes ?? null,
     swapped_from_name: params.swappedFromName ?? null,
+    periodization_key: params.periodizationKey ?? null,
     executed_at:      new Date().toISOString(),
   };
 }
@@ -117,9 +123,9 @@ export function useWorkoutSession() {
 
   // ── Retomar sessão existente (sem inserir nova linha no banco) ─────────────
   const resumeSession = useCallback(
-    (params: { sessionId: string; userId: string; workoutKey: string; startedAt: number }) => {
+    (params: { sessionId: string; userId: string; workoutKey: string; startedAt: number; periodizationKey?: string | null }) => {
       userIdRef.current = params.userId;
-      localDraftKey.current = `workout_session_draft_${params.userId}_${params.workoutKey}`;
+      localDraftKey.current = workoutDraftStorageKey(params.userId, params.workoutKey, params.periodizationKey ?? null);
       // Recupera séries que ficaram no buffer local (offline) de uma sessão
       // anterior sob a mesma chave — sem isso, elas ficam órfãs no
       // localStorage e nunca são reenviadas ao servidor.
@@ -148,10 +154,10 @@ export function useWorkoutSession() {
     async (
       userId: string,
       workoutKey: string
-    ): Promise<{ sessionId: string; startedAt: number; isStale: boolean } | null> => {
+    ): Promise<{ sessionId: string; startedAt: number; isStale: boolean; periodizationKey: string | null } | null> => {
       const { data, error } = await (supabase as any)
         .from("workout_sessions")
-        .select("id, started_at")
+        .select("id, started_at, periodization_key")
         .eq("user_id", userId)
         .eq("workout_key", workoutKey)
         .is("ended_at", null)
@@ -166,7 +172,12 @@ export function useWorkoutSession() {
       if (!data) return null;
 
       const startedAt = new Date(data.started_at).getTime();
-      return { sessionId: data.id, startedAt, isStale: isSessionStale(startedAt) };
+      return {
+        sessionId: data.id,
+        startedAt,
+        isStale: isSessionStale(startedAt),
+        periodizationKey: data.periodization_key ?? null,
+      };
     },
     []
   );
@@ -188,7 +199,7 @@ export function useWorkoutSession() {
   // ── Iniciar sessão ──────────────────────────────────────────────────────────
   const startSession = useCallback(async (params: StartSessionParams) => {
     userIdRef.current = params.userId;
-    localDraftKey.current = `workout_session_draft_${params.userId}_${params.workoutKey}`;
+    localDraftKey.current = workoutDraftStorageKey(params.userId, params.workoutKey, params.periodizationKey ?? null);
     // Mesma recuperação de pendências que resumeSession — cobre o caso de uma
     // sessão local (offline) anterior não ter sido encontrada no Supabase e
     // uma nova estar sendo criada em cima da mesma chave de rascunho.
@@ -203,6 +214,7 @@ export function useWorkoutSession() {
         workout_key:        params.workoutKey,
         workout_label:      params.workoutLabel ?? null,
         periodization_week: params.periodizationWeek ?? null,
+        periodization_key:  params.periodizationKey ?? null,
         block_number:       params.blockNumber ?? 1,
         is_deload_week:     params.isDeloadWeek ?? false,
         started_at:         new Date().toISOString(),
@@ -496,18 +508,26 @@ export function useWorkoutSession() {
 
   // ── Buscar histórico de um exercício ────────────────────────────────────────
   const getExerciseHistory = useCallback(
-    async (exerciseName: string, limit = 5): Promise<ExerciseHistory[]> => {
+    async (exerciseName: string, periodizationKey: string | null = null, limit = 5): Promise<ExerciseHistory[]> => {
       if (!userIdRef.current) return [];
 
       const key = toExerciseKey(exerciseName);
 
-      const { data, error } = await (supabase as any)
+      let query = (supabase as any)
         .from("workout_sets")
-        .select("weight_kg, reps, perceived_effort, executed_at, workout_key")
+        .select("weight_kg, reps, perceived_effort, executed_at, periodization_key")
         .eq("user_id", userIdRef.current)
         .eq("exercise_key", key)
         .eq("set_number", 1)
-        .eq("completed", true)
+        .eq("completed", true);
+
+      // Filtro no BANCO (não no JSX): histórico de Força nunca alimenta
+      // Hipertrofia/Deload. Sessões legadas (null) formam um balde próprio.
+      query = periodizationKey
+        ? query.eq("periodization_key", periodizationKey)
+        : query.is("periodization_key", null);
+
+      const { data, error } = await query
         .order("executed_at", { ascending: false })
         .limit(limit);
 
@@ -527,6 +547,7 @@ export function useWorkoutSession() {
   const getExerciseHistoryBatch = useCallback(
     async (
       exerciseNames: string[],
+      periodizationKey: string | null = null,
       limitPerExercise = 3
     ): Promise<Record<string, ExerciseHistory[]>> => {
       const result: Record<string, ExerciseHistory[]> = {};
@@ -535,14 +556,19 @@ export function useWorkoutSession() {
       const keyToName = new Map(exerciseNames.map((n) => [toExerciseKey(n), n]));
       const keys = Array.from(keyToName.keys());
 
-      const { data, error } = await (supabase as any)
+      let query = (supabase as any)
         .from("workout_sets")
         .select("exercise_key, weight_kg, reps, perceived_effort, executed_at")
         .eq("user_id", userIdRef.current)
         .in("exercise_key", keys)
         .eq("set_number", 1)
-        .eq("completed", true)
-        .order("executed_at", { ascending: false });
+        .eq("completed", true);
+
+      query = periodizationKey
+        ? query.eq("periodization_key", periodizationKey)
+        : query.is("periodization_key", null);
+
+      const { data, error } = await query.order("executed_at", { ascending: false });
 
       if (error || !data) return result;
 

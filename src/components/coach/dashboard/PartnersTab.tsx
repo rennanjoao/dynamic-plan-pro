@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, Heart, Loader2, Percent, Plus, Ticket, Users, Wallet } from "lucide-react";
+import { Ban, Check, Copy, Heart, Loader2, Percent, Plus, Ticket, Users, Wallet } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -108,10 +108,12 @@ export function PartnersTab({ coachId }: { coachId: string | null }) {
       return;
     }
     setBusy(true);
-    const { error } = await supabase
-      .from("partner_profiles")
-      .update({ commission_rate_bp: Math.round(pct * 100) })
-      .eq("user_id", userId);
+    // A escrita direta em partner_profiles é bloqueada por RLS; a RPC valida
+    // que a parceira pertence ao coach e limita a taxa a 0–100%.
+    const { error } = await supabase.rpc("set_partner_commission", {
+      p_partner_id: userId,
+      p_rate_bp: Math.round(pct * 100),
+    });
     setBusy(false);
     if (error) {
       toast({ title: "Falha ao salvar comissão", description: error.message, variant: "destructive" });
@@ -136,6 +138,18 @@ export function PartnersTab({ coachId }: { coachId: string | null }) {
     }
     qc.invalidateQueries({ queryKey: ["partner-commissions", coachId] });
     toast({ title: "Comissão marcada como paga" });
+  };
+
+  const revokeCode = async (codeId: string) => {
+    setBusy(true);
+    const { error } = await supabase.rpc("revoke_access_code", { p_code_id: codeId });
+    setBusy(false);
+    if (error) {
+      toast({ title: "Não foi possível revogar", description: error.message, variant: "destructive" });
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["coach-access-codes", coachId] });
+    toast({ title: "Código revogado" });
   };
 
   return (
@@ -276,6 +290,14 @@ export function PartnersTab({ coachId }: { coachId: string | null }) {
                   navigator.clipboard?.writeText(c.code);
                   toast({ title: "Código copiado" });
                 }}><Copy className="w-4 h-4" /></Button>
+                {c.status !== "activated" && c.status !== "used" && c.status !== "void" && (
+                  <Button
+                    size="icon" variant="ghost" title="Revogar código"
+                    disabled={busy} onClick={() => revokeCode(c.id)}
+                  >
+                    <Ban className="w-4 h-4 text-destructive" />
+                  </Button>
+                )}
               </div>
             </div>
           ))}

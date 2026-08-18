@@ -45,6 +45,7 @@ export interface AccessCode {
 
 export interface PartnerReferral {
   student_name: string;
+  access_code?: string | null;
   attributed_at: string;
   stage: string;
   commission_status: string | null;

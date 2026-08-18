@@ -43,6 +43,7 @@ import { parseExerciseNotes } from "@/lib/parseExerciseNotes";
 import { ExerciseVideoSheet } from "./ExerciseVideoSheet";
 import { CompactWeekSelector } from "./CompactWeekSelector";
 import { DEFAULT_WEEKS, parseRepsMin, parseRepsMax } from "@/lib/periodizationDefaults";
+import { buildPeriodizationKey, workoutStateStorageKey } from "@/lib/periodizationKey";
 import {
   getLibraryEntry,
   listExercisesByMuscleGroup,
@@ -122,13 +123,30 @@ function playBeep(type: "warn" | "end" = "end") {
 export default function WorkoutMode({ workouts, userId, coachId, coachName, teamName, studentName, initialDay, initialWeek, periodization, onClose }: any) {
   const confirm = useConfirm();
   const session = useWorkoutSession();
-  const storageKey = `workout_session_${userId}_${initialDay ?? workouts[0]?.key ?? "A"}`;
   const isPeriodizationOn = periodization?.enabled ?? false;
   const weeks = periodization?.weeks?.length === 4 ? periodization.weeks : DEFAULT_WEEKS;
 
-  const _saved = (() => { try { return JSON.parse(localStorage.getItem(storageKey) ?? "null"); } catch { return null; } })();
+  const dayKeyForStorage = initialDay ?? workouts[0]?.key ?? "A";
+
+  // A memória de carga é separada por TIPO de periodização (peso/tecnica/
+  // resistencia/deload) — inclusive no localStorage, para o fluxo offline usar
+  // exatamente a mesma separação do servidor.
+  const periodizationKeyOf = (weekIdx: number): string | null =>
+    buildPeriodizationKey({
+      enabled: isPeriodizationOn,
+      reps: weeks[weekIdx]?.reps,
+      label: weeks[weekIdx]?.label,
+      isDeload: weeks[weekIdx]?.isDeload,
+    });
+
+  const initialPeriodizationKey = periodizationKeyOf(initialWeek ?? 0);
+  const initialStorageKey = workoutStateStorageKey(userId, dayKeyForStorage, initialPeriodizationKey);
+
+  const _saved = (() => { try { return JSON.parse(localStorage.getItem(initialStorageKey) ?? "null"); } catch { return null; } })();
 
   const [activeWeek, setActiveWeek] = useState<number>(_saved?.activeWeek ?? initialWeek ?? 0);
+  const periodizationKey = periodizationKeyOf(activeWeek);
+  const storageKey = workoutStateStorageKey(userId, dayKeyForStorage, periodizationKey);
   const [currentExIdx, setCurrentExIdx] = useState(0);
   const [phase, setPhase] = useState<"training" | "conclusion">("training");
   const [setDataMap, setSetDataMap] = useState<Record<string, any[]>>(_saved?.setDataMap ?? {});
@@ -279,7 +297,14 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     let cancelled = false;
 
     const beginNew = () => {
-      session.startSession({ userId, coachId, workoutKey: day.key, periodizationWeek: isPeriodizationOn ? activeWeek : undefined });
+      session.startSession({
+        userId,
+        coachId,
+        workoutKey: day.key,
+        periodizationWeek: isPeriodizationOn ? activeWeek : undefined,
+        periodizationKey,
+        isDeloadWeek: periodizationKey === "deload",
+      });
     };
 
     // Pergunta antes de retomar uma sessão fora da janela de validade. Sem
@@ -344,7 +369,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
               return;
             }
           }
-          session.resumeSession({ sessionId: _saved.sessionId, userId, workoutKey: day.key, startedAt });
+          session.resumeSession({ sessionId: _saved.sessionId, userId, workoutKey: day.key, startedAt, periodizationKey });
           return;
         }
 
@@ -365,7 +390,13 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
           }
         }
 
-        session.resumeSession({ sessionId: active.sessionId, userId, workoutKey: day.key, startedAt: active.startedAt });
+        session.resumeSession({
+          sessionId: active.sessionId,
+          userId,
+          workoutKey: day.key,
+          startedAt: active.startedAt,
+          periodizationKey: active.periodizationKey,
+        });
         const hasLocalProgress = _saved?.setDataMap && Object.keys(_saved.setDataMap).length > 0;
         if (!hasLocalProgress) rebuildFromServer(active.sessionId);
       } catch (err) {
@@ -411,12 +442,12 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     if (!exercises.length) return;
     let cancelled = false;
     session
-      .getExerciseHistoryBatch(exercises.map((e: any) => e.name))
+      .getExerciseHistoryBatch(exercises.map((e: any) => e.name), periodizationKey)
       .then((map) => { if (!cancelled) setHistoryMap(map ?? {}); })
       .catch((err) => { console.warn("getExerciseHistoryBatch falhou (PR tracking desativado nesta sessão):", err); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [day?.key, exercises.length]);
+  }, [day?.key, exercises.length, periodizationKey]);
 
   // Guarda contra clique duplo: `isRegisteringSetRef` é checado de forma
   // síncrona (não depende de re-render), então mesmo dois cliques disparados
@@ -481,6 +512,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         perceivedEffort: effort,
         completed: true,
         swappedFromName: currentEx?.swappedFrom ?? null,
+        periodizationKey,
       });
       // Toast com ação "Desfazer" — reduz o custo de um clique errado
       if (!isPR) {
@@ -516,8 +548,12 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   // `!activeWeight` nunca voltava a valer depois do primeiro exercício.
   const lastPrefillKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    const keyChanged = lastPrefillKeyRef.current !== currentExKey;
-    lastPrefillKeyRef.current = currentExKey;
+    // A identidade do prefill inclui a periodização: ao trocar de semana
+    // (ex.: Força → Deload) os campos zeram antes de buscar o histórico
+    // daquela periodização — nunca herdam a carga da anterior.
+    const prefillIdentity = `${currentExKey}@@${periodizationKey ?? "legacy"}`;
+    const keyChanged = lastPrefillKeyRef.current !== prefillIdentity;
+    lastPrefillKeyRef.current = prefillIdentity;
 
     const currentSets = setDataMap[currentExKey] ?? [];
     const hasDoneSets = currentSets.some((s: any) => s.done);
@@ -535,7 +571,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
       if (last?.reps && !reps) setActiveReps(last.reps);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentExKey, historyMap]);
+  }, [currentExKey, historyMap, periodizationKey]);
 
   /** Desfaz a última série marcada: remove localmente, restaura inputs,
    * zera o timer de descanso e deleta no backend. */
