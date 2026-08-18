@@ -297,7 +297,14 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     let cancelled = false;
 
     const beginNew = () => {
-      session.startSession({ userId, coachId, workoutKey: day.key, periodizationWeek: isPeriodizationOn ? activeWeek : undefined });
+      session.startSession({
+        userId,
+        coachId,
+        workoutKey: day.key,
+        periodizationWeek: isPeriodizationOn ? activeWeek : undefined,
+        periodizationKey,
+        isDeloadWeek: periodizationKey === "deload",
+      });
     };
 
     // Pergunta antes de retomar uma sessão fora da janela de validade. Sem
@@ -362,7 +369,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
               return;
             }
           }
-          session.resumeSession({ sessionId: _saved.sessionId, userId, workoutKey: day.key, startedAt });
+          session.resumeSession({ sessionId: _saved.sessionId, userId, workoutKey: day.key, startedAt, periodizationKey });
           return;
         }
 
@@ -383,7 +390,13 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
           }
         }
 
-        session.resumeSession({ sessionId: active.sessionId, userId, workoutKey: day.key, startedAt: active.startedAt });
+        session.resumeSession({
+          sessionId: active.sessionId,
+          userId,
+          workoutKey: day.key,
+          startedAt: active.startedAt,
+          periodizationKey: active.periodizationKey,
+        });
         const hasLocalProgress = _saved?.setDataMap && Object.keys(_saved.setDataMap).length > 0;
         if (!hasLocalProgress) rebuildFromServer(active.sessionId);
       } catch (err) {
@@ -429,12 +442,12 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     if (!exercises.length) return;
     let cancelled = false;
     session
-      .getExerciseHistoryBatch(exercises.map((e: any) => e.name))
+      .getExerciseHistoryBatch(exercises.map((e: any) => e.name), periodizationKey)
       .then((map) => { if (!cancelled) setHistoryMap(map ?? {}); })
       .catch((err) => { console.warn("getExerciseHistoryBatch falhou (PR tracking desativado nesta sessão):", err); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [day?.key, exercises.length]);
+  }, [day?.key, exercises.length, periodizationKey]);
 
   // Guarda contra clique duplo: `isRegisteringSetRef` é checado de forma
   // síncrona (não depende de re-render), então mesmo dois cliques disparados
@@ -499,6 +512,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         perceivedEffort: effort,
         completed: true,
         swappedFromName: currentEx?.swappedFrom ?? null,
+        periodizationKey,
       });
       // Toast com ação "Desfazer" — reduz o custo de um clique errado
       if (!isPR) {
