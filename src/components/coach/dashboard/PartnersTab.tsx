@@ -290,6 +290,14 @@ export function PartnersTab({ coachId }: { coachId: string | null }) {
                   navigator.clipboard?.writeText(c.code);
                   toast({ title: "Código copiado" });
                 }}><Copy className="w-4 h-4" /></Button>
+                {c.status !== "activated" && c.status !== "used" && c.status !== "void" && (
+                  <Button
+                    size="icon" variant="ghost" title="Revogar código"
+                    disabled={busy} onClick={() => revokeCode(c.id)}
+                  >
+                    <Ban className="w-4 h-4 text-destructive" />
+                  </Button>
+                )}
               </div>
             </div>
           ))}
