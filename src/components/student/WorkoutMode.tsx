@@ -548,8 +548,12 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   // `!activeWeight` nunca voltava a valer depois do primeiro exercício.
   const lastPrefillKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    const keyChanged = lastPrefillKeyRef.current !== currentExKey;
-    lastPrefillKeyRef.current = currentExKey;
+    // A identidade do prefill inclui a periodização: ao trocar de semana
+    // (ex.: Força → Deload) os campos zeram antes de buscar o histórico
+    // daquela periodização — nunca herdam a carga da anterior.
+    const prefillIdentity = `${currentExKey}@@${periodizationKey ?? "legacy"}`;
+    const keyChanged = lastPrefillKeyRef.current !== prefillIdentity;
+    lastPrefillKeyRef.current = prefillIdentity;
 
     const currentSets = setDataMap[currentExKey] ?? [];
     const hasDoneSets = currentSets.some((s: any) => s.done);
@@ -567,7 +571,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
       if (last?.reps && !reps) setActiveReps(last.reps);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentExKey, historyMap]);
+  }, [currentExKey, historyMap, periodizationKey]);
 
   /** Desfaz a última série marcada: remove localmente, restaura inputs,
    * zera o timer de descanso e deleta no backend. */
