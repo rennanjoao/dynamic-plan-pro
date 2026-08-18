@@ -25,17 +25,40 @@ serve(async (req) => {
     if (error) throw error;
 
     const coach = Array.isArray(data) ? data[0] : null;
-    if (!coach?.coach_id) {
+    if (coach?.coach_id) {
+      return new Response(JSON.stringify({
+        coach_id: coach.coach_id,
+        coach_name: coach.coach_name,
+        notification_email: coach.notification_email,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Fallback: código de acesso de parceria (ex.: ELT-7K4P92)
+    const { data: acRows, error: acErr } = await admin.rpc("resolve_access_code", { p_code: normalizedCode });
+    if (acErr) throw acErr;
+    const access = Array.isArray(acRows) ? acRows[0] : null;
+
+    const expired = access?.expires_at ? new Date(access.expires_at).getTime() < Date.now() : false;
+    if (!access?.coach_id || access.status !== "unused" || expired) {
       return new Response(JSON.stringify({ error: "Código inválido ou inexistente." }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    const { data: coachProfile } = await admin
+      .from("profiles")
+      .select("full_name, notification_email")
+      .eq("id", access.coach_id)
+      .maybeSingle();
+
     return new Response(JSON.stringify({
-      coach_id: coach.coach_id,
-      coach_name: coach.coach_name,
-      notification_email: coach.notification_email,
+      coach_id: access.coach_id,
+      coach_name: coachProfile?.full_name ?? "Seu Treinador",
+      notification_email: coachProfile?.notification_email ?? null,
+      access_code: access.code,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
