@@ -85,8 +85,11 @@ const Admin = () => {
           </TabsList>
 
           <TabsContent value="trainers">
-
             <TrainerManagement />
+          </TabsContent>
+
+          <TabsContent value="all-users">
+            <UsersManagement />
           </TabsContent>
 
           <TabsContent value="links">
