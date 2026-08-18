@@ -508,18 +508,26 @@ export function useWorkoutSession() {
 
   // ── Buscar histórico de um exercício ────────────────────────────────────────
   const getExerciseHistory = useCallback(
-    async (exerciseName: string, limit = 5): Promise<ExerciseHistory[]> => {
+    async (exerciseName: string, periodizationKey: string | null = null, limit = 5): Promise<ExerciseHistory[]> => {
       if (!userIdRef.current) return [];
 
       const key = toExerciseKey(exerciseName);
 
-      const { data, error } = await (supabase as any)
+      let query = (supabase as any)
         .from("workout_sets")
-        .select("weight_kg, reps, perceived_effort, executed_at, workout_key")
+        .select("weight_kg, reps, perceived_effort, executed_at, periodization_key")
         .eq("user_id", userIdRef.current)
         .eq("exercise_key", key)
         .eq("set_number", 1)
-        .eq("completed", true)
+        .eq("completed", true);
+
+      // Filtro no BANCO (não no JSX): histórico de Força nunca alimenta
+      // Hipertrofia/Deload. Sessões legadas (null) formam um balde próprio.
+      query = periodizationKey
+        ? query.eq("periodization_key", periodizationKey)
+        : query.is("periodization_key", null);
+
+      const { data, error } = await query
         .order("executed_at", { ascending: false })
         .limit(limit);
 
@@ -539,6 +547,7 @@ export function useWorkoutSession() {
   const getExerciseHistoryBatch = useCallback(
     async (
       exerciseNames: string[],
+      periodizationKey: string | null = null,
       limitPerExercise = 3
     ): Promise<Record<string, ExerciseHistory[]>> => {
       const result: Record<string, ExerciseHistory[]> = {};
@@ -547,14 +556,19 @@ export function useWorkoutSession() {
       const keyToName = new Map(exerciseNames.map((n) => [toExerciseKey(n), n]));
       const keys = Array.from(keyToName.keys());
 
-      const { data, error } = await (supabase as any)
+      let query = (supabase as any)
         .from("workout_sets")
         .select("exercise_key, weight_kg, reps, perceived_effort, executed_at")
         .eq("user_id", userIdRef.current)
         .in("exercise_key", keys)
         .eq("set_number", 1)
-        .eq("completed", true)
-        .order("executed_at", { ascending: false });
+        .eq("completed", true);
+
+      query = periodizationKey
+        ? query.eq("periodization_key", periodizationKey)
+        : query.is("periodization_key", null);
+
+      const { data, error } = await query.order("executed_at", { ascending: false });
 
       if (error || !data) return result;
 
