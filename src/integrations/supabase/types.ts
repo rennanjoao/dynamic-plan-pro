@@ -1388,6 +1388,7 @@ export type Database = {
           pix_city: string | null
           pix_holder_name: string | null
           pix_key: string | null
+          support_whatsapp: string | null
           team_name: string | null
           trial_ends_at: string | null
           updated_at: string
@@ -1409,6 +1410,7 @@ export type Database = {
           pix_city?: string | null
           pix_holder_name?: string | null
           pix_key?: string | null
+          support_whatsapp?: string | null
           team_name?: string | null
           trial_ends_at?: string | null
           updated_at?: string
@@ -1430,6 +1432,7 @@ export type Database = {
           pix_city?: string | null
           pix_holder_name?: string | null
           pix_key?: string | null
+          support_whatsapp?: string | null
           team_name?: string | null
           trial_ends_at?: string | null
           updated_at?: string
