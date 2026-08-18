@@ -58,6 +58,9 @@ const Anamnesis = () => {
   const [formStep, setFormStep] = useState(1);
   const TOTAL_FORM_STEPS = 4;
   const [inviteCode, setInviteCode] = useState("");
+  // Código de parceria (ELT-…) já validado na etapa 1 — quando presente, o
+  // aluno NÃO precisa digitar o código de indicação de novo no formulário.
+  const [resolvedAccessCode, setResolvedAccessCode] = useState<string | null>(null);
   const [coach, setCoach] = useState<CoachInfo | null>(null);
   const [loggedUserId, setLoggedUserId] = useState<string | null>(null);
   const [bootstrapping, setBootstrapping] = useState(true);
@@ -291,6 +294,7 @@ const Anamnesis = () => {
       if (error || !data?.coach_id) throw new Error(data?.error || "Código inválido ou inexistente.");
       
       setCoach({ id: data.coach_id, name: data.coach_name, email: data.notification_email });
+      if (data.access_code) setResolvedAccessCode(String(data.access_code).toUpperCase());
       setShowIntro(true);
       setStep("form"); // Avança para a Anamnese
     } catch (e: unknown) {
