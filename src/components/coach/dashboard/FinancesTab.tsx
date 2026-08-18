@@ -20,6 +20,11 @@ import { useStudentPlanCatalog, useCoachSubscriptions } from "@/hooks/useStudent
 import { centsToAmount, formatCents, nextDueDate } from "@/lib/studentPlans";
 import { computeFinanceMetrics } from "@/lib/coachFinanceMetrics";
 import { Private } from "@/components/coach/PrivacyMode";
+import { PARTNER_PLAN_PRICING, previewFinalPrice, type PartnerPlanSlug } from "@/lib/partnerPricing";
+
+function isPartnerPlan(slug: unknown): slug is PartnerPlanSlug {
+  return typeof slug === "string" && slug in PARTNER_PLAN_PRICING;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -54,7 +59,7 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
   const [quickForm, setQuickForm] = useState({ description: "Mensalidade", amount: "", due_date: "", plan_slug: "" });
   const [savingDueDate, setSavingDueDate] = useState(false);
   const [creatingBilling, setCreatingBilling] = useState(false);
-  const [payDialog, setPayDialog] = useState<{ id: string } | null>(null);
+  const [payDialog, setPayDialog] = useState<{ id: string; studentId: string | null; planSlug: string | null } | null>(null);
   const [payMethod, setPayMethod] = useState("pix_plataforma");
   const [savingPayment, setSavingPayment] = useState(false);
   const [busyCheckout, setBusyCheckout] = useState<string | null>(null);
@@ -71,6 +76,20 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
 
   const { data: planCatalog = [] } = useStudentPlanCatalog();
   const { data: subscriptions = [] } = useCoachSubscriptions(coachId);
+
+  // Alunos com origem em influenciadora — usado só para exibir a prévia do desconto.
+  const { data: attributions = [] } = useQuery({
+    queryKey: ["coach-partner-attributions", coachId],
+    enabled: !!coachId,
+    queryFn: async () => {
+      const { data } = await sb
+        .from("partner_attributions")
+        .select("student_id, partner_id")
+        .eq("coach_id", coachId);
+      return (data ?? []) as { student_id: string; partner_id: string }[];
+    },
+  });
+  const attributedStudents = new Set(attributions.map((a) => a.student_id));
   const subByStudent = new Map(
     subscriptions
       .filter((s) => ["active", "pending", "overdue"].includes(s.status))
@@ -122,6 +141,27 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
     if (!payDialog || savingPayment) return;
     setSavingPayment(true);
     await togglePaid(payDialog.id, false, payMethod);
+
+    // Ativação com plano de parceria: preço final e comissão são calculados no backend.
+    if (payDialog.studentId && isPartnerPlan(payDialog.planSlug)) {
+      const { data, error } = await supabase.functions.invoke("confirm-student-activation", {
+        body: {
+          studentId: payDialog.studentId,
+          planSlug: payDialog.planSlug,
+          startedOn: new Date().toISOString().slice(0, 10),
+          paymentMethod: payMethod,
+        },
+      });
+      if (error) {
+        toast.error("Pagamento salvo, mas a ativação do plano falhou. Tente novamente.");
+      } else {
+        const created = (data as { commissionCreated?: boolean } | null)?.commissionCreated;
+        if (created) toast.success("Comissão da influenciadora gerada.");
+        qc.invalidateQueries({ queryKey: ["coach-subscriptions", coachId] });
+        qc.invalidateQueries({ queryKey: ["partner-commissions", coachId, null, false] });
+      }
+    }
+
     setSavingPayment(false);
     setPayDialog(null);
     setPayMethod("pix_plataforma");
@@ -405,7 +445,7 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-muted text-muted-foreground">Sem cobrança</span>
                       ) : activeFinance ? (
                         <button
-                          onClick={() => { setPayMethod("pix_plataforma"); setPayDialog({ id: activeFinance.id }); }}
+                          onClick={() => { setPayMethod("pix_plataforma"); setPayDialog({ id: activeFinance.id, studentId: student.id, planSlug: activeFinance.plan_slug ?? null }); }}
                           className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors hover:opacity-80 ${
                             isOverdue ? "bg-red-100 text-red-700 border-red-200" : "bg-amber-100 text-amber-700 border-amber-200"
                           }`}
@@ -444,7 +484,7 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
                             <Calendar className="w-4 h-4" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-emerald-500"
-                            onClick={() => { setPayMethod("pix_plataforma"); setPayDialog({ id: activeFinance.id }); }} title="Marcar como Pago">
+                            onClick={() => { setPayMethod("pix_plataforma"); setPayDialog({ id: activeFinance.id, studentId: student.id, planSlug: activeFinance.plan_slug ?? null }); }} title="Marcar como Pago">
                             <CheckCircle2 className="w-4 h-4" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
@@ -554,6 +594,28 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
         <DialogContent className="sm:max-w-[320px]">
           <DialogHeader><DialogTitle>Registrar pagamento</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
+            {payDialog && isPartnerPlan(payDialog.planSlug) && payDialog.studentId && (() => {
+              const attributed = attributedStudents.has(payDialog.studentId);
+              const preview = previewFinalPrice(payDialog.planSlug as PartnerPlanSlug, attributed);
+              return (
+                <div className="rounded-lg border border-border/60 bg-muted/40 px-3 py-2 text-[11px] space-y-0.5">
+                  <p className="font-semibold text-foreground">
+                    {PARTNER_PLAN_PRICING[payDialog.planSlug as PartnerPlanSlug].name} · {formatCents(preview.final_price_cents)}
+                  </p>
+                  {preview.plan_discount_bp > 0 && (
+                    <p className="text-muted-foreground">Desconto do plano: {preview.plan_discount_bp / 100}%</p>
+                  )}
+                  {preview.partner_applied ? (
+                    <p className="text-purple-500 font-medium">
+                      Indicação de influenciadora: +{preview.partner_discount_bp / 100}% de desconto
+                    </p>
+                  ) : attributed ? (
+                    <p className="text-muted-foreground">Indicado por influenciadora (plano sem desconto adicional)</p>
+                  ) : null}
+                  <p className="text-muted-foreground">Valor final e comissão são confirmados pelo sistema.</p>
+                </div>
+              );
+            })()}
             <div>
               <Label className="text-xs">Forma de pagamento</Label>
               <Select value={payMethod} onValueChange={setPayMethod}>
