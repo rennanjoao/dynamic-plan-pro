@@ -105,6 +105,10 @@ const Admin = () => {
             <AdminPasswordManager />
           </TabsContent>
 
+          <TabsContent value="partnerships">
+            <PartnershipsManagement />
+          </TabsContent>
+
           <TabsContent value="exercise-library" className="space-y-6">
             <div className="rounded-xl border border-border bg-card p-6">
               <h2 className="text-lg font-semibold mb-4">Biblioteca de GIFs de Exercícios</h2>
