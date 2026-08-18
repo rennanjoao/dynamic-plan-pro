@@ -22,7 +22,9 @@ export type Database = {
           created_by: string | null
           expires_at: string | null
           id: string
+          kind: string
           note: string | null
+          partner_commission_bp: number | null
           partner_id: string | null
           status: string
           student_id: string | null
@@ -35,7 +37,9 @@ export type Database = {
           created_by?: string | null
           expires_at?: string | null
           id?: string
+          kind?: string
           note?: string | null
+          partner_commission_bp?: number | null
           partner_id?: string | null
           status?: string
           student_id?: string | null
@@ -48,7 +52,9 @@ export type Database = {
           created_by?: string | null
           expires_at?: string | null
           id?: string
+          kind?: string
           note?: string | null
+          partner_commission_bp?: number | null
           partner_id?: string | null
           status?: string
           student_id?: string | null
@@ -2297,6 +2303,8 @@ export type Database = {
           code: string
           expires_at: string
           id: string
+          kind: string
+          partner_commission_bp: number
           partner_id: string
           status: string
         }[]

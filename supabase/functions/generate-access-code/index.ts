@@ -23,9 +23,21 @@ Deno.serve(async (req: Request) => {
     if (!caller) return json({ error: "não autenticado" }, 401, cors);
 
     const body = await req.json().catch(() => ({}));
-    const partnerId: string | null = body?.partnerId ?? null;
+    const kind: string = body?.kind === "partner" ? "partner" : "student";
+    // Convite de parceria nunca carrega partner_id — ele CRIA uma parceira.
+    const partnerId: string | null = kind === "partner" ? null : (body?.partnerId ?? null);
     const note: string | null = body?.note ?? null;
     const expiresAt: string | null = body?.expiresAt ?? null;
+
+    let commissionBp: number | null = null;
+    if (kind === "partner") {
+      const raw = body?.commission_bp ?? body?.commissionBp ?? 1000;
+      const parsed = Number(raw);
+      if (!Number.isInteger(parsed) || parsed < 0 || parsed > 10000) {
+        return json({ error: "comissão inválida" }, 400, cors);
+      }
+      commissionBp = parsed;
+    }
 
     const admin = adminClient();
     const callerIsAdmin = await isAdmin(admin, caller.id);
@@ -64,12 +76,14 @@ Deno.serve(async (req: Request) => {
           code,
           partner_id: partnerId,
           coach_id: coachId,
+          kind,
+          partner_commission_bp: commissionBp,
           status: "unused",
           note,
           expires_at: expiresAt,
           created_by: caller.id,
         })
-        .select("id, code, partner_id, coach_id, status, expires_at, created_at")
+        .select("id, code, partner_id, coach_id, kind, partner_commission_bp, status, expires_at, created_at")
         .single();
 
       if (!error && data) return json({ ok: true, accessCode: data }, 200, cors);
