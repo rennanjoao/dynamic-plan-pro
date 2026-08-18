@@ -39,6 +39,8 @@ export interface AccessCode {
   created_at: string;
   used_at: string | null;
   expires_at: string | null;
+  kind: string;
+  partner_commission_bp: number | null;
 }
 
 export interface PartnerReferral {
