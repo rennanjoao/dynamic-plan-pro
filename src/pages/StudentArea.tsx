@@ -214,6 +214,7 @@ function CoachCardSkeleton() {
 export default function StudentArea() {
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string | null>(null);
+  const { data: partnerProfile } = usePartnerProfile(userId);
   useWakeLock();
   const [copiedPix, setCopiedPix]           = useState(false);
   const [dismissedAlerts, setDismissedAlerts] = useState<string[]>([]);
