@@ -2261,6 +2261,16 @@ export type Database = {
           notification_email: string
         }[]
       }
+      get_partner_referrals: {
+        Args: { p_partner_id: string }
+        Returns: {
+          attributed_at: string
+          commission_amount_cents: number
+          commission_status: string
+          stage: string
+          student_name: string
+        }[]
+      }
       get_student_hub_context: { Args: { p_student_id: string }; Returns: Json }
       has_role: {
         Args: {
