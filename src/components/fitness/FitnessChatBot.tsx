@@ -27,6 +27,8 @@ interface FitnessChatBotProps {
   athleteContext?: AthleteContext;
   onOpen?: () => void;
   proactiveMessage?: string;
+  /** Somente dígitos (ex.: 5513991842023). Vazio/nulo esconde o botão. */
+  whatsappNumber?: string | null;
 }
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fitness-chat`;
@@ -54,7 +56,7 @@ const INITIAL_MESSAGE: Message = {
   content: DEFAULT_WELCOME,
 };
 
-export const FitnessChatBot = ({ athleteContext, onOpen, proactiveMessage }: FitnessChatBotProps) => {
+export const FitnessChatBot = ({ athleteContext, onOpen, proactiveMessage, whatsappNumber }: FitnessChatBotProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
   const [input, setInput] = useState("");
