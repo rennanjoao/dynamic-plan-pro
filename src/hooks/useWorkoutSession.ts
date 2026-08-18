@@ -6,6 +6,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toExerciseKey } from "@/lib/workoutTypes";
 import type { ExerciseHistory } from "@/lib/workoutTypes";
+import { workoutDraftStorageKey } from "@/lib/periodizationKey";
 
 /* ── Parâmetros ──────────────────────────────────────────────────────────────── */
 
@@ -28,6 +29,8 @@ interface StartSessionParams {
   workoutKey: string;
   workoutLabel?: string;
   periodizationWeek?: number;
+  /** Tipo estável da periodização (peso/tecnica/resistencia/deload). `null` = sem periodização. */
+  periodizationKey?: string | null;
   blockNumber?: number;
   isDeloadWeek?: boolean;
 }
@@ -45,6 +48,8 @@ interface RegisterSetParams {
   notes?: string;
   /** Nome do exercício prescrito originalmente, quando o aluno trocou por outro. */
   swappedFromName?: string | null;
+  /** Periodização da sessão — grava junto da série para separar o histórico. */
+  periodizationKey?: string | null;
 }
 
 interface FinishSessionParams {
@@ -75,6 +80,7 @@ function buildSetRow(sessionId: string, userId: string, params: RegisterSetParam
     skipped:          params.skipped ?? false,
     notes:            params.notes ?? null,
     swapped_from_name: params.swappedFromName ?? null,
+    periodization_key: params.periodizationKey ?? null,
     executed_at:      new Date().toISOString(),
   };
 }
