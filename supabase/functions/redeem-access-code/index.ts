@@ -41,7 +41,7 @@ Deno.serve(async (req: Request) => {
       .update({ status: "activated", student_id: caller.id, used_at: new Date().toISOString() })
       .eq("id", found.id)
       .in("status", ["unused", "assigned"])
-      .select("id, code, partner_id, coach_id")
+      .select("id, code, partner_id, coach_id, kind, partner_commission_bp")
       .maybeSingle();
 
     if (claimErr) {
@@ -68,7 +68,27 @@ Deno.serve(async (req: Request) => {
 
     // Atribuição de parceria — um aluno tem no máximo uma origem, para sempre.
     let attributed = false;
-    if (claimed.partner_id) {
+    let becamePartner = false;
+
+    if (claimed.kind === "partner") {
+      // Código de convite de parceria: a pessoa vira influenciadora ativa na hora.
+      const rawBp = Number(claimed.partner_commission_bp ?? 1000);
+      const commissionRateBp =
+        Number.isInteger(rawBp) && rawBp >= 0 && rawBp <= 10000 ? rawBp : 1000;
+
+      const { error: partnerErr } = await admin.from("partner_profiles").upsert(
+        {
+          user_id: caller.id,
+          coach_id: claimed.coach_id,
+          status: "active",
+          commission_rate_bp: commissionRateBp,
+          deactivated_at: null,
+        },
+        { onConflict: "user_id" },
+      );
+      if (partnerErr) console.warn("[redeem-access-code] partner", partnerErr.message);
+      else becamePartner = true;
+    } else if (claimed.partner_id) {
       const { error: attrErr } = await admin.from("partner_attributions").upsert(
         {
           student_id: caller.id,
@@ -83,7 +103,7 @@ Deno.serve(async (req: Request) => {
       else attributed = true;
     }
 
-    return json({ ok: true, coachId: claimed.coach_id, attributed }, 200, cors);
+    return json({ ok: true, coachId: claimed.coach_id, attributed, becamePartner }, 200, cors);
   } catch (e) {
     console.warn("[redeem-access-code]", e instanceof Error ? e.message : e);
     return json({ error: "erro interno" }, 500, cors);
