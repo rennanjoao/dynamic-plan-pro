@@ -15,7 +15,7 @@ import {
 } from "@/hooks/useCoachStudents";
 import {
   AlertTriangle, CheckCircle2, Search, Filter, Users,
-  ArrowLeft, Loader2, DollarSign, User, LogOut, Activity,
+  ArrowLeft, Loader2, DollarSign, User, LogOut, Activity, Sparkles,
 } from "lucide-react";
 import CoachNotificationBell from "@/components/coach/CoachNotificationBell";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,7 @@ import { EvolutionDialog } from "@/components/coach/dashboard/EvolutionDialog";
 import { StudentFeedbackConfigDialog } from "@/components/coach/dashboard/StudentFeedbackConfigDialog";
 import { CheckinHistoryDialog } from "@/components/coach/dashboard/CheckinHistoryDialog";
 import { FinancesTab } from "@/components/coach/dashboard/FinancesTab";
+import { PartnersTab } from "@/components/coach/dashboard/PartnersTab";
 import { ProfileDialog } from "@/components/coach/dashboard/ProfileDialog";
 import { usePlatformBilling, worstPlatformStatus } from "@/hooks/usePlatformBilling";
 import { PrivacyProvider, PrivacyToggle, Private } from "@/components/coach/PrivacyMode";
