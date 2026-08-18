@@ -354,9 +354,207 @@ serve(async (req) => {
       if (!trainerId) throw new Error("ID do treinador é obrigatório");
       if (trainerId === user?.id) throw new Error("Não é possível remover a si mesmo");
 
+      const { data: targetRoles } = await adminClient.from("user_roles").select("role").eq("user_id", trainerId);
+      const targetIsAdmin = (targetRoles || []).some((r: { role: string }) => r.role === "admin");
+      if (targetIsAdmin && (await countAdmins(adminClient)) <= 1) {
+        throw new Error("Não é possível remover o último administrador");
+      }
+
+      const { data: { user: targetUser } } = await adminClient.auth.admin.getUserById(trainerId);
       const { error } = await adminClient.auth.admin.deleteUser(trainerId);
       if (error) throw error;
+
+      await audit(adminClient, {
+        actorId: user?.id, actorEmail: user?.email,
+        action: "delete-user", targetUserId: trainerId, targetEmail: targetUser?.email ?? null,
+        details: { roles: (targetRoles || []).map((r: { role: string }) => r.role) },
+      });
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ── LIST USERS (painel global de usuários — admin) ──
+    // Lista TODOS os usuários de auth.users cruzados com profiles/student_profiles,
+    // user_roles e partner_profiles. Paginação server-side em cima do listUsers.
+    if (action === "list-users") {
+      const page = Math.max(1, Number(body?.page ?? 1));
+      const perPage = Math.min(200, Math.max(1, Number(body?.perPage ?? 50)));
+      const roleFilter: string | null = body?.role && body.role !== "all" ? String(body.role) : null;
+      const search = String(body?.search ?? "").trim().toLowerCase();
+
+      // Sem filtro: paginação nativa. Com filtro/busca: varre até 2000 contas e pagina em memória
+      // (o volume do projeto é pequeno; evita inconsistência entre filtro e página).
+      const collected: ListedUser[] = [];
+      if (!roleFilter && !search) {
+        const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage });
+        if (error) throw error;
+        collected.push(...(data.users as ListedUser[]));
+      } else {
+        for (let p = 1; p <= 10; p++) {
+          const { data, error } = await adminClient.auth.admin.listUsers({ page: p, perPage: 200 });
+          if (error) throw error;
+          const users = data.users as ListedUser[];
+          collected.push(...users);
+          if (users.length < 200) break;
+        }
+      }
+
+      const ids = collected.map((u) => u.id);
+      const [{ data: roles }, { data: profs }, { data: studentProfs }, { data: partners }] = await Promise.all([
+        adminClient.from("user_roles").select("user_id, role").in("user_id", ids),
+        adminClient.from("profiles").select("user_id, full_name, email, blocked_until, trial_ends_at").in("user_id", ids),
+        adminClient.from("student_profiles").select("user_id, full_name").in("user_id", ids),
+        adminClient.from("partner_profiles").select("user_id, status").in("user_id", ids),
+      ]);
+
+      const roleMap = new Map<string, string[]>();
+      ((roles || []) as UserRoleRow[]).forEach((r) => {
+        roleMap.set(r.user_id, [...(roleMap.get(r.user_id) ?? []), r.role]);
+      });
+      const profMap = new Map((profs || []).map((p: Record<string, unknown>) => [p.user_id as string, p]));
+      const studentMap = new Map((studentProfs || []).map((p: Record<string, unknown>) => [p.user_id as string, p]));
+      const partnerMap = new Map((partners || []).map((p: Record<string, unknown>) => [p.user_id as string, p]));
+
+      let rows = collected.map((u) => {
+        const prof = profMap.get(u.id) as Record<string, unknown> | undefined;
+        const student = studentMap.get(u.id) as Record<string, unknown> | undefined;
+        const partner = partnerMap.get(u.id) as Record<string, unknown> | undefined;
+        const userRoles = roleMap.get(u.id) ?? ["user"];
+        return {
+          id: u.id,
+          email: u.email ?? null,
+          full_name: (student?.full_name as string) || (prof?.full_name as string) || null,
+          roles: userRoles,
+          is_partner: !!partner,
+          partner_status: (partner?.status as string) ?? null,
+          blocked_until: (prof?.blocked_until as string) ?? null,
+          trial_ends_at: (prof?.trial_ends_at as string) ?? null,
+          created_at: u.created_at ?? null,
+        };
+      });
+
+      if (roleFilter === "partner") rows = rows.filter((r) => r.is_partner);
+      else if (roleFilter) rows = rows.filter((r) => r.roles.includes(roleFilter));
+      if (search) {
+        rows = rows.filter(
+          (r) => (r.email ?? "").toLowerCase().includes(search) || (r.full_name ?? "").toLowerCase().includes(search),
+        );
+      }
+
+      const total = rows.length;
+      if (roleFilter || search) rows = rows.slice((page - 1) * perPage, page * perPage);
+
+      return new Response(JSON.stringify({ users: rows, total, page, perPage }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── UPDATE USER (nome, e-mail, bloqueio) ──
+    if (action === "update-user") {
+      const { targetId, fullName, email, blockedUntil } = body;
+      if (!targetId) throw new Error("ID do usuário é obrigatório");
+
+      if (typeof email === "string" && email.trim()) {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) throw new Error("E-mail inválido");
+        const { error } = await adminClient.auth.admin.updateUserById(targetId, { email: email.trim() });
+        if (error) throw error;
+      }
+
+      const patch: Record<string, unknown> = { user_id: targetId };
+      if (typeof fullName === "string") patch.full_name = fullName.trim() || null;
+      if (typeof email === "string" && email.trim()) patch.email = email.trim();
+      if (blockedUntil !== undefined) patch.blocked_until = blockedUntil || null;
+      if (Object.keys(patch).length > 1) {
+        const { error } = await adminClient.from("profiles").upsert(patch, { onConflict: "user_id" });
+        if (error) throw error;
+      }
+      if (typeof fullName === "string" && fullName.trim()) {
+        await adminClient.from("student_profiles").update({ full_name: fullName.trim() }).eq("user_id", targetId);
+      }
+
+      await audit(adminClient, {
+        actorId: user?.id, actorEmail: user?.email,
+        action: "update-user", targetUserId: targetId,
+        details: { fullName: fullName ?? null, email: email ?? null, blockedUntil: blockedUntil ?? null },
+      });
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ── SET ROLE ──
+    if (action === "set-role") {
+      const { targetId, role: newRole } = body;
+      if (!targetId) throw new Error("ID do usuário é obrigatório");
+      if (!["user", "coach", "admin"].includes(newRole)) throw new Error("Papel inválido");
+      if (targetId === user?.id) throw new Error("Não é possível alterar o próprio papel");
+
+      const { data: currentRoles } = await adminClient.from("user_roles").select("role").eq("user_id", targetId);
+      const wasAdmin = (currentRoles || []).some((r: { role: string }) => r.role === "admin");
+      if (wasAdmin && newRole !== "admin" && (await countAdmins(adminClient)) <= 1) {
+        throw new Error("Não é possível rebaixar o último administrador");
+      }
+
+      await adminClient.from("user_roles").delete().eq("user_id", targetId);
+      const { error } = await adminClient.from("user_roles").insert({ user_id: targetId, role: newRole });
+      if (error) throw error;
+
+      await audit(adminClient, {
+        actorId: user?.id, actorEmail: user?.email,
+        action: "set-role", targetUserId: targetId,
+        details: { from: (currentRoles || []).map((r: { role: string }) => r.role), to: newRole },
+      });
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ── LIST ELIGIBLE (seleção de parceira/coach no painel de parcerias) ──
+    if (action === "list-eligible") {
+      const { data: roles } = await adminClient.from("user_roles").select("user_id, role");
+      const roleRows = (roles || []) as UserRoleRow[];
+      const coachIds = roleRows.filter((r) => r.role === "coach").map((r) => r.user_id);
+
+      // Candidatas a parceira: alunas com vínculo ativo a algum coach + parceiras já existentes.
+      const { data: links } = await adminClient
+        .from("coach_students").select("student_id, coach_id").eq("status", "active");
+      const { data: partners } = await adminClient.from("partner_profiles").select("user_id, coach_id, status");
+
+      const candidateIds = [...new Set([
+        ...(links || []).map((l: { student_id: string }) => l.student_id),
+        ...(partners || []).map((p: { user_id: string }) => p.user_id),
+      ])];
+      const allIds = [...new Set([...candidateIds, ...coachIds])];
+
+      const [{ data: profs }, { data: studentProfs }] = await Promise.all([
+        adminClient.from("profiles").select("user_id, full_name, email").in("user_id", allIds),
+        adminClient.from("student_profiles").select("user_id, full_name").in("user_id", allIds),
+      ]);
+      const profMap = new Map((profs || []).map((p: Record<string, unknown>) => [p.user_id as string, p]));
+      const studentMap = new Map((studentProfs || []).map((p: Record<string, unknown>) => [p.user_id as string, p]));
+      const coachOf = new Map((links || []).map((l: { student_id: string; coach_id: string }) => [l.student_id, l.coach_id]));
+      const partnerMap = new Map((partners || []).map((p: Record<string, unknown>) => [p.user_id as string, p]));
+
+      const label = (id: string) => {
+        const prof = profMap.get(id) as Record<string, unknown> | undefined;
+        const st = studentMap.get(id) as Record<string, unknown> | undefined;
+        return {
+          id,
+          full_name: (st?.full_name as string) || (prof?.full_name as string) || "Sem nome",
+          email: (prof?.email as string) ?? null,
+        };
+      };
+
+      return new Response(
+        JSON.stringify({
+          coaches: coachIds.map(label),
+          partnerCandidates: candidateIds.map((id) => {
+            const partner = partnerMap.get(id) as Record<string, unknown> | undefined;
+            return {
+              ...label(id),
+              coach_id: (partner?.coach_id as string) ?? coachOf.get(id) ?? null,
+              is_partner: !!partner,
+              partner_status: (partner?.status as string) ?? null,
+            };
+          }),
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     // ── LIST COACHES (public-ish, for anamnesis coach selection) ──
