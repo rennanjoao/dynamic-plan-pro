@@ -643,6 +643,30 @@ const Anamnesis = () => {
               <button type="button" onClick={() => setGender("M")} className={chBtn("M")}>♂ Masculino</button>
             </div>
           </Card>
+          <Card label="Como você chegou até aqui">
+            <div className="space-y-3">
+              <Field label="Como você conheceu a EliteHub?">
+                <select
+                  className="w-full h-11 rounded-lg border border-input bg-background px-3 text-sm"
+                  value={g("self_reported_source")}
+                  onChange={(e) => set("self_reported_source")(e.target.value)}
+                >
+                  <option value="">Selecione…</option>
+                  {SELF_REPORTED_SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </Field>
+              {!loggedUserId && (
+                <Field label="Código de indicação (opcional)">
+                  <FiInput
+                    name="access_code"
+                    placeholder="Se você recebeu um código, digite aqui"
+                    value={g("access_code")}
+                    onChange={(v: string) => set("access_code")(v.toUpperCase())}
+                  />
+                </Field>
+              )}
+            </div>
+          </Card>
         </section>
 
         {/* 02 — Ponto de partida */}
