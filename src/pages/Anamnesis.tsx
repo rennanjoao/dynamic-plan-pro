@@ -391,9 +391,10 @@ const Anamnesis = () => {
 
       // Código de acesso da influenciadora: resgatado só após a conta existir,
       // porque o resgate exige usuário autenticado e roda 100% no backend.
-      if (!isEditMode && g("access_code").trim()) {
+      const codeToRedeem = (resolvedAccessCode || g("access_code")).trim().toUpperCase();
+      if (!isEditMode && codeToRedeem) {
         const { error: redeemErr } = await supabase.functions.invoke("redeem-access-code", {
-          body: { code: g("access_code").trim().toUpperCase() },
+          body: { code: codeToRedeem },
         });
         if (redeemErr) console.warn("redeem-access-code falhou", redeemErr);
       }
@@ -660,7 +661,12 @@ const Anamnesis = () => {
                   {SELF_REPORTED_SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </Field>
-              {!loggedUserId && (
+              {resolvedAccessCode && (
+                <p className="text-xs text-emerald-500">
+                  Indicação identificada automaticamente pelo código <span className="font-mono font-bold">{resolvedAccessCode}</span>.
+                </p>
+              )}
+              {!loggedUserId && !resolvedAccessCode && (
                 <Field label="Código de indicação (opcional)">
                   <FiInput
                     name="access_code"
