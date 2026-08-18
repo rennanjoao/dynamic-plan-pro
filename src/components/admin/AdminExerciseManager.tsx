@@ -1,12 +1,14 @@
 // src/components/admin/AdminExerciseManager.tsx
 // Gerenciador visual da biblioteca de exercícios (aba "Biblioteca" do Admin).
 // Miniatura + display_name + file_name de cada entrada de `exercise_library`,
-// com paginação real no servidor e renomeio via modal com preview do gif.
+// com paginação real no servidor, filtro por grupamento muscular, edição
+// completa (nome + grupos) e exclusão (registro + arquivo no Storage).
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -14,23 +16,48 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Pencil, Search, ImageOff } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil, Search, ImageOff, Trash2 } from "lucide-react";
 import {
   EXERCISE_GIFS_BUCKET,
   invalidateExerciseLibraryCache,
 } from "@/lib/exerciseLibrary";
+import {
+  MUSCLE_GROUP_LABELS,
+  MUSCLE_GROUP_OPTIONS,
+  type MuscleGroup,
+} from "@/lib/muscleGroupClassifier";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb = supabase as any;
 
 const PAGE_SIZE = 24;
+const ALL_GROUPS = "__all__";
 
 interface LibraryRow {
   exercise_key: string;
   file_name: string | null;
   display_name: string | null;
+  primary_muscle_group: string | null;
+  secondary_muscle_groups: string[] | null;
 }
 
 interface DisplayRow extends LibraryRow {
@@ -42,6 +69,11 @@ function toDisplayRow(row: LibraryRow): DisplayRow {
     ? supabase.storage.from(EXERCISE_GIFS_BUCKET).getPublicUrl(row.file_name).data.publicUrl
     : null;
   return { ...row, thumbUrl };
+}
+
+function groupLabel(g: string | null | undefined): string | null {
+  if (!g) return null;
+  return MUSCLE_GROUP_LABELS[g as MuscleGroup] ?? g;
 }
 
 /**
@@ -64,20 +96,27 @@ export function AdminExerciseManager() {
   const [totalCount, setTotalCount] = useState(0);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [groupFilter, setGroupFilter] = useState<string>(ALL_GROUPS);
+  const [reloadToken, setReloadToken] = useState(0);
 
-  const [renameTarget, setRenameTarget] = useState<DisplayRow | null>(null);
-  const [renameValue, setRenameValue] = useState("");
+  const [editTarget, setEditTarget] = useState<DisplayRow | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPrimary, setEditPrimary] = useState<string>("");
+  const [editSecondary, setEditSecondary] = useState<MuscleGroup[]>([]);
   const [saving, setSaving] = useState(false);
+
+  const [deleteTarget, setDeleteTarget] = useState<DisplayRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
     return () => clearTimeout(t);
   }, [search]);
 
-  // Busca sempre volta pra página 0. Fica tudo num único efeito: se a busca
-  // mudou, já buscamos direto a página 0 nesta mesma execução — 1
+  // Busca/filtro sempre voltam pra página 0. Fica tudo num único efeito: se
+  // mudaram, já buscamos direto a página 0 nesta mesma execução — 1
   // requisição por ação do usuário, nunca 2.
-  const prevSearchRef = useRef(debouncedSearch);
+  const prevCriteriaRef = useRef(`${debouncedSearch}|${groupFilter}`);
 
   useEffect(() => {
     let alive = true;
@@ -89,7 +128,10 @@ export function AdminExerciseManager() {
 
       let query = sb
         .from("exercise_library")
-        .select("exercise_key, file_name, display_name", { count: "exact" })
+        .select(
+          "exercise_key, file_name, display_name, primary_muscle_group, secondary_muscle_groups",
+          { count: "exact" },
+        )
         .not("file_name", "is", null)
         .order("display_name", { ascending: true, nullsFirst: false });
 
@@ -97,6 +139,14 @@ export function AdminExerciseManager() {
         const pattern = escapeIlikeValue(`%${debouncedSearch}%`);
         query = query.or(
           `display_name.ilike.${pattern},file_name.ilike.${pattern},exercise_key.ilike.${pattern}`,
+        );
+      }
+
+      // Filtro no servidor: bate tanto no grupo primário quanto no array de
+      // secundários (`cs` = contains), mantendo a paginação correta.
+      if (groupFilter !== ALL_GROUPS) {
+        query = query.or(
+          `primary_muscle_group.eq.${groupFilter},secondary_muscle_groups.cs.{${groupFilter}}`,
         );
       }
 
@@ -114,46 +164,68 @@ export function AdminExerciseManager() {
       setLoading(false);
     };
 
-    const searchChanged = prevSearchRef.current !== debouncedSearch;
-    prevSearchRef.current = debouncedSearch;
+    const criteria = `${debouncedSearch}|${groupFilter}`;
+    const criteriaChanged = prevCriteriaRef.current !== criteria;
+    prevCriteriaRef.current = criteria;
 
-    if (searchChanged && page !== 0) {
+    if (criteriaChanged && page !== 0) {
       setPage(0);
       return;
     }
 
-    load(searchChanged ? 0 : page);
+    load(criteriaChanged ? 0 : page);
     return () => {
       alive = false;
     };
-  }, [page, debouncedSearch]);
+  }, [page, debouncedSearch, groupFilter, reloadToken]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
-  const openRename = (row: DisplayRow) => {
-    setRenameTarget(row);
-    setRenameValue(row.display_name ?? row.exercise_key.replace(/_/g, " "));
+  const openEdit = (row: DisplayRow) => {
+    setEditTarget(row);
+    setEditName(row.display_name ?? row.exercise_key.replace(/_/g, " "));
+    setEditPrimary(row.primary_muscle_group ?? "");
+    setEditSecondary((row.secondary_muscle_groups ?? []) as MuscleGroup[]);
   };
 
-  const confirmRename = async () => {
-    if (!renameTarget) return;
-    const trimmed = renameValue.trim();
+  const toggleSecondary = (g: MuscleGroup) => {
+    setEditSecondary((prev) =>
+      prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g],
+    );
+  };
+
+  const confirmEdit = async () => {
+    if (!editTarget) return;
+    const trimmed = editName.trim();
     if (!trimmed) {
       toast.error("O nome não pode ficar em branco.");
       return;
     }
+    if (!editPrimary) {
+      toast.error("Selecione o grupo muscular primário.");
+      return;
+    }
+
+    // Secundário nunca deve repetir o primário.
+    const secondary = editSecondary.filter((g) => g !== editPrimary);
 
     setSaving(true);
     const { data, error } = await sb
       .from("exercise_library")
-      .update({ display_name: trimmed, updated_at: new Date().toISOString() })
-      .eq("exercise_key", renameTarget.exercise_key)
+      .update({
+        display_name: trimmed,
+        primary_muscle_group: editPrimary,
+        secondary_muscle_groups: secondary,
+        classification_source: "manual",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("exercise_key", editTarget.exercise_key)
       .select("exercise_key")
       .maybeSingle();
     setSaving(false);
 
     if (error) {
-      toast.error(`Falha ao renomear: ${error.message}`);
+      toast.error(`Falha ao salvar: ${error.message}`);
       return;
     }
 
@@ -170,19 +242,69 @@ export function AdminExerciseManager() {
 
     setRows((prev) =>
       prev.map((r) =>
-        r.exercise_key === renameTarget.exercise_key ? { ...r, display_name: trimmed } : r,
+        r.exercise_key === editTarget.exercise_key
+          ? {
+              ...r,
+              display_name: trimmed,
+              primary_muscle_group: editPrimary,
+              secondary_muscle_groups: secondary,
+            }
+          : r,
       ),
     );
-    toast.success("Exercício renomeado.");
-    setRenameTarget(null);
+    toast.success("Exercício atualizado.");
+    setEditTarget(null);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+
+    const { data, error } = await sb
+      .from("exercise_library")
+      .delete()
+      .eq("exercise_key", deleteTarget.exercise_key)
+      .select("exercise_key")
+      .maybeSingle();
+
+    if (error) {
+      setDeleting(false);
+      toast.error(`Falha ao excluir: ${error.message}`);
+      return;
+    }
+    if (!data) {
+      setDeleting(false);
+      toast.error("Nada foi excluído — o exercício pode já ter sido removido. Recarregue a lista.");
+      setDeleteTarget(null);
+      setReloadToken((t) => t + 1);
+      return;
+    }
+
+    // Remove o arquivo do bucket para não acumular lixo. Falha aqui não
+    // desfaz a exclusão do registro — apenas avisa o admin.
+    if (deleteTarget.file_name) {
+      const { error: storageError } = await supabase.storage
+        .from(EXERCISE_GIFS_BUCKET)
+        .remove([deleteTarget.file_name]);
+      if (storageError) {
+        toast.warning(`Registro excluído, mas o arquivo não foi removido: ${storageError.message}`);
+      }
+    }
+
+    invalidateExerciseLibraryCache();
+    setDeleting(false);
+    setDeleteTarget(null);
+    toast.success("Exercício excluído.");
+    // Recarrega a página atual para repor o item que "sobe" da próxima página.
+    setReloadToken((t) => t + 1);
   };
 
   const emptyState = useMemo(() => !loading && rows.length === 0, [loading, rows]);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="relative flex-1 max-w-xs">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             value={search}
@@ -191,6 +313,21 @@ export function AdminExerciseManager() {
             className="pl-8 h-9"
           />
         </div>
+
+        <Select value={groupFilter} onValueChange={setGroupFilter}>
+          <SelectTrigger className="h-9 w-[200px]">
+            <SelectValue placeholder="Grupo muscular" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_GROUPS}>Todos os grupos</SelectItem>
+            {MUSCLE_GROUP_OPTIONS.map((g) => (
+              <SelectItem key={g} value={g}>
+                {MUSCLE_GROUP_LABELS[g]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         <span className="text-xs text-muted-foreground whitespace-nowrap">
           {totalCount} exercício{totalCount === 1 ? "" : "s"}
         </span>
@@ -209,36 +346,65 @@ export function AdminExerciseManager() {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {rows.map((row) => (
-            <button
+            <div
               key={row.exercise_key}
-              type="button"
-              onClick={() => openRename(row)}
-              className="group relative rounded-xl border border-border overflow-hidden bg-muted/30 text-left focus:outline-none focus:ring-2 focus:ring-primary"
+              className="group relative rounded-xl border border-border overflow-hidden bg-muted/30"
             >
-              <div className="relative w-full aspect-square bg-black/20">
-                {row.thumbUrl ? (
-                  <img
-                    src={row.thumbUrl}
-                    alt={row.display_name || row.exercise_key}
-                    loading="lazy"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <ImageOff className="w-6 h-6 text-muted-foreground" />
+              <button
+                type="button"
+                onClick={() => openEdit(row)}
+                className="block w-full text-left focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <div className="relative w-full aspect-square bg-black/20">
+                  {row.thumbUrl ? (
+                    <img
+                      src={row.thumbUrl}
+                      alt={row.display_name || row.exercise_key}
+                      loading="lazy"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <ImageOff className="w-6 h-6 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="absolute top-1.5 right-1.5 rounded-full bg-black/60 p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Pencil className="w-3.5 h-3.5 text-primary-foreground" />
                   </div>
-                )}
-                <div className="absolute top-1.5 right-1.5 rounded-full bg-black/60 p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Pencil className="w-3.5 h-3.5 text-white" />
                 </div>
-              </div>
-              <div className="p-2">
-                <p className="text-xs font-semibold truncate">
-                  {row.display_name || row.exercise_key.replace(/_/g, " ")}
-                </p>
-                <p className="text-[10px] text-muted-foreground truncate">{row.file_name}</p>
-              </div>
-            </button>
+                <div className="p-2 space-y-1">
+                  <p className="text-xs font-semibold truncate">
+                    {row.display_name || row.exercise_key.replace(/_/g, " ")}
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {row.primary_muscle_group ? (
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                        {groupLabel(row.primary_muscle_group)}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                        Sem grupo
+                      </Badge>
+                    )}
+                    {(row.secondary_muscle_groups ?? []).slice(0, 2).map((g) => (
+                      <Badge key={g} variant="outline" className="text-[10px] px-1.5 py-0">
+                        {groupLabel(g)}
+                      </Badge>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground truncate">{row.file_name}</p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                aria-label={`Excluir ${row.display_name || row.exercise_key}`}
+                onClick={() => setDeleteTarget(row)}
+                className="absolute top-1.5 left-1.5 rounded-full bg-black/60 p-1.5 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:bg-destructive"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-primary-foreground" />
+              </button>
+            </div>
           ))}
         </div>
       )}
@@ -267,20 +433,20 @@ export function AdminExerciseManager() {
         </div>
       )}
 
-      <Dialog open={!!renameTarget} onOpenChange={(open) => !open && setRenameTarget(null)}>
-        <DialogContent className="sm:max-w-sm">
+      <Dialog open={!!editTarget} onOpenChange={(open) => !open && setEditTarget(null)}>
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Renomear exercício</DialogTitle>
+            <DialogTitle>Editar exercício</DialogTitle>
           </DialogHeader>
 
-          {renameTarget && (
+          {editTarget && (
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <div className="w-full aspect-video rounded-lg overflow-hidden bg-black/20 flex items-center justify-center">
-                  {renameTarget.thumbUrl ? (
+                  {editTarget.thumbUrl ? (
                     <img
-                      src={renameTarget.thumbUrl}
-                      alt={renameTarget.display_name || renameTarget.exercise_key}
+                      src={editTarget.thumbUrl}
+                      alt={editTarget.display_name || editTarget.exercise_key}
                       className="w-full h-full object-contain"
                     />
                   ) : (
@@ -288,7 +454,7 @@ export function AdminExerciseManager() {
                   )}
                 </div>
                 <p className="text-[10px] text-muted-foreground truncate">
-                  {renameTarget.file_name}
+                  {editTarget.file_name}
                 </p>
               </div>
 
@@ -297,27 +463,101 @@ export function AdminExerciseManager() {
                   Nome de exibição
                 </label>
                 <Input
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
                   autoFocus
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") confirmRename();
+                    if (e.key === "Enter") confirmEdit();
                   }}
                 />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Grupo primário
+                </label>
+                <Select value={editPrimary} onValueChange={setEditPrimary}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MUSCLE_GROUP_OPTIONS.map((g) => (
+                      <SelectItem key={g} value={g}>
+                        {MUSCLE_GROUP_LABELS[g]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Grupos secundários (opcional)
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {MUSCLE_GROUP_OPTIONS.filter((g) => g !== editPrimary).map((g) => {
+                    const active = editSecondary.includes(g);
+                    return (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => toggleSecondary(g)}
+                        className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+                          active
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border text-muted-foreground hover:border-primary/60"
+                        }`}
+                      >
+                        {MUSCLE_GROUP_LABELS[g]}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}
 
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setRenameTarget(null)} disabled={saving}>
+            <Button variant="ghost" onClick={() => setEditTarget(null)} disabled={saving}>
               Cancelar
             </Button>
-            <Button onClick={confirmRename} disabled={saving}>
+            <Button onClick={confirmEdit} disabled={saving}>
               {saving ? "Salvando…" : "Salvar"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir exercício?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir
+              {deleteTarget ? ` "${deleteTarget.display_name || deleteTarget.exercise_key}"` : ""}?
+              Isso removerá a mídia dos treinos que a utilizam. A ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                confirmDelete();
+              }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Excluindo…" : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
