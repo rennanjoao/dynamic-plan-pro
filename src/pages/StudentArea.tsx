@@ -21,7 +21,7 @@ import {
   Apple, Dumbbell, Pill, TrendingUp, CheckCircle2,
   AlertCircle, Copy, Check, X, LogOut, Sparkles,
   ShoppingCart, FileEdit, Flame, User, Moon,
-  ChevronDown,
+  ChevronDown, Heart,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SimpleProfileDialog } from "@/components/SimpleProfileDialog";
@@ -34,6 +34,7 @@ import StudentOnboardingCard from "@/components/student/StudentOnboardingCard";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { buildPixBrCode } from "@/lib/pixBrCode";
 import { StudentPlanCard } from "@/components/student/StudentPlanCard";
+import { usePartnerProfile } from "@/hooks/usePartnerships";
 import QRCode from "qrcode";
 
 // ─── localStorage helpers ───────────────────────────────────────────────────
@@ -604,6 +605,13 @@ export default function StudentArea() {
     { title: "Check-in",       description: "Feedback periódico ao treinador.",  icon: CheckCircle2,  color: "text-rose-500",    bg: "bg-rose-500/10",    border: "border-rose-500/20",    route: "/check-in"     },
     { title: "Lista de Compras", description: "Compras agregadas e PDF.",        icon: ShoppingCart,  color: "text-orange-500",  bg: "bg-orange-500/10",  border: "border-orange-500/20",  route: "/shopping-list"},
   ];
+
+  if (partnerProfile?.status === "active") {
+    secondaryModules.push({
+      title: "Parcerias", description: "Seus indicados e comissões.", icon: Heart,
+      color: "text-fuchsia-500", bg: "bg-fuchsia-500/10", border: "border-fuchsia-500/20", route: "/parceria",
+    });
+  }
 
   return (
     <div className="min-h-screen bg-background pb-12">
