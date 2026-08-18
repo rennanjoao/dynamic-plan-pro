@@ -16,6 +16,7 @@ import { AccessLogPanel } from "@/components/admin/AccessLogPanel";
 import CoachBillingPanel from "@/components/admin/CoachBillingPanel";
 import { AdminPasswordManager } from "@/components/admin/AdminPasswordManager";
 import { PartnershipsManagement } from "@/components/admin/PartnershipsManagement";
+import { UsersManagement } from "@/components/admin/UsersManagement";
 import { SimpleProfileDialog } from "@/components/SimpleProfileDialog";
 
 const Admin = () => {
@@ -75,6 +76,7 @@ const Admin = () => {
         <Tabs defaultValue="trainers" className="w-full">
           <TabsList className="flex flex-wrap h-auto gap-2 justify-start mb-6">
             <TabsTrigger value="trainers" className="gap-1.5"><Users className="w-4 h-4" /> Profissionais</TabsTrigger>
+            <TabsTrigger value="all-users" className="gap-1.5"><User className="w-4 h-4" /> Usuários</TabsTrigger>
             <TabsTrigger value="links" className="gap-1.5"><Link2 className="w-4 h-4" /> Vínculos</TabsTrigger>
             <TabsTrigger value="billing" className="gap-1.5"><DollarSign className="w-4 h-4" /> Cobrança</TabsTrigger>
             <TabsTrigger value="access" className="gap-1.5"><Activity className="w-4 h-4" /> Acessos e Senhas</TabsTrigger>
@@ -83,6 +85,7 @@ const Admin = () => {
           </TabsList>
 
           <TabsContent value="trainers">
+
             <TrainerManagement />
           </TabsContent>
 
