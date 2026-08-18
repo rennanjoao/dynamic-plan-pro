@@ -379,6 +379,19 @@ const Anamnesis = () => {
         baseline_metrics: baseline,
         submitted_at: new Date().toISOString(),
       };
+      // Origem declarada pelo próprio aluno (pergunta "Como você conheceu…").
+      // É só um sinal informativo — a atribuição de parceria válida é sempre a
+      // do código de acesso, resolvida no backend.
+      if (g("self_reported_source")) anamnesisRow.self_reported_source = g("self_reported_source");
+
+      // Código de acesso da influenciadora: resgatado só após a conta existir,
+      // porque o resgate exige usuário autenticado e roda 100% no backend.
+      if (!isEditMode && g("access_code").trim()) {
+        const { error: redeemErr } = await supabase.functions.invoke("redeem-access-code", {
+          body: { code: g("access_code").trim().toUpperCase() },
+        });
+        if (redeemErr) console.warn("redeem-access-code falhou", redeemErr);
+      }
       let finalAnamnesisId: string | null = null;
       if (isEditMode && editingAnamnesisId) {
         anamnesisRow.student_edit_count = studentEditCount + 1;
