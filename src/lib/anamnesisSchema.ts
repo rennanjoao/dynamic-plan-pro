@@ -76,8 +76,6 @@ export const ANAMNESIS_SECTIONS: AnamnesisSection[] = [
     { key: "hist_peso", label: "Histórico de peso" },
   ]},
   { id: "objetivos", title: "Para onde quer chegar", fields: [
-    { key: "meta_peso", label: "Peso alvo (kg)" },
-    { key: "meta_prazo", label: "Prazo (meses)" },
     { key: "meta_prioridade", label: "Prioridade", type: "choices", options: ["Hipertrofia", "Perda de gordura", "Recomposição", "Performance", "Saúde"] },
     { key: "objetivos", label: "Objetivos detalhados" },
   ]},
@@ -111,6 +109,7 @@ export const ANAMNESIS_SECTIONS: AnamnesisSection[] = [
   ]},
   { id: "alimentacao", title: "Alimentação & digestão", fields: [
     { key: "hidratacao", label: "Água/dia", type: "choices", options: ["≤1L", "2L", "3L", "4L", "5L+"] },
+    { key: "tolerancia_volume", label: "Tolerância ao volume alimentar", type: "choices", options: ["Alta", "Moderada", "Baixa", "Muito baixa"] },
     { key: "recordatorio", label: "Recordatório alimentar" },
     { key: "disponibilidade_alim", label: "Disponibilidade alimentar" },
     { key: "alergias", label: "Alergias / intolerâncias" },
@@ -149,7 +148,6 @@ export const ANAMNESIS_SECTIONS: AnamnesisSection[] = [
     { key: "doencas", label: "Doenças" },
     { key: "mudancas_neg", label: "Mudanças negativas (últimos 3 anos)" },
     { key: "cirurgias", label: "Cirurgias" },
-    { key: "canal", label: "Canal dentário" },
     { key: "implantes", label: "Implantes / metal" },
     { key: "obs_finais", label: "Observações finais" },
   ]},
