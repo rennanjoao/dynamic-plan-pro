@@ -230,6 +230,7 @@ export const CHECKIN_SECTIONS: SectionDef[] = [
       { key: "agua",              label: "Água diária (média)",           type: "choices", options: ["≤2L", "3L", "4L+"] },
       { key: "carbo_sensacao",    label: "Sensação após carbo alto",      type: "choices", options: ["Melhor", "Igual", "Pior", "Não fiz"] },
       { key: "compulsao_estado",  label: "Episódios de compulsão",       type: "choices", options: ["Nenhum", "Melhorou", "Igual", "Piorou"] },
+      { key: "dieta_dificuldade", label: "Você tem dificuldade com alguma refeição? (Ex: horários, volume, estufamento, paladar)", type: "textarea", placeholder: "Descreva brevemente, se houver…" },
       {
         key: "compulsao_detalhes", label: "Intensidade / gatilho (se houver)", type: "text", placeholder: "Ex: Ansiedade à noite…",
         condition: (ctx) => answeredButNot(ctx, "compulsao_estado", "Nenhum"),
@@ -278,10 +279,11 @@ export const CHECKIN_SECTIONS: SectionDef[] = [
     fields: [
       { key: "treino_falta",   label: "Faltou algum treino?",             type: "choices", options: ["Nenhum", "1 dia", "2+ dias"] },
       { key: "treino_perf",    label: "Pump e desempenho",                type: "choices", options: ["Excelente", "Médio", "Ruim"] },
-      { key: "aerobico_jejum", label: "Aeróbico em jejum (40-50min)",     type: "choices", options: ["Sim", "Alguns dias", "Não"] },
+      { key: "treino_dificuldade", label: "Você teve alguma dificuldade com os treinos?", type: "textarea", placeholder: "Ex: dor, falta de tempo, exercício difícil, queda de desempenho…" },
+      { key: "aerobico_orientacoes", label: "Está seguindo as orientações do aeróbico?", type: "choices", options: ["Sim", "Não"] },
       {
-        key: "aerobico_obs", label: "Observações sobre aeróbico", type: "text",
-        condition: (ctx) => answeredButNot(ctx, "aerobico_jejum", "Não"),
+        key: "aerobico_obs", label: "Explique o que dificultou o aeróbico", type: "textarea", placeholder: "Descreva brevemente…",
+        condition: (ctx) => answeredIs(ctx, "aerobico_orientacoes", "Não"),
       },
       { key: "treino_horario", label: "Horário de treino p/ próxima quinzena", type: "text", placeholder: "Ex: 19:30" },
       { key: "sono_disp",        label: "Sono",                             type: "choices", options: ["Ótimo", "Regular", "Ruim"] },
