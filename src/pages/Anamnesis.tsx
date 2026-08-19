@@ -683,13 +683,20 @@ const Anamnesis = () => {
         {/* 02 — Ponto de partida */}
         <section>
           <SecHead num="02" title="Seu ponto de partida" />
-          <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-3 space-y-1.5 text-xs text-muted-foreground">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-primary mb-2">📏 Como medir corretamente</p>
-            <p>• <span className="text-foreground font-medium">Pescoço:</span> logo abaixo do "gogó" (laringe).</p>
-            <p>• <span className="text-foreground font-medium">Cintura:</span> na altura do umbigo (M) ou na parte mais fina (F).</p>
-            <p>• <span className="text-foreground font-medium">Quadril:</span> na maior protuberância dos glúteos.</p>
-            <p>• A fita deve estar firme, <span className="text-foreground font-medium">sem afundar na pele</span>.</p>
-          </div>
+          <details className="bg-primary/5 border border-primary/20 rounded-xl mb-3 text-sm text-muted-foreground">
+            <summary className="cursor-pointer list-none px-4 py-3 font-bold text-primary">📏 COMO MEDIR CORRETAMENTE</summary>
+            <div className="px-4 pb-4 space-y-1.5 text-xs leading-relaxed">
+              <p>• Pescoço: passe a fita logo abaixo do gogó (laringe), sem apertar.</p>
+              <p>• Cintura: passe a fita na altura exata do umbigo, mantendo a barriga relaxada.</p>
+              <p>• Quadril: passe a fita na parte mais larga dos glúteos.</p>
+              <p>• Braços: meça a parte mais grossa do braço. Relaxado = braço solto; contraído = bíceps contraído.</p>
+              <p>• Coxas: meça na parte central da coxa, entre o quadril e o joelho.</p>
+              <p>• Panturrilhas: meça na parte mais grossa da panturrilha.</p>
+              <p>• Altura: fique descalço, ereto e olhando para frente.</p>
+              <p>• Peso: prefira medir pela manhã, após ir ao banheiro e antes de comer.</p>
+              <p>• Importante: a fita deve ficar reta e firme ao redor do corpo, mas sem apertar ou afundar na pele. Tente medir sempre nas mesmas condições.</p>
+            </div>
+          </details>
           <Card>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Altura (cm)"><FiInput name="altura" type="number" placeholder="170" value={g("altura")} onChange={set("altura")} /></Field>
@@ -714,10 +721,6 @@ const Anamnesis = () => {
         <section>
           <SecHead num="03" title="Para onde você quer chegar" />
           <Card>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Peso alvo (kg)"><FiInput name="meta_peso" type="number" step="0.1" placeholder="65" value={g("meta_peso")} onChange={set("meta_peso")} /></Field>
-              <Field label="Prazo (meses)"><FiInput name="meta_prazo" type="number" placeholder="6" value={g("meta_prazo")} onChange={set("meta_prazo")} /></Field>
-            </div>
             <Field label="Prioridade">
               <Choices cols={3} group="meta_prioridade" state={groups} setState={setGroups} options={["Hipertrofia","Perda de gordura","Recomposição","Performance","Saúde"].map(v => ({ value: v }))} />
             </Field>
@@ -802,6 +805,9 @@ const Anamnesis = () => {
           <Card>
             <Field label="Água/dia">
               <Choices cols={3} group="hidratacao" state={groups} setState={setGroups} options={[{ value: "≤1L", theme: "red" }, { value: "2L", theme: "amber" }, { value: "3L" }, { value: "4L", theme: "green" }, { value: "5L+", theme: "green" }]} />
+            </Field>
+            <Field label="Tolerância ao volume alimentar (opcional)">
+              <Choices cols={2} group="tolerancia_volume" state={groups} setState={setGroups} options={["Alta", "Moderada", "Baixa", "Muito baixa"].map(value => ({ value }))} />
             </Field>
             <Field label="Recordatório alimentar — dia típico completo"><FiTextarea name="recordatorio" rows={5} placeholder={"07h — 2 ovos, café\n12h — 150g arroz, 150g frango, salada\n16h — 1 banana, whey\n19h — Omelete, legumes"} value={g("recordatorio")} onChange={set("recordatorio")} /></Field>
             <Field label="Disponibilidade alimentar no dia"><FiTextarea name="disponibilidade_alim" placeholder="Ex: Levo marmita, geladeira no trabalho" value={g("disponibilidade_alim")} onChange={set("disponibilidade_alim")} /></Field>
@@ -905,12 +911,15 @@ const Anamnesis = () => {
         <section>
           <SecHead num="11" title="Histórico clínico" />
           <Card>
+            <details className="bg-primary/5 border border-primary/20 rounded-xl mb-3 text-sm text-muted-foreground">
+              <summary className="cursor-pointer list-none px-4 py-3 font-bold text-primary">🌡️ Como medir a temperatura</summary>
+              <p className="px-4 pb-4 text-xs leading-relaxed">🌡️ Como medir: Pela manhã, logo ao acordar e antes de levantar. Desligue o ar-condicionado/ventilador e aguarde 5 minutos. Faça a medição com o mínimo de movimento possível antes de levantar da cama. Registre por 5 dias para calcular a média.</p>
+            </details>
             <Field label="Temperatura ao acordar (média 5 dias)"><FiInput name="temperatura" placeholder="Ex: 36.4 °C" value={g("temperatura")} onChange={set("temperatura")} /></Field>
             <Field label="Doenças pré-existentes / Família"><FiTextarea name="doencas" placeholder="Ex: Hipotireoidismo. Nenhuma." value={g("doencas")} onChange={set("doencas")} /></Field>
             <Field label="Mudanças negativas nos últimos 3 anos"><FiTextarea name="mudancas_neg" placeholder="Ex: Imunidade baixa, queda de cabelo..." value={g("mudancas_neg")} onChange={set("mudancas_neg")} /></Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Cirurgias"><FiInput name="cirurgias" placeholder="Nenhuma." value={g("cirurgias")} onChange={set("cirurgias")} /></Field>
-              <Field label="Canal dentário"><FiInput name="canal" placeholder="Nenhum." value={g("canal")} onChange={set("canal")} /></Field>
             </div>
             <Field label="Implantes / Metal"><FiInput name="implantes" placeholder="DIU, pinos, placa..." value={g("implantes")} onChange={set("implantes")} /></Field>
             <Field label="Observações finais"><FiTextarea name="obs_finais" placeholder="Algo importante não perguntado..." value={g("obs_finais")} onChange={set("obs_finais")} /></Field>
