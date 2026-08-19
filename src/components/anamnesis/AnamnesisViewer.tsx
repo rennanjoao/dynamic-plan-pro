@@ -348,6 +348,8 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
         </Card>
       )}
 
+      <PrescriptionProfileSection studentId={studentId} />
+
       <Accordion type="multiple" defaultValue={["identificacao", "composicao", "substancias", "clinico"]} className="space-y-2">
         {ANAMNESIS_SECTIONS.map((s) => (
           <AccordionItem key={s.id} value={s.id} className="border rounded-lg px-4">
