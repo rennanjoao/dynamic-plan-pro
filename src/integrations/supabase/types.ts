@@ -1079,6 +1079,7 @@ export type Database = {
           display_name: string | null
           exercise_key: string
           file_name: string | null
+          movement_pattern: string | null
           primary_muscle_group: string | null
           secondary_muscle_groups: string[]
           updated_at: string
@@ -1090,6 +1091,7 @@ export type Database = {
           display_name?: string | null
           exercise_key: string
           file_name?: string | null
+          movement_pattern?: string | null
           primary_muscle_group?: string | null
           secondary_muscle_groups?: string[]
           updated_at?: string
@@ -1101,6 +1103,7 @@ export type Database = {
           display_name?: string | null
           exercise_key?: string
           file_name?: string | null
+          movement_pattern?: string | null
           primary_muscle_group?: string | null
           secondary_muscle_groups?: string[]
           updated_at?: string
@@ -1407,6 +1410,48 @@ export type Database = {
           student_count?: number
           unit_price?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      prescription_profile: {
+        Row: {
+          coach_id: string
+          created_at: string
+          dominances: string[]
+          id: string
+          limitations: string | null
+          muscle_priorities: Json
+          sources: Json
+          student_id: string
+          updated_at: string
+          updated_by: string | null
+          visual_observations: string | null
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          dominances?: string[]
+          id?: string
+          limitations?: string | null
+          muscle_priorities?: Json
+          sources?: Json
+          student_id: string
+          updated_at?: string
+          updated_by?: string | null
+          visual_observations?: string | null
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          dominances?: string[]
+          id?: string
+          limitations?: string | null
+          muscle_priorities?: Json
+          sources?: Json
+          student_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          visual_observations?: string | null
         }
         Relationships: []
       }
