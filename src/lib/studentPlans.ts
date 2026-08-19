@@ -6,11 +6,16 @@
  * - Formatação em BRL acontece só na interface.
  * - Este domínio é dos alunos. NÃO se mistura com `platform_billing_charges`
  *   (assinatura da plataforma cobrada do coach) nem com `app_settings.coach_plans`.
+ * - Cada coach pode ter seus próprios planos (`coach_id`). Linhas com
+ *   `coach_id: null` são planos padrão/legado, compartilhados como fallback
+ *   pra quem ainda não cadastrou um plano próprio.
  */
 
-export type StudentPlanSlug = "monthly" | "quarterly" | "semiannual";
+export type StudentPlanSlug = "monthly" | "quarterly" | "semiannual" | string;
 
 export interface StudentPlan {
+  id: string;
+  coach_id: string | null;
   slug: StudentPlanSlug;
   name: string;
   price_cents: number;
@@ -24,6 +29,8 @@ export interface StudentPlan {
 /** Fallback usado se o catálogo do banco estiver indisponível. */
 export const DEFAULT_STUDENT_PLANS: StudentPlan[] = [
   {
+    id: "default-monthly",
+    coach_id: null,
     slug: "monthly",
     name: "Mensal",
     price_cents: 35000,
@@ -34,6 +41,8 @@ export const DEFAULT_STUDENT_PLANS: StudentPlan[] = [
     sort_order: 1,
   },
   {
+    id: "default-quarterly",
+    coach_id: null,
     slug: "quarterly",
     name: "Trimestral",
     price_cents: 75000,
@@ -44,6 +53,8 @@ export const DEFAULT_STUDENT_PLANS: StudentPlan[] = [
     sort_order: 2,
   },
   {
+    id: "default-semiannual",
+    coach_id: null,
     slug: "semiannual",
     name: "Semestral",
     price_cents: 140000,
