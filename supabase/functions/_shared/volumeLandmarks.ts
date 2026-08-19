@@ -1,3 +1,13 @@
+// ⚠️ ARQUIVO DUPLICADO — PAR: src/lib/volumeLandmarks.ts
+// Os dois runtimes (Vite/React e Deno/edge functions) não compartilham bundle,
+// por isso este módulo existe em duas cópias. EDITE SEMPRE OS DOIS JUNTOS.
+// Há um teste de paridade cobrindo isso: src/lib/__tests__/classifierParity.test.ts
+// ⚠️ CONTEÚDO DE REFERÊNCIA — NÃO É A METODOLOGIA OFICIAL DO PROJETO.
+// Os valores abaixo vêm de literatura genérica de treinamento (ACSM, NSCA,
+// Schoenfeld et al. etc.) e servem apenas como sinalização/consulta para o
+// coach. NÃO devem ser tratados como fonte de verdade ou prescrição por
+// nenhuma automação (IA, motor de sugestão, auditor de treino) — a
+// metodologia autorizada é definida pelo responsável técnico do projeto.
 // src/lib/volumeLandmarks.ts
 // Referências de volume semanal por grupamento muscular (séries efetivas/semana).
 // MEV = mínimo para estímulo, MAV = faixa adaptativa (alvo), MRV = teto recuperável.
