@@ -1,3 +1,9 @@
+// ⚠️ CONTEÚDO DE REFERÊNCIA — NÃO É A METODOLOGIA OFICIAL DO PROJETO.
+// Os valores abaixo vêm de literatura genérica de treinamento (ACSM, NSCA,
+// Schoenfeld et al. etc.) e servem apenas como sinalização/consulta para o
+// coach. NÃO devem ser tratados como fonte de verdade ou prescrição por
+// nenhuma automação (IA, motor de sugestão, auditor de treino) — a
+// metodologia autorizada é definida pelo responsável técnico do projeto.
 // ============================================================
 // workoutSystemTemplates.ts
 // Acervo de templates do sistema — Elite Prime Hub

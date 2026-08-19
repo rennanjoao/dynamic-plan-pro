@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { FileDown, Loader2, ImageIcon, Pencil, Save, X, UploadCloud } from "lucide-react";
 import MeasurementsEditor from "@/components/coach/MeasurementsEditor";
 import CheckinFullEditor from "@/components/coach/CheckinFullEditor";
+import PrescriptionProfileSection from "@/components/coach/PrescriptionProfileSection";
 import { exportAnamnesisPDF } from "@/lib/coachPdfExport";
 import { Private, PrivateImg, usePrivacyMode } from "@/components/coach/PrivacyMode";
 
@@ -346,6 +347,8 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
           </div>
         </Card>
       )}
+
+      <PrescriptionProfileSection studentId={studentId} />
 
       <Accordion type="multiple" defaultValue={["identificacao", "composicao", "substancias", "clinico"]} className="space-y-2">
         {ANAMNESIS_SECTIONS.map((s) => (

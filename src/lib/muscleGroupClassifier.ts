@@ -1,3 +1,7 @@
+// ⚠️ ARQUIVO DUPLICADO — PAR: supabase/functions/_shared/muscleGroupClassifier.ts
+// Os dois runtimes (Vite/React e Deno/edge functions) não compartilham bundle,
+// por isso este módulo existe em duas cópias. EDITE SEMPRE OS DOIS JUNTOS.
+// Há um teste de paridade cobrindo isso: src/lib/__tests__/classifierParity.test.ts
 // src/lib/muscleGroupClassifier.ts
 //
 // Classificador automático de grupo muscular por nome de exercício.

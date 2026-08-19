@@ -563,38 +563,10 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
     try {
       const parsed = ProtocolPayloadSchema.parse(payload);
       if (!coachId) throw new Error("Coach não identificado");
-      if (isEditMode && protocolId) {
-        // Snapshot da versão publicada antes de sobrescrever — só em publicação real.
-        if (!opts.asDraft) {
-          const { data: current, error: readErr } = await sb
-            .from("protocols")
-            .select("payload")
-            .eq("id", protocolId)
-            .maybeSingle();
-          if (readErr) throw readErr;
-          if (current?.payload) {
-            const { data: maxRow } = await sb
-              .from("protocol_versions")
-              .select("version")
-              .eq("protocol_id", protocolId)
-              .order("version", { ascending: false })
-              .limit(1)
-              .maybeSingle();
-            const nextVersion = ((maxRow?.version as number | undefined) ?? 0) + 1;
-            const { error: insErr } = await sb
-              .from("protocol_versions")
-              .insert({
-                protocol_id: protocolId,
-                student_id: studentId,
-                coach_id: coachId,
-                version: nextVersion,
-                payload: current.payload,
-              });
-            if (insErr) throw insErr;
-          }
-        }
-      }
-
+      // O snapshot em `protocol_versions` (payload anterior + próxima versão) agora
+      // é feito DENTRO da RPC `save_protocol_with_plan`, na mesma transação do
+      // UPDATE em `protocols`. Antes era um insert separado no client, que podia
+      // gravar histórico sem o protocolo correspondente ter sido atualizado.
       // ─── Gravação atômica: protocols + coach_plans numa única transação ───
       // Antes eram dois writes independentes no client; quando o segundo
       // falhava, o protocolo ficava salvo e o plano lido pelas telas do aluno

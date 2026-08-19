@@ -45,12 +45,18 @@ import {
   MUSCLE_GROUP_OPTIONS,
   type MuscleGroup,
 } from "@/lib/muscleGroupClassifier";
+import {
+  MOVEMENT_PATTERNS,
+  MOVEMENT_PATTERN_LABELS,
+  type MovementPattern,
+} from "@/lib/movementPatterns";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb = supabase as any;
 
 const PAGE_SIZE = 24;
 const ALL_GROUPS = "__all__";
+const NO_PATTERN = "__none__";
 
 interface LibraryRow {
   exercise_key: string;
@@ -58,6 +64,7 @@ interface LibraryRow {
   display_name: string | null;
   primary_muscle_group: string | null;
   secondary_muscle_groups: string[] | null;
+  movement_pattern: string | null;
 }
 
 interface DisplayRow extends LibraryRow {
@@ -103,6 +110,7 @@ export function AdminExerciseManager() {
   const [editName, setEditName] = useState("");
   const [editPrimary, setEditPrimary] = useState<string>("");
   const [editSecondary, setEditSecondary] = useState<MuscleGroup[]>([]);
+  const [editPattern, setEditPattern] = useState<string>(NO_PATTERN);
   const [saving, setSaving] = useState(false);
 
   const [deleteTarget, setDeleteTarget] = useState<DisplayRow | null>(null);
@@ -129,7 +137,7 @@ export function AdminExerciseManager() {
       let query = sb
         .from("exercise_library")
         .select(
-          "exercise_key, file_name, display_name, primary_muscle_group, secondary_muscle_groups",
+          "exercise_key, file_name, display_name, primary_muscle_group, secondary_muscle_groups, movement_pattern",
           { count: "exact" },
         )
         .not("file_name", "is", null)
@@ -186,6 +194,7 @@ export function AdminExerciseManager() {
     setEditName(row.display_name ?? row.exercise_key.replace(/_/g, " "));
     setEditPrimary(row.primary_muscle_group ?? "");
     setEditSecondary((row.secondary_muscle_groups ?? []) as MuscleGroup[]);
+    setEditPattern(row.movement_pattern ?? NO_PATTERN);
   };
 
   const toggleSecondary = (g: MuscleGroup) => {
@@ -208,6 +217,7 @@ export function AdminExerciseManager() {
 
     // Secundário nunca deve repetir o primário.
     const secondary = editSecondary.filter((g) => g !== editPrimary);
+    const movementPattern = editPattern === NO_PATTERN ? null : editPattern;
 
     setSaving(true);
     const { data, error } = await sb
@@ -216,6 +226,7 @@ export function AdminExerciseManager() {
         display_name: trimmed,
         primary_muscle_group: editPrimary,
         secondary_muscle_groups: secondary,
+        movement_pattern: movementPattern,
         classification_source: "manual",
         updated_at: new Date().toISOString(),
       })
@@ -248,6 +259,7 @@ export function AdminExerciseManager() {
               display_name: trimmed,
               primary_muscle_group: editPrimary,
               secondary_muscle_groups: secondary,
+              movement_pattern: movementPattern,
             }
           : r,
       ),
@@ -513,6 +525,25 @@ export function AdminExerciseManager() {
                     );
                   })}
                 </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Padrão de movimento (opcional)
+                </label>
+                <Select value={editPattern} onValueChange={setEditPattern}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Não classificado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_PATTERN}>Não classificado</SelectItem>
+                    {MOVEMENT_PATTERNS.map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {MOVEMENT_PATTERN_LABELS[p as MovementPattern]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           )}
