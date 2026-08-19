@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatCard } from "./dashboardUtils";
 import { useStudentPlanCatalog, useCoachSubscriptions } from "@/hooks/useStudentPlans";
+import { PlanCatalogManager } from "./PlanCatalogManager";
 import { centsToAmount, formatCents, nextDueDate } from "@/lib/studentPlans";
 import { computeFinanceMetrics } from "@/lib/coachFinanceMetrics";
 import { Private } from "@/components/coach/PrivacyMode";
@@ -74,7 +75,7 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
   });
   const hasInfinitePay = !!coachProfile?.infinitepay_handle;
 
-  const { data: planCatalog = [] } = useStudentPlanCatalog();
+  const { data: planCatalog = [] } = useStudentPlanCatalog(coachId);
   const { data: subscriptions = [] } = useCoachSubscriptions(coachId);
 
   // Alunos com origem em influenciadora — usado só para exibir a prévia do desconto.
@@ -384,9 +385,12 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
 
       <div className="flex items-center justify-between mt-6">
         <h3 className="text-sm font-semibold text-foreground">Alunos Ativos & Mensalidades</h3>
-        <Button size="sm" onClick={() => setShowAdd(true)}>
-          <Plus className="w-3.5 h-3.5 mr-1" /> Cobrança Avulsa
-        </Button>
+        <div className="flex items-center gap-2">
+          <PlanCatalogManager coachId={coachId} />
+          <Button size="sm" onClick={() => setShowAdd(true)}>
+            <Plus className="w-3.5 h-3.5 mr-1" /> Cobrança Avulsa
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (

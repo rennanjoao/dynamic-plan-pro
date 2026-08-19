@@ -1,8 +1,11 @@
 /**
  * useStudentPlans.ts — catálogo dos planos dos ALUNOS e contrato vigente.
  * Domínio separado do billing da plataforma (platform_billing_charges).
+ *
+ * Catálogo é por coach: cada coach só enxerga (e só pode editar) os próprios
+ * planos, mais os planos padrão/legado (coach_id null) como fallback.
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DEFAULT_STUDENT_PLANS, type StudentPlan } from "@/lib/studentPlans";
 
@@ -27,19 +30,82 @@ export interface StudentSubscription {
   provider: string | null;
 }
 
-export function useStudentPlanCatalog() {
+/**
+ * Catálogo de planos visível para um coach: os planos dele + os planos
+ * padrão (coach_id null), usados como fallback pra quem não cadastrou nada.
+ * Sem coachId, retorna só os planos padrão.
+ */
+export function useStudentPlanCatalog(coachId?: string | null) {
   return useQuery({
-    queryKey: ["student-plan-catalog"],
-    staleTime: 10 * 60_000,
+    queryKey: ["student-plan-catalog", coachId ?? null],
+    staleTime: 5 * 60_000,
     queryFn: async (): Promise<StudentPlan[]> => {
-      const { data, error } = await sb
-        .from("student_plan_catalog")
-        .select("*")
-        .eq("is_active", true)
-        .order("sort_order", { ascending: true });
+      let query = sb.from("student_plan_catalog").select("*").eq("is_active", true);
+      query = coachId ? query.or(`coach_id.eq.${coachId},coach_id.is.null`) : query.is("coach_id", null);
+      const { data, error } = await query.order("sort_order", { ascending: true });
       // Fallback compatível: nunca quebra a tela se o catálogo falhar.
       if (error || !data || data.length === 0) return DEFAULT_STUDENT_PLANS;
       return data as StudentPlan[];
+    },
+  });
+}
+
+export interface PlanFormInput {
+  id?: string;
+  slug: string;
+  name: string;
+  price_cents: number;
+  duration_months: number;
+  description?: string | null;
+  benefits: string[];
+  is_active: boolean;
+  sort_order?: number;
+}
+
+/** Cria ou atualiza um plano próprio do coach. */
+export function useSavePlan(coachId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (plan: PlanFormInput) => {
+      const row = {
+        coach_id: coachId,
+        slug: plan.slug,
+        name: plan.name,
+        price_cents: plan.price_cents,
+        duration_months: plan.duration_months,
+        description: plan.description ?? null,
+        benefits: plan.benefits,
+        is_active: plan.is_active,
+        sort_order: plan.sort_order ?? 0,
+      };
+      if (plan.id) {
+        const { error } = await sb.from("student_plan_catalog").update(row).eq("id", plan.id).eq("coach_id", coachId);
+        if (error) throw error;
+      } else {
+        const { error } = await sb.from("student_plan_catalog").insert(row);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["student-plan-catalog"] });
+    },
+  });
+}
+
+/** Desativa (soft-delete) um plano próprio do coach — nunca apaga histórico. */
+export function useDeactivatePlan(coachId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (planId: string) => {
+      const { error } = await sb
+        .from("student_plan_catalog")
+        .update({ is_active: false })
+        .eq("id", planId)
+        .eq("coach_id", coachId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["student-plan-catalog"] });
     },
   });
 }
