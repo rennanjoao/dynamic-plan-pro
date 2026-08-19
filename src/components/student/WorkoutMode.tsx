@@ -1062,7 +1062,9 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
             <DialogTitle className="text-lg font-black italic uppercase">Trocar exercício</DialogTitle>
           </DialogHeader>
           <p className="text-[11px] text-white/60 -mt-2">
-            {swapGroup
+            {swapCurated
+              ? "Alternativas liberadas pelo seu coach para este exercício."
+              : swapGroup
               ? `Alternativas de ${MUSCLE_GROUP_LABELS[swapGroup]} — o estímulo prescrito é mantido.`
               : "Não identificamos o grupo muscular deste exercício."}
           </p>
@@ -1077,9 +1079,22 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                   key={opt.key}
                   type="button"
                   onClick={() => {
+                    const originalName = (day?.exercises ?? [])[currentExIdx]?.name ?? currentEx?.name;
                     setSwapMap((prev) => ({ ...prev, [currentExKey]: { name: opt.displayName, gifKey: opt.key } }));
                     setShowSwap(false);
                     toast.success(`Exercício trocado por ${opt.displayName}`);
+                    // Alerta o coach (best-effort — nunca bloqueia o treino).
+                    if (coachId) {
+                      supabase.from("coach_notifications").insert({
+                        coach_id: coachId,
+                        student_id: userId,
+                        student_name: studentName ?? "Aluno",
+                        context: "exercise_swap",
+                        message: `Trocou "${originalName}" por "${opt.displayName}" no treino ${day?.key ?? ""}.`,
+                      }).then(({ error }) => {
+                        if (error) console.warn("[troca-exercicio] alerta ao coach falhou:", error.message);
+                      });
+                    }
                   }}
                   className="w-full flex items-center gap-3 p-2 rounded-xl border border-white/10 hover:border-primary/60 text-left"
                 >
