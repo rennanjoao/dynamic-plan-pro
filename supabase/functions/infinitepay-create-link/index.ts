@@ -112,8 +112,13 @@ Deno.serve(async (req) => {
     });
     const json = await resp.json().catch(() => ({}));
     if (!resp.ok || !json?.url) {
-      return new Response(JSON.stringify({ error: json?.message || `InfinityPay retornou ${resp.status}` }), {
-        status: 502, headers: { ...cors, "Content-Type": "application/json" },
+      // 422 da InfinityPay = handle inexistente/inativo na conta (payload já validado).
+      const message = resp.status === 422
+        ? `Handle InfinityPay "$${handle}" inválido ou inativo. Confira o handle exato da sua conta InfinityPay no perfil do coach.`
+        : (json?.message || `InfinityPay retornou ${resp.status}`);
+      return new Response(JSON.stringify({ error: message }), {
+        status: resp.status === 422 ? 400 : 502,
+        headers: { ...cors, "Content-Type": "application/json" },
       });
     }
 
