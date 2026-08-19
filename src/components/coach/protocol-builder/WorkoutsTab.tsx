@@ -15,6 +15,7 @@ import {
   Plus, Trash2, ArrowUp, ArrowDown, ChevronDown, CheckCircle2, GripVertical, Activity,
 } from "lucide-react";
 import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
+import { ExerciseSubstitutesPopover } from "@/components/coach/ExerciseSubstitutesPopover";
 import WorkoutPeriodizationEditor from "../WorkoutPeriodizationEditor";
 import { ProtocolPayload, makeEmptyExercise } from "@/lib/protocolSchema";
 import { normalizeCarb, cycleCarb, CARB_LABEL, DAY_KEYS } from "@/lib/weekCycle";
@@ -344,6 +345,12 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                 )}
                 <Input value={ex.notes} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-xs" />
                 <div className="flex items-center gap-0.5">
+                  <ExerciseSubstitutesPopover
+                    exerciseName={ex.name}
+                    gifKey={(ex as any).gifKey}
+                    value={((ex as any).allowed_substitutes ?? []) as string[]}
+                    onChange={(next) => updEx(di, ei, { allowed_substitutes: next } as any)}
+                  />
                   <button
                     type="button"
                     {...attributes}

@@ -192,6 +192,9 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const [swapLoading, setSwapLoading] = useState(false);
   const [swapGroup, setSwapGroup] = useState<MuscleGroup | null>(null);
   const [swapOptions, setSwapOptions] = useState<LibraryEntry[]>([]);
+  // true quando a lista veio da curadoria do coach (allowed_substitutes),
+  // e não da varredura livre por grupo muscular.
+  const [swapCurated, setSwapCurated] = useState(false);
 
   // ── Retenção comportamental: histórico p/ detecção de PR, streak real e overlay ──
   const [historyMap, setHistoryMap] = useState<Record<string, ExerciseHistory[]>>({});
@@ -418,6 +421,18 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     setShowSwap(true);
     setSwapLoading(true);
     try {
+      // Curadoria do coach tem precedência: se ele definiu substitutos
+      // permitidos, o aluno só escolhe dentro dessa lista.
+      const allowed: string[] = (currentEx as any)?.allowed_substitutes ?? [];
+      if (allowed.length > 0) {
+        const entries = (await Promise.all(allowed.map((k) => getLibraryEntry(null, k))))
+          .filter(Boolean) as LibraryEntry[];
+        setSwapCurated(true);
+        setSwapGroup(null);
+        setSwapOptions(entries);
+        return;
+      }
+      setSwapCurated(false);
       const entry = await getLibraryEntry(currentEx?.name, currentEx?.gifKey);
       const group =
         entry?.primaryMuscleGroup ??
@@ -432,7 +447,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
       setSwapLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentEx?.name, currentEx?.gifKey]);
+  }, [currentEx?.name, currentEx?.gifKey, (currentEx as any)?.allowed_substitutes]);
 
   // Pré-carrega o melhor histórico de cada exercício do dia — 1 query só,
   // usada para saber em tempo real se a série atual é um Recorde Pessoal.
@@ -1047,7 +1062,9 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
             <DialogTitle className="text-lg font-black italic uppercase">Trocar exercício</DialogTitle>
           </DialogHeader>
           <p className="text-[11px] text-white/60 -mt-2">
-            {swapGroup
+            {swapCurated
+              ? "Alternativas liberadas pelo seu coach para este exercício."
+              : swapGroup
               ? `Alternativas de ${MUSCLE_GROUP_LABELS[swapGroup]} — o estímulo prescrito é mantido.`
               : "Não identificamos o grupo muscular deste exercício."}
           </p>
@@ -1062,9 +1079,22 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                   key={opt.key}
                   type="button"
                   onClick={() => {
+                    const originalName = (day?.exercises ?? [])[currentExIdx]?.name ?? currentEx?.name;
                     setSwapMap((prev) => ({ ...prev, [currentExKey]: { name: opt.displayName, gifKey: opt.key } }));
                     setShowSwap(false);
                     toast.success(`Exercício trocado por ${opt.displayName}`);
+                    // Alerta o coach (best-effort — nunca bloqueia o treino).
+                    if (coachId) {
+                      supabase.from("coach_notifications").insert({
+                        coach_id: coachId,
+                        student_id: userId,
+                        student_name: studentName ?? "Aluno",
+                        context: "exercise_swap",
+                        message: `Trocou "${originalName}" por "${opt.displayName}" no treino ${day?.key ?? ""}.`,
+                      }).then(({ error }) => {
+                        if (error) console.warn("[troca-exercicio] alerta ao coach falhou:", error.message);
+                      });
+                    }
                   }}
                   className="w-full flex items-center gap-3 p-2 rounded-xl border border-white/10 hover:border-primary/60 text-left"
                 >
