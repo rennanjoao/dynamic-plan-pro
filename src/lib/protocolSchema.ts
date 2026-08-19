@@ -39,6 +39,10 @@ export const ExerciseSchema = z.object({
   // seleciona o exercício via combobox. Protocolos antigos não têm este campo
   // e continuam funcionando pelo fallback de matching por nome.
   gifKey: z.string().optional(),
+  // Substitutos permitidos pelo coach (exercise_key da exercise_library).
+  // Opcional e vazio por padrão: quando vazio, o aluno mantém o comportamento
+  // atual de troca livre por grupo muscular no Modo Treino.
+  allowed_substitutes: z.array(z.string()).optional().default([]),
   // Identificador estável do item para drag-and-drop no builder.
   // Gerado on-the-fly quando o exercício é criado; backfilled em cargas
   // antigas. NÃO participa da lógica de treino/sessões (workout_key é a

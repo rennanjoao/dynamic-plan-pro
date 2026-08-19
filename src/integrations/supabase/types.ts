@@ -1455,6 +1455,54 @@ export type Database = {
         }
         Relationships: []
       }
+      prescription_profile_versions: {
+        Row: {
+          changed_by: string | null
+          coach_id: string
+          created_at: string
+          dominances: string[]
+          id: string
+          limitations: string | null
+          muscle_priorities: Json
+          profile_id: string
+          snapshot_at: string
+          sources: Json
+          student_id: string
+          version: number
+          visual_observations: string | null
+        }
+        Insert: {
+          changed_by?: string | null
+          coach_id: string
+          created_at?: string
+          dominances?: string[]
+          id?: string
+          limitations?: string | null
+          muscle_priorities?: Json
+          profile_id: string
+          snapshot_at?: string
+          sources?: Json
+          student_id: string
+          version: number
+          visual_observations?: string | null
+        }
+        Update: {
+          changed_by?: string | null
+          coach_id?: string
+          created_at?: string
+          dominances?: string[]
+          id?: string
+          limitations?: string | null
+          muscle_priorities?: Json
+          profile_id?: string
+          snapshot_at?: string
+          sources?: Json
+          student_id?: string
+          version?: number
+          visual_observations?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           billing_alert_days: number | null
@@ -1647,6 +1695,9 @@ export type Database = {
           name: string
           payload: Json
           student_id: string | null
+          template_division: string | null
+          template_profile: string | null
+          template_source: string | null
           updated_at: string
         }
         Insert: {
@@ -1659,6 +1710,9 @@ export type Database = {
           name: string
           payload?: Json
           student_id?: string | null
+          template_division?: string | null
+          template_profile?: string | null
+          template_source?: string | null
           updated_at?: string
         }
         Update: {
@@ -1671,6 +1725,9 @@ export type Database = {
           name?: string
           payload?: Json
           student_id?: string | null
+          template_division?: string | null
+          template_profile?: string | null
+          template_source?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1832,9 +1889,11 @@ export type Database = {
       student_plan_catalog: {
         Row: {
           benefits: string[]
+          coach_id: string | null
           created_at: string
           description: string | null
           duration_months: number
+          id: string
           is_active: boolean
           name: string
           price_cents: number
@@ -1844,9 +1903,11 @@ export type Database = {
         }
         Insert: {
           benefits?: string[]
+          coach_id?: string | null
           created_at?: string
           description?: string | null
           duration_months: number
+          id?: string
           is_active?: boolean
           name: string
           price_cents: number
@@ -1856,9 +1917,11 @@ export type Database = {
         }
         Update: {
           benefits?: string[]
+          coach_id?: string | null
           created_at?: string
           description?: string | null
           duration_months?: number
+          id?: string
           is_active?: boolean
           name?: string
           price_cents?: number

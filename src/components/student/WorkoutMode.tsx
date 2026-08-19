@@ -192,6 +192,9 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const [swapLoading, setSwapLoading] = useState(false);
   const [swapGroup, setSwapGroup] = useState<MuscleGroup | null>(null);
   const [swapOptions, setSwapOptions] = useState<LibraryEntry[]>([]);
+  // true quando a lista veio da curadoria do coach (allowed_substitutes),
+  // e não da varredura livre por grupo muscular.
+  const [swapCurated, setSwapCurated] = useState(false);
 
   // ── Retenção comportamental: histórico p/ detecção de PR, streak real e overlay ──
   const [historyMap, setHistoryMap] = useState<Record<string, ExerciseHistory[]>>({});
@@ -418,6 +421,18 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     setShowSwap(true);
     setSwapLoading(true);
     try {
+      // Curadoria do coach tem precedência: se ele definiu substitutos
+      // permitidos, o aluno só escolhe dentro dessa lista.
+      const allowed: string[] = (currentEx as any)?.allowed_substitutes ?? [];
+      if (allowed.length > 0) {
+        const entries = (await Promise.all(allowed.map((k) => getLibraryEntry(null, k))))
+          .filter(Boolean) as LibraryEntry[];
+        setSwapCurated(true);
+        setSwapGroup(null);
+        setSwapOptions(entries);
+        return;
+      }
+      setSwapCurated(false);
       const entry = await getLibraryEntry(currentEx?.name, currentEx?.gifKey);
       const group =
         entry?.primaryMuscleGroup ??
@@ -432,7 +447,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
       setSwapLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentEx?.name, currentEx?.gifKey]);
+  }, [currentEx?.name, currentEx?.gifKey, (currentEx as any)?.allowed_substitutes]);
 
   // Pré-carrega o melhor histórico de cada exercício do dia — 1 query só,
   // usada para saber em tempo real se a série atual é um Recorde Pessoal.

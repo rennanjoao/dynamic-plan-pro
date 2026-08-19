@@ -1,10 +1,10 @@
-// TemplateLibraryDialog — Fase 4 do refactor do ProtocolBuilder.
-// Ponto único de entrada para as 3 fontes de template já existentes:
-//  - protocols (is_template=true) → protocolo completo
-//  - workout_templates            → treino + periodização
+// TemplateLibraryDialog — fonte única de templates.
+//  - protocols (is_template=true) → protocolo completo do coach E os templates
+//    de sistema migrados de SYSTEM_TEMPLATES (coach_id/student_id NULL,
+//    template_source = 'system_reference'). Este é o sistema oficial.
+//  - workout_templates            → LEGADO SOMENTE-LEITURA (RLS já bloqueia
+//    novas inserções). Os registros existentes continuam listáveis/aplicáveis.
 //  - meal_templates               → refeição individual
-// Reaproveita a lógica de salvar/aplicar/excluir de cada fonte;
-// aqui só reorganizamos onde os botões aparecem.
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,6 @@ import { toast } from "sonner";
 import { Loader2, BookmarkPlus, Trash2, Dumbbell, Utensils, FileText, ClipboardList, Eye, History } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { ProtocolPayloadSchema, type ProtocolPayload } from "@/lib/protocolSchema";
-import { SYSTEM_TEMPLATES } from "@/data/workoutSystemTemplates";
 import { checkMuscleRecovery } from "@/lib/muscleRecovery";
 import TemplateHistoryDialog from "./TemplateHistoryDialog";
 import { cn } from "@/lib/utils";
@@ -32,6 +31,7 @@ type TplItem = {
   createdAt: string;
   raw: any;
   isSystem?: boolean;
+  isLegacy?: boolean;
   division?: string;
   profile?: string;
 };
@@ -41,8 +41,6 @@ const TYPE_META: Record<TplType, { label: string; icon: any; badge: string }> = 
   meal:     { label: "Refeição",            icon: Utensils,      badge: "bg-amber-500/15 text-amber-500 border-amber-500/40" },
   protocol: { label: "Protocolo completo",  icon: ClipboardList, badge: "bg-primary/15 text-primary border-primary/40" },
 };
-
-const MAX_WORKOUT_TEMPLATES = 30;
 
 const DIVISIONS = ["todos", "AB", "ABC", "ABCD", "ABCDE"] as const;
 const PROFILES: { value: string; label: string }[] = [
@@ -78,9 +76,8 @@ export default function TemplateLibraryDialog({
   const [filter, setFilter] = useState<"all" | TplType>("all");
   const [filterDiv, setFilterDiv] = useState<string>("todos");
   const [filterProfile, setFilterProfile] = useState<string>("todos");
-  const [saveOpen, setSaveOpen] = useState<null | "workout" | "protocol">(null);
+  const [saveOpen, setSaveOpen] = useState<null | "protocol">(null);
   const [saveName, setSaveName] = useState("");
-  const [saveScope, setSaveScope] = useState<"full" | "periodization">("full");
   const [saving, setSaving] = useState(false);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [historyItem, setHistoryItem] = useState<{ id: string; name: string } | null>(null);
@@ -89,7 +86,7 @@ export default function TemplateLibraryDialog({
     if (!coachId) return;
     setLoading(true);
     try {
-      const [workoutRes, mealRes, protoRes] = await Promise.all([
+      const [workoutRes, mealRes, protoRes, systemRes] = await Promise.all([
         supabase.from("workout_templates")
           .select("id, name, treinos, created_at")
           .eq("created_by", coachId)
@@ -106,15 +103,28 @@ export default function TemplateLibraryDialog({
           .eq("is_template", true)
           .order("created_at", { ascending: false })
           .limit(50),
+        // Templates de sistema migrados para protocols (conteúdo de referência).
+        (supabase.from("protocols") as any)
+          .select("id, name, payload, created_at, template_profile, template_division")
+          .eq("is_template", true)
+          .eq("template_source", "system_reference")
+          .order("name", { ascending: true })
+          .limit(100),
       ]);
 
       const merged: TplItem[] = [
-        ...(workoutRes.data ?? []).map((r) => ({ id: r.id, type: "workout" as const, name: r.name, createdAt: r.created_at, raw: r, isSystem: false })),
+        ...(workoutRes.data ?? []).map((r) => ({ id: r.id, type: "workout" as const, name: r.name, createdAt: r.created_at, raw: r, isSystem: false, isLegacy: true })),
         ...(mealRes.data ?? []).map((r) => ({ id: r.id, type: "meal" as const, name: r.name, createdAt: r.created_at, raw: r })),
         ...(protoRes.data ?? []).map((r) => ({ id: r.id, type: "protocol" as const, name: r.name, createdAt: r.created_at, raw: r })),
-        ...SYSTEM_TEMPLATES.map((t): TplItem => ({
-          id: `sys_${t.id}`, type: "workout", name: t.name, createdAt: "",
-          raw: { treinos: t.treinos }, isSystem: true, division: t.division, profile: t.profile,
+        ...((systemRes.data ?? []) as any[]).map((r): TplItem => ({
+          id: r.id,
+          type: "workout",
+          name: r.name,
+          createdAt: "",
+          raw: { treinos: { scope: "full", workouts: r.payload?.workouts ?? [] } },
+          isSystem: true,
+          division: r.template_division ?? undefined,
+          profile: r.template_profile ?? undefined,
         })),
       ].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
@@ -182,55 +192,6 @@ export default function TemplateLibraryDialog({
     if (error) { toast.error(error.message); return; }
     toast.success("Template excluído");
     reload();
-  }
-
-  async function saveWorkoutTemplate() {
-    if (!coachId || !payload) return;
-    const trimmed = saveName.trim();
-    if (!trimmed) { toast.error("Dê um nome"); return; }
-    setSaving(true);
-    try {
-      const { count } = await supabase
-        .from("workout_templates")
-        .select("id", { count: "exact", head: true })
-        .eq("created_by", coachId);
-      if ((count ?? 0) >= MAX_WORKOUT_TEMPLATES) {
-        toast.error(`Limite de ${MAX_WORKOUT_TEMPLATES} templates de treino atingido`);
-        return;
-      }
-      const treinos = saveScope === "full"
-        ? { workouts: payload.workouts, periodization: payload.periodization, scope: "full" }
-        : { periodization: payload.periodization, scope: "periodization" };
-      const description = saveScope === "full" ? "Treino + Periodização" : "Periodização";
-      const { data: prof } = await supabase.from("profiles").select("full_name").eq("user_id", coachId).maybeSingle();
-      const authorName = prof?.full_name || "Coach";
-      const { data: inserted, error } = await supabase.from("workout_templates").insert({
-        created_by: coachId,
-        updated_by: coachId,
-        name: trimmed,
-        level: saveScope,
-        description,
-        treinos,
-      }).select("id").single();
-      if (error) throw error;
-      await supabase.from("workout_template_versions").insert({
-        template_id: inserted.id,
-        version: 1,
-        scope: saveScope,
-        name: trimmed,
-        description,
-        treinos,
-        updated_by: coachId,
-        updated_by_name: authorName,
-      });
-      toast.success("Template de treino salvo");
-      setSaveOpen(null);
-      setSaveName("");
-      setSaveScope("full");
-      reload();
-    } catch (e: any) {
-      toast.error(e?.message || "Falha ao salvar");
-    } finally { setSaving(false); }
   }
 
   async function saveProtocolTemplate() {
@@ -328,13 +289,6 @@ export default function TemplateLibraryDialog({
             <div className="flex items-center gap-2 sm:ml-auto">
               <Button
                 size="sm" variant="outline" className="h-8 text-xs"
-                onClick={() => { setSaveName(protocolName || "Treino"); setSaveOpen("workout"); }}
-                disabled={!payload}
-              >
-                <BookmarkPlus className="w-3.5 h-3.5 mr-1" /> Salvar treino atual
-              </Button>
-              <Button
-                size="sm" variant="outline" className="h-8 text-xs"
                 onClick={() => { setSaveName(protocolName || "Protocolo"); setSaveOpen("protocol"); }}
                 disabled={!payload}
               >
@@ -401,8 +355,18 @@ export default function TemplateLibraryDialog({
                               </span>
                             )}
                             {item.isSystem ? (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-primary/10 text-primary border-primary/30">
-                                Sistema
+                              <span
+                                className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-primary/10 text-primary border-primary/30"
+                                title="Conteúdo de referência (base ACSM/NSCA/Schoenfeld/Contreras) — não é a metodologia oficial do projeto."
+                              >
+                                Referência
+                              </span>
+                            ) : item.isLegacy ? (
+                              <span
+                                className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-muted text-muted-foreground"
+                                title="Biblioteca antiga, somente leitura. Novos templates devem ser salvos como protocolo."
+                              >
+                                Legado
                               </span>
                             ) : (
                               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-amber-500/10 text-amber-600 border-amber-500/30">
@@ -473,13 +437,9 @@ export default function TemplateLibraryDialog({
       <Dialog open={!!saveOpen} onOpenChange={(v) => !v && setSaveOpen(null)}>
         <DialogContent className="sm:max-w-[420px]">
           <DialogHeader>
-            <DialogTitle>
-              {saveOpen === "workout" ? "Salvar treino atual como template" : "Salvar protocolo como template"}
-            </DialogTitle>
+            <DialogTitle>Salvar protocolo como template</DialogTitle>
             <DialogDescription className="text-xs">
-              {saveOpen === "workout"
-                ? "Guarda treinos + periodização atuais na sua biblioteca."
-                : "Guarda o protocolo completo (treino, dieta, suplementos, macros) na sua biblioteca."}
+              Guarda o protocolo completo (treino, dieta, suplementos, macros) na sua biblioteca.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
@@ -487,21 +447,8 @@ export default function TemplateLibraryDialog({
               <Label className="text-xs">Nome</Label>
               <Input value={saveName} onChange={(e) => setSaveName(e.target.value)} className="h-9 text-sm mt-1" />
             </div>
-            {saveOpen === "workout" && (
-              <div>
-                <Label className="text-xs">Escopo</Label>
-                <div className="grid grid-cols-2 gap-2 mt-1">
-                  <Button type="button" variant={saveScope === "full" ? "default" : "outline"} size="sm" onClick={() => setSaveScope("full")}>
-                    Treino + Periodização
-                  </Button>
-                  <Button type="button" variant={saveScope === "periodization" ? "default" : "outline"} size="sm" onClick={() => setSaveScope("periodization")}>
-                    Só Periodização
-                  </Button>
-                </div>
-              </div>
-            )}
             <Button
-              onClick={saveOpen === "workout" ? saveWorkoutTemplate : saveProtocolTemplate}
+              onClick={saveProtocolTemplate}
               disabled={saving}
               className="w-full"
             >
