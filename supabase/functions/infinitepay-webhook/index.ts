@@ -2,6 +2,8 @@
 // Responde 200 rápido — a InfinityPay reenvia em caso de erro.
 //
 // Garantias:
+// - só processa se o token na query string bater com INFINITEPAY_WEBHOOK_SECRET
+//   (evita que qualquer terceiro que descubra a URL marque cobranças como pagas);
 // - idempotente: webhook reenviado não cria receita nem cobrança duplicada;
 // - só confirma se a cobrança existir e ainda não estiver paga;
 // - valor recebido é comparado com o valor esperado (tolerância de 1 centavo);
@@ -20,6 +22,15 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
   try {
+    // Validação do token ANTES de tocar em qualquer dado. Resposta 200 genérica
+    // (nunca 401/403) pra não dar pista a quem estiver tentando adivinhar o token.
+    const expectedToken = Deno.env.get("INFINITEPAY_WEBHOOK_SECRET");
+    const receivedToken = new URL(req.url).searchParams.get("token");
+    if (!expectedToken || !receivedToken || receivedToken !== expectedToken) {
+      console.error("webhook: token inválido ou ausente");
+      return ok(cors, { ignored: "unauthorized" });
+    }
+
     const body = await req.json().catch(() => ({}));
     const orderNsu: string | undefined = body?.order_nsu ?? body?.orderNsu;
     const captureMethod: string | undefined = body?.capture_method ?? body?.captureMethod;

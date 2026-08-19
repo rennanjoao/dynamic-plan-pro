@@ -81,11 +81,22 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Token de assinatura do webhook: a InfinityPay reenvia esta URL no callback,
+    // então validamos essa query string antes de confiar em qualquer payload recebido.
+    const webhookSecret = Deno.env.get("INFINITEPAY_WEBHOOK_SECRET");
+    if (!webhookSecret) {
+      return new Response(JSON.stringify({ error: "Webhook não configurado (INFINITEPAY_WEBHOOK_SECRET ausente)" }), {
+        status: 500, headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
+    const webhookUrl = new URL(`${SUPABASE_URL}/functions/v1/infinitepay-webhook`);
+    webhookUrl.searchParams.set("token", webhookSecret);
+
     const payload = {
       handle,
       order_nsu: finance.id,
       redirect_url: "https://app.eliteprimehub.com.br/student-area",
-      webhook_url: `${SUPABASE_URL}/functions/v1/infinitepay-webhook`,
+      webhook_url: webhookUrl.toString(),
       items: [{
         quantity: 1,
         // Valor sempre derivado da cobrança interna (nunca do front-end).
