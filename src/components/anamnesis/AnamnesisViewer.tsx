@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { FileDown, Loader2, ImageIcon, Pencil, Save, X, UploadCloud } from "lucide-react";
 import MeasurementsEditor from "@/components/coach/MeasurementsEditor";
 import CheckinFullEditor from "@/components/coach/CheckinFullEditor";
+import PrescriptionProfileSection from "@/components/coach/PrescriptionProfileSection";
 import { exportAnamnesisPDF } from "@/lib/coachPdfExport";
 import { Private, PrivateImg, usePrivacyMode } from "@/components/coach/PrivacyMode";
 
