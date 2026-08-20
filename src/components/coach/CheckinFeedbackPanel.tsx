@@ -235,6 +235,7 @@ export default function CheckinFeedbackPanel(props: Props) {
     setSending(true);
     let savedOk = false;
     let notifiedOk = false;
+    const isEdit = !!(ci.coach_feedback && ci.coach_feedback.trim());
     try {
       const { error: updErr } = await sb
         .from("check_ins")
@@ -242,6 +243,15 @@ export default function CheckinFeedbackPanel(props: Props) {
         .eq("id", ci.id);
       if (updErr) throw new Error(`Falha ao salvar feedback: ${updErr.message}`);
       savedOk = true;
+
+      // Edição de um feedback já enviado: o aluno NÃO recebe nova notificação
+      // (nem e-mail, nem alerta) — apenas o texto é atualizado silenciosamente.
+      if (isEdit) {
+        toast.success("Feedback atualizado (sem novo aviso ao aluno).");
+        setCi((prev) => prev ? { ...prev, coach_feedback: msg } : prev);
+        setHistory((prev) => prev.map((r) => r.id === ci.id ? { ...r, coach_feedback: msg } : r));
+        return;
+      }
 
       const { error: fnErr } = await supabase.functions.invoke("reply-to-student", {
         body: { studentId, message: msg },
@@ -251,6 +261,7 @@ export default function CheckinFeedbackPanel(props: Props) {
 
       toast.success("Feedback salvo e enviado ao aluno.");
       setCi((prev) => prev ? { ...prev, coach_feedback: msg } : prev);
+      setHistory((prev) => prev.map((r) => r.id === ci.id ? { ...r, coach_feedback: msg } : r));
     } catch (err) {
       const message = err instanceof Error ? err.message : "Erro inesperado.";
       if (savedOk && !notifiedOk) {
