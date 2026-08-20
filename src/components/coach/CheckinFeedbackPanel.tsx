@@ -1,3 +1,4 @@
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 /**
  * CheckinFeedbackPanel.tsx — Painel unificado de feedback do coach.
  *
@@ -36,7 +37,7 @@ import { AlertBadge, WeightTrendBadge } from "@/components/coach/dashboard/dashb
 import { Private, PrivateImg } from "@/components/coach/PrivacyMode";
 import { triageClasses, triageLabel } from "@/lib/protocolRenewalTriage";
 
-const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
+const AnamnesisViewerLazy = lazyWithRetry(() => import("@/components/anamnesis/AnamnesisViewer"));
 
 const CHECKIN_PDF_SECTIONS = CHECKIN_SECTIONS.map((s) => ({
   title: s.title,

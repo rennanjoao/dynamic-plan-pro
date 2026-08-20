@@ -1,3 +1,4 @@
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 /**
  * ProtocolBuilder.tsx — Master Protocol Builder (Fase 2).
  *
@@ -109,7 +110,7 @@ interface Props {
   studentName: string;
 }
 
-const CheckinFeedbackPanel = lazy(() => import("./CheckinFeedbackPanel"));
+const CheckinFeedbackPanel = lazyWithRetry(() => import("./CheckinFeedbackPanel"));
 
 interface ProtocolRow {
   id: string;
