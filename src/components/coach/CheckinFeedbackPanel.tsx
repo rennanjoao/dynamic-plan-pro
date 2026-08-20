@@ -88,6 +88,7 @@ export default function CheckinFeedbackPanel(props: Props) {
   const [fullEditorOpen, setFullEditorOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [fullHistoryLoaded, setFullHistoryLoaded] = useState(false);
+  const [allCheckins, setAllCheckins] = useState<{ id: string; submitted_at: string; coach_feedback: string | null }[]>([]);
 
   useEffect(() => {
     if (!open || !studentId) return;
@@ -109,6 +110,13 @@ export default function CheckinFeedbackPanel(props: Props) {
       setCi(row);
       setFeedback(row?.coach_feedback ?? "");
       setLoading(false);
+      const { data: listData } = await sb
+        .from("check_ins")
+        .select("id, submitted_at, coach_feedback")
+        .eq("student_id", studentId)
+        .order("submitted_at", { ascending: false })
+        .limit(60);
+      if (!cancelled) setAllCheckins((listData as { id: string; submitted_at: string; coach_feedback: string | null }[]) || []);
     })();
     return () => { cancelled = true; };
   }, [open, studentId]);
