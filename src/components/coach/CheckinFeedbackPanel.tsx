@@ -173,6 +173,20 @@ export default function CheckinFeedbackPanel(props: Props) {
 
   // Deltas por métrica vs check-in imediatamente anterior (posição 1 no history)
   const previous = history[1] || null;
+  const isEditingExisting = !!(ci?.coach_feedback && ci.coach_feedback.trim());
+
+  const selectCheckin = async (id: string) => {
+    if (!id || id === ci?.id) return;
+    const { data } = await sb
+      .from("check_ins")
+      .select("id, submitted_at, current_metrics, payload, coach_feedback, photo_url, feedback_read_at")
+      .eq("id", id)
+      .maybeSingle();
+    if (!data) return;
+    setCi(data as CheckinRow);
+    setFeedback((data as CheckinRow).coach_feedback ?? "");
+  };
+
   const metricDeltas = useMemo(() => {
     const cur = (ci?.current_metrics || {}) as Record<string, unknown>;
     const prev = (previous?.current_metrics || {}) as Record<string, unknown>;
