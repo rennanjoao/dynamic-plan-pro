@@ -1,3 +1,4 @@
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 /**
  * CoachDashboard.tsx — Painel completo do Coach
  *
@@ -43,10 +44,10 @@ import { ProfileDialog } from "@/components/coach/dashboard/ProfileDialog";
 import { usePlatformBilling, worstPlatformStatus } from "@/hooks/usePlatformBilling";
 import { PrivacyProvider, PrivacyToggle, Private } from "@/components/coach/PrivacyMode";
 
-const ProtocolBuilder = lazy(() => import("@/components/coach/ProtocolBuilder"));
-const CheckinFeedbackPanel = lazy(() => import("@/components/coach/CheckinFeedbackPanel"));
-const StudentWorkoutAnalytics = lazy(() => import("@/components/coach/StudentWorkoutAnalytics"));
-const ProtocolChangeHistoryDialog = lazy(() => import("@/components/coach/ProtocolChangeHistoryDialog"));
+const ProtocolBuilder = lazyWithRetry(() => import("@/components/coach/ProtocolBuilder"));
+const CheckinFeedbackPanel = lazyWithRetry(() => import("@/components/coach/CheckinFeedbackPanel"));
+const StudentWorkoutAnalytics = lazyWithRetry(() => import("@/components/coach/StudentWorkoutAnalytics"));
+const ProtocolChangeHistoryDialog = lazyWithRetry(() => import("@/components/coach/ProtocolChangeHistoryDialog"));
 
 type CoachView = "list" | "protocol";
 

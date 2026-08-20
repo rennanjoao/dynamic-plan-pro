@@ -1,3 +1,4 @@
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 /**
  * EvolutionComparison.tsx
  * Comparação completa de evolução do aluno para o coach:
@@ -49,7 +50,7 @@ function fmt(iso: string) {
   return formatDatePtBR(iso);
 }
 
-const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
+const AnamnesisViewerLazy = lazyWithRetry(() => import("@/components/anamnesis/AnamnesisViewer"));
 
 export default function EvolutionComparison({
   studentId, studentName,

@@ -1,3 +1,4 @@
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import { lazy, Suspense } from "react";
 import { Loader2, ClipboardList } from "lucide-react";
 import type { StudentStatus } from "@/hooks/useCoachStudents";
@@ -5,8 +6,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Private } from "@/components/coach/PrivacyMode";
 
-const EvolutionComparisonLazy = lazy(() => import("@/components/coach/EvolutionComparison"));
-const AnamnesisViewerLazy = lazy(() => import("@/components/anamnesis/AnamnesisViewer"));
+const EvolutionComparisonLazy = lazyWithRetry(() => import("@/components/coach/EvolutionComparison"));
+const AnamnesisViewerLazy = lazyWithRetry(() => import("@/components/anamnesis/AnamnesisViewer"));
 
 export function EvolutionDialog({ student, open, onClose }: { student: StudentStatus | null; open: boolean; onClose: () => void }) {
   return (
