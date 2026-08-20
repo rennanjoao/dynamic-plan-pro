@@ -188,11 +188,12 @@ export function useCoachStudentsPaged(
           .limit(ids.length * 3), // teto explícito, evita full-scan se aluno tiver muitos check-ins
       ]);
 
-      // Timestamp efetivo = maior entre submitted_at e updated_at. Um check-in
-      // editado (mode "update" em CheckIn.tsx) pode ter updated_at mais recente
-      // que submitted_at em registros salvos antes da correção desse fluxo.
-      const effectiveTime = (c: { submitted_at: string; updated_at?: string | null }) =>
-        Math.max(new Date(c.submitted_at).getTime(), new Date(c.updated_at || c.submitted_at).getTime());
+      // O "último check-in" mede o atraso DO ALUNO, então usa somente
+      // submitted_at. Usar updated_at aqui fazia um check-in antigo virar o
+      // "mais recente" quando o coach editava o feedback dele depois — e o
+      // aluno aparecia atrasado mesmo tendo enviado um check-in novo.
+      const effectiveTime = (c: { submitted_at: string }) =>
+        new Date(c.submitted_at).getTime();
 
       const lastCiByStudent = new Map<string, string>();
       const lastCiTimeByStudent = new Map<string, number>();
