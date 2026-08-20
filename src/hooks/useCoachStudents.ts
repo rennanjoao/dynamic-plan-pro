@@ -330,13 +330,13 @@ export function useCoachStudentsPaged(
           });
         }
       });
-      // Retemos os DOIS check-ins mais recentes por aluno (efetivamente por
-      // maior de submitted_at/updated_at). O mais recente alimenta o peso
-      // atual; o anterior alimenta o cálculo de tendência (weightTrend).
+      // Retemos os DOIS check-ins mais recentes por aluno (por submitted_at —
+      // edição de feedback pelo coach não reordena o histórico). O mais
+      // recente alimenta o peso atual; o anterior, a tendência (weightTrend).
       type CiRow = { submitted_at: string; current_metrics: Record<string, unknown> | null; t: number };
       const ciByAll = new Map<string, CiRow[]>();
       ci?.forEach((c) => {
-        const t = Math.max(new Date(c.submitted_at).getTime(), new Date(c.updated_at || c.submitted_at).getTime());
+        const t = new Date(c.submitted_at).getTime();
         const row: CiRow = {
           submitted_at: c.submitted_at,
           current_metrics: (c.current_metrics as Record<string, unknown>) || null,
