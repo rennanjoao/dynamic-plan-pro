@@ -258,6 +258,7 @@ export default function CheckinFeedbackPanel(props: Props) {
         toast.success("Feedback atualizado (sem novo aviso ao aluno).");
         setCi((prev) => prev ? { ...prev, coach_feedback: msg } : prev);
         setHistory((prev) => prev.map((r) => r.id === ci.id ? { ...r, coach_feedback: msg } : r));
+        setAllCheckins((prev) => prev.map((r) => r.id === ci.id ? { ...r, coach_feedback: msg } : r));
         return;
       }
 
@@ -270,6 +271,7 @@ export default function CheckinFeedbackPanel(props: Props) {
       toast.success("Feedback salvo e enviado ao aluno.");
       setCi((prev) => prev ? { ...prev, coach_feedback: msg } : prev);
       setHistory((prev) => prev.map((r) => r.id === ci.id ? { ...r, coach_feedback: msg } : r));
+      setAllCheckins((prev) => prev.map((r) => r.id === ci.id ? { ...r, coach_feedback: msg } : r));
     } catch (err) {
       const message = err instanceof Error ? err.message : "Erro inesperado.";
       if (savedOk && !notifiedOk) {
@@ -533,7 +535,7 @@ export default function CheckinFeedbackPanel(props: Props) {
               </div>
               <div className="flex items-center justify-between gap-2">
                 <label className="text-xs font-semibold text-primary uppercase tracking-wider">
-                  Feedback do Coach
+                  {isEditingExisting ? "Editar feedback" : "Feedback do Coach"}
                 </label>
                 <Button
                   type="button"
@@ -546,14 +548,38 @@ export default function CheckinFeedbackPanel(props: Props) {
                   Gerar rascunho
                 </Button>
               </div>
+              {allCheckins.length > 1 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-muted-foreground shrink-0">Check-in:</span>
+                  <select
+                    value={ci?.id ?? ""}
+                    onChange={(e) => selectCheckin(e.target.value)}
+                    className="flex-1 text-xs rounded-md border border-border bg-background px-2 py-1.5"
+                    disabled={sending}
+                  >
+                    {allCheckins.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {fmtDate(c.submitted_at)} {c.coach_feedback ? "· com feedback" : "· sem feedback"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <Textarea
                 value={feedback}
                 onChange={(e) => setFeedback(e.target.value)}
-                placeholder="Escreva aqui o feedback que será salvo no check-in e enviado ao aluno…"
+                placeholder={isEditingExisting
+                  ? "Edite o feedback já enviado. O aluno não recebe novo aviso."
+                  : "Escreva aqui o feedback que será salvo no check-in e enviado ao aluno…"}
                 rows={6}
                 className="text-sm"
                 disabled={sending || !ci}
               />
+              {isEditingExisting && (
+                <p className="text-[11px] text-muted-foreground">
+                  Este check-in já tem feedback: salvar apenas atualiza o texto, sem notificar o aluno novamente.
+                </p>
+              )}
               <div className="flex justify-end">
                 <Button onClick={handleSend} disabled={sending || !ci} size="sm">
                   {sending ? (
@@ -561,7 +587,7 @@ export default function CheckinFeedbackPanel(props: Props) {
                   ) : (
                     <Send className="w-4 h-4 mr-2" />
                   )}
-                  Enviar feedback
+                  {isEditingExisting ? "Salvar alterações" : "Enviar feedback"}
                 </Button>
               </div>
             </div>
