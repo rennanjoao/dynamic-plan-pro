@@ -7,9 +7,10 @@
  * 100% leitura — nenhuma escrita acontece aqui.
  */
 
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertTriangle, LifeBuoy, ListChecks, Wallet } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronUp, LifeBuoy, ListChecks, RotateCcw, Wallet, X } from "lucide-react";
 import { Private } from "@/components/coach/PrivacyMode";
 import { sortPriorityQueue, formatMrvGroups } from "@/lib/coachPriorityQueue";
 import type { StudentLite } from "@/hooks/useCoachStudents";
@@ -45,7 +46,42 @@ const SOURCE_ICON: Record<QueueSource, typeof AlertTriangle> = {
   payment_overdue: Wallet,
 };
 
+const dismissedKey = (coachId: string) => `coach-queue-dismissed:${coachId}`;
+const collapsedKey = (coachId: string) => `coach-queue-collapsed:${coachId}`;
+
+function readDismissed(coachId: string): string[] {
+  try {
+    const raw = localStorage.getItem(dismissedKey(coachId));
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 export function PriorityQueuePanel({ coachId, students, onSelectStudent }: Props) {
+  const [dismissed, setDismissed] = useState<string[]>([]);
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (!coachId) return;
+    setDismissed(readDismissed(coachId));
+    setCollapsed(localStorage.getItem(collapsedKey(coachId)) === "1");
+  }, [coachId]);
+
+  const persistDismissed = (next: string[]) => {
+    setDismissed(next);
+    try { localStorage.setItem(dismissedKey(coachId), JSON.stringify(next)); } catch { /* ignore */ }
+  };
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try { localStorage.setItem(collapsedKey(coachId), next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
   const { data, isLoading } = useQuery({
     queryKey: ["coach-priority-queue", coachId],
     enabled: !!coachId,
@@ -62,9 +98,12 @@ export function PriorityQueuePanel({ coachId, students, onSelectStudent }: Props
 
   if (isLoading) return null;
 
-  const rows = sortPriorityQueue(data ?? []);
+  const all = sortPriorityQueue(data ?? []);
+  const dismissedSet = new Set(dismissed);
+  const rows = all.filter((r) => !dismissedSet.has(r.source_id));
+  const hiddenCount = all.length - rows.length;
 
-  if (rows.length === 0) return null;
+  if (all.length === 0) return null;
 
   const nameById = new Map(students.map((s) => [s.id, s.name]));
 
@@ -74,7 +113,29 @@ export function PriorityQueuePanel({ coachId, students, onSelectStudent }: Props
         <ListChecks className="w-4 h-4 text-primary" />
         <p className="text-sm font-bold text-foreground">Fila de prioridade do dia</p>
         <span className="text-xs text-muted-foreground ml-auto">{rows.length}</span>
+        {hiddenCount > 0 && (
+          <button
+            type="button"
+            onClick={() => persistDismissed([])}
+            className="text-[11px] text-muted-foreground hover:text-primary flex items-center gap-1"
+            title="Restaurar itens ocultados"
+          >
+            <RotateCcw className="w-3 h-3" /> {hiddenCount}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          className="p-1 rounded-md text-muted-foreground hover:text-primary hover:bg-accent transition-colors"
+          title={collapsed ? "Expandir fila" : "Minimizar fila"}
+        >
+          {collapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+        </button>
       </div>
+      {!collapsed && rows.length === 0 && (
+        <p className="px-4 py-3 text-xs text-muted-foreground">Tudo em dia — nenhum item pendente na fila.</p>
+      )}
+      {!collapsed && rows.length > 0 && (
       <div className="divide-y divide-border max-h-80 overflow-y-auto">
         {rows.map((r) => {
           const Icon = SOURCE_ICON[r.source] ?? AlertTriangle;
@@ -86,14 +147,14 @@ export function PriorityQueuePanel({ coachId, students, onSelectStudent }: Props
           const mrvGroups = r.title === "Volume acima do limite" ? formatMrvGroups(r.context) : [];
           const clickable = !!r.student_id && !!onSelectStudent;
           return (
+            <div key={r.source_id} className="flex items-start">
             <button
-              key={r.source_id}
               type="button"
               disabled={!clickable}
               onClick={() => {
                 if (r.student_id && onSelectStudent) onSelectStudent(r.student_id, r.source);
               }}
-              className={`w-full text-left px-4 py-3 flex items-start gap-3 transition-colors ${
+              className={`flex-1 text-left px-4 py-3 flex items-start gap-3 transition-colors ${
                 clickable ? "hover:bg-accent/50 cursor-pointer" : "cursor-default"
               }`}
             >
@@ -121,9 +182,19 @@ export function PriorityQueuePanel({ coachId, students, onSelectStudent }: Props
                 )}
               </div>
             </button>
+            <button
+              type="button"
+              onClick={() => persistDismissed([...dismissed, r.source_id])}
+              className="p-2 mt-2 mr-2 rounded-md text-muted-foreground hover:text-destructive hover:bg-accent transition-colors shrink-0"
+              title="Marcar como lido e ocultar"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+            </div>
           );
         })}
       </div>
+      )}
     </div>
   );
 }
