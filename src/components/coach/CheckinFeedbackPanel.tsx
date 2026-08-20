@@ -88,6 +88,7 @@ export default function CheckinFeedbackPanel(props: Props) {
   const [fullEditorOpen, setFullEditorOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [fullHistoryLoaded, setFullHistoryLoaded] = useState(false);
+  const [allCheckins, setAllCheckins] = useState<{ id: string; submitted_at: string; coach_feedback: string | null }[]>([]);
 
   useEffect(() => {
     if (!open || !studentId) return;
@@ -109,6 +110,13 @@ export default function CheckinFeedbackPanel(props: Props) {
       setCi(row);
       setFeedback(row?.coach_feedback ?? "");
       setLoading(false);
+      const { data: listData } = await sb
+        .from("check_ins")
+        .select("id, submitted_at, coach_feedback")
+        .eq("student_id", studentId)
+        .order("submitted_at", { ascending: false })
+        .limit(60);
+      if (!cancelled) setAllCheckins((listData as { id: string; submitted_at: string; coach_feedback: string | null }[]) || []);
     })();
     return () => { cancelled = true; };
   }, [open, studentId]);
@@ -173,6 +181,20 @@ export default function CheckinFeedbackPanel(props: Props) {
 
   // Deltas por métrica vs check-in imediatamente anterior (posição 1 no history)
   const previous = history[1] || null;
+  const isEditingExisting = !!(ci?.coach_feedback && ci.coach_feedback.trim());
+
+  const selectCheckin = async (id: string) => {
+    if (!id || id === ci?.id) return;
+    const { data } = await sb
+      .from("check_ins")
+      .select("id, submitted_at, current_metrics, payload, coach_feedback, photo_url, feedback_read_at")
+      .eq("id", id)
+      .maybeSingle();
+    if (!data) return;
+    setCi(data as CheckinRow);
+    setFeedback((data as CheckinRow).coach_feedback ?? "");
+  };
+
   const metricDeltas = useMemo(() => {
     const cur = (ci?.current_metrics || {}) as Record<string, unknown>;
     const prev = (previous?.current_metrics || {}) as Record<string, unknown>;
@@ -221,6 +243,7 @@ export default function CheckinFeedbackPanel(props: Props) {
     setSending(true);
     let savedOk = false;
     let notifiedOk = false;
+    const isEdit = !!(ci.coach_feedback && ci.coach_feedback.trim());
     try {
       const { error: updErr } = await sb
         .from("check_ins")
@@ -228,6 +251,16 @@ export default function CheckinFeedbackPanel(props: Props) {
         .eq("id", ci.id);
       if (updErr) throw new Error(`Falha ao salvar feedback: ${updErr.message}`);
       savedOk = true;
+
+      // Edição de um feedback já enviado: o aluno NÃO recebe nova notificação
+      // (nem e-mail, nem alerta) — apenas o texto é atualizado silenciosamente.
+      if (isEdit) {
+        toast.success("Feedback atualizado (sem novo aviso ao aluno).");
+        setCi((prev) => prev ? { ...prev, coach_feedback: msg } : prev);
+        setHistory((prev) => prev.map((r) => r.id === ci.id ? { ...r, coach_feedback: msg } : r));
+        setAllCheckins((prev) => prev.map((r) => r.id === ci.id ? { ...r, coach_feedback: msg } : r));
+        return;
+      }
 
       const { error: fnErr } = await supabase.functions.invoke("reply-to-student", {
         body: { studentId, message: msg },
@@ -237,6 +270,8 @@ export default function CheckinFeedbackPanel(props: Props) {
 
       toast.success("Feedback salvo e enviado ao aluno.");
       setCi((prev) => prev ? { ...prev, coach_feedback: msg } : prev);
+      setHistory((prev) => prev.map((r) => r.id === ci.id ? { ...r, coach_feedback: msg } : r));
+      setAllCheckins((prev) => prev.map((r) => r.id === ci.id ? { ...r, coach_feedback: msg } : r));
     } catch (err) {
       const message = err instanceof Error ? err.message : "Erro inesperado.";
       if (savedOk && !notifiedOk) {
@@ -500,7 +535,7 @@ export default function CheckinFeedbackPanel(props: Props) {
               </div>
               <div className="flex items-center justify-between gap-2">
                 <label className="text-xs font-semibold text-primary uppercase tracking-wider">
-                  Feedback do Coach
+                  {isEditingExisting ? "Editar feedback" : "Feedback do Coach"}
                 </label>
                 <Button
                   type="button"
@@ -513,14 +548,38 @@ export default function CheckinFeedbackPanel(props: Props) {
                   Gerar rascunho
                 </Button>
               </div>
+              {allCheckins.length > 1 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-muted-foreground shrink-0">Check-in:</span>
+                  <select
+                    value={ci?.id ?? ""}
+                    onChange={(e) => selectCheckin(e.target.value)}
+                    className="flex-1 text-xs rounded-md border border-border bg-background px-2 py-1.5"
+                    disabled={sending}
+                  >
+                    {allCheckins.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {fmtDate(c.submitted_at)} {c.coach_feedback ? "· com feedback" : "· sem feedback"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <Textarea
                 value={feedback}
                 onChange={(e) => setFeedback(e.target.value)}
-                placeholder="Escreva aqui o feedback que será salvo no check-in e enviado ao aluno…"
+                placeholder={isEditingExisting
+                  ? "Edite o feedback já enviado. O aluno não recebe novo aviso."
+                  : "Escreva aqui o feedback que será salvo no check-in e enviado ao aluno…"}
                 rows={6}
                 className="text-sm"
                 disabled={sending || !ci}
               />
+              {isEditingExisting && (
+                <p className="text-[11px] text-muted-foreground">
+                  Este check-in já tem feedback: salvar apenas atualiza o texto, sem notificar o aluno novamente.
+                </p>
+              )}
               <div className="flex justify-end">
                 <Button onClick={handleSend} disabled={sending || !ci} size="sm">
                   {sending ? (
@@ -528,7 +587,7 @@ export default function CheckinFeedbackPanel(props: Props) {
                   ) : (
                     <Send className="w-4 h-4 mr-2" />
                   )}
-                  Enviar feedback
+                  {isEditingExisting ? "Salvar alterações" : "Enviar feedback"}
                 </Button>
               </div>
             </div>
