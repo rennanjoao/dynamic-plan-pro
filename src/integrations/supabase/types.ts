@@ -598,9 +598,13 @@ export type Database = {
           due_date: string | null
           external_id: string | null
           id: string
+          mercado_pago_payment_id: string | null
+          mercado_pago_preference_id: string | null
+          mercado_pago_status: string | null
           paid_at: string | null
           payment_method: string | null
           plan_cycle_months: number | null
+          plan_name_snapshot: string | null
           plan_slug: string | null
           provider: string | null
           receipt_url: string | null
@@ -624,9 +628,13 @@ export type Database = {
           due_date?: string | null
           external_id?: string | null
           id?: string
+          mercado_pago_payment_id?: string | null
+          mercado_pago_preference_id?: string | null
+          mercado_pago_status?: string | null
           paid_at?: string | null
           payment_method?: string | null
           plan_cycle_months?: number | null
+          plan_name_snapshot?: string | null
           plan_slug?: string | null
           provider?: string | null
           receipt_url?: string | null
@@ -650,9 +658,13 @@ export type Database = {
           due_date?: string | null
           external_id?: string | null
           id?: string
+          mercado_pago_payment_id?: string | null
+          mercado_pago_preference_id?: string | null
+          mercado_pago_status?: string | null
           paid_at?: string | null
           payment_method?: string | null
           plan_cycle_months?: number | null
+          plan_name_snapshot?: string | null
           plan_slug?: string | null
           provider?: string | null
           receipt_url?: string | null
@@ -1980,6 +1992,7 @@ export type Database = {
           current_charge_id: string | null
           cycle_months: number
           ends_on: string | null
+          external_subscription_id: string | null
           external_transaction_id: string | null
           id: string
           next_due_date: string | null
@@ -2000,6 +2013,7 @@ export type Database = {
           current_charge_id?: string | null
           cycle_months: number
           ends_on?: string | null
+          external_subscription_id?: string | null
           external_transaction_id?: string | null
           id?: string
           next_due_date?: string | null
@@ -2020,6 +2034,7 @@ export type Database = {
           current_charge_id?: string | null
           cycle_months?: number
           ends_on?: string | null
+          external_subscription_id?: string | null
           external_transaction_id?: string | null
           id?: string
           next_due_date?: string | null
