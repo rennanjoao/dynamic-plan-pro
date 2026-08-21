@@ -56,6 +56,9 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
   const [editingFinance, setEditingFinance] = useState<{ id: string; due_date: string } | null>(null);
   const [quickBilling, setQuickBilling] = useState<{ student_id: string; student_name: string } | null>(null);
   const [quickForm, setQuickForm] = useState({ description: "Mensalidade", amount: "", due_date: "", plan_slug: "" });
+  // Seleção inline na coluna "Plano". Só guarda o que o coach mudou explicitamente;
+  // sem alteração, cai no plano atual da assinatura (rowPlan(...) abaixo).
+  const [rowPlanSlug, setRowPlanSlug] = useState<Record<string, string>>({});
   const [savingDueDate, setSavingDueDate] = useState(false);
   const [creatingBilling, setCreatingBilling] = useState(false);
   const [payDialog, setPayDialog] = useState<{ id: string; studentId: string | null; planSlug: string | null } | null>(null);
@@ -103,6 +106,7 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
   const selectedPlan = planCatalog.find((p) => p.slug === quickForm.plan_slug) ?? null;
 
   const activeStudents = students.filter((s) => !s.isExempt);
+  const rowPlan = (studentId: string) => rowPlanSlug[studentId] ?? subByStudent.get(studentId)?.plan_slug ?? "none";
 
   const togglePaid = async (id: string, currentlyPaid: boolean, method?: string) => {
     try {
@@ -394,14 +398,22 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
                       </div>
                     </TableCell>
                     <TableCell className="text-xs">
-                      {subByStudent.get(student.id) ? (
-                        <span className="font-medium">
-                          {subByStudent.get(student.id)!.plan_name}
-                          <span className="text-muted-foreground"> · {formatCents(subByStudent.get(student.id)!.price_cents)}</span>
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">Sem plano</span>
-                      )}
+                      <Select
+                        value={rowPlan(student.id)}
+                        onValueChange={(v) => setRowPlanSlug((prev) => ({ ...prev, [student.id]: v }))}
+                      >
+                        <SelectTrigger className="h-7 text-xs w-[150px]">
+                          <SelectValue placeholder="Sem plano" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Sem plano</SelectItem>
+                          {planCatalog.map((p) => (
+                            <SelectItem key={p.slug} value={p.slug}>
+                              {p.name} · {formatCents(p.price_cents)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {student.lastAnamnesis ? formatDatePtBR(student.lastAnamnesis) : "Aguardando"}
@@ -460,7 +472,11 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
                         </div>
                       ) : (
                         <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
-                          onClick={() => { setQuickBilling({ student_id: student.id, student_name: student.name }); setQuickForm({ description: "Mensalidade", amount: "", due_date: "", plan_slug: "" }); }}>
+                          onClick={() => {
+                            const slug = rowPlan(student.id);
+                            setQuickBilling({ student_id: student.id, student_name: student.name });
+                            setQuickForm({ description: "Mensalidade", amount: "", due_date: "", plan_slug: slug === "none" ? "" : slug });
+                          }}>
                           <Plus className="w-3 h-3" /> Gerar Cobrança
                         </Button>
                       )}
