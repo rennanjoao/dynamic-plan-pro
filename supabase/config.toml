@@ -1,7 +1,12 @@
 project_id = "firqzdnmwfhcbykixxbu"
 
-# A InfinityPay chama esse endpoint direto dos servidores dela, sem JWT do
+# O Mercado Pago chama esse endpoint direto dos servidores dele, sem JWT do
 # Supabase — sem isso, o gateway rejeita a chamada antes de chegar na function
 # e a confirmação automática de pagamento nunca funciona.
+# A autenticidade é validada pela assinatura HMAC (x-signature) dentro da função.
+[functions.mercadopago-webhook]
+verify_jwt = false
+
+# Legado: mantido apenas enquanto houver histórico do Infinity Pay.
 [functions.infinitepay-webhook]
 verify_jwt = false
