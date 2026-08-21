@@ -461,10 +461,14 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
                       {student.isExempt ? null : activeFinance ? (
                         <div className="flex justify-end gap-1">
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
-                            disabled={busyCheckout === activeFinance.id}
-                            onClick={() => createMercadoPagoLink(activeFinance.id)} title="Cobrar via Mercado Pago">
+                            disabled={busyCheckout === activeFinance.id || Number(activeFinance.amount) <= 0}
+                            onClick={() => createMercadoPagoLink(activeFinance.id)}
+                            title={Number(activeFinance.amount) <= 0
+                              ? "Defina um valor maior que zero para cobrar via Mercado Pago"
+                              : "Cobrar via Mercado Pago"}>
                             <Wallet className="w-4 h-4" />
                           </Button>
+
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
                             onClick={() => setEditingFinance({ id: activeFinance.id, due_date: activeFinance.due_date || "" })} title="Alterar Data">
                             <Calendar className="w-4 h-4" />
