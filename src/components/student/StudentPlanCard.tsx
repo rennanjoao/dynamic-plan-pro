@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CreditCard, ChevronDown, ExternalLink, Loader2, RefreshCw, Repeat } from "lucide-react";
+import { CreditCard, ChevronDown, ExternalLink, Loader2, RefreshCw, Repeat, Clock } from "lucide-react";
 import { formatCents, toCents } from "@/lib/studentPlans";
 import { formatDatePtBR } from "@/lib/formatDate";
 import { useMyStudentSubscription, useStudentPlanCatalog } from "@/hooks/useStudentPlans";
@@ -34,6 +34,25 @@ const SOURCE_LABEL: Record<string, string> = {
   manual: "Registrado pelo treinador",
   gateway: "Pago pelo checkout",
 };
+
+/** Dias até `dateStr` (YYYY-MM-DD), por calendário UTC — evita erro de 1 dia por fuso. */
+function daysUntil(dateStr: string): number {
+  const [y, m, d] = dateStr.slice(0, 10).split("-").map(Number);
+  const target = Date.UTC(y, m - 1, d);
+  const now = new Date();
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.round((target - today) / 86_400_000);
+}
+
+/** Desconto do ciclo vs. o preço mensal equivalente do plano Mensal do catálogo. */
+function discountLabel(plan: { price_cents: number; duration_months: number }, basePlans: { price_cents: number; duration_months: number }[]): string | null {
+  const monthly = basePlans.find((p) => p.duration_months === 1);
+  if (!monthly || plan.duration_months <= 1) return null;
+  const baseRate = monthly.price_cents;
+  const planRate = plan.price_cents / plan.duration_months;
+  const pct = Math.round((1 - planRate / baseRate) * 100);
+  return pct > 0 ? `-${pct}%` : null;
+}
 
 const RETURN_MESSAGE: Record<string, string> = {
   retorno: "Pagamento recebido pelo Mercado Pago. A liberação acontece assim que a confirmação chegar.",
@@ -107,6 +126,14 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
   const status = sub ? (STATUS_LABEL[sub.status] ?? STATUS_LABEL.pending) : null;
   const availablePlans = catalog.filter((p) => p.is_active);
 
+  // Aviso proativo de vencimento: só quando ainda não existe cobrança pendente
+  // (senão o bloco de "Pagamento pendente" abaixo já cobre) e faltam 0-3 dias.
+  const daysUntilDue = sub?.next_due_date ? daysUntil(sub.next_due_date) : null;
+  const showUpcoming =
+    !!sub && sub.status === "active" && !pending && daysUntilDue !== null && daysUntilDue >= 0 && daysUntilDue <= 3;
+  const dueSoonLabel =
+    daysUntilDue === 0 ? "hoje" : daysUntilDue === 1 ? "amanhã" : `em ${daysUntilDue} dias`;
+
   return (
     <Card className="p-4 bg-card/60 border border-border/60">
       <div className="flex items-start justify-between gap-3">
@@ -154,6 +181,15 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
           <ChevronDown className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} />
         </button>
       </div>
+
+      {showUpcoming && (
+        <div className="flex items-center gap-2 mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+          <Clock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+          <p className="text-xs font-medium text-amber-800">
+            Seu plano vence {dueSoonLabel}. Renove abaixo pra não perder o acesso.
+          </p>
+        </div>
+      )}
 
       <div className="grid gap-2 mt-3">
         {pending ? (
@@ -215,6 +251,11 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
                   <p className="text-[11px] text-muted-foreground">
                     {formatCents(plan.price_cents)} · {plan.duration_months}{" "}
                     {plan.duration_months === 1 ? "mês" : "meses"}
+                    {discountLabel(plan, availablePlans) && (
+                      <span className="ml-1 text-emerald-600 font-semibold">
+                        {discountLabel(plan, availablePlans)}
+                      </span>
+                    )}
                   </p>
                 </div>
                 <Button
