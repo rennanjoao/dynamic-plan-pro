@@ -53,8 +53,6 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
   const qc = useQueryClient();
   const confirm = useConfirm();
 
-  const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ student_id: "", description: "", amount: "", due_date: "" });
   const [editingFinance, setEditingFinance] = useState<{ id: string; due_date: string } | null>(null);
   const [quickBilling, setQuickBilling] = useState<{ student_id: string; student_name: string } | null>(null);
   const [quickForm, setQuickForm] = useState({ description: "Mensalidade", amount: "", due_date: "", plan_slug: "" });
@@ -105,28 +103,6 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
   const selectedPlan = planCatalog.find((p) => p.slug === quickForm.plan_slug) ?? null;
 
   const activeStudents = students.filter((s) => !s.isExempt);
-
-  const addFinance = useMutation({
-    mutationFn: async () => {
-      if (!form.description) throw new Error("Descrição é obrigatória");
-      const { error } = await supabase.from("coach_finances").insert({
-        coach_id: coachId,
-        student_id: form.student_id || null,
-        description: form.description,
-        amount: Number(form.amount || 0),
-        due_date: form.due_date || null,
-        status: "pending",
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Registro financeiro adicionado!");
-      setForm({ student_id: "", description: "", amount: "", due_date: "" });
-      setShowAdd(false);
-      qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
 
   const togglePaid = async (id: string, currentlyPaid: boolean, method?: string) => {
     try {
@@ -376,13 +352,11 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
 
       <div className="flex items-center justify-between mt-6">
         <h3 className="text-sm font-semibold text-foreground">Alunos Ativos & Mensalidades</h3>
-        <div className="flex items-center gap-2">
-          <PlanCatalogManager coachId={coachId} />
-          <Button size="sm" onClick={() => setShowAdd(true)}>
-            <Plus className="w-3.5 h-3.5 mr-1" /> Cobrança Avulsa
-          </Button>
-        </div>
+        <PlanCatalogManager coachId={coachId} />
       </div>
+      <p className="text-xs text-muted-foreground -mt-4 mb-2">
+        Use "Gerar Cobrança" na linha de cada aluno — com plano do catálogo ou "sem plano" pra caso avulso.
+      </p>
 
       {isLoading ? (
         <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
@@ -461,14 +435,10 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
                       {student.isExempt ? null : activeFinance ? (
                         <div className="flex justify-end gap-1">
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
-                            disabled={busyCheckout === activeFinance.id || Number(activeFinance.amount) <= 0}
-                            onClick={() => createMercadoPagoLink(activeFinance.id)}
-                            title={Number(activeFinance.amount) <= 0
-                              ? "Defina um valor maior que zero para cobrar via Mercado Pago"
-                              : "Cobrar via Mercado Pago"}>
+                            disabled={busyCheckout === activeFinance.id}
+                            onClick={() => createMercadoPagoLink(activeFinance.id)} title="Cobrar via Mercado Pago">
                             <Wallet className="w-4 h-4" />
                           </Button>
-
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
                             onClick={() => setEditingFinance({ id: activeFinance.id, due_date: activeFinance.due_date || "" })} title="Alterar Data">
                             <Calendar className="w-4 h-4" />
@@ -624,27 +594,6 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
             <Button onClick={confirmPayment} disabled={savingPayment} className="w-full">
               {savingPayment ? "Salvando..." : "Confirmar pagamento"}
             </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showAdd} onOpenChange={setShowAdd}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader><DialogTitle>Lançar Cobrança Manual</DialogTitle></DialogHeader>
-          <div className="space-y-3 py-2">
-            <div><Label className="text-xs">Descrição *</Label><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Ex: Ajuste de Protocolo" className="mt-1 h-9 text-sm" /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label className="text-xs">Valor (R$)</Label><Input type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className="mt-1 h-9 text-sm" /></div>
-              <div><Label className="text-xs">Vencimento</Label><Input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} className="mt-1 h-9 text-sm" /></div>
-            </div>
-            <div>
-              <Label className="text-xs">Vincular Aluno</Label>
-              <Select value={form.student_id} onValueChange={(v) => setForm({ ...form, student_id: v })}>
-                <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                <SelectContent>{students.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <Button onClick={() => addFinance.mutate()} disabled={addFinance.isPending} className="w-full">Adicionar Lançamento</Button>
           </div>
         </DialogContent>
       </Dialog>
