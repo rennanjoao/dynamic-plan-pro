@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, DollarSign, Calendar, AlertTriangle, CheckCircle2, Users, Wallet, RefreshCw, ShieldOff, ShieldCheck, Eye } from "lucide-react";
+import { Loader2, Plus, Trash2, DollarSign, Calendar, AlertTriangle, CheckCircle2, Users, Wallet, ShieldOff, ShieldCheck, Eye } from "lucide-react";
 import { useCoachFinances } from "@/hooks/useCoachFinances";
 import { usePlatformBilling, worstPlatformStatus } from "@/hooks/usePlatformBilling";
 import type { StudentLite } from "@/hooks/useCoachStudents";

@@ -19,7 +19,6 @@ export function ProfileDialog({ coachId, open, onClose }: { coachId: string; ope
   const [pixKey, setPixKey] = useState("");
   const [pixHolderName, setPixHolderName] = useState("");
   const [pixCity, setPixCity] = useState("");
-  const [infinitepayHandle, setInfinitepayHandle] = useState("");
   const [billingAlertDays, setBillingAlertDays] = useState<number>(7);
   const [feedbackIntervalDays, setFeedbackIntervalDays] = useState<number>(7);
   const [loading, setLoading] = useState(false);
@@ -29,7 +28,7 @@ export function ProfileDialog({ coachId, open, onClose }: { coachId: string; ope
     if (!open || !coachId) return;
     supabase
       .from("profiles")
-      .select("full_name, team_name, invite_code, notification_email, support_whatsapp, pix_key, pix_holder_name, pix_city, infinitepay_handle, billing_alert_days, feedback_interval_days")
+      .select("full_name, team_name, invite_code, notification_email, support_whatsapp, pix_key, pix_holder_name, pix_city, billing_alert_days, feedback_interval_days")
       .eq("user_id", coachId)
       .maybeSingle()
       .then(({ data }) => {
@@ -41,7 +40,6 @@ export function ProfileDialog({ coachId, open, onClose }: { coachId: string; ope
         setPixKey((data as any)?.pix_key || "");
         setPixHolderName((data as any)?.pix_holder_name || "");
         setPixCity((data as any)?.pix_city || "");
-        setInfinitepayHandle((data as any)?.infinitepay_handle || "");
         setBillingAlertDays((data as any)?.billing_alert_days ?? 7);
         setFeedbackIntervalDays((data as any)?.feedback_interval_days ?? 7);
       });
@@ -90,7 +88,6 @@ export function ProfileDialog({ coachId, open, onClose }: { coachId: string; ope
         pix_key: pixKey,
         pix_holder_name: pixHolderName || null,
         pix_city: pixCity || null,
-        infinitepay_handle: infinitepayHandle.trim().replace(/^\$/, "") || null,
         billing_alert_days: billingAlertDays,
         feedback_interval_days: feedbackIntervalDays,
       }).eq("user_id", coachId);
@@ -163,11 +160,7 @@ export function ProfileDialog({ coachId, open, onClose }: { coachId: string; ope
             </div>
           </div>
 
-          <div>
-            <Label className="text-xs">Usuário InfinityPay</Label>
-            <Input value={infinitepayHandle} onChange={(e) => setInfinitepayHandle(e.target.value)} placeholder="Ex: seuhandle" className="mt-1 h-9 text-sm" />
-            <p className="text-[10px] text-muted-foreground mt-1">Opcional. Habilita o botão “Cobrar via InfinityPay” no Financeiro.</p>
-          </div>
+          
 
           <div>
             <Label className="text-xs text-emerald-600 font-bold">Intervalo de feedback</Label>
