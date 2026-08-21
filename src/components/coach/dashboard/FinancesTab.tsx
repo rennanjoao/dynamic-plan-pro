@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, DollarSign, Calendar, AlertTriangle, CheckCircle2, Users, Wallet, RefreshCw, ShieldOff, ShieldCheck, Eye } from "lucide-react";
+import { Loader2, Plus, Trash2, DollarSign, Calendar, AlertTriangle, CheckCircle2, Users, Wallet, ShieldOff, ShieldCheck, Eye } from "lucide-react";
 import { useCoachFinances } from "@/hooks/useCoachFinances";
 import { usePlatformBilling, worstPlatformStatus } from "@/hooks/usePlatformBilling";
 import type { StudentLite } from "@/hooks/useCoachStudents";
@@ -32,7 +32,7 @@ const sb: any = supabase;
 
 const PAYMENT_METHODS: { value: string; label: string }[] = [
   { value: "pix_plataforma", label: "PIX (pela plataforma)" },
-  { value: "pix_infinitepay", label: "PIX fora da plataforma" },
+  { value: "pix", label: "PIX fora da plataforma" },
   { value: "cartao", label: "Cartão" },
   { value: "dinheiro", label: "Dinheiro" },
   { value: "transferencia", label: "Transferência" },
@@ -80,15 +80,6 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
     }
   };
 
-  const { data: coachProfile } = useQuery({
-    queryKey: ["coach-infinitepay-handle", coachId],
-    enabled: !!coachId,
-    queryFn: async () => {
-      const { data } = await sb.from("profiles").select("infinitepay_handle").eq("user_id", coachId).maybeSingle();
-      return (data ?? null) as { infinitepay_handle: string | null } | null;
-    },
-  });
-  const hasInfinitePay = !!coachProfile?.infinitepay_handle;
 
   const { data: planCatalog = [] } = useStudentPlanCatalog(coachId);
   const { data: subscriptions = [] } = useCoachSubscriptions(coachId);
@@ -198,36 +189,21 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
     }
   };
 
-  const createInfinitePayLink = async (financeId: string) => {
+  /** Gera o link de checkout do Mercado Pago para uma cobrança existente. */
+  const createMercadoPagoLink = async (financeId: string) => {
     setBusyCheckout(financeId);
     try {
-      const { data, error } = await supabase.functions.invoke("infinitepay-create-link", {
-        body: { coach_id: coachId, finance_id: financeId },
+      const { data, error } = await supabase.functions.invoke("mercadopago-create-preference", {
+        body: { finance_id: financeId },
       });
       if (error) throw error;
       if (!data?.url) throw new Error(data?.error || "Não foi possível gerar o link");
       await navigator.clipboard.writeText(data.url).catch(() => undefined);
       window.open(data.url, "_blank", "noopener");
       qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
-      toast.success("Link InfinityPay gerado e copiado.");
+      toast.success("Link Mercado Pago gerado e copiado.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao gerar link");
-    } finally {
-      setBusyCheckout(null);
-    }
-  };
-
-  const checkInfinitePayPayment = async (financeId: string) => {
-    setBusyCheckout(financeId);
-    try {
-      const { data, error } = await supabase.functions.invoke("infinitepay-create-link", {
-        body: { coach_id: coachId, finance_id: financeId, action: "check" },
-      });
-      if (error) throw error;
-      qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
-      toast[data?.paid ? "success" : "info"](data?.paid ? "Pagamento confirmado!" : "Ainda sem pagamento confirmado.");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao verificar pagamento");
     } finally {
       setBusyCheckout(null);
     }
@@ -484,20 +460,11 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
                       </Button>
                       {student.isExempt ? null : activeFinance ? (
                         <div className="flex justify-end gap-1">
-                          {hasInfinitePay && (
-                            <>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
-                                disabled={busyCheckout === activeFinance.id}
-                                onClick={() => createInfinitePayLink(activeFinance.id)} title="Cobrar via InfinityPay">
-                                <Wallet className="w-4 h-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
-                                disabled={busyCheckout === activeFinance.id}
-                                onClick={() => checkInfinitePayPayment(activeFinance.id)} title="Verificar pagamento">
-                                <RefreshCw className="w-4 h-4" />
-                              </Button>
-                            </>
-                          )}
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
+                            disabled={busyCheckout === activeFinance.id}
+                            onClick={() => createMercadoPagoLink(activeFinance.id)} title="Cobrar via Mercado Pago">
+                            <Wallet className="w-4 h-4" />
+                          </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
                             onClick={() => setEditingFinance({ id: activeFinance.id, due_date: activeFinance.due_date || "" })} title="Alterar Data">
                             <Calendar className="w-4 h-4" />
