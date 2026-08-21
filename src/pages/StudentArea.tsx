@@ -414,7 +414,8 @@ export default function StudentArea() {
         .order("due_date", { ascending: true })
         .limit(1)
         .maybeSingle();
-      if (!finance?.due_date) return null;
+      // Cobranças zeradas (lançamentos automáticos sem valor) não viram alerta.
+      if (!finance?.due_date || Number(finance.amount ?? 0) <= 0) return null;
       const today   = new Date(); today.setHours(0, 0, 0, 0);
       const dueDate = new Date(finance.due_date); dueDate.setHours(0, 0, 0, 0);
       const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / 86400000);
@@ -746,7 +747,7 @@ export default function StudentArea() {
           const billingActive = !!billingAlert && !dismissedAlerts.includes(billingAlert.id);
           const billingNode = billingActive && billingAlert && (
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 relative shadow-sm">
-            <button onClick={() => dismissAlert(billingAlert.id)} className="absolute top-3 right-3 text-amber-600 hover:text-amber-700" aria-label="Fechar">
+            <button onClick={dismissBillingAlert} disabled={notifyingCoach} className="absolute top-3 right-3 text-amber-600 hover:text-amber-700 disabled:opacity-50" aria-label="Fechar">
               <X className="w-4 h-4" />
             </button>
             <div className="flex items-start gap-3">

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, DollarSign, Calendar, AlertTriangle, CheckCircle2, Users, Wallet, RefreshCw, ShieldOff, ShieldCheck } from "lucide-react";
+import { Loader2, Plus, Trash2, DollarSign, Calendar, AlertTriangle, CheckCircle2, Users, Wallet, RefreshCw, ShieldOff, ShieldCheck, Eye } from "lucide-react";
 import { useCoachFinances } from "@/hooks/useCoachFinances";
 import { usePlatformBilling, worstPlatformStatus } from "@/hooks/usePlatformBilling";
 import type { StudentLite } from "@/hooks/useCoachStudents";
@@ -64,6 +64,21 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
   const [payMethod, setPayMethod] = useState("pix_plataforma");
   const [savingPayment, setSavingPayment] = useState(false);
   const [busyCheckout, setBusyCheckout] = useState<string | null>(null);
+  const [busyRestore, setBusyRestore] = useState<string | null>(null);
+
+  /** Reexibe, no painel principal do aluno, uma cobrança que ele havia ocultado. */
+  const restoreBillingAlert = async (financeId: string) => {
+    setBusyRestore(financeId);
+    try {
+      const { error } = await sb.rpc("restore_billing_alert", { p_finance_id: financeId });
+      if (error) throw error;
+      toast.success("Cobrança voltará a aparecer no painel do aluno.");
+    } catch (e) {
+      toast.error("Não foi possível reexibir: " + (e instanceof Error ? e.message : "erro desconhecido"));
+    } finally {
+      setBusyRestore(null);
+    }
+  };
 
   const { data: coachProfile } = useQuery({
     queryKey: ["coach-infinitepay-handle", coachId],
@@ -486,6 +501,12 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
                             onClick={() => setEditingFinance({ id: activeFinance.id, due_date: activeFinance.due_date || "" })} title="Alterar Data">
                             <Calendar className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-amber-500"
+                            disabled={busyRestore === activeFinance.id}
+                            onClick={() => restoreBillingAlert(activeFinance.id)}
+                            title="Reexibir cobrança no painel do aluno">
+                            <Eye className="w-4 h-4" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-emerald-500"
                             onClick={() => { setPayMethod("pix_plataforma"); setPayDialog({ id: activeFinance.id, studentId: student.id, planSlug: activeFinance.plan_slug ?? null }); }} title="Marcar como Pago">

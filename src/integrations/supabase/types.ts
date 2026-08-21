@@ -2457,6 +2457,10 @@ export type Database = {
           status: string
         }[]
       }
+      restore_billing_alert: {
+        Args: { p_finance_id: string }
+        Returns: undefined
+      }
       revoke_access_code: { Args: { p_code_id: string }; Returns: undefined }
       save_protocol_with_plan: {
         Args: {
