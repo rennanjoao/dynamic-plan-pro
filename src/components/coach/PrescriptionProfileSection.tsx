@@ -10,9 +10,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import PrescriptionProfileHistoryDialog from "@/components/coach/PrescriptionProfileHistoryDialog";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
@@ -64,6 +65,7 @@ export default function PrescriptionProfileSection({ studentId }: { studentId: s
   const [limitations, setLimitations] = useState("");
   const [visual, setVisual] = useState("");
   const [sources, setSources] = useState<Record<string, SourceKind>>({});
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -146,10 +148,20 @@ export default function PrescriptionProfileSection({ studentId }: { studentId: s
                 </div>
               ) : (
                 <div className="space-y-5 pt-2">
-                  <p className="text-xs text-muted-foreground">
-                    Anotações do coach sobre o aluno. O aluno não vê esta ficha.
-                    O objetivo geral continua na Anamnese.
-                  </p>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      Anotações do coach sobre o aluno. O aluno não vê esta ficha.
+                      O objetivo geral continua na Anamnese.
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs shrink-0"
+                      onClick={() => setHistoryOpen(true)}
+                    >
+                      <History className="w-3 h-3 mr-1" /> Histórico
+                    </Button>
+                  </div>
 
                   {/* Prioridades */}
                   <div className="space-y-2">
@@ -270,6 +282,11 @@ export default function PrescriptionProfileSection({ studentId }: { studentId: s
           </AccordionItem>
         </Accordion>
       </CardContent>
+      <PrescriptionProfileHistoryDialog
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        studentId={studentId}
+      />
     </Card>
   );
 }
