@@ -168,8 +168,16 @@ Deno.serve(async (req) => {
     const amountCents: number =
       (finance!.amount_cents as number | null) ?? Math.round(Number(finance!.amount) * 100);
     if (!amountCents || amountCents <= 0) {
-      return json({ error: "Valor da cobrança inválido" }, 400, cors);
+      return json(
+        {
+          error:
+            "Esta cobrança está com valor R$ 0,00. Edite o valor (ou gere uma cobrança de plano) antes de criar o link do Mercado Pago.",
+        },
+        400,
+        cors,
+      );
     }
+
 
     // ------------------------------------------------------------- preferência
     const notificationUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/mercadopago-webhook`;
