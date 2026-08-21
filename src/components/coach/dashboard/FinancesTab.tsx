@@ -64,6 +64,21 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
   const [payMethod, setPayMethod] = useState("pix_plataforma");
   const [savingPayment, setSavingPayment] = useState(false);
   const [busyCheckout, setBusyCheckout] = useState<string | null>(null);
+  const [busyRestore, setBusyRestore] = useState<string | null>(null);
+
+  /** Reexibe, no painel principal do aluno, uma cobrança que ele havia ocultado. */
+  const restoreBillingAlert = async (financeId: string) => {
+    setBusyRestore(financeId);
+    try {
+      const { error } = await sb.rpc("restore_billing_alert", { p_finance_id: financeId });
+      if (error) throw error;
+      toast.success("Cobrança voltará a aparecer no painel do aluno.");
+    } catch (e) {
+      toast.error("Não foi possível reexibir: " + (e instanceof Error ? e.message : "erro desconhecido"));
+    } finally {
+      setBusyRestore(null);
+    }
+  };
 
   const { data: coachProfile } = useQuery({
     queryKey: ["coach-infinitepay-handle", coachId],
