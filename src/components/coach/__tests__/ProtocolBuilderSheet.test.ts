@@ -21,8 +21,8 @@ const SRC = readFileSync(
 );
 
 describe("ProtocolBuilder — painel de consulta (regressão)", () => {
-  it("usa lazy() para CheckinFeedbackPanel", () => {
-    expect(SRC).toMatch(/lazy\(\s*\(\)\s*=>\s*import\("\.\/CheckinFeedbackPanel"\)\s*\)/);
+  it("usa lazy()/lazyWithRetry() para CheckinFeedbackPanel", () => {
+    expect(SRC).toMatch(/lazy(WithRetry)?\(\s*\(\)\s*=>\s*import\("\.\/CheckinFeedbackPanel"\)\s*\)/);
   });
 
   it("renderiza CheckinFeedbackPanel dentro de <Suspense>", () => {
