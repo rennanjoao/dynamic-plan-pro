@@ -308,11 +308,66 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         previousActiveRef.current = existing.active ?? true;
       }
     } else if (!isLoading && existing === null) {
-      setSetupOpen(true);
+      // Criação: se houver rascunho local deste aluno, pergunta antes de
+      // abrir o setup do zero.
+      if (!localDraftDecidedRef.current) {
+        localDraftDecidedRef.current = true;
+        let saved: { name?: string; payload: unknown; savedAt?: number } | null = null;
+        try {
+          const raw = localStorage.getItem(localDraftKey);
+          if (raw) saved = JSON.parse(raw);
+        } catch { saved = null; }
+        if (saved?.payload) {
+          setLocalDraft(saved);
+          setLocalDraftOpen(true);
+          return;
+        }
+      }
+      if (!localDraftOpen) setSetupOpen(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existing, isLoading, studentName]);
 
   const isEditMode = !!protocolId;
+
+  // Persistência contínua (debounce 1s) do rascunho local em modo criação.
+  useEffect(() => {
+    if (isEditMode || !payload || !isDirty) return;
+    if (localDraftTimerRef.current) clearTimeout(localDraftTimerRef.current);
+    localDraftTimerRef.current = setTimeout(() => {
+      try {
+        localStorage.setItem(localDraftKey, JSON.stringify({ name, payload, savedAt: Date.now() }));
+      } catch { /* quota/privado */ }
+    }, 1000);
+    return () => {
+      if (localDraftTimerRef.current) clearTimeout(localDraftTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payload, name, isDirty, isEditMode]);
+
+  function resumeLocalDraft() {
+    const parsed = ProtocolPayloadSchema.safeParse(localDraft?.payload);
+    if (!parsed.success) {
+      toast.error("Rascunho corrompido — começando um protocolo novo");
+      clearLocalDraft();
+      setLocalDraftOpen(false);
+      setSetupOpen(true);
+      return;
+    }
+    setPayload(parsed.data);
+    setName(localDraft?.name?.trim() || `Protocolo — ${studentName}`);
+    setActive(true);
+    setIsDirty(true);
+    setLocalDraftOpen(false);
+    setSetupOpen(false);
+    toast.success("Rascunho restaurado");
+  }
+
+  function discardLocalDraft() {
+    clearLocalDraft();
+    setLocalDraftOpen(false);
+    setSetupOpen(true);
+  }
 
   // ─── Autosave em draft_payload ─────────────────────────────────────────
   // Só roda em modo edição de um protocolo já existente. Nunca toca em `payload`.
