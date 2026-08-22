@@ -170,9 +170,33 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
   };
 
   /** Gera o link de checkout do Mercado Pago para uma cobrança existente. */
-  const createMercadoPagoLink = async (financeId: string) => {
+  const createMercadoPagoLink = async (financeId: string, studentId: string) => {
     setBusyCheckout(financeId);
     try {
+      // Se o plano marcado na coluna "Plano" for diferente do que está
+      // congelado nessa cobrança pendente, sincroniza o valor ANTES de gerar
+      // o link — senão o link sai com o preço de quando a cobrança foi
+      // criada, ignorando qualquer troca feita depois no seletor.
+      const slug = rowPlan(studentId);
+      const plan = slug !== "none" ? planCatalog.find((p) => p.slug === slug) : null;
+      const activeF = finances.find((f) => f.id === financeId);
+      if (plan && activeF && activeF.plan_slug !== plan.slug) {
+        const { error: syncErr } = await supabase
+          .from("coach_finances")
+          .update({
+            description: `Plano ${plan.name}`,
+            amount: centsToAmount(plan.price_cents),
+            amount_cents: plan.price_cents,
+            plan_slug: plan.slug,
+            plan_cycle_months: plan.duration_months,
+            plan_name_snapshot: plan.name,
+          })
+          .eq("id", financeId)
+          .eq("status", "pending"); // nunca reescreve uma cobrança já paga
+        if (syncErr) throw syncErr;
+        qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
+      }
+
       const { data, error } = await supabase.functions.invoke("mercadopago-create-preference", {
         body: { finance_id: financeId },
       });
@@ -448,7 +472,7 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
                         <div className="flex justify-end gap-1">
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
                             disabled={busyCheckout === activeFinance.id}
-                            onClick={() => createMercadoPagoLink(activeFinance.id)} title="Cobrar via Mercado Pago">
+                            onClick={() => createMercadoPagoLink(activeFinance.id, student.id)} title="Cobrar via Mercado Pago">
                             <Wallet className="w-4 h-4" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
