@@ -1082,7 +1082,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                   key={opt.key}
                   type="button"
                   onClick={() => {
-                    const originalName = (day?.exercises ?? [])[currentExIdx]?.name ?? currentEx?.name;
+                    const originalName = dayExercises[currentExIdx]?.name ?? currentEx?.name;
                     setSwapMap((prev) => ({ ...prev, [currentExKey]: { name: opt.displayName, gifKey: opt.key } }));
                     setShowSwap(false);
                     toast.success(`Exercício trocado por ${opt.displayName}`);
