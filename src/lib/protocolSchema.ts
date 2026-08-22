@@ -43,6 +43,10 @@ export const ExerciseSchema = z.object({
   // Opcional e vazio por padrão: quando vazio, o aluno mantém o comportamento
   // atual de troca livre por grupo muscular no Modo Treino.
   allowed_substitutes: z.array(z.string()).optional().default([]),
+  // Mobilidade/alongamento: exercícios marcados NÃO entram na lista principal
+  // do treino do aluno — são exibidos num bloco separado ("Mobilidade e
+  // Alongamento"). Itens antigos, sem o campo, seguem como treino de força.
+  is_mobility: z.boolean().optional().default(false),
   // Identificador estável do item para drag-and-drop no builder.
   // Gerado on-the-fly quando o exercício é criado; backfilled em cargas
   // antigas. NÃO participa da lógica de treino/sessões (workout_key é a
@@ -339,7 +343,7 @@ export type MealFoodItem = z.infer<typeof MealFoodItemSchema>;
 export type CardioRow = z.infer<typeof CardioSchema>;
 export type SupplementRow = z.infer<typeof SupplementSchema>;
 
-export function makeEmptyExercise(): z.infer<typeof ExerciseSchema> {
+export function makeEmptyExercise(opts?: { isMobility?: boolean }): z.infer<typeof ExerciseSchema> {
   return {
     name: "",
     sets: "",
@@ -347,6 +351,7 @@ export function makeEmptyExercise(): z.infer<typeof ExerciseSchema> {
     cadence: "",
     rest: "",
     notes: "",
+    is_mobility: !!opts?.isMobility,
     __id: (typeof crypto !== "undefined" && crypto.randomUUID)
       ? crypto.randomUUID()
       : `ex_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`,
