@@ -127,13 +127,17 @@ Deno.serve(async (req) => {
         subscriptionId = created.id;
       }
 
-      // Regra: no máximo uma cobrança Mercado Pago pendente por aluno.
+      // Regra: no máximo uma cobrança pendente por aluno — cancela qualquer
+      // pendência anterior (inclusive as geradas manualmente pelo coach, que
+      // nascem sem "provider" definido), não só as já criadas via Mercado
+      // Pago. Sem isso, duas pendências ficam abertas ao mesmo tempo e o
+      // painel do coach só mostra uma (a de vencimento mais próximo) —
+      // a outra fica invisível, com risco real de cobrança duplicada.
       await admin
         .from("coach_finances")
         .update({ status: "canceled" })
         .eq("student_id", studentId)
-        .eq("status", "pending")
-        .eq("provider", "mercadopago");
+        .eq("status", "pending");
 
       const dueDate = new Date().toISOString().slice(0, 10);
       const { data: charge, error: chargeErr } = await admin
@@ -178,6 +182,25 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Link estável por cobrança: se já existe um checkout gerado pra essa
+    // pendência, devolve o mesmo em vez de criar uma preferência nova a cada
+    // clique. O front limpa `checkout_url` sempre que o valor/plano muda
+    // (ver FinancesTab), então isso nunca serve um link com preço errado.
+    if (finance!.checkout_url && finance!.status === "pending") {
+      return json({ url: finance!.checkout_url as string, finance_id: finance!.id, reused: true }, 200, cors);
+    }
+
+    // Nome do aluno, pra aparecer no item do checkout (mesma prioridade de
+    // fonte usada no resto do app: student_profiles antes de profiles).
+    let studentLabel = "";
+    if (finance!.student_id) {
+      const [{ data: sp }, { data: pp }] = await Promise.all([
+        admin.from("student_profiles").select("full_name").eq("user_id", finance!.student_id as string).maybeSingle(),
+        admin.from("profiles").select("full_name").eq("user_id", finance!.student_id as string).maybeSingle(),
+      ]);
+      studentLabel = (sp?.full_name || pp?.full_name || "").trim();
+    }
+
 
     // ------------------------------------------------------------- preferência
     const notificationUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/mercadopago-webhook`;
@@ -185,7 +208,9 @@ Deno.serve(async (req) => {
       items: [
         {
           id: String(finance!.id),
-          title: String(finance!.plan_name_snapshot || finance!.description || "Mensalidade"),
+          title: studentLabel
+            ? `${studentLabel} — ${String(finance!.plan_name_snapshot || finance!.description || "Mensalidade")}`
+            : String(finance!.plan_name_snapshot || finance!.description || "Mensalidade"),
           quantity: 1,
           currency_id: "BRL",
           unit_price: amountCents / 100,
