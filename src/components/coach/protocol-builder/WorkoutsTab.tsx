@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import {
   Plus, Trash2, ArrowUp, ArrowDown, ChevronDown, CheckCircle2, GripVertical, Activity,
+  StretchHorizontal,
 } from "lucide-react";
 import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
 import { ExerciseSubstitutesPopover } from "@/components/coach/ExerciseSubstitutesPopover";
@@ -73,12 +74,21 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
 
   const updDay = (idx: number, patch: Partial<ProtocolPayload["workouts"][number]>) => { const n = [...payload.workouts]; n[idx] = { ...n[idx], ...patch }; setPayload({ ...payload, workouts: n }); };
   const updEx = (di: number, ei: number, patch: any) => { const n = [...payload.workouts]; const exs = [...n[di].exercises]; exs[ei] = { ...exs[ei], ...patch }; n[di] = { ...n[di], exercises: exs }; setPayload({ ...payload, workouts: n }); };
-  const moveExercise = (di: number, ei: number, direction: "up" | "down") => {
+  // Move um item de força para a posição do vizinho de FORÇA (ignorando itens
+  // de mobilidade que possam estar entre eles no array completo).
+  const swapStrength = (
+    di: number,
+    strengthList: Array<{ ex: any; ei: number }>,
+    si: number,
+    direction: "up" | "down",
+  ) => {
+    const targetSi = direction === "up" ? si - 1 : si + 1;
+    if (targetSi < 0 || targetSi >= strengthList.length) return;
+    const a = strengthList[si].ei;
+    const b = strengthList[targetSi].ei;
     const n = [...payload.workouts];
     const exs = [...n[di].exercises];
-    const targetIdx = direction === "up" ? ei - 1 : ei + 1;
-    if (targetIdx < 0 || targetIdx >= exs.length) return;
-    [exs[ei], exs[targetIdx]] = [exs[targetIdx], exs[ei]];
+    [exs[a], exs[b]] = [exs[b], exs[a]];
     n[di] = { ...n[di], exercises: exs };
     setPayload({ ...payload, workouts: n });
   };
@@ -88,15 +98,30 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+  // Separa força (lista principal) de mobilidade/alongamento, preservando o
+  // índice original de cada item no array `exercises` (usado por updEx).
+  const splitExercises = (day: ProtocolPayload["workouts"][number]) => {
+    const strength: Array<{ ex: any; ei: number }> = [];
+    const mobility: Array<{ ex: any; ei: number }> = [];
+    (day.exercises as any[]).forEach((ex, ei) => {
+      (ex?.is_mobility ? mobility : strength).push({ ex, ei });
+    });
+    return { strength, mobility };
+  };
   const handleDragEnd = (di: number, event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     const exs = payload.workouts[di].exercises as any[];
-    const ids = exs.map((e, i) => e.__id ?? `${payload.workouts[di].key}-${i}`);
+    const { strength } = splitExercises(payload.workouts[di]);
+    const ids = strength.map(({ ex, ei }) => ex.__id ?? `${payload.workouts[di].key}-${ei}`);
     const oldIndex = ids.indexOf(String(active.id));
     const newIndex = ids.indexOf(String(over.id));
     if (oldIndex < 0 || newIndex < 0) return;
-    const nextExs = arrayMove(exs, oldIndex, newIndex);
+    // Reordena apenas os itens de força, mantendo as posições ocupadas por
+    // mobilidade intactas dentro do array completo.
+    const reordered = arrayMove(strength.map((s) => s.ex), oldIndex, newIndex);
+    const nextExs = [...exs];
+    strength.forEach(({ ei }, k) => { nextExs[ei] = reordered[k]; });
     const n = [...payload.workouts];
     n[di] = { ...n[di], exercises: nextExs };
     setPayload({ ...payload, workouts: n });
@@ -191,7 +216,9 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
         </div>
       </Card>
 
-      {payload.workouts.map((day, di) => (
+      {payload.workouts.map((day, di) => {
+      const { strength: strengthList, mobility: mobilityList } = splitExercises(day);
+      return (
         <Card key={day.key} className="bg-card/60 border-border p-4">
           <div className="flex items-center gap-3 mb-3">
             <div className="flex flex-col -my-1">
@@ -272,7 +299,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
             </div>
           )}
           <div className="space-y-2">
-            {day.exercises.length > 0 && (
+            {strengthList.length > 0 && (
               <div className={cn(
                 "hidden md:grid gap-2 px-1 pb-1",
                 periodOn && !overrideOpen[di]
@@ -301,10 +328,10 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
               onDragEnd={(e) => handleDragEnd(di, e)}
             >
               <SortableContext
-                items={day.exercises.map((e: any, i) => e.__id ?? `${day.key}-${i}`)}
+                items={strengthList.map(({ ex, ei }) => (ex as any).__id ?? `${day.key}-${ei}`)}
                 strategy={verticalListSortingStrategy}
               >
-            {day.exercises.map((ex, ei) => {
+            {strengthList.map(({ ex, ei }, si) => {
               const w1 = payload.periodization?.weeks?.[0];
               // Quando periodização ativa, pré-preenche campos vazios com valores da Semana 1
               const effSets    = ex.sets    || (periodOn && w1?.sets    ? w1.sets    : "");
@@ -363,8 +390,8 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                   </button>
                   <button
                     type="button"
-                    onClick={() => moveExercise(di, ei, "up")}
-                    disabled={ei === 0}
+                    onClick={() => swapStrength(di, strengthList, si, "up")}
+                    disabled={si === 0}
                     className="text-muted-foreground hover:text-primary p-1 disabled:opacity-30"
                     title="Mover para cima"
                   >
@@ -372,8 +399,8 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                   </button>
                   <button
                     type="button"
-                    onClick={() => moveExercise(di, ei, "down")}
-                    disabled={ei === day.exercises.length - 1}
+                    onClick={() => swapStrength(di, strengthList, si, "down")}
+                    disabled={si === strengthList.length - 1}
                     className="text-muted-foreground hover:text-primary p-1 disabled:opacity-30"
                     title="Mover para baixo"
                   >
@@ -387,8 +414,47 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
             })}
               </SortableContext>
             </DndContext>
+            {/* ── Mobilidade / Alongamento (bloco isolado do treino de força) ── */}
+            {mobilityList.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-dashed border-sky-500/40 space-y-2">
+                <p className="text-xs font-bold text-sky-500 flex items-center gap-1.5">
+                  <StretchHorizontal className="w-3.5 h-3.5" /> Mobilidade e Alongamento
+                  <span className="font-normal text-[10px] text-muted-foreground">— exibido em bloco separado para o aluno</span>
+                </p>
+                {mobilityList.map(({ ex, ei }) => (
+                  <div key={(ex as any).__id ?? `mob-${ei}`} className="grid grid-cols-1 md:grid-cols-[1.8fr_0.8fr_0.8fr_1.4fr_auto] gap-2 items-center rounded-lg border border-sky-500/20 bg-sky-500/5 p-2">
+                    <ExercisePickerInput
+                      value={ex.name}
+                      gifKey={(ex as any).gifKey}
+                      onChange={(patch) => updEx(di, ei, patch)}
+                      placeholder="Ex: Mobilidade de quadril"
+                    />
+                    <Input value={ex.sets ?? ""} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder="Séries (Ex: 2)" className="h-8 text-xs" />
+                    <Input value={ex.reps ?? ""} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder="Tempo/Reps (Ex: 30s)" className="h-8 text-xs" />
+                    <Input value={ex.notes ?? ""} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-xs" />
+                    <button
+                      type="button"
+                      onClick={() => updDay(di, { exercises: day.exercises.filter((_, i) => i !== ei) })}
+                      className="text-muted-foreground hover:text-destructive p-1.5 justify-self-end"
+                      title="Remover mobilidade"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-2 mt-1">
               <Button size="sm" variant="outline" onClick={() => updDay(di, { exercises: [...day.exercises, makeEmptyExercise()] })} className="h-7 text-xs"><Plus className="w-3 h-3 mr-1" /> Exercício</Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => updDay(di, { exercises: [...day.exercises, makeEmptyExercise({ isMobility: true })] })}
+                className="h-7 text-xs border-sky-500/50 text-sky-500 hover:bg-sky-500/10 hover:text-sky-400"
+              >
+                <StretchHorizontal className="w-3 h-3 mr-1" /> Adicionar Mobilidade
+              </Button>
               <Button
                 size="sm"
                 variant="outline"
@@ -496,7 +562,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
             )}
           </div>
         </Card>
-      ))}
+      ); })}
       {/* ── Card especial: Descanso (key reservada "REST") ── */}
       <Card className="bg-card/40 border-dashed border-border/60 p-4">
         <div className="flex items-center gap-3 mb-2">

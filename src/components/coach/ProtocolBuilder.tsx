@@ -203,6 +203,20 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const payloadRef = useRef<ProtocolPayload | null>(null);
   useEffect(() => { payloadRef.current = payload; }, [payload]);
 
+  // ─── Rascunho local (localStorage) para PROTOCOLO NOVO ───────────────────
+  // Protocolos já existentes têm autosave em `draft_payload` no banco; a
+  // criação não tem linha para salvar, então o rascunho vive no navegador.
+  const localDraftKey = `draft_protocol_${studentId}`;
+  const [localDraft, setLocalDraft] = useState<{ name?: string; payload: unknown; savedAt?: number } | null>(null);
+  const [localDraftOpen, setLocalDraftOpen] = useState(false);
+  const localDraftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const localDraftDecidedRef = useRef(false);
+
+  const clearLocalDraft = () => {
+    try { localStorage.removeItem(localDraftKey); } catch { /* quota/privado */ }
+    setLocalDraft(null);
+  };
+
   const tabLabel: Record<typeof activeTab, string> = {
     macros: "Macros",
     guidelines: "Diretrizes",
@@ -294,11 +308,66 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         previousActiveRef.current = existing.active ?? true;
       }
     } else if (!isLoading && existing === null) {
-      setSetupOpen(true);
+      // Criação: se houver rascunho local deste aluno, pergunta antes de
+      // abrir o setup do zero.
+      if (!localDraftDecidedRef.current) {
+        localDraftDecidedRef.current = true;
+        let saved: { name?: string; payload: unknown; savedAt?: number } | null = null;
+        try {
+          const raw = localStorage.getItem(localDraftKey);
+          if (raw) saved = JSON.parse(raw);
+        } catch { saved = null; }
+        if (saved?.payload) {
+          setLocalDraft(saved);
+          setLocalDraftOpen(true);
+          return;
+        }
+      }
+      if (!localDraftOpen) setSetupOpen(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existing, isLoading, studentName]);
 
   const isEditMode = !!protocolId;
+
+  // Persistência contínua (debounce 1s) do rascunho local em modo criação.
+  useEffect(() => {
+    if (isEditMode || !payload || !isDirty) return;
+    if (localDraftTimerRef.current) clearTimeout(localDraftTimerRef.current);
+    localDraftTimerRef.current = setTimeout(() => {
+      try {
+        localStorage.setItem(localDraftKey, JSON.stringify({ name, payload, savedAt: Date.now() }));
+      } catch { /* quota/privado */ }
+    }, 1000);
+    return () => {
+      if (localDraftTimerRef.current) clearTimeout(localDraftTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payload, name, isDirty, isEditMode]);
+
+  function resumeLocalDraft() {
+    const parsed = ProtocolPayloadSchema.safeParse(localDraft?.payload);
+    if (!parsed.success) {
+      toast.error("Rascunho corrompido — começando um protocolo novo");
+      clearLocalDraft();
+      setLocalDraftOpen(false);
+      setSetupOpen(true);
+      return;
+    }
+    setPayload(parsed.data);
+    setName(localDraft?.name?.trim() || `Protocolo — ${studentName}`);
+    setActive(true);
+    setIsDirty(true);
+    setLocalDraftOpen(false);
+    setSetupOpen(false);
+    toast.success("Rascunho restaurado");
+  }
+
+  function discardLocalDraft() {
+    clearLocalDraft();
+    setLocalDraftOpen(false);
+    setSetupOpen(true);
+  }
 
   // ─── Autosave em draft_payload ─────────────────────────────────────────
   // Só roda em modo edição de um protocolo já existente. Nunca toca em `payload`.
@@ -592,6 +661,9 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         p_water:       parsed.macros?.water ?? 2.5,
       });
       if (rpcError) throw rpcError;
+      // Salvou no banco com sucesso → o rascunho local não é mais necessário.
+      if (localDraftTimerRef.current) clearTimeout(localDraftTimerRef.current);
+      clearLocalDraft();
 
       if (isEditMode && protocolId) {
         if (!opts.asDraft) setHasDraft(false);
@@ -909,6 +981,25 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
           </div>
         </>
       )}
+
+      {/* Recuperação de rascunho local (protocolo novo, não salvo no banco) */}
+      <Dialog open={localDraftOpen} onOpenChange={() => { /* bloqueante: exige escolha */ }}>
+        <DialogContent className="sm:max-w-[420px]" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>Rascunho não salvo</DialogTitle>
+            <DialogDescription className="text-xs">
+              Foi encontrado um rascunho não salvo para este aluno
+              {localDraft?.savedAt
+                ? ` (${new Date(localDraft.savedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })})`
+                : ""}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 pt-2">
+            <Button onClick={resumeLocalDraft} className="w-full">Continuar de onde parei</Button>
+            <Button variant="outline" onClick={discardLocalDraft} className="w-full">Descartar alterações</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={setupOpen} onOpenChange={setSetupOpen}>
         <DialogContent className="sm:max-w-[440px]">

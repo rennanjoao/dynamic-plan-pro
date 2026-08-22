@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, AlertTriangle, Activity, Info, History, CalendarClock } from "lucide-react";
+import { ArrowLeft, AlertTriangle, Activity, Info, History, CalendarClock, StretchHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +53,41 @@ function InfoPopover({ termKey }: { termKey: keyof typeof TERM_INFO }) {
 }
 
 const WORKOUT_MODE_UI_KEY = (uid: string) => `workout_mode_ui_${uid}`;
+
+/**
+ * Bloco discreto e expansível com os exercícios marcados como mobilidade /
+ * alongamento. Fica fora da lista principal do treino para não poluir a
+ * sequência de exercícios de força.
+ */
+function MobilityBlock({ exercises }: { exercises: any[] }) {
+  const mobility = exercises.filter((ex) => ex?.is_mobility);
+  if (mobility.length === 0) return null;
+  return (
+    <Accordion type="single" collapsible className="mt-4">
+      <AccordionItem value="mobility" className="border border-sky-500/30 bg-sky-500/5 rounded-lg overflow-hidden">
+        <AccordionTrigger className="px-3 py-2.5 hover:no-underline">
+          <span className="flex items-center gap-2 text-sm font-semibold text-sky-500">
+            <StretchHorizontal className="w-4 h-4" />
+            Mobilidade e Alongamento
+            <Badge variant="outline" className="text-[10px] border-sky-500/40 text-sky-500">{mobility.length}</Badge>
+          </span>
+        </AccordionTrigger>
+        <AccordionContent className="px-3 pb-3 space-y-2">
+          {mobility.map((ex: any, i: number) => (
+            <div key={i} className="bg-background/70 border border-border/50 rounded-md p-2.5">
+              <p className="text-sm font-semibold text-foreground">{ex.name}</p>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {ex.sets && <Badge variant="secondary" className="text-[10px]">{ex.sets} séries</Badge>}
+                {ex.reps && <Badge variant="secondary" className="text-[10px]">{ex.reps}</Badge>}
+              </div>
+              {ex.notes && <p className="text-[11px] text-muted-foreground italic mt-1.5">{ex.notes}</p>}
+            </div>
+          ))}
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+  );
+}
 
 export default function WorkoutPlan() {
   const navigate = useNavigate();
@@ -287,8 +322,9 @@ export default function WorkoutPlan() {
             </div>
           </AccordionTrigger>
           <AccordionContent className="px-4 pb-4 border-t border-border/40">
+            <MobilityBlock exercises={Array.isArray(day.exercises) ? day.exercises : []} />
             <div className="space-y-4 mt-4">
-              {Array.isArray(day.exercises) && day.exercises.map((ex: any, idx: number) => (
+              {Array.isArray(day.exercises) && day.exercises.filter((ex: any) => !ex?.is_mobility).map((ex: any, idx: number) => (
                 <div
                   key={idx}
                   id={`workout-${day.key}-exercise-${slug(ex.name)}`}
