@@ -289,7 +289,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
             </div>
           )}
           <div className="space-y-2">
-            {day.exercises.length > 0 && (
+            {strengthList.length > 0 && (
               <div className={cn(
                 "hidden md:grid gap-2 px-1 pb-1",
                 periodOn && !overrideOpen[di]
@@ -318,10 +318,10 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
               onDragEnd={(e) => handleDragEnd(di, e)}
             >
               <SortableContext
-                items={day.exercises.map((e: any, i) => e.__id ?? `${day.key}-${i}`)}
+                items={strengthList.map(({ ex, ei }) => (ex as any).__id ?? `${day.key}-${ei}`)}
                 strategy={verticalListSortingStrategy}
               >
-            {day.exercises.map((ex, ei) => {
+            {strengthList.map(({ ex, ei }, si) => {
               const w1 = payload.periodization?.weeks?.[0];
               // Quando periodização ativa, pré-preenche campos vazios com valores da Semana 1
               const effSets    = ex.sets    || (periodOn && w1?.sets    ? w1.sets    : "");
