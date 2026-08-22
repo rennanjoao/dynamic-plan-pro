@@ -15,6 +15,8 @@ export interface FinanceRecord {
   payment_method?: string | null;
   checkout_url?: string | null;
   plan_slug?: string | null;
+  subscription_id?: string | null;
+  cycle_number?: number | null;
 }
 
 export function useCoachFinances(coachId: string | null) {
