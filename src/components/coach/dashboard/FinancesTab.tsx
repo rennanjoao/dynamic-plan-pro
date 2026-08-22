@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, DollarSign, Calendar, AlertTriangle, CheckCircle2, Users, Wallet, ShieldOff, ShieldCheck, Eye } from "lucide-react";
+import { Loader2, Plus, Trash2, DollarSign, Calendar, AlertTriangle, CheckCircle2, Users, Wallet, ShieldOff, ShieldCheck, Eye, Copy } from "lucide-react";
 import { useCoachFinances } from "@/hooks/useCoachFinances";
 import { usePlatformBilling, worstPlatformStatus } from "@/hooks/usePlatformBilling";
 import type { StudentLite } from "@/hooks/useCoachStudents";
@@ -170,13 +170,14 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
   };
 
   /** Gera o link de checkout do Mercado Pago para uma cobrança existente. */
-  const createMercadoPagoLink = async (financeId: string, studentId: string) => {
+  /**
+   * Primeira vez que se cobra essa pendência: sincroniza o valor com o plano
+   * selecionado na linha (se mudou), gera o link no Mercado Pago e copia —
+   * nunca abre aba, o link é pro aluno, não pro coach conferir aqui.
+   */
+  const generateMercadoPagoLink = async (financeId: string, studentId: string) => {
     setBusyCheckout(financeId);
     try {
-      // Se o plano marcado na coluna "Plano" for diferente do que está
-      // congelado nessa cobrança pendente, sincroniza o valor ANTES de gerar
-      // o link — senão o link sai com o preço de quando a cobrança foi
-      // criada, ignorando qualquer troca feita depois no seletor.
       const slug = rowPlan(studentId);
       const plan = slug !== "none" ? planCatalog.find((p) => p.slug === slug) : null;
       const activeF = finances.find((f) => f.id === financeId);
@@ -190,11 +191,14 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
             plan_slug: plan.slug,
             plan_cycle_months: plan.duration_months,
             plan_name_snapshot: plan.name,
+            // Limpa o link antigo: se não limpar aqui, a edge function vai
+            // reaproveitar o link (e o preço) de antes da troca de plano.
+            checkout_url: null,
+            mercado_pago_preference_id: null,
           })
           .eq("id", financeId)
-          .eq("status", "pending"); // nunca reescreve uma cobrança já paga
+          .eq("status", "pending");
         if (syncErr) throw syncErr;
-        qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
       }
 
       const { data, error } = await supabase.functions.invoke("mercadopago-create-preference", {
@@ -203,9 +207,8 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
       if (error) throw error;
       if (!data?.url) throw new Error(data?.error || "Não foi possível gerar o link");
       await navigator.clipboard.writeText(data.url).catch(() => undefined);
-      window.open(data.url, "_blank", "noopener");
       qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
-      toast.success("Link Mercado Pago gerado e copiado.");
+      toast.success("Cobrança criada e link copiado — envie pro aluno.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao gerar link");
     } finally {
@@ -213,12 +216,38 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
     }
   };
 
+  /** Link já foi gerado antes: só copia de novo, sem chamar a MP nem criar nada. */
+  const copyMercadoPagoLink = async (url: string) => {
+    await navigator.clipboard.writeText(url).catch(() => undefined);
+    toast.success("Link copiado.");
+  };
+
   const deleteFinance = async (id: string) => {
     if (!(await confirm({ title: "Remover registro", description: "Remover registro financeiro?", destructive: true, confirmLabel: "Remover" }))) return;
     try {
+      // Se essa cobrança tinha uma assinatura vinculada, ela ficou marcada
+      // "pending" quando a cobrança foi criada — sem isso aqui, apagar a
+      // cobrança sem receber deixava a assinatura travada em pending pra
+      // sempre (o aluno continuava aparecendo com "plano" na coluna, mesmo
+      // sem nenhuma cobrança real por trás).
+      const target = finances.find((f) => f.id === id);
       const { error } = await supabase.from("coach_finances").delete().eq("id", id);
       if (error) throw error;
+
+      if (target?.subscription_id) {
+        if ((target.cycle_number ?? 1) <= 1) {
+          // Primeira contratação, nunca chegou a ser paga: sem histórico
+          // pra preservar, apaga a assinatura junto.
+          await supabase.from("student_subscriptions").delete().eq("id", target.subscription_id).eq("status", "pending");
+        } else {
+          // Era uma renovação: existia um período ativo antes dessa
+          // tentativa. Volta pro estado anterior em vez de ficar travado.
+          await supabase.from("student_subscriptions").update({ status: "active" }).eq("id", target.subscription_id).eq("status", "pending");
+        }
+      }
+
       qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
+      qc.invalidateQueries({ queryKey: ["coach-student-subscriptions"] });
     } catch (e) {
       toast.error("Erro ao remover: " + (e instanceof Error ? e.message : "erro desconhecido"));
     }
@@ -470,11 +499,28 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
                       </Button>
                       {student.isExempt ? null : activeFinance ? (
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
-                            disabled={busyCheckout === activeFinance.id}
-                            onClick={() => createMercadoPagoLink(activeFinance.id, student.id)} title="Cobrar via Mercado Pago">
-                            <Wallet className="w-4 h-4" />
-                          </Button>
+                          {activeFinance.checkout_url ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                              onClick={() => copyMercadoPagoLink(activeFinance.checkout_url!)}
+                              title="Cobrado — copiar link de novo"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-primary"
+                              disabled={busyCheckout === activeFinance.id}
+                              onClick={() => generateMercadoPagoLink(activeFinance.id, student.id)}
+                              title="Cobrar via Mercado Pago"
+                            >
+                              <Wallet className="w-4 h-4" />
+                            </Button>
+                          )}
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
                             onClick={() => setEditingFinance({ id: activeFinance.id, due_date: activeFinance.due_date || "" })} title="Alterar Data">
                             <Calendar className="w-4 h-4" />
