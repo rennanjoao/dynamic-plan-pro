@@ -513,7 +513,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
             )}
           </div>
         </Card>
-      ))}
+      ); })}
       {/* ── Card especial: Descanso (key reservada "REST") ── */}
       <Card className="bg-card/40 border-dashed border-border/60 p-4">
         <div className="flex items-center gap-3 mb-2">
