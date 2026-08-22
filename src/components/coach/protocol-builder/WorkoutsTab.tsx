@@ -404,8 +404,47 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
             })}
               </SortableContext>
             </DndContext>
+            {/* ── Mobilidade / Alongamento (bloco isolado do treino de força) ── */}
+            {mobilityList.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-dashed border-sky-500/40 space-y-2">
+                <p className="text-xs font-bold text-sky-500 flex items-center gap-1.5">
+                  <StretchHorizontal className="w-3.5 h-3.5" /> Mobilidade e Alongamento
+                  <span className="font-normal text-[10px] text-muted-foreground">— exibido em bloco separado para o aluno</span>
+                </p>
+                {mobilityList.map(({ ex, ei }) => (
+                  <div key={(ex as any).__id ?? `mob-${ei}`} className="grid grid-cols-1 md:grid-cols-[1.8fr_0.8fr_0.8fr_1.4fr_auto] gap-2 items-center rounded-lg border border-sky-500/20 bg-sky-500/5 p-2">
+                    <ExercisePickerInput
+                      value={ex.name}
+                      gifKey={(ex as any).gifKey}
+                      onChange={(patch) => updEx(di, ei, patch)}
+                      placeholder="Ex: Mobilidade de quadril"
+                    />
+                    <Input value={ex.sets ?? ""} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder="Séries (Ex: 2)" className="h-8 text-xs" />
+                    <Input value={ex.reps ?? ""} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder="Tempo/Reps (Ex: 30s)" className="h-8 text-xs" />
+                    <Input value={ex.notes ?? ""} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-xs" />
+                    <button
+                      type="button"
+                      onClick={() => updDay(di, { exercises: day.exercises.filter((_, i) => i !== ei) })}
+                      className="text-muted-foreground hover:text-destructive p-1.5 justify-self-end"
+                      title="Remover mobilidade"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-2 mt-1">
               <Button size="sm" variant="outline" onClick={() => updDay(di, { exercises: [...day.exercises, makeEmptyExercise()] })} className="h-7 text-xs"><Plus className="w-3 h-3 mr-1" /> Exercício</Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => updDay(di, { exercises: [...day.exercises, makeEmptyExercise({ isMobility: true })] })}
+                className="h-7 text-xs border-sky-500/50 text-sky-500 hover:bg-sky-500/10 hover:text-sky-400"
+              >
+                <StretchHorizontal className="w-3 h-3 mr-1" /> Adicionar Mobilidade
+              </Button>
               <Button
                 size="sm"
                 variant="outline"
