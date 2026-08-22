@@ -982,6 +982,25 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         </>
       )}
 
+      {/* Recuperação de rascunho local (protocolo novo, não salvo no banco) */}
+      <Dialog open={localDraftOpen} onOpenChange={() => { /* bloqueante: exige escolha */ }}>
+        <DialogContent className="sm:max-w-[420px]" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>Rascunho não salvo</DialogTitle>
+            <DialogDescription className="text-xs">
+              Foi encontrado um rascunho não salvo para este aluno
+              {localDraft?.savedAt
+                ? ` (${new Date(localDraft.savedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })})`
+                : ""}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 pt-2">
+            <Button onClick={resumeLocalDraft} className="w-full">Continuar de onde parei</Button>
+            <Button variant="outline" onClick={discardLocalDraft} className="w-full">Descartar alterações</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={setupOpen} onOpenChange={setSetupOpen}>
         <DialogContent className="sm:max-w-[440px]">
           <DialogHeader>
