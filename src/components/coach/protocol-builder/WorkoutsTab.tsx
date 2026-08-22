@@ -380,8 +380,8 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                   </button>
                   <button
                     type="button"
-                    onClick={() => moveExercise(di, ei, "up")}
-                    disabled={ei === 0}
+                    onClick={() => swapStrength(di, strengthList, si, "up")}
+                    disabled={si === 0}
                     className="text-muted-foreground hover:text-primary p-1 disabled:opacity-30"
                     title="Mover para cima"
                   >
@@ -389,8 +389,8 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                   </button>
                   <button
                     type="button"
-                    onClick={() => moveExercise(di, ei, "down")}
-                    disabled={ei === day.exercises.length - 1}
+                    onClick={() => swapStrength(di, strengthList, si, "down")}
+                    disabled={si === strengthList.length - 1}
                     className="text-muted-foreground hover:text-primary p-1 disabled:opacity-30"
                     title="Mover para baixo"
                   >
