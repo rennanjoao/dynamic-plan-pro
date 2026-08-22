@@ -74,15 +74,6 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
 
   const updDay = (idx: number, patch: Partial<ProtocolPayload["workouts"][number]>) => { const n = [...payload.workouts]; n[idx] = { ...n[idx], ...patch }; setPayload({ ...payload, workouts: n }); };
   const updEx = (di: number, ei: number, patch: any) => { const n = [...payload.workouts]; const exs = [...n[di].exercises]; exs[ei] = { ...exs[ei], ...patch }; n[di] = { ...n[di], exercises: exs }; setPayload({ ...payload, workouts: n }); };
-  const moveExercise = (di: number, ei: number, direction: "up" | "down") => {
-    const n = [...payload.workouts];
-    const exs = [...n[di].exercises];
-    const targetIdx = direction === "up" ? ei - 1 : ei + 1;
-    if (targetIdx < 0 || targetIdx >= exs.length) return;
-    [exs[ei], exs[targetIdx]] = [exs[targetIdx], exs[ei]];
-    n[di] = { ...n[di], exercises: exs };
-    setPayload({ ...payload, workouts: n });
-  };
   // Move um item de força para a posição do vizinho de FORÇA (ignorando itens
   // de mobilidade que possam estar entre eles no array completo).
   const swapStrength = (
