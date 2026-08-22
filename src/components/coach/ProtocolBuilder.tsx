@@ -661,6 +661,9 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         p_water:       parsed.macros?.water ?? 2.5,
       });
       if (rpcError) throw rpcError;
+      // Salvou no banco com sucesso → o rascunho local não é mais necessário.
+      if (localDraftTimerRef.current) clearTimeout(localDraftTimerRef.current);
+      clearLocalDraft();
 
       if (isEditMode && protocolId) {
         if (!opts.asDraft) setHasDraft(false);
