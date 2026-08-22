@@ -83,6 +83,24 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
     n[di] = { ...n[di], exercises: exs };
     setPayload({ ...payload, workouts: n });
   };
+  // Move um item de força para a posição do vizinho de FORÇA (ignorando itens
+  // de mobilidade que possam estar entre eles no array completo).
+  const swapStrength = (
+    di: number,
+    strengthList: Array<{ ex: any; ei: number }>,
+    si: number,
+    direction: "up" | "down",
+  ) => {
+    const targetSi = direction === "up" ? si - 1 : si + 1;
+    if (targetSi < 0 || targetSi >= strengthList.length) return;
+    const a = strengthList[si].ei;
+    const b = strengthList[targetSi].ei;
+    const n = [...payload.workouts];
+    const exs = [...n[di].exercises];
+    [exs[a], exs[b]] = [exs[b], exs[a]];
+    n[di] = { ...n[di], exercises: exs };
+    setPayload({ ...payload, workouts: n });
+  };
   // Sensors: só inicia drag após 5px de movimento p/ não interferir em cliques
   // nos botões (mover, deletar, picker de exercício, etc.).
   const sensors = useSensors(
