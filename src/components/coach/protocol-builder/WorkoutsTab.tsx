@@ -206,7 +206,9 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
         </div>
       </Card>
 
-      {payload.workouts.map((day, di) => (
+      {payload.workouts.map((day, di) => {
+      const { strength: strengthList, mobility: mobilityList } = splitExercises(day);
+      return (
         <Card key={day.key} className="bg-card/60 border-border p-4">
           <div className="flex items-center gap-3 mb-3">
             <div className="flex flex-col -my-1">
