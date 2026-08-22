@@ -428,6 +428,202 @@ export function optionMacros(option: any): Macros {
   };
 }
 
+// ─── Ajuste proporcional de gramagem (Op 2/3 conforme Op 1) ────────────────────
+
+export type OptionKind = "carb" | "protein" | "fat";
+
+/** Macro (do objeto Macros) que representa o papel nutricional de um `kind` de opção. */
+export function primaryMacroKeyForKind(kind: OptionKind): "protein" | "carbs" | "fat" {
+  return kind === "carb" ? "carbs" : kind === "protein" ? "protein" : "fat";
+}
+
+/**
+ * Macros por GRAMA (cru) de um item — só existe para itens vinculados a um
+ * alimento conhecido (TACO ou industrializado). Itens com `manualMacros`
+ * guardam um total fixo (não escalam com peso) e itens sem vínculo não têm
+ * base nutricional nenhuma, então ambos retornam null aqui.
+ */
+export function itemMacrosPerGram(item: any): Macros | null {
+  if (!item) return null;
+  if (item.isTaco === true || item.isIndustrial === true) {
+    const food = foodByName(item.baseName || item.name);
+    if (!food) return null;
+    return {
+      kcal: food.kcal / 100,
+      protein: food.p / 100,
+      carbs: food.c / 100,
+      fat: food.g / 100,
+    };
+  }
+  return null;
+}
+
+export interface ProportionalWeightItem {
+  index: number;
+  grams: number;
+  resolved: boolean;
+}
+
+export interface ProportionalWeightResult {
+  ok: boolean;
+  reason?: string;
+  items: ProportionalWeightItem[];
+  targetMacro: number;
+  targetKcal: number;
+}
+
+/**
+ * Sugere o peso cru de cada item de `targetOption` para que o total dessa
+ * opção bata o total da Opção 1 (`refOption`) da mesma refeição — reaproveitando
+ * a PROPORÇÃO de peso entre os itens da Opção 1.
+ *
+ * Exemplo: Opção 1 = Arroz 120g + Feijão 80g (60%/40%). Se a Opção 2 tiver
+ * Mandioca + Brócolis (sem peso definido ainda), o Brócolis herda a "fatia"
+ * de 40% e a Mandioca a de 60% — e a escala geral é resolvida para que a
+ * soma do macro do `kind` (carbo/proteína/gordura) bata o total da Opção 1.
+ *
+ * Regras de mapeamento quando a quantidade de itens difere entre as opções:
+ *  - menos itens no alvo → o(s) excedente(s) da referência é somado no
+ *    último item do alvo;
+ *  - mais itens no alvo → repete a última proporção da referência para os
+ *    itens extras;
+ *  - depois disso, normaliza para somar 100%.
+ * Itens do alvo sem alimento reconhecido ficam de fora do cálculo (peso não
+ * sugerido) e o restante é renormalizado só entre os itens resolvidos.
+ */
+export function suggestProportionalWeights(
+  refOption: any,
+  targetOption: any,
+  kind: OptionKind,
+): ProportionalWeightResult {
+  const macroKey = primaryMacroKeyForKind(kind);
+  const refItems: any[] = Array.isArray(refOption?.items) ? refOption.items : [];
+  const tgtItems: any[] = Array.isArray(targetOption?.items) ? targetOption.items : [];
+
+  const refWeights = refItems.map((it) => {
+    const perGram = itemMacrosPerGram(it);
+    const grams = typeof it?.rawWeight === "number" ? it.rawWeight : 0;
+    return perGram && grams > 0 ? grams : 0;
+  });
+  const refTotalWeight = refWeights.reduce((a, b) => a + b, 0);
+  if (refTotalWeight <= 0) {
+    return { ok: false, reason: "A Opção 1 desta refeição ainda não tem gramagens definidas.", items: [], targetMacro: 0, targetKcal: 0 };
+  }
+  const refProportions = refWeights.map((w) => w / refTotalWeight);
+
+  const n = tgtItems.length;
+  if (n === 0) {
+    return { ok: false, reason: "Adicione ao menos um alimento nesta opção.", items: [], targetMacro: 0, targetKcal: 0 };
+  }
+
+  let mapped: number[];
+  if (n === refProportions.length) {
+    mapped = [...refProportions];
+  } else if (n < refProportions.length) {
+    mapped = refProportions.slice(0, Math.max(0, n - 1));
+    const rest = refProportions.slice(Math.max(0, n - 1)).reduce((a, b) => a + b, 0);
+    mapped.push(rest);
+  } else {
+    mapped = [...refProportions];
+    const last = refProportions[refProportions.length - 1] ?? 1 / n;
+    while (mapped.length < n) mapped.push(last);
+  }
+  const mappedSum = mapped.reduce((a, b) => a + b, 0) || 1;
+  mapped = mapped.map((p) => p / mappedSum);
+
+  const perGramList = tgtItems.map((it) => itemMacrosPerGram(it));
+  const resolvedIdx = perGramList.map((p, i) => (p ? i : -1)).filter((i) => i >= 0);
+  if (resolvedIdx.length === 0) {
+    return { ok: false, reason: "Nenhum alimento desta opção foi reconhecido na TACO ainda.", items: [], targetMacro: 0, targetKcal: 0 };
+  }
+  const resolvedPropSum = resolvedIdx.reduce((s, i) => s + mapped[i], 0) || 1;
+
+  const refMacros = optionMacros(refOption);
+  const targetMacro = refMacros[macroKey];
+  const targetKcal = refMacros.kcal;
+
+  const scaledProp = (i: number) => mapped[i] / resolvedPropSum;
+
+  const denom = resolvedIdx.reduce((s, i) => s + scaledProp(i) * perGramList[i]![macroKey], 0);
+  let x = 0;
+  if (denom > 0) {
+    x = targetMacro / denom;
+  } else {
+    // Nenhum item contribui pro macro do `kind` (ex.: alimento de carbo puro
+    // faltando na base) — usa kcal como alvo alternativo pra não travar.
+    const denomKcal = resolvedIdx.reduce((s, i) => s + scaledProp(i) * perGramList[i]!.kcal, 0);
+    x = denomKcal > 0 ? targetKcal / denomKcal : 0;
+  }
+
+  const items: ProportionalWeightItem[] = tgtItems.map((_it, i) => {
+    if (!resolvedIdx.includes(i) || x <= 0) return { index: i, grams: 0, resolved: false };
+    const grams = Math.max(0, Math.round((scaledProp(i) * x) / 5) * 5);
+    return { index: i, grams, resolved: true };
+  });
+
+  return { ok: true, items, targetMacro, targetKcal };
+}
+
+export interface ScaleForMacroDeltaResult {
+  ok: boolean;
+  reason?: string;
+  items: Array<{ index: number; grams: number; resolved: boolean }>;
+}
+
+/**
+ * Escala as gramagens (peso cru) dos itens de `option` para ACRESCENTAR
+ * `deltaGrams` do macro `macroKey` ao total atual da opção, preservando a
+ * proporção de peso ATUAL entre os itens já reconhecidos (TACO/industrial).
+ *
+ * Usado para redistribuir pelas refeições a diferença entre a meta de macro
+ * (painel Macros) e o total já montado na dieta — sem trocar os alimentos,
+ * só ajustando a quantidade. `deltaGrams` pode ser negativo (reduzir).
+ * Itens sem alimento vinculado ou sem peso ficam de fora e mantêm o peso atual.
+ */
+export function scaleOptionForMacroDelta(
+  option: any,
+  macroKey: "protein" | "carbs" | "fat",
+  deltaGrams: number,
+): ScaleForMacroDeltaResult {
+  const items: any[] = Array.isArray(option?.items) ? option.items : [];
+  if (items.length === 0) return { ok: false, reason: "Sem alimentos nesta opção.", items: [] };
+
+  const perGramList = items.map((it) => itemMacrosPerGram(it));
+  const weights = items.map((it) => (typeof it?.rawWeight === "number" ? it.rawWeight : 0));
+  const resolvedIdx = perGramList
+    .map((p, i) => (p && weights[i] > 0 ? i : -1))
+    .filter((i) => i >= 0);
+
+  if (resolvedIdx.length === 0) {
+    return { ok: false, reason: "Nenhum alimento com peso reconhecido nesta opção.", items: [] };
+  }
+
+  const totalWeight = resolvedIdx.reduce((s, i) => s + weights[i], 0);
+  const proportions = resolvedIdx.map((i) => weights[i] / totalWeight);
+
+  const weightedMacroPerGram = resolvedIdx.reduce(
+    (s, i, k) => s + proportions[k] * perGramList[i]![macroKey],
+    0,
+  );
+  if (weightedMacroPerGram <= 0) {
+    return { ok: false, reason: "Os alimentos desta opção não contribuem para esse macro.", items: [] };
+  }
+
+  const extraFoodGrams = deltaGrams / weightedMacroPerGram;
+
+  const outItems = resolvedIdx.length
+    ? items.map((_it, i) => {
+        const k = resolvedIdx.indexOf(i);
+        if (k === -1) return { index: i, grams: weights[i] ?? 0, resolved: false };
+        const add = proportions[k] * extraFoodGrams;
+        const grams = Math.max(0, Math.round((weights[i] + add) / 5) * 5);
+        return { index: i, grams, resolved: true };
+      })
+    : [];
+
+  return { ok: true, items: outItems };
+}
+
 /** Limites de tolerância (delta percentual). */
 export const SUBSTITUTION_THRESHOLDS = {
   warnKcal: 0.10, warnMacro: 0.15,
