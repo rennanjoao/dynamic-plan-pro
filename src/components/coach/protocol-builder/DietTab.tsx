@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import {
   Plus, Trash2, ChevronDown, Copy, BookmarkPlus, Library, UtensilsCrossed, Pill,
   ArrowUp, ArrowDown, Eye, AlertCircle, Sparkles, CheckCircle2, Loader2, TrendingUp,
+  Wand2,
 } from "lucide-react";
 import { loadCoachProfile } from "@/lib/prescriptionMemory";
 import {
@@ -28,7 +29,7 @@ import {
 import { DAY_KEYS } from "@/lib/weekCycle";
 import {
   calcMealMacros, calcDayMacros, tacoGroupToKind, parseWeightString,
-  optionMacros, compareOptions, type SubstitutionSeverity,
+  optionMacros, compareOptions, suggestProportionalWeights, type SubstitutionSeverity,
 } from "@/lib/macroCalc";
 import { searchFoods, type FoodHit } from "@/lib/foodSearch";
 import { TACO_FOODS } from "@/data/tacoFoods";
@@ -124,6 +125,37 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
     if (target === -1) all.push({ kind, title: `Opção ${optIdx + 1}`, notes: "", items: [{ name: "", baseName: "", weight: "", rawWeight: 0, cookFactor: 1, isTaco: false }], ...patch });
     else all[target] = { ...all[target], ...patch };
     updMealField(mealIdx, { options: all as any });
+  }
+
+  // Ajusta a gramagem de uma opção (Op 2/3) para bater o mesmo total de
+  // kcal/macro da Opção 1, preservando a proporção de peso entre os itens
+  // da Opção 1. Ver suggestProportionalWeights() em macroCalc.ts.
+  function applyProportionalAdjust(mealIdx: number, kind: "carb" | "protein" | "fat", optIdx: number) {
+    const meal = payload.meals[mealIdx];
+    const opts = getOptsForKind(meal, kind);
+    const refOption = opts[0];
+    const targetOption = opts[optIdx];
+    if (!targetOption || optIdx === 0) return;
+
+    const result = suggestProportionalWeights(refOption, targetOption, kind);
+    if (!result.ok) {
+      toast.warning(result.reason || "Não foi possível calcular o ajuste automático.");
+      return;
+    }
+
+    const items = (targetOption.items as any[]).map((it, i) => {
+      const found = result.items.find((r) => r.index === i);
+      if (!found || !found.resolved) return it;
+      return { ...it, weight: `${found.grams}g`, rawWeight: found.grams };
+    });
+    updOption(mealIdx, kind, optIdx, { items });
+
+    const unresolvedCount = result.items.filter((r) => !r.resolved).length;
+    if (unresolvedCount > 0) {
+      toast.info(`Peso ajustado. ${unresolvedCount} alimento(s) não reconhecido(s) na TACO ficaram de fora do cálculo.`);
+    } else {
+      toast.success("Gramagem ajustada conforme a Opção 1.");
+    }
   }
 
   function addOption(mealIdx: number, kind: "carb" | "protein" | "fat") {
@@ -300,6 +332,16 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
                           <div className="flex items-center gap-1.5 mb-1.5">
                             <span className={`text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded ${cfg.bg} ${cfg.color} border ${cfg.border}`}>Op {optIdx + 1}</span>
                             <Input value={opt.title || ""} onChange={(e) => updOption(mealIdx, kind, optIdx, { title: e.target.value })} placeholder="Título (ex: versão off-season)" className="h-6 text-[11px] flex-1 bg-transparent border-0 border-b border-dashed rounded-none px-1" />
+                            {optIdx > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => applyProportionalAdjust(mealIdx, kind, optIdx)}
+                                className="shrink-0 text-[9px] px-1.5 py-0.5 rounded border border-dashed border-primary/40 text-primary/80 hover:bg-primary/10 hover:text-primary flex items-center gap-1"
+                                title="Calcula a gramagem de cada alimento desta opção proporcionalmente à Opção 1, batendo o mesmo total de kcal/macro"
+                              >
+                                <Wand2 className="w-3 h-3" /> Ajustar p/ Op 1
+                              </button>
+                            )}
                             {optIdx > 0 && (
                               <button type="button" onClick={() => removeOption(mealIdx, kind, optIdx)} className="text-muted-foreground hover:text-destructive p-0.5 shrink-0"><Trash2 className="w-3 h-3" /></button>
                             )}
