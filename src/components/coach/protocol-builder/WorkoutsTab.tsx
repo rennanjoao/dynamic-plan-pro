@@ -88,15 +88,30 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+  // Separa força (lista principal) de mobilidade/alongamento, preservando o
+  // índice original de cada item no array `exercises` (usado por updEx).
+  const splitExercises = (day: ProtocolPayload["workouts"][number]) => {
+    const strength: Array<{ ex: any; ei: number }> = [];
+    const mobility: Array<{ ex: any; ei: number }> = [];
+    (day.exercises as any[]).forEach((ex, ei) => {
+      (ex?.is_mobility ? mobility : strength).push({ ex, ei });
+    });
+    return { strength, mobility };
+  };
   const handleDragEnd = (di: number, event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     const exs = payload.workouts[di].exercises as any[];
-    const ids = exs.map((e, i) => e.__id ?? `${payload.workouts[di].key}-${i}`);
+    const { strength } = splitExercises(payload.workouts[di]);
+    const ids = strength.map(({ ex, ei }) => ex.__id ?? `${payload.workouts[di].key}-${ei}`);
     const oldIndex = ids.indexOf(String(active.id));
     const newIndex = ids.indexOf(String(over.id));
     if (oldIndex < 0 || newIndex < 0) return;
-    const nextExs = arrayMove(exs, oldIndex, newIndex);
+    // Reordena apenas os itens de força, mantendo as posições ocupadas por
+    // mobilidade intactas dentro do array completo.
+    const reordered = arrayMove(strength.map((s) => s.ex), oldIndex, newIndex);
+    const nextExs = [...exs];
+    strength.forEach(({ ei }, k) => { nextExs[ei] = reordered[k]; });
     const n = [...payload.workouts];
     n[di] = { ...n[di], exercises: nextExs };
     setPayload({ ...payload, workouts: n });
