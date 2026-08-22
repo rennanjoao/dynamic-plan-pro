@@ -209,14 +209,17 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
 
   const elapsedSec = Math.floor((now - startedAt) / 1000);
   const day = workouts.find((d: any) => d.key === (initialDay ?? workouts[0]?.key)) ?? workouts[0];
-  const exercises = (day?.exercises ?? []).map((ex: any, idx: number) => {
+  // Mobilidade/alongamento não entra no fluxo de séries do Modo Treino —
+  // é consultada no bloco separado da tela de plano.
+  const dayExercises = ((day?.exercises ?? []) as any[]).filter((ex: any) => !ex?.is_mobility);
+  const exercises = dayExercises.map((ex: any, idx: number) => {
     if (!isPeriodizationOn) return ex;
     const override = periodization?.overrides?.[String(activeWeek)]?.[`${day!.key}_${idx}`] ?? {};
     const wm = weeks[activeWeek];
     return { ...ex, sets: override.sets ?? wm.sets ?? ex.sets, reps: override.reps ?? wm.reps ?? ex.reps, rest: override.rest ?? wm.rest ?? ex.rest };
   }).map((ex: any, idx: number) => {
     const sw = swapMap[`${day?.key}::${idx}`];
-    return sw ? { ...ex, name: sw.name, gifKey: sw.gifKey, swappedFrom: (day?.exercises ?? [])[idx]?.name } : ex;
+    return sw ? { ...ex, name: sw.name, gifKey: sw.gifKey, swappedFrom: dayExercises[idx]?.name } : ex;
   });
 
   const currentEx = exercises[currentExIdx];
