@@ -203,6 +203,20 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const payloadRef = useRef<ProtocolPayload | null>(null);
   useEffect(() => { payloadRef.current = payload; }, [payload]);
 
+  // ─── Rascunho local (localStorage) para PROTOCOLO NOVO ───────────────────
+  // Protocolos já existentes têm autosave em `draft_payload` no banco; a
+  // criação não tem linha para salvar, então o rascunho vive no navegador.
+  const localDraftKey = `draft_protocol_${studentId}`;
+  const [localDraft, setLocalDraft] = useState<{ name?: string; payload: unknown; savedAt?: number } | null>(null);
+  const [localDraftOpen, setLocalDraftOpen] = useState(false);
+  const localDraftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const localDraftDecidedRef = useRef(false);
+
+  const clearLocalDraft = () => {
+    try { localStorage.removeItem(localDraftKey); } catch { /* quota/privado */ }
+    setLocalDraft(null);
+  };
+
   const tabLabel: Record<typeof activeTab, string> = {
     macros: "Macros",
     guidelines: "Diretrizes",
