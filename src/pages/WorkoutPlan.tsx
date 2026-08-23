@@ -9,19 +9,17 @@ import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ProtocolPayloadSchema } from "@/lib/protocolSchema";
 import ProtocolQuestionButton from "@/components/student/ProtocolQuestionButton";
 import WorkoutPeriodizationView from "@/components/student/WorkoutPeriodizationView";
 import WorkoutMode from "@/components/student/WorkoutMode";
 import WorkoutHistory from "@/components/student/WorkoutHistory";
-import { MobilityExerciseRow } from "@/components/student/MobilityExerciseRow";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useHighlightTarget } from "@/hooks/useHighlightTarget";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { slug } from "@/lib/slug";
 import WorkoutStrategyHeader from "@/components/student/WorkoutStrategyHeader";
+import { MobilityExerciseRow } from "@/components/student/MobilityExerciseRow";
+import { MobilitySuggestedDrawer } from "@/components/student/MobilitySuggestedDrawer";
 import { useCurrentPeriodizationWeek } from "@/hooks/useCurrentPeriodizationWeek";
 import { DEFAULT_WEEKS } from "@/lib/periodizationDefaults";
 import { useAuthUserId } from "@/hooks/useAuthUserId";
@@ -62,8 +60,8 @@ const WORKOUT_MODE_UI_KEY = (uid: string) => `workout_mode_ui_${uid}`;
 /**
  * Bloco embutido, logo acima dos exercícios de força: "Mobilidade pré-treino".
  * Fechado por padrão; ao abrir, mostra cada exercício com o gif de execução.
- * Usa o componente compartilhado MobilityExerciseRow (também usado no
- * modal/drawer "Mobilidade sugerida" aberto pelo WorkoutStrategyHeader).
+ * `MobilityExerciseRow` agora vive em seu próprio arquivo (compartilhado com
+ * o MobilitySuggestedDrawer acionado pelo header — ver import acima).
  */
 function MobilityBlock({ exercises }: { exercises: any[] }) {
   const mobility = exercises.filter((ex) => ex?.is_mobility);
@@ -103,9 +101,6 @@ export default function WorkoutPlan() {
   const queryClient = useQueryClient();
   useWakeLock(showWorkoutMode);
   useHighlightTarget();
-  // Decide Drawer (mobile) vs Dialog (desktop) para o modal "Mobilidade
-  // sugerida" abaixo — mesmo padrão do ExerciseVideoSheet.
-  const isMobile = useIsMobile();
 
   // Entrada em 1 toque a partir da Home: /workout-plan?start=<dayKey>
   useEffect(() => {
@@ -563,63 +558,18 @@ export default function WorkoutPlan() {
         </SheetContent>
       </Sheet>
 
-      {/* Modal "Mobilidade sugerida" — aberto pelo link no header
-          (WorkoutStrategyHeader). Mostra APENAS os exercícios de mobilidade
-          do treino de hoje; nunca os exercícios de força (já filtrados no
-          próprio header ao montar `mobilityDrawerExercises`). Drawer no
-          mobile / Dialog no desktop — mesmo padrão do ExerciseVideoSheet,
-          via useIsMobile(). */}
-      {isMobile ? (
-        <Drawer open={mobilityDrawerOpen} onOpenChange={setMobilityDrawerOpen}>
-          <DrawerContent className="max-h-[85vh] overflow-y-auto">
-            <DrawerHeader className="text-left">
-              <DrawerTitle className="flex items-center gap-2">
-                <StretchHorizontal className="w-4 h-4 text-sky-500" />
-                Mobilidade sugerida
-              </DrawerTitle>
-              <p className="text-xs text-muted-foreground">
-                Faça antes de iniciar o treino de hoje para preparar as articulações e reduzir risco de lesão.
-              </p>
-            </DrawerHeader>
-            <div className="px-4 pb-6 space-y-2">
-              {mobilityDrawerExercises.length === 0 ? (
-                <p className="text-sm text-muted-foreground italic py-6 text-center">
-                  Nenhum exercício de mobilidade cadastrado para hoje.
-                </p>
-              ) : (
-                mobilityDrawerExercises.map((ex: any, i: number) => (
-                  <MobilityExerciseRow key={ex?.__id ?? i} ex={ex} />
-                ))
-              )}
-            </div>
-          </DrawerContent>
-        </Drawer>
-      ) : (
-        <Dialog open={mobilityDrawerOpen} onOpenChange={setMobilityDrawerOpen}>
-          <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
-            <DialogHeader className="text-left">
-              <DialogTitle className="flex items-center gap-2">
-                <StretchHorizontal className="w-4 h-4 text-sky-500" />
-                Mobilidade sugerida
-              </DialogTitle>
-              <p className="text-xs text-muted-foreground">
-                Faça antes de iniciar o treino de hoje para preparar as articulações e reduzir risco de lesão.
-              </p>
-            </DialogHeader>
-            <div className="space-y-2">
-              {mobilityDrawerExercises.length === 0 ? (
-                <p className="text-sm text-muted-foreground italic py-6 text-center">
-                  Nenhum exercício de mobilidade cadastrado para hoje.
-                </p>
-              ) : (
-                mobilityDrawerExercises.map((ex: any, i: number) => (
-                  <MobilityExerciseRow key={ex?.__id ?? i} ex={ex} />
-                ))
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Modal/Drawer "Mobilidade sugerida" — aberto pelo link sutil no
+          header do card de treino (WorkoutStrategyHeader). Mostra APENAS os
+          exercícios de mobilidade do treino de hoje (já filtrados pelo
+          header ao montar `mobilityDrawerExercises`); a lista de exercícios
+          do treino principal, logo acima, já exclui esses itens — sem
+          duplicação. Drawer no mobile / Dialog no desktop, mesmo padrão de
+          ExerciseVideoSheet.tsx usado em WorkoutMode.tsx. */}
+      <MobilitySuggestedDrawer
+        open={mobilityDrawerOpen}
+        onOpenChange={setMobilityDrawerOpen}
+        exercises={mobilityDrawerExercises}
+      />
     </div>
   );
 }
