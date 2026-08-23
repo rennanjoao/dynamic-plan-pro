@@ -299,6 +299,43 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
             </div>
           )}
           <div className="space-y-2">
+            {/* ── Mobilidade / Alongamento — sempre ACIMA dos exercícios de força,
+                 com toggle próprio para minimizar só este bloco. ── */}
+            {mobilityList.length > 0 && (
+              <div className="mb-3 rounded-lg border border-dashed border-sky-500/40 bg-sky-500/5 p-2 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setMobOpen((s) => ({ ...s, [di]: s[di] === false ? true : false }))}
+                  className="w-full flex items-center gap-1.5 text-xs font-bold text-sky-500"
+                >
+                  <StretchHorizontal className="w-3.5 h-3.5" /> Mobilidade pré-treino
+                  <span className="text-[10px] font-normal text-muted-foreground">({mobilityList.length})</span>
+                  <ChevronDown className={cn("w-3.5 h-3.5 ml-auto transition-transform", mobOpen[di] === false && "-rotate-90")} />
+                </button>
+                {mobOpen[di] !== false && mobilityList.map(({ ex, ei }) => (
+                  <div key={(ex as any).__id ?? `mob-${ei}`} className="grid grid-cols-1 md:grid-cols-[1.8fr_0.8fr_0.8fr_1.4fr_auto] gap-2 items-center rounded-lg border border-sky-500/20 bg-background/40 p-2">
+                    <ExercisePickerInput
+                      value={ex.name}
+                      gifKey={(ex as any).gifKey}
+                      onChange={(patch) => updEx(di, ei, patch)}
+                      placeholder="Ex: Mobilidade de quadril"
+                    />
+                    <Input value={ex.sets ?? ""} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder="Séries (Ex: 2)" className="h-8 text-xs" />
+                    <Input value={ex.reps ?? ""} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder="Tempo/Reps (Ex: 30s)" className="h-8 text-xs" />
+                    <Input value={ex.notes ?? ""} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-xs" />
+                    <button
+                      type="button"
+                      onClick={() => updDay(di, { exercises: day.exercises.filter((_, i) => i !== ei) })}
+                      className="text-muted-foreground hover:text-destructive p-1.5 justify-self-end"
+                      title="Remover mobilidade"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {strengthList.length > 0 && (
               <div className={cn(
                 "hidden md:grid gap-2 px-1 pb-1",
