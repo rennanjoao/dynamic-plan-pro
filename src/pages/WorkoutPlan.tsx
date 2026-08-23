@@ -116,6 +116,9 @@ export default function WorkoutPlan() {
   const [workoutModeDay, setWorkoutModeDay] = useState<string | undefined>(undefined);
   const [workoutModeWeek, setWorkoutModeWeek] = useState<number>(0);
   const [showHistory, setShowHistory] = useState(false);
+  // Drawer de "Mobilidade sugerida" aberto pelo link no header (WorkoutStrategyHeader).
+  const [mobilityDrawerOpen, setMobilityDrawerOpen] = useState(false);
+  const [mobilityDrawerExercises, setMobilityDrawerExercises] = useState<any[]>([]);
   const queryClient = useQueryClient();
   useWakeLock(showWorkoutMode);
   useHighlightTarget();
@@ -449,6 +452,10 @@ export default function WorkoutPlan() {
           periodizationEnabled={periodizationEnabled}
           weeks={weeks}
           currentWeek={currentWeek}
+          onOpenMobility={(exercises) => {
+            setMobilityDrawerExercises(exercises);
+            setMobilityDrawerOpen(true);
+          }}
         />
 
         {showGuidelines && trainingGuideline && (
@@ -569,6 +576,35 @@ export default function WorkoutPlan() {
             <SheetTitle>Histórico de Treinos</SheetTitle>
           </SheetHeader>
           <WorkoutHistory userId={userId} />
+        </SheetContent>
+      </Sheet>
+
+      {/* Drawer "Mobilidade sugerida" — aberto pelo link no header
+          (WorkoutStrategyHeader). Mostra APENAS os exercícios de mobilidade
+          do treino de hoje; nunca os exercícios de força (já filtrados no
+          próprio header ao montar `mobilityDrawerExercises`). */}
+      <Sheet open={mobilityDrawerOpen} onOpenChange={setMobilityDrawerOpen}>
+        <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-2xl">
+          <SheetHeader className="mb-4 text-left">
+            <SheetTitle className="flex items-center gap-2">
+              <StretchHorizontal className="w-4 h-4 text-sky-500" />
+              Mobilidade sugerida
+            </SheetTitle>
+            <p className="text-xs text-muted-foreground">
+              Faça antes de iniciar o treino de hoje para preparar as articulações e reduzir risco de lesão.
+            </p>
+          </SheetHeader>
+          <div className="space-y-2 pb-4">
+            {mobilityDrawerExercises.length === 0 ? (
+              <p className="text-sm text-muted-foreground italic py-6 text-center">
+                Nenhum exercício de mobilidade cadastrado para hoje.
+              </p>
+            ) : (
+              mobilityDrawerExercises.map((ex: any, i: number) => (
+                <MobilityExerciseRow key={ex?.__id ?? i} ex={ex} />
+              ))
+            )}
+          </div>
         </SheetContent>
       </Sheet>
     </div>
