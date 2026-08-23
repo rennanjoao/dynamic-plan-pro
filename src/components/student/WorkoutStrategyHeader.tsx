@@ -1,3 +1,4 @@
+import { StretchHorizontal, ChevronRight } from "lucide-react";
 import { buildWeekStrip, todayKey } from "@/lib/weekCycle";
 import { classifyWeekFocus, WEEK_FOCUS_COLOR, type WeekMeta } from "@/lib/periodizationDefaults";
 
@@ -14,6 +15,10 @@ interface Props {
   periodizationEnabled: boolean;
   weeks: WeekMeta[];
   currentWeek: number;
+  // Chamado com os exercícios de mobilidade do treino de hoje quando o
+  // aluno toca no link "Mobilidade sugerida". Omitido/sem itens → o link
+  // não é exibido.
+  onOpenMobility?: (exercises: any[]) => void;
 }
 
 export default function WorkoutStrategyHeader({
@@ -22,6 +27,7 @@ export default function WorkoutStrategyHeader({
   periodizationEnabled,
   weeks,
   currentWeek,
+  onOpenMobility,
 }: Props) {
   const strip = buildWeekStrip(payload, todayKey());
   const todayInfo = strip.find((d) => d.isToday);
@@ -29,6 +35,11 @@ export default function WorkoutStrategyHeader({
   const todayWorkout = todayInfo?.workoutKey
     ? workouts.find((w) => w.key === todayInfo.workoutKey)
     : null;
+  // Exercícios de mobilidade do treino de hoje — só estes entram no
+  // modal/drawer aberto pelo link abaixo do header.
+  const todayMobility: any[] = Array.isArray(todayWorkout?.exercises)
+    ? todayWorkout.exercises.filter((ex: any) => !!ex?.is_mobility)
+    : [];
 
   const weekMeta = periodizationEnabled ? weeks[currentWeek] : null;
   const focus = weekMeta ? classifyWeekFocus(weekMeta.reps) : null;
@@ -60,6 +71,20 @@ export default function WorkoutStrategyHeader({
           <p className="text-sm font-semibold text-muted-foreground">Descanso</p>
         )}
       </div>
+
+      {/* Link sutil para a mobilidade sugerida do treino de hoje — só
+          aparece quando há treino hoje e ele tem itens de mobilidade. */}
+      {todayWorkout && todayMobility.length > 0 && onOpenMobility && (
+        <button
+          type="button"
+          onClick={() => onOpenMobility(todayMobility)}
+          className="w-full -mt-1 flex items-center gap-1.5 text-xs font-medium text-sky-500 hover:text-sky-400 transition-colors"
+        >
+          <StretchHorizontal className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">Mobilidade sugerida antes de iniciar o treino</span>
+          <ChevronRight className="w-3.5 h-3.5 shrink-0 ml-auto opacity-60" />
+        </button>
+      )}
 
       {weekMeta && focus && cc && (
         <div className={`flex items-center flex-wrap gap-2 rounded-lg border ${cc.border} ${cc.bg} px-3 py-2`}>
