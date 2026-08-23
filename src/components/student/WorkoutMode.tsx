@@ -39,6 +39,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { ExerciseHistory } from "@/lib/workoutTypes";
 import { effortLabel, toExerciseKey } from "@/lib/workoutTypes";
 import { useExerciseGif } from "@/hooks/useExerciseGif";
+import { isMobilityExercise } from "@/lib/protocolSchema";
 import { parseExerciseNotes } from "@/lib/parseExerciseNotes";
 import { ExerciseVideoSheet } from "./ExerciseVideoSheet";
 import { CompactWeekSelector } from "./CompactWeekSelector";
@@ -211,7 +212,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const day = workouts.find((d: any) => d.key === (initialDay ?? workouts[0]?.key)) ?? workouts[0];
   // Mobilidade/alongamento não entra no fluxo de séries do Modo Treino —
   // é consultada no bloco separado da tela de plano.
-  const dayExercises = ((day?.exercises ?? []) as any[]).filter((ex: any) => !ex?.is_mobility);
+  const dayExercises = ((day?.exercises ?? []) as any[]).filter((ex: any) => !isMobilityExercise(ex));
   const exercises = dayExercises.map((ex: any, idx: number) => {
     if (!isPeriodizationOn) return ex;
     const override = periodization?.overrides?.[String(activeWeek)]?.[`${day!.key}_${idx}`] ?? {};

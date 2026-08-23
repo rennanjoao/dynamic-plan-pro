@@ -54,6 +54,54 @@ export const ExerciseSchema = z.object({
   __id: z.string().optional(),
 });
 
+export type Exercise = z.infer<typeof ExerciseSchema>;
+
+// Palavras-chave que identificam exercícios de mobilidade/alongamento
+// cadastrados ANTES do campo is_mobility existir no schema. Usado como
+// fallback: só é consultado quando is_mobility é undefined/false E o nome
+// bate com um destes termos. Nunca sobrepõe um is_mobility explícito.
+const MOBILITY_NAME_HINTS = [
+  "mobilidade",
+  "mobilidade-",
+  "alongamento",
+  "flexibilidade",
+  "liberação miofascial",
+  "foam roller",
+  "rotação externa",
+  "rotação interna",
+];
+
+/**
+ * Detecta se um exercício é de mobilidade/alongamento, com fallback por
+ * nome para registros legados que não têm o campo is_mobility persistido.
+ * Use esta função em TODO lugar que hoje faz `ex?.is_mobility` —
+ * nunca acesse o campo diretamente, para não reintroduzir a inconsistência.
+ */
+export function isMobilityExercise(ex: any): boolean {
+  if (ex?.is_mobility === true) return true;
+  if (ex?.is_mobility === false) {
+    // Só usa o fallback por nome quando o campo nunca foi setado
+    // explicitamente. Campo explicitamente false = coach decidiu que não é
+    // mobilidade, então respeita a escolha.
+    if (Object.prototype.hasOwnProperty.call(ex ?? {}, "is_mobility")) {
+      return false;
+    }
+  }
+  const name = String(ex?.name ?? "").toLowerCase();
+  return MOBILITY_NAME_HINTS.some((hint) => name.includes(hint));
+}
+
+/**
+ * True quando o exercício foi detectado como mobilidade só pelo nome
+ * (dado legado, sem o campo is_mobility persistido). Usado para mostrar o
+ * botão de correção de 1 clique no builder do coach.
+ */
+export function isLegacyMobilityExercise(ex: any): boolean {
+  const hasExplicitFlag = Object.prototype.hasOwnProperty.call(ex ?? {}, "is_mobility");
+  return !hasExplicitFlag && isMobilityExercise(ex);
+}
+
+
 export const WorkoutDaySchema = z.object({
   key: z.string(),
   focus: z.string().default(""),

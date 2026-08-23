@@ -1,6 +1,7 @@
 import { StretchHorizontal, ChevronRight } from "lucide-react";
 import { buildWeekStrip, todayKey } from "@/lib/weekCycle";
 import { classifyWeekFocus, WEEK_FOCUS_COLOR, type WeekMeta } from "@/lib/periodizationDefaults";
+import { isMobilityExercise } from "@/lib/protocolSchema";
 
 function getGreeting(): string {
   const h = new Date().getHours();
@@ -38,7 +39,7 @@ export default function WorkoutStrategyHeader({
   // Exercícios de mobilidade do treino de hoje — só estes entram no
   // modal/drawer aberto pelo link abaixo do header.
   const todayMobility: any[] = Array.isArray(todayWorkout?.exercises)
-    ? todayWorkout.exercises.filter((ex: any) => !!ex?.is_mobility)
+    ? todayWorkout.exercises.filter((ex: any) => isMobilityExercise(ex))
     : [];
 
   const weekMeta = periodizationEnabled ? weeks[currentWeek] : null;
