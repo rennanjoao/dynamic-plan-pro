@@ -206,14 +206,32 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   // ─── Rascunho local (localStorage) para PROTOCOLO NOVO ───────────────────
   // Protocolos já existentes têm autosave em `draft_payload` no banco; a
   // criação não tem linha para salvar, então o rascunho vive no navegador.
-  const localDraftKey = `draft_protocol_${studentId}`;
+  //
+  // [FIX — persistência de rascunho para alunos novos] A chave é ancorada
+  // exclusivamente no `student_id`, NUNCA no `protocol_id` — um aluno novo
+  // ainda não tem protocolo salvo no banco (protocolId permanece `null` até
+  // o primeiro save bem-sucedido), então qualquer chave derivada de
+  // protocol_id ficaria indefinida/instável entre remounts e o rascunho se
+  // perderia. `studentId` é estável desde o primeiro render do componente.
+  const localDraftKey = `protocol_draft_student_${studentId}`;
+  // Chave antiga (pré-fix), mantida só para migrar rascunhos já salvos por
+  // versões anteriores do app — nunca escrevemos nela novamente.
+  const legacyLocalDraftKey = `draft_protocol_${studentId}`;
   const [localDraft, setLocalDraft] = useState<{ name?: string; payload: unknown; savedAt?: number } | null>(null);
   const [localDraftOpen, setLocalDraftOpen] = useState(false);
   const localDraftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localDraftDecidedRef = useRef(false);
 
+  // [FIX] Limpeza restrita: SÓ é chamada dentro do callback de sucesso da
+  // mutação do Supabase (ver `save()`), nunca em cleanup de useEffect/unmount.
+  // Limpar no unmount é o que causava a perda do rascunho de alunos novos —
+  // trocar de aba/aluno e voltar desmontava e remontava o builder, e o
+  // cleanup do efeito apagava o rascunho antes que qualquer save ocorresse.
   const clearLocalDraft = () => {
-    try { localStorage.removeItem(localDraftKey); } catch { /* quota/privado */ }
+    try {
+      localStorage.removeItem(localDraftKey);
+      localStorage.removeItem(legacyLocalDraftKey);
+    } catch { /* quota/privado */ }
     setLocalDraft(null);
   };
 
@@ -308,29 +326,52 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         previousActiveRef.current = existing.active ?? true;
       }
     } else if (!isLoading && existing === null) {
-      // Criação: se houver rascunho local deste aluno, pergunta antes de
-      // abrir o setup do zero.
-      if (!localDraftDecidedRef.current) {
-        localDraftDecidedRef.current = true;
-        let saved: { name?: string; payload: unknown; savedAt?: number } | null = null;
-        try {
-          const raw = localStorage.getItem(localDraftKey);
-          if (raw) saved = JSON.parse(raw);
-        } catch { saved = null; }
-        if (saved?.payload) {
-          setLocalDraft(saved);
-          setLocalDraftOpen(true);
-          return;
+      // [FIX] Criação (aluno novo, sem protocolo no banco): decide UMA ÚNICA
+      // vez por montagem se há rascunho local a recuperar. `localDraftDecidedRef`
+      // é o guarda-chuva: sem ele, um refetch da query em background (foco na
+      // aba, reconexão etc.) reexecuta este efeito com `existing` ainda `null`
+      // e reabriria o modal de "Setup do Protocolo" por cima do formulário que
+      // o coach já estava preenchendo, resetando visualmente o trabalho em
+      // andamento. Com o guarda, a decisão (retomar rascunho / abrir setup
+      // limpo) é tomada apenas uma vez; reruns seguintes do efeito são no-op.
+      if (localDraftDecidedRef.current) return;
+      localDraftDecidedRef.current = true;
+
+      let saved: { name?: string; payload: unknown; savedAt?: number } | null = null;
+      try {
+        // Lê a chave estável atual; se não houver nada, tenta a chave legada
+        // (versões anteriores do app) e migra para a chave nova.
+        const raw = localStorage.getItem(localDraftKey) ?? localStorage.getItem(legacyLocalDraftKey);
+        if (raw) {
+          saved = JSON.parse(raw);
+          localStorage.setItem(localDraftKey, raw);
+          localStorage.removeItem(legacyLocalDraftKey);
         }
+      } catch { saved = null; }
+
+      if (saved?.payload) {
+        // Rascunho encontrado: bloqueia a renderização do formulário limpo
+        // (payload continua `null`) e exibe o modal de recuperação.
+        setLocalDraft(saved);
+        setLocalDraftOpen(true);
+        return;
       }
-      if (!localDraftOpen) setSetupOpen(true);
+      // Sem rascunho: abre o setup do zero (só desta vez).
+      setSetupOpen(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existing, isLoading, studentName]);
 
   const isEditMode = !!protocolId;
 
-  // Persistência contínua (debounce 1s) do rascunho local em modo criação.
+  // [FIX] Persistência contínua (debounce 1000ms) do rascunho local em modo
+  // criação. Grava o payload COMPLETO do formulário (dieta + treinos +
+  // macros + diretrizes) sob `localDraftKey` (estável por `student_id`).
+  // Importante: o cleanup deste efeito só limpa o TIMER pendente — nunca
+  // chama `clearLocalDraft()`/`removeItem`. Um cleanup que apagasse o
+  // rascunho no unmount destruiria o rascunho do aluno novo sempre que o
+  // componente desmontasse antes do save (troca de aba, navegação, etc.),
+  // que era exatamente o bug relatado.
   useEffect(() => {
     if (isEditMode || !payload || !isDirty) return;
     if (localDraftTimerRef.current) clearTimeout(localDraftTimerRef.current);
@@ -1267,4 +1308,3 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
     </div>
   );
 }
-
