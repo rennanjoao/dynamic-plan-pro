@@ -325,7 +325,7 @@ export default function WorkoutPlan() {
           <AccordionContent className="px-4 pb-4 border-t border-border/40">
             <MobilityBlock exercises={Array.isArray(day.exercises) ? day.exercises : []} />
             <div className="space-y-4 mt-4">
-              {Array.isArray(day.exercises) && day.exercises.filter((ex: any) => !ex?.is_mobility).map((ex: any, idx: number) => (
+              {Array.isArray(day.exercises) && day.exercises.filter((ex: any) => !isMobilityExercise(ex)).map((ex: any, idx: number) => (
                 <div
                   key={idx}
                   id={`workout-${day.key}-exercise-${slug(ex.name)}`}
