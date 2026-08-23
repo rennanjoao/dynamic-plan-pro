@@ -1,20 +1,15 @@
 // src/components/student/MobilityExerciseRow.tsx
-// Linha de exibição de um exercício de mobilidade (nome, gif, séries/reps, notas).
-// Compartilhada entre dois pontos de uso no WorkoutPlan.tsx:
-//   1) MobilityBlock — accordion "Mobilidade pré-treino" embutido dentro de
-//      cada treino (AccordionContent).
-//   2) O modal/drawer "Mobilidade sugerida" aberto pelo link do
-//      WorkoutStrategyHeader, que lista apenas a mobilidade do treino de hoje.
-// Extraído para cá para não duplicar a mesma linha em dois lugares.
-
+// Linha de exibição de um exercício de mobilidade (nome + gif de execução +
+// séries/tempo + observação). Extraído de WorkoutPlan.tsx para ser
+// compartilhado entre:
+//  - MobilityBlock (accordion "Mobilidade pré-treino" dentro do card de
+//    cada treino, em WorkoutPlan.tsx);
+//  - MobilitySuggestedDrawer (Modal/Drawer aberto pelo link sutil no header
+//    do card de treino do aluno — WorkoutStrategyHeader).
 import { Badge } from "@/components/ui/badge";
 import { useExerciseGif } from "@/hooks/useExerciseGif";
 
-interface MobilityExerciseRowProps {
-  ex: any;
-}
-
-export function MobilityExerciseRow({ ex }: MobilityExerciseRowProps) {
+export function MobilityExerciseRow({ ex }: { ex: any }) {
   const gif = useExerciseGif(ex?.name, ex?.gifKey);
   return (
     <div className="bg-background/70 border border-border/50 rounded-md p-2.5 flex gap-3">
