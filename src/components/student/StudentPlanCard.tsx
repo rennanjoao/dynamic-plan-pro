@@ -124,7 +124,10 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
   };
 
   const status = sub ? (STATUS_LABEL[sub.status] ?? STATUS_LABEL.pending) : null;
-  const availablePlans = catalog.filter((p) => p.is_active);
+  // Só mostra pro aluno os planos que o próprio coach cadastrou no painel
+  // ("Meus Planos"). Planos padrão/legado (coach_id null) e o fallback
+  // hardcoded de useStudentPlanCatalog nunca aparecem aqui.
+  const availablePlans = catalog.filter((p) => p.is_active && !!sub?.coach_id && p.coach_id === sub.coach_id);
 
   // Aviso proativo de vencimento: só quando ainda não existe cobrança pendente
   // (senão o bloco de "Pagamento pendente" abaixo já cobre) e faltam 0-3 dias.
