@@ -136,6 +136,9 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
   };
   const periodOn = !!payload.periodization?.enabled;
   const [overrideOpen, setOverrideOpen] = useState<Record<number, boolean>>({});
+  // Colapso independente do bloco de mobilidade por dia (default: aberto).
+  const [mobOpen, setMobOpen] = useState<Record<number, boolean>>({});
+
 
   // ── Map auxiliar e helpers de week strip ───────────────────────────────────
   const weekDays: Record<string, string> = (payload as any).weekDays ?? {};
