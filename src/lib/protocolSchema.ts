@@ -52,6 +52,8 @@ export const ExerciseSchema = z.object({
   // antigas. NÃO participa da lógica de treino/sessões (workout_key é a
   // referência estável do TREINO, __id é apenas do ITEM na lista).
   __id: z.string().optional(),
+});
+
 export type Exercise = z.infer<typeof ExerciseSchema>;
 
 // Palavras-chave que identificam exercícios de mobilidade/alongamento
