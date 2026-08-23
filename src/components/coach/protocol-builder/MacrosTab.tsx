@@ -342,21 +342,36 @@ function DistributeMacroDialog({
             </div>
 
             <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
-              {payload.meals.map((meal, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="text-xs flex-1 truncate">{(meal as any).name || `Refeição ${i + 1}`}</span>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={pcts[i] ?? ""}
-                    onChange={(e) => setPcts((p) => ({ ...p, [i]: Number(e.target.value) || 0 }))}
-                    className="h-8 w-20 text-xs"
-                    placeholder="0"
-                  />
-                  <span className="text-xs text-muted-foreground w-4">%</span>
-                </div>
-              ))}
+              {payload.meals.map((meal, i) => {
+                // Refeições sem NENHUMA opção desse kind (nem oculta) não têm onde
+                // aplicar o ajuste — desabilita aqui em vez de deixar digitar %
+                // e só avisar depois de "Aplicar" que não deu.
+                const hasKind = Array.isArray((meal as any).options)
+                  && (meal as any).options.some((o: any) => o?.kind === kind);
+                return (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className={`text-xs flex-1 truncate ${!hasKind ? "text-muted-foreground/50" : ""}`}>
+                      {(meal as any).name || `Refeição ${i + 1}`}
+                    </span>
+                    {hasKind ? (
+                      <>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={pcts[i] ?? ""}
+                          onChange={(e) => setPcts((p) => ({ ...p, [i]: Number(e.target.value) || 0 }))}
+                          className="h-8 w-20 text-xs"
+                          placeholder="0"
+                        />
+                        <span className="text-xs text-muted-foreground w-4">%</span>
+                      </>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground/50 italic">sem {KIND_MACRO_LABEL[kind].toLowerCase()}</span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             <div className={`text-[11px] ${Math.round(sumPct) === 100 ? "text-emerald-500" : "text-amber-500"}`}>
