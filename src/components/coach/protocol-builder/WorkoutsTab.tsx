@@ -18,7 +18,7 @@ import {
 import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
 import { ExerciseSubstitutesPopover } from "@/components/coach/ExerciseSubstitutesPopover";
 import WorkoutPeriodizationEditor from "../WorkoutPeriodizationEditor";
-import { ProtocolPayload, makeEmptyExercise } from "@/lib/protocolSchema";
+import { ProtocolPayload, makeEmptyExercise, isMobilityExercise, isLegacyMobilityExercise } from "@/lib/protocolSchema";
 import { normalizeCarb, cycleCarb, CARB_LABEL, DAY_KEYS } from "@/lib/weekCycle";
 import {
   DndContext, closestCenter, PointerSensor, KeyboardSensor,
@@ -104,7 +104,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
     const strength: Array<{ ex: any; ei: number }> = [];
     const mobility: Array<{ ex: any; ei: number }> = [];
     (day.exercises as any[]).forEach((ex, ei) => {
-      (ex?.is_mobility ? mobility : strength).push({ ex, ei });
+      (isMobilityExercise(ex) ? mobility : strength).push({ ex, ei });
     });
     return { strength, mobility };
   };
@@ -326,6 +326,16 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                     <Input value={ex.sets ?? ""} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder="Séries (Ex: 2)" className="h-8 text-xs" />
                     <Input value={ex.reps ?? ""} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder="Tempo/Reps (Ex: 30s)" className="h-8 text-xs" />
                     <Input value={ex.notes ?? ""} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-xs" />
+                    {isLegacyMobilityExercise(ex) && (
+                      <button
+                        type="button"
+                        onClick={() => updEx(di, ei, { is_mobility: true })}
+                        className="text-sky-500 hover:text-sky-400 p-1.5 justify-self-end"
+                        title="Corrigir: marcar como mobilidade permanentemente"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => updDay(di, { exercises: day.exercises.filter((_, i) => i !== ei) })}

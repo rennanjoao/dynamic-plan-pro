@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { ProtocolPayloadSchema } from "@/lib/protocolSchema";
+import { ProtocolPayloadSchema, isMobilityExercise } from "@/lib/protocolSchema";
 import ProtocolQuestionButton from "@/components/student/ProtocolQuestionButton";
 import WorkoutPeriodizationView from "@/components/student/WorkoutPeriodizationView";
 import WorkoutMode from "@/components/student/WorkoutMode";
@@ -64,7 +64,7 @@ const WORKOUT_MODE_UI_KEY = (uid: string) => `workout_mode_ui_${uid}`;
  * o MobilitySuggestedDrawer acionado pelo header — ver import acima).
  */
 function MobilityBlock({ exercises }: { exercises: any[] }) {
-  const mobility = exercises.filter((ex) => ex?.is_mobility);
+  const mobility = exercises.filter((ex) => isMobilityExercise(ex));
   if (mobility.length === 0) return null;
   return (
     <Accordion type="single" collapsible className="mt-2">
