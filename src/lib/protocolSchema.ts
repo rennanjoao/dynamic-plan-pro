@@ -157,6 +157,11 @@ export const MealFoodItemSchema = z.preprocess(
     rawWeight: z.number().optional(),
     cookFactor: z.number().optional(),
     isTaco: z.boolean().optional(),
+    // Sem isso, o Zod removia o campo (não declarado = "strip" por padrão),
+    // então todo item industrializado perdia a marcação a cada autosave/load
+    // e caía silenciosamente pra fora do cálculo de kcal/macros (calcItemMacros
+    // só reconhece isTaco/isIndustrial). Ver src/data/industrialFoods.ts.
+    isIndustrial: z.boolean().optional(),
     optional: z.boolean().optional(), // <-- FLAG DE CORREÇÃO AQUI
     manualMacros: z.object({
       protein: z.number().default(0),
