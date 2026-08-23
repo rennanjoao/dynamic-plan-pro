@@ -39,7 +39,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { ExerciseHistory } from "@/lib/workoutTypes";
 import { effortLabel, toExerciseKey } from "@/lib/workoutTypes";
 import { useExerciseGif } from "@/hooks/useExerciseGif";
-import { parseExerciseNotes } from "@/lib/parseExerciseNotes";
+import { isMobilityExercise } from "@/lib/protocolSchema";
 import { ExerciseVideoSheet } from "./ExerciseVideoSheet";
 import { CompactWeekSelector } from "./CompactWeekSelector";
 import { DEFAULT_WEEKS, parseRepsMin, parseRepsMax } from "@/lib/periodizationDefaults";
