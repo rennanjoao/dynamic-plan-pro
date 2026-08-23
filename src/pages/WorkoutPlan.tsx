@@ -23,6 +23,8 @@ import { DEFAULT_WEEKS } from "@/lib/periodizationDefaults";
 import { useAuthUserId } from "@/hooks/useAuthUserId";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { isSessionStale } from "@/hooks/useWorkoutSession";
+import { useExerciseGif } from "@/hooks/useExerciseGif";
+
 
 const WEEKDAYS_LABEL: Record<string, string> = {
   seg: "Segunda", ter: "Terça", qua: "Quarta",
@@ -55,39 +57,56 @@ function InfoPopover({ termKey }: { termKey: keyof typeof TERM_INFO }) {
 const WORKOUT_MODE_UI_KEY = (uid: string) => `workout_mode_ui_${uid}`;
 
 /**
- * Bloco discreto e expansível com os exercícios marcados como mobilidade /
- * alongamento. Fica fora da lista principal do treino para não poluir a
- * sequência de exercícios de força.
+ * Bloco embutido, logo acima dos exercícios de força: "Mobilidade pré-treino".
+ * Fechado por padrão; ao abrir, mostra cada exercício com o gif de execução.
  */
+function MobilityExerciseRow({ ex }: { ex: any }) {
+  const gif = useExerciseGif(ex?.name, ex?.gifKey);
+  return (
+    <div className="bg-background/70 border border-border/50 rounded-md p-2.5 flex gap-3">
+      {gif && (
+        <img
+          src={gif}
+          alt={`Execução do exercício ${ex.name}`}
+          loading="lazy"
+          className="w-20 h-20 rounded-md object-cover bg-muted shrink-0"
+        />
+      )}
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-foreground">{ex.name}</p>
+        <div className="flex flex-wrap gap-1.5 mt-1">
+          {ex.sets && <Badge variant="secondary" className="text-[10px]">{ex.sets} séries</Badge>}
+          {ex.reps && <Badge variant="secondary" className="text-[10px]">{ex.reps}</Badge>}
+        </div>
+        {ex.notes && <p className="text-[11px] text-muted-foreground italic mt-1.5">{ex.notes}</p>}
+      </div>
+    </div>
+  );
+}
+
 function MobilityBlock({ exercises }: { exercises: any[] }) {
   const mobility = exercises.filter((ex) => ex?.is_mobility);
   if (mobility.length === 0) return null;
   return (
-    <Accordion type="single" collapsible className="mt-4">
-      <AccordionItem value="mobility" className="border border-sky-500/30 bg-sky-500/5 rounded-lg overflow-hidden">
-        <AccordionTrigger className="px-3 py-2.5 hover:no-underline">
-          <span className="flex items-center gap-2 text-sm font-semibold text-sky-500">
+    <Accordion type="single" collapsible className="mt-2">
+      <AccordionItem value="mobility" className="border-0">
+        <AccordionTrigger className="py-2 hover:no-underline">
+          <span className="flex items-center gap-2 text-sm font-bold text-primary">
             <StretchHorizontal className="w-4 h-4" />
-            Mobilidade e Alongamento
-            <Badge variant="outline" className="text-[10px] border-sky-500/40 text-sky-500">{mobility.length}</Badge>
+            Mobilidade pré-treino
+            <Badge variant="outline" className="text-[10px] border-primary/40 text-primary">{mobility.length}</Badge>
           </span>
         </AccordionTrigger>
-        <AccordionContent className="px-3 pb-3 space-y-2">
+        <AccordionContent className="pb-2 space-y-2">
           {mobility.map((ex: any, i: number) => (
-            <div key={i} className="bg-background/70 border border-border/50 rounded-md p-2.5">
-              <p className="text-sm font-semibold text-foreground">{ex.name}</p>
-              <div className="flex flex-wrap gap-1.5 mt-1">
-                {ex.sets && <Badge variant="secondary" className="text-[10px]">{ex.sets} séries</Badge>}
-                {ex.reps && <Badge variant="secondary" className="text-[10px]">{ex.reps}</Badge>}
-              </div>
-              {ex.notes && <p className="text-[11px] text-muted-foreground italic mt-1.5">{ex.notes}</p>}
-            </div>
+            <MobilityExerciseRow key={i} ex={ex} />
           ))}
         </AccordionContent>
       </AccordionItem>
     </Accordion>
   );
 }
+
 
 export default function WorkoutPlan() {
   const navigate = useNavigate();

@@ -136,6 +136,9 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
   };
   const periodOn = !!payload.periodization?.enabled;
   const [overrideOpen, setOverrideOpen] = useState<Record<number, boolean>>({});
+  // Colapso independente do bloco de mobilidade por dia (default: aberto).
+  const [mobOpen, setMobOpen] = useState<Record<number, boolean>>({});
+
 
   // ── Map auxiliar e helpers de week strip ───────────────────────────────────
   const weekDays: Record<string, string> = (payload as any).weekDays ?? {};
@@ -299,6 +302,43 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
             </div>
           )}
           <div className="space-y-2">
+            {/* ── Mobilidade / Alongamento — sempre ACIMA dos exercícios de força,
+                 com toggle próprio para minimizar só este bloco. ── */}
+            {mobilityList.length > 0 && (
+              <div className="mb-3 rounded-lg border border-dashed border-sky-500/40 bg-sky-500/5 p-2 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setMobOpen((s) => ({ ...s, [di]: s[di] === false ? true : false }))}
+                  className="w-full flex items-center gap-1.5 text-xs font-bold text-sky-500"
+                >
+                  <StretchHorizontal className="w-3.5 h-3.5" /> Mobilidade pré-treino
+                  <span className="text-[10px] font-normal text-muted-foreground">({mobilityList.length})</span>
+                  <ChevronDown className={cn("w-3.5 h-3.5 ml-auto transition-transform", mobOpen[di] === false && "-rotate-90")} />
+                </button>
+                {mobOpen[di] !== false && mobilityList.map(({ ex, ei }) => (
+                  <div key={(ex as any).__id ?? `mob-${ei}`} className="grid grid-cols-1 md:grid-cols-[1.8fr_0.8fr_0.8fr_1.4fr_auto] gap-2 items-center rounded-lg border border-sky-500/20 bg-background/40 p-2">
+                    <ExercisePickerInput
+                      value={ex.name}
+                      gifKey={(ex as any).gifKey}
+                      onChange={(patch) => updEx(di, ei, patch)}
+                      placeholder="Ex: Mobilidade de quadril"
+                    />
+                    <Input value={ex.sets ?? ""} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder="Séries (Ex: 2)" className="h-8 text-xs" />
+                    <Input value={ex.reps ?? ""} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder="Tempo/Reps (Ex: 30s)" className="h-8 text-xs" />
+                    <Input value={ex.notes ?? ""} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-xs" />
+                    <button
+                      type="button"
+                      onClick={() => updDay(di, { exercises: day.exercises.filter((_, i) => i !== ei) })}
+                      className="text-muted-foreground hover:text-destructive p-1.5 justify-self-end"
+                      title="Remover mobilidade"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {strengthList.length > 0 && (
               <div className={cn(
                 "hidden md:grid gap-2 px-1 pb-1",
@@ -414,36 +454,8 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
             })}
               </SortableContext>
             </DndContext>
-            {/* ── Mobilidade / Alongamento (bloco isolado do treino de força) ── */}
-            {mobilityList.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-dashed border-sky-500/40 space-y-2">
-                <p className="text-xs font-bold text-sky-500 flex items-center gap-1.5">
-                  <StretchHorizontal className="w-3.5 h-3.5" /> Mobilidade e Alongamento
-                  <span className="font-normal text-[10px] text-muted-foreground">— exibido em bloco separado para o aluno</span>
-                </p>
-                {mobilityList.map(({ ex, ei }) => (
-                  <div key={(ex as any).__id ?? `mob-${ei}`} className="grid grid-cols-1 md:grid-cols-[1.8fr_0.8fr_0.8fr_1.4fr_auto] gap-2 items-center rounded-lg border border-sky-500/20 bg-sky-500/5 p-2">
-                    <ExercisePickerInput
-                      value={ex.name}
-                      gifKey={(ex as any).gifKey}
-                      onChange={(patch) => updEx(di, ei, patch)}
-                      placeholder="Ex: Mobilidade de quadril"
-                    />
-                    <Input value={ex.sets ?? ""} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder="Séries (Ex: 2)" className="h-8 text-xs" />
-                    <Input value={ex.reps ?? ""} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder="Tempo/Reps (Ex: 30s)" className="h-8 text-xs" />
-                    <Input value={ex.notes ?? ""} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-xs" />
-                    <button
-                      type="button"
-                      onClick={() => updDay(di, { exercises: day.exercises.filter((_, i) => i !== ei) })}
-                      className="text-muted-foreground hover:text-destructive p-1.5 justify-self-end"
-                      title="Remover mobilidade"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+
+
 
             <div className="flex flex-wrap gap-2 mt-1">
               <Button size="sm" variant="outline" onClick={() => updDay(di, { exercises: [...day.exercises, makeEmptyExercise()] })} className="h-7 text-xs"><Plus className="w-3 h-3 mr-1" /> Exercício</Button>
