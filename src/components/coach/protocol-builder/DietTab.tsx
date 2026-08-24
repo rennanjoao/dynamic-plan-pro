@@ -178,12 +178,23 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
     const opts = getOptsForKind(payload.meals[mealIdx], kind);
     const items = [...(opts[optIdx].items as any[])];
     items[itemIdx] = { ...items[itemIdx], ...patch };
+    if (patch.substitution === undefined && "substitution" in patch) delete items[itemIdx].substitution;
     if (patch.isTaco === true) {
       items[itemIdx].name = items[itemIdx].baseName || items[itemIdx].name || "";
       items[itemIdx].weight = "";
     }
     updOption(mealIdx, kind, optIdx, { items });
   }
+
+  // Atualiza apenas a substituição anexada ao alimento (nunca soma nos macros).
+  function updSubstitution(mealIdx: number, kind: "carb" | "protein" | "fat", optIdx: number, itemIdx: number, patch: any) {
+    const opts = getOptsForKind(payload.meals[mealIdx], kind);
+    const items = [...(opts[optIdx].items as any[])];
+    const cur = items[itemIdx]?.substitution || {};
+    items[itemIdx] = { ...items[itemIdx], substitution: { ...cur, ...patch } };
+    updOption(mealIdx, kind, optIdx, { items });
+  }
+
 
   function addItem(mealIdx: number, kind: "carb" | "protein" | "fat", optIdx: number) {
     const opts = getOptsForKind(payload.meals[mealIdx], kind);
