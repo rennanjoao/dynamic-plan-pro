@@ -19,8 +19,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   Plus, Trash2, ChevronDown, Copy, BookmarkPlus, Library, UtensilsCrossed, Pill,
-  ArrowUp, ArrowDown, Eye, AlertCircle, Sparkles, CheckCircle2, Loader2, TrendingUp,
-  Wand2,
+  ArrowUp, ArrowDown, Eye, EyeOff, AlertCircle, Sparkles, CheckCircle2, Loader2, TrendingUp,
+  Wand2, Repeat,
 } from "lucide-react";
 import { loadCoachProfile } from "@/lib/prescriptionMemory";
 import {
@@ -110,7 +110,62 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
     setPayload({ ...payload, meals: next });
   }
 
-  const dayMacros = useMemo(() => calcDayMacros(payload.meals), [payload.meals]);
+  // ── Refeições pareadas (Treino ↔ Descanso) ─────────────────────────────
+  // Cria uma versão vazia desta refeição para o dia sem treino, vinculada
+  // à original por `pairId`. NUNCA reindexa: apenas insere um novo item no
+  // array (a original mantém seu índice/posição).
+  const mealCardRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const [highlightedMeal, setHighlightedMeal] = useState<number | null>(null);
+
+  function scrollToMeal(mealIdx: number) {
+    setCollapsedMeals((prev) => ({ ...prev, [mealIdx]: false }));
+    setHighlightedMeal(mealIdx);
+    requestAnimationFrame(() => {
+      mealCardRefs.current[mealIdx]?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    setTimeout(() => setHighlightedMeal((cur) => (cur === mealIdx ? null : cur)), 1600);
+  }
+
+  function createRestVersion(mealIdx: number) {
+    const orig = payload.meals[mealIdx];
+    const newPairId = (typeof crypto !== "undefined" && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : `pair_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
+
+    const empty = makeEmptyMeal(orig.name || "Refeição");
+    (empty as any).time = orig.time || "";
+    (empty as any).day_type = "rest";
+    (empty as any).pairId = newPairId;
+
+    const next = [...payload.meals];
+    // A original passa a valer só para dia de treino — senão ela continuaria
+    // aparecendo também no dia de descanso, junto da nova versão.
+    next[mealIdx] = {
+      ...next[mealIdx],
+      day_type: (next[mealIdx] as any).day_type === "rest" ? "rest" : "training",
+      pairId: newPairId,
+    } as any;
+    next.splice(mealIdx + 1, 0, empty as any);
+    setPayload({ ...payload, meals: next });
+
+    // Abre a nova refeição (vazia) já pronta pra edição.
+    setCollapsedMeals((prev) => ({ ...prev, [mealIdx + 1]: false }));
+    setTimeout(() => scrollToMeal(mealIdx + 1), 50);
+  }
+
+  function unpairMeal(mealIdx: number) {
+    const pid = (payload.meals[mealIdx] as any)?.pairId;
+    if (!pid) return;
+    const next = payload.meals.map((mm) =>
+      (mm as any).pairId === pid ? { ...mm, pairId: null } : mm
+    );
+    setPayload({ ...payload, meals: next as any });
+  }
+
+  const dayMacros = useMemo(
+    () => calcDayMacros(payload.meals.filter((mm) => !(mm as any).excludeFromDayTotal)),
+    [payload.meals],
+  );
   const goals = payload.macros;
   const bars = [
     { label: "Kcal", cur: dayMacros.kcal, goal: goals.calories || 1, color: "bg-primary" },
@@ -264,7 +319,11 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
         const isCollapsed = !!collapsedMeals[mealIdx];
         const mealM = calcMealMacros(m);
         return (
-        <Card key={mealIdx} className={`bg-card/60 border-border ${isCollapsed ? "overflow-hidden" : "overflow-visible relative focus-within:z-50"}`}>
+        <Card
+          key={mealIdx}
+          ref={(el) => { mealCardRefs.current[mealIdx] = el; }}
+          className={`bg-card/60 border-border transition-shadow ${isCollapsed ? "overflow-hidden" : "overflow-visible relative focus-within:z-50"} ${highlightedMeal === mealIdx ? "ring-2 ring-primary shadow-lg shadow-primary/20" : ""}`}
+        >
           <div className={`flex items-center gap-2 px-4 py-3 border-b border-border/40 bg-muted/10 ${isCollapsed ? "" : "rounded-t-xl"}`}>
             <Input
               list="meal-name-presets"
@@ -311,6 +370,55 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
                 onClick={() => updMealField(mealIdx, { carbCycle: !(m as any).carbCycle } as any)}
                 className={`h-8 px-2.5 rounded-lg border text-xs font-semibold transition-colors flex items-center gap-1 shrink-0 ${(m as any).carbCycle ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-500" : "border-border/50 text-muted-foreground"}`}>
                 <TrendingUp className="w-3.5 h-3.5" /> Ciclo
+              </button>
+            )}
+            {/* Não contar nas kcal do dia — útil pra refeição bônus/livre, ou
+                pra isolar uma das duas versões pareadas enquanto a dieta é
+                montada (senão o total do topo soma treino + descanso juntos). */}
+            <button
+              type="button"
+              onClick={() => updMealField(mealIdx, { excludeFromDayTotal: !(m as any).excludeFromDayTotal } as any)}
+              title="Não contar as kcal desta refeição no total do dia (topo da tela)"
+              className={`h-8 px-2.5 rounded-lg border text-xs font-semibold transition-colors flex items-center gap-1 shrink-0 ${(m as any).excludeFromDayTotal ? "bg-amber-500/15 border-amber-500/40 text-amber-500" : "border-border/50 text-muted-foreground"}`}
+            >
+              <EyeOff className="w-3.5 h-3.5" /> {(m as any).excludeFromDayTotal ? "Fora do total" : "Contar kcal"}
+            </button>
+            {/* Refeição pareada Treino ↔ Descanso — mesma "posição" na dieta,
+                conteúdo diferente por tipo de dia, sem duplicar meal_index. */}
+            {(m as any).pairId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const pid = (m as any).pairId;
+                  const pairIdx = payload.meals.findIndex(
+                    (mm, i) => i !== mealIdx && (mm as any).pairId === pid
+                  );
+                  if (pairIdx >= 0) scrollToMeal(pairIdx);
+                }}
+                title="Ver a versão pareada desta refeição (treino/descanso)"
+                className="h-8 px-2.5 rounded-lg border border-sky-500/40 bg-sky-500/10 text-sky-500 text-xs font-semibold flex items-center gap-1 shrink-0"
+              >
+                <Repeat className="w-3.5 h-3.5" /> Ver par
+              </button>
+            ) : null}
+            {(m as any).pairId && (
+              <button
+                type="button"
+                onClick={() => unpairMeal(mealIdx)}
+                title="Desvincular o par (as duas refeições continuam existindo, só deixam de estar ligadas)"
+                className="text-muted-foreground hover:text-destructive p-1.5 shrink-0"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {!(m as any).pairId && (
+              <button
+                type="button"
+                onClick={() => createRestVersion(mealIdx)}
+                title="Criar uma versão vazia desta refeição só para o dia sem treino"
+                className="h-8 px-2.5 rounded-lg border border-dashed border-border/60 text-muted-foreground hover:text-primary hover:border-primary/50 text-xs font-semibold flex items-center gap-1 shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" /> Versão p/ descanso
               </button>
             )}
             <button
