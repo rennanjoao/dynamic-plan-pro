@@ -772,7 +772,7 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
         carbMode={carbMode}
         highPct={highPct}
         lowPct={lowPct}
-        meals={visibleMeals.filter((v) => !(v.meal as any).excludeFromDayTotal).map((v) => v.meal)}
+        meals={visibleMeals.map((v) => v.meal)}
       />
 
       {/* Barra sticky com os dois controles */}
