@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import {
   Plus, Trash2, ChevronDown, Copy, BookmarkPlus, Library, UtensilsCrossed, Pill,
   ArrowUp, ArrowDown, Eye, EyeOff, AlertCircle, Sparkles, CheckCircle2, Loader2, TrendingUp,
-  Wand2, Repeat,
+  Wand2, Repeat, Unlink,
 } from "lucide-react";
 import { loadCoachProfile } from "@/lib/prescriptionMemory";
 import {
@@ -95,7 +95,9 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
   function attachTemplate(tpl: any) {
     try {
       const meal = tpl.meal_data;
-      setPayload({ ...payload, meals: [...payload.meals, { ...meal, name: meal.name || tpl.name }] });
+      // pairId nunca deve vir de um modelo salvo — evita vincular essa
+      // refeição nova a um par que não existe (ou existe em outro protocolo).
+      setPayload({ ...payload, meals: [...payload.meals, { ...meal, name: meal.name || tpl.name, pairId: null }] });
       toast.success("Modelo adicionado");
       setLoadTplOpen(false);
     } catch { toast.error("Modelo inválido"); }
@@ -105,6 +107,9 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
     const orig = payload.meals[mealIdx];
     const copy = JSON.parse(JSON.stringify(orig));
     copy.name = `${orig.name || "Refeição"} (cópia)`;
+    // Desvincula a cópia do par da original — senão passamos a ter 3
+    // refeições com o mesmo pairId, e "Ver par"/"Desvincular" ficam ambíguos.
+    copy.pairId = null;
     const next = [...payload.meals];
     next.splice(mealIdx + 1, 0, copy);
     setPayload({ ...payload, meals: next });
@@ -136,6 +141,10 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
     (empty as any).time = orig.time || "";
     (empty as any).day_type = "rest";
     (empty as any).pairId = newPairId;
+    // Por padrão a versão nova entra "fora do total" pra não somar junto
+    // com a de treino na barra do topo — o coach liga/desliga cada uma
+    // manualmente quando quiser conferir o total de um dia específico.
+    (empty as any).excludeFromDayTotal = true;
 
     const next = [...payload.meals];
     // A original passa a valer só para dia de treino — senão ela continuaria
@@ -408,7 +417,7 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
                 title="Desvincular o par (as duas refeições continuam existindo, só deixam de estar ligadas)"
                 className="text-muted-foreground hover:text-destructive p-1.5 shrink-0"
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <Unlink className="w-3.5 h-3.5" />
               </button>
             )}
             {!(m as any).pairId && (
@@ -431,7 +440,19 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
             </button>
             <button onClick={() => duplicateMeal(mealIdx)} className="text-muted-foreground hover:text-primary p-1.5 shrink-0" title="Duplicar refeição"><Copy className="w-3.5 h-3.5" /></button>
             <button onClick={() => setSaveTplFor({ idx: mealIdx, name: m.name || "Modelo", kind: "mixed" })} className="text-muted-foreground hover:text-primary p-1.5 shrink-0" title="Salvar como modelo"><BookmarkPlus className="w-3.5 h-3.5" /></button>
-            <button onClick={() => setPayload({ ...payload, meals: payload.meals.filter((_, idx) => idx !== mealIdx) })} className="text-muted-foreground hover:text-destructive p-1.5 shrink-0"><Trash2 className="w-4 h-4" /></button>
+            <button onClick={() => {
+              // Ao apagar, limpa o pairId de quem ficar pra trás — senão o
+              // botão "Ver par" da refeição irmã aponta pra um item que não
+              // existe mais.
+              const removedPairId = (m as any).pairId as string | null;
+              let nextMeals = payload.meals.filter((_, idx) => idx !== mealIdx);
+              if (removedPairId) {
+                nextMeals = nextMeals.map((mm) =>
+                  (mm as any).pairId === removedPairId ? { ...mm, pairId: null } : mm
+                );
+              }
+              setPayload({ ...payload, meals: nextMeals as any });
+            }} className="text-muted-foreground hover:text-destructive p-1.5 shrink-0"><Trash2 className="w-4 h-4" /></button>
           </div>
 
           {!isCollapsed && (
