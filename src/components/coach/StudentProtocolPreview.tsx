@@ -75,6 +75,10 @@ export default function StudentProtocolPreview({ open, onClose, payload, student
                   const dayCardio = (payload.cardio ?? []).filter(
                     (c) => c.workoutKey === day.key && c.associationType === "workout"
                   );
+                  // Mobilidade nunca aparece junto com o treino de força — mesma
+                  // separação usada na tela real do aluno (WorkoutPlan.tsx).
+                  const dayMobility = (day.exercises ?? []).filter((ex) => isMobilityExercise(ex));
+                  const dayStrength = (day.exercises ?? []).filter((ex) => !isMobilityExercise(ex));
                   return (
                     <AccordionItem
                       key={i}
