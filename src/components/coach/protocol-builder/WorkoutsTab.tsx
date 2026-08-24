@@ -13,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import {
   Plus, Trash2, ArrowUp, ArrowDown, ChevronDown, CheckCircle2, GripVertical, Activity,
-  StretchHorizontal,
+  StretchHorizontal, Dumbbell,
 } from "lucide-react";
 import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
 import { ExerciseSubstitutesPopover } from "@/components/coach/ExerciseSubstitutesPopover";
