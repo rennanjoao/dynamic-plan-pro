@@ -351,19 +351,11 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
                           <div className="space-y-1.5">
                             {items.map((it: any, ii: number) => (
                               <div key={ii} className="relative focus-within:z-[70] bg-background rounded border border-border/40 px-2 py-2 space-y-1.5">
-                                <div className="flex items-center justify-between gap-2">
+                                {(it as any).optional && (
                                   <span className="text-[9px] text-amber-500 font-bold uppercase tracking-wider">
-                                    {(it as any).optional ? "⚡ Opcional (não soma)" : ""}
+                                    ⚡ Opcional (não soma) — legado
                                   </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => updItem(mealIdx, kind, optIdx, ii, { optional: !(it as any).optional })}
-                                    className={`text-[9px] px-2 py-0.5 rounded border transition-colors ${(it as any).optional ? "bg-amber-500/15 border-amber-500/40 text-amber-600 font-bold" : "border-border/50 text-muted-foreground hover:border-amber-400 hover:text-amber-500"}`}
-                                    title="Marcar como opcional — não entra no cálculo de kcal"
-                                  >
-                                    {(it as any).optional ? "✓ Opcional" : "Opcional?"}
-                                  </button>
-                                </div>
+                                )}
                                 <FoodRow
                                   it={it}
                                   kind={kind}
@@ -404,8 +396,74 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
                                   }}
                                   onRemove={() => rmItem(mealIdx, kind, optIdx, ii)}
                                 />
+
+                                {/* Substituição opcional anexada (máx. 1 por alimento) */}
+                                {it.substitution ? (
+                                  <div className="mt-1 ml-2 pl-2.5 border-l-2 border-dashed border-amber-500/40 space-y-1.5">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-[9px] text-amber-500 font-bold uppercase tracking-wider">
+                                        ↳ 🔁 Substituição opcional (não soma)
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => updItem(mealIdx, kind, optIdx, ii, { substitution: undefined })}
+                                        className="text-[9px] text-muted-foreground hover:text-destructive"
+                                        title="Remover substituição"
+                                      >
+                                        remover
+                                      </button>
+                                    </div>
+                                    <FoodRow
+                                      it={it.substitution}
+                                      kind={kind}
+                                      onPickTaco={(taco) => {
+                                        const isInd = taco.source === "industrial";
+                                        const grams = equivalentGramsForKcal(it, taco);
+                                        updSubstitution(mealIdx, kind, optIdx, ii, {
+                                          baseName: taco.name,
+                                          name: taco.name,
+                                          isTaco: !isInd,
+                                          isIndustrial: isInd,
+                                          cookFactor: taco.cookFactor ?? 1,
+                                          weight: grams > 0 ? `${grams}g` : "",
+                                          rawWeight: grams > 0 ? grams : 0,
+                                        });
+                                        if (grams > 0) {
+                                          toast.success(`Quantidade equivalente calculada: ${grams}g (mesma kcal do alimento principal)`, {
+                                            description: "Você pode editar o valor manualmente.",
+                                          });
+                                        }
+                                      }}
+                                      onChangeName={(name) => updSubstitution(mealIdx, kind, optIdx, ii, { name, baseName: name, isTaco: false, isIndustrial: false, cookFactor: 1, rawWeight: 0 })}
+                                      onChangeWeight={(w) => {
+                                        const sub = it.substitution || {};
+                                        const patch: any = { weight: w };
+                                        if (sub.isTaco || sub.isIndustrial) {
+                                          const tacoRef = TACO_FOODS.find(
+                                            (t) => t.name.toLowerCase() === String(sub.baseName || sub.name).toLowerCase()
+                                          );
+                                          const unitW = tacoRef && typeof (tacoRef as any).unitWeight === "number" ? (tacoRef as any).unitWeight : 50;
+                                          const { grams } = parseWeightString(w, unitW);
+                                          patch.rawWeight = isFinite(grams) && grams > 0 ? grams : 0;
+                                        }
+                                        updSubstitution(mealIdx, kind, optIdx, ii, patch);
+                                      }}
+                                      onRemove={() => updItem(mealIdx, kind, optIdx, ii, { substitution: undefined })}
+                                    />
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => updItem(mealIdx, kind, optIdx, ii, { substitution: { name: "", baseName: "", weight: "", rawWeight: 0, cookFactor: 1, isTaco: false } })}
+                                    className="text-[10px] flex items-center gap-1 px-1 text-amber-600 opacity-70 hover:opacity-100"
+                                    title="Anexa 1 alternativa equivalente em kcal — não soma nos macros"
+                                  >
+                                    <Plus className="w-3 h-3" /> substituição opcional
+                                  </button>
+                                )}
                               </div>
                             ))}
+
                           </div>
                           <button type="button" onClick={() => addItem(mealIdx, kind, optIdx)} className={`mt-1.5 text-[11px] flex items-center gap-1 px-1 ${cfg.color} opacity-60 hover:opacity-100`}><Plus className="w-3 h-3" /> alimento</button>
                           {(optM.kcal > 0 || optM.protein > 0 || optM.carbs > 0 || optM.fat > 0) && (
