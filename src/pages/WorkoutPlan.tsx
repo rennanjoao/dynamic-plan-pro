@@ -334,8 +334,9 @@ export default function WorkoutPlan() {
                 >
                   <h4 className="font-bold text-sm text-primary mb-2 flex items-start gap-2">
                     <span className="mt-0.5">•</span>
-                    <ExerciseNameButton name={ex.name} gifKey={ex.gifKey} />
+                    <ExerciseNameButton name={ex.name} gifKey={ex.gifKey} withThumb />
                   </h4>
+
                   <div className={`grid gap-2 mb-2 ${ex.cadence ? "grid-cols-4" : "grid-cols-3"}`}>
                     <div className="bg-muted/50 p-2 rounded text-center">
                       <p className="text-[10px] text-muted-foreground uppercase">Séries</p>
