@@ -97,8 +97,18 @@ export default function StudentProtocolPreview({ open, onClose, payload, student
                         </div>
                       </AccordionTrigger>
                       <AccordionContent className="px-4 pb-4 border-t border-border/40">
+                        {dayMobility.length > 0 && (
+                          <div className="mt-3 rounded-lg border border-dashed border-sky-500/40 bg-sky-500/5 p-2 space-y-2">
+                            <p className="text-xs font-bold text-sky-500">
+                              Mobilidade pré-treino ({dayMobility.length})
+                            </p>
+                            {dayMobility.map((ex, idx) => (
+                              <MobilityExerciseRow key={`mob-${idx}`} ex={ex} />
+                            ))}
+                          </div>
+                        )}
                         <div className="space-y-3 mt-3">
-                          {day.exercises.map((ex, idx) => (
+                          {dayStrength.map((ex, idx) => (
                             <div
                               key={idx}
                               className="bg-background border border-border/50 rounded-lg p-3"
