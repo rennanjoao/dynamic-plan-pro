@@ -28,7 +28,7 @@ import {
 } from "@/lib/protocolSchema";
 import { DAY_KEYS } from "@/lib/weekCycle";
 import {
-  calcMealMacros, calcDayMacros, tacoGroupToKind, parseWeightString,
+  calcMealMacros, calcDayMacros, tacoGroupToKind, parseWeightString, calcItemMacros,
   optionMacros, compareOptions, suggestProportionalWeights, type SubstitutionSeverity,
 } from "@/lib/macroCalc";
 import { searchFoods, type FoodHit } from "@/lib/foodSearch";
