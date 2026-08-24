@@ -10,7 +10,8 @@ import { Card } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Activity, Dumbbell, UtensilsCrossed, FileText, BarChart3, Calendar } from "lucide-react";
 import type { ProtocolPayload } from "@/lib/protocolSchema";
-import { WEEKDAYS } from "@/lib/protocolSchema";
+import { WEEKDAYS, isMobilityExercise } from "@/lib/protocolSchema";
+import { MobilityExerciseRow } from "@/components/student/MobilityExerciseRow";
 import { Private } from "@/components/coach/PrivacyMode";
 
 export type PreviewSection = "macros" | "guidelines" | "workouts" | "diet" | "cycle";
