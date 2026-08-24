@@ -619,7 +619,7 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
     supabase.auth.getSession().then(({ data }) => setUid(data.session?.user?.id ?? null));
   }, []);
   const dayKey = new Date().toISOString().slice(0, 10);
-  const { checked, toggle, doneCount, progressPct } = useMealCheckins(uid, dayKey, meals.length);
+  const { checked, toggle } = useMealCheckins(uid, dayKey, meals.length);
 
   // ── Contexto do dia ─────────────────────────────────────────────────────
   const strip = buildWeekStrip(safeData);
@@ -668,12 +668,38 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
     [meals],
   );
 
+  // ── Progresso de check-in — precisa refletir só o que está VISÍVEL agora ──
+  // `checked` guarda status por índice ABSOLUTO (correto p/ persistência/Supabase),
+  // mas a barra de progresso (StickyDietBar) deve somar só sobre visibleMeals —
+  // senão o denominador conta a metade oculta do par treino/descanso e a barra
+  // nunca fecha em 100%. Reindexamos aqui só para exibição; checked/toggle
+  // continuam absolutos (não afeta a Vulnerabilidade 1).
+  const visibleCheckinStats = useMemo(() => {
+    const visibleChecked: Record<number, boolean> = {};
+    visibleMeals.forEach(({ originalIndex }, pos) => {
+      visibleChecked[pos] = !!checked[originalIndex];
+    });
+    const total = visibleMeals.length;
+    const done = Object.values(visibleChecked).filter(Boolean).length;
+    return {
+      checked: visibleChecked,
+      totalMeals: total,
+      doneCount: done,
+      progressPct: total ? Math.round((done / total) * 100) : 0,
+    };
+  }, [checked, visibleMeals]);
+
   // Índice da refeição que deve vir aberta por padrão (baseado no horário local).
   // NÃO reordena o array — mantém a referência posicional usada por meal_checkins.
-  const currentMealIndex = useMemo(
-    () => getCurrentMealIndex(meals),
-    [meals],
-  );
+  // Se a refeição "atual" por horário cair na metade OCULTA (ex.: treino,
+  // mas o aluno está vendo a visão de descanso), recalcula só entre as
+  // refeições realmente visíveis para não deixar nenhum card aberto por padrão.
+  const currentMealIndex = useMemo(() => {
+    const idx = getCurrentMealIndex(meals);
+    if (visibleMeals.some((v) => v.originalIndex === idx)) return idx;
+    const localIdx = getCurrentMealIndex(visibleMeals.map((v) => v.meal));
+    return visibleMeals[localIdx]?.originalIndex ?? idx;
+  }, [meals, visibleMeals]);
 
   if (meals.length === 0) return null;
 
@@ -783,10 +809,10 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
         onCookedChange={setIsCooked}
         hasCarbCycle={hasCarbCycle}
         hasCookable={hasCookable}
-        totalMeals={meals.length}
-        doneCount={doneCount}
-        progressPct={progressPct}
-        checked={checked}
+        totalMeals={visibleCheckinStats.totalMeals}
+        doneCount={visibleCheckinStats.doneCount}
+        progressPct={visibleCheckinStats.progressPct}
+        checked={visibleCheckinStats.checked}
       />
 
       {/* Grid de refeições */}
