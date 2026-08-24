@@ -60,6 +60,9 @@ export function ExercisePickerInput({
   // nome novo que o classificador não reconheceu. Nunca bloqueia salvar.
   const [needsGroupPrompt, setNeedsGroupPrompt] = useState<string | null>(null);
   const lastHandledName = useRef<string>("");
+  const [showGif, setShowGif] = useState(false);
+  const gifUrl = useExerciseGif(value, gifKey);
+
 
   useEffect(() => {
     if (skipNextSearch.current) {
