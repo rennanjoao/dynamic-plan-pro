@@ -440,6 +440,14 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                   />
                   <button
                     type="button"
+                    onClick={() => { updEx(di, ei, { is_mobility: true }); setMobOpen((s) => ({ ...s, [di]: true })); }}
+                    className="text-muted-foreground hover:text-sky-500 p-1"
+                    title="É mobilidade/alongamento — mover para o bloco de mobilidade"
+                  >
+                    <StretchHorizontal className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
                     {...attributes}
                     {...listeners}
                     className="text-muted-foreground hover:text-primary p-1 cursor-grab active:cursor-grabbing touch-none"
