@@ -228,13 +228,15 @@ export function ExercisePickerInput({
               src={s.url}
               alt=""
               loading="lazy"
-              className="w-8 h-8 rounded object-cover bg-muted flex-shrink-0"
+              className="w-12 h-12 rounded object-cover bg-muted flex-shrink-0"
             />
             <span className="truncate">{s.displayName}</span>
           </button>
         ))}
       </PopoverContent>
     </Popover>
+      </div>
+    </div>
     {onQuickPreset && (
       <div className="flex flex-wrap gap-1 mt-1">
         {QUICK_SET_PRESETS.map((p) => (
