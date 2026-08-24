@@ -166,6 +166,21 @@ export function ExercisePickerInput({
 
   return (
     <div className="flex flex-col">
+    <div className="flex items-start gap-2">
+      {gifUrl && (
+        <button
+          type="button"
+          onClick={() => setShowGif(true)}
+          className="relative w-9 h-9 rounded overflow-hidden shrink-0 border border-border/60 group"
+          title="Ver gif em tamanho maior"
+        >
+          <img src={gifUrl} alt="" loading="lazy" className="w-full h-full object-cover bg-muted" />
+          <span className="absolute inset-0 hidden group-hover:flex items-center justify-center bg-black/50">
+            <Maximize2 className="w-3.5 h-3.5 text-white" />
+          </span>
+        </button>
+      )}
+      <div className="flex-1 min-w-0">
     <Popover open={showList} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <div className="relative">
