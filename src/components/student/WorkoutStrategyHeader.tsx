@@ -82,7 +82,7 @@ export default function WorkoutStrategyHeader({
           className="w-full -mt-1 flex items-center gap-1.5 text-xs font-medium text-sky-500 hover:text-sky-400 transition-colors"
         >
           <StretchHorizontal className="w-3.5 h-3.5 shrink-0" />
-          <span className="truncate">Mobilidade sugerida antes de iniciar o treino</span>
+          <span className="truncate">Mobilidade pré-treino</span>
           <ChevronRight className="w-3.5 h-3.5 shrink-0 ml-auto opacity-60" />
         </button>
       )}
