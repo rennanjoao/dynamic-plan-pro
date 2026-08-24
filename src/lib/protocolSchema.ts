@@ -359,14 +359,13 @@ export const MealSchema = z.preprocess(
     carbCycle: z.boolean().default(false),
     // Dia em que esta refeição se aplica. Legado (sem o campo) = "all".
     day_type: z.enum(["all", "training", "rest"]).default("all"),
-    // Não soma no total de kcal/macros do dia (ex.: refeição livre/bônus,
-    // ou uma das duas versões pareadas enquanto o coach monta a dieta).
-    excludeFromDayTotal: z.boolean().optional().default(false),
-    // Vincula esta refeição à sua "refeição irmã" de outro tipo de dia
-    // (ex.: Refeição 4 - Treino ↔ Refeição 4 - Descanso). Mesmo valor nas duas.
-    pairId: z.string().nullable().optional().default(null),
     notes: z.string().optional().default(""),
     hiddenKinds: z.array(z.enum(["carb", "protein", "fat"])).optional().default([]),
+    // Identificador estável do item para drag-and-drop no builder — mesmo
+    // padrão de Exercise.__id acima. Gerado on-the-fly quando a refeição é
+    // criada, duplicada ou anexada de um template; backfilled em cargas
+    // antigas pelo DietTab. NÃO participa do cálculo de macros/refeições.
+    __id: z.string().optional(),
   })
 );
 
@@ -425,6 +424,15 @@ export type MealFoodItem = z.infer<typeof MealFoodItemSchema>;
 export type CardioRow = z.infer<typeof CardioSchema>;
 export type SupplementRow = z.infer<typeof SupplementSchema>;
 
+// Gerador compartilhado do padrão de id já usado em makeEmptyExercise —
+// extraído aqui para não duplicar o fallback em cada lugar que precisa de
+// um __id novo (DietTab: backfill, duplicar refeição, anexar template).
+export function genItemId(prefix: string): string {
+  return (typeof crypto !== "undefined" && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `${prefix}_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
+}
+
 export function makeEmptyExercise(opts?: { isMobility?: boolean }): z.infer<typeof ExerciseSchema> {
   return {
     name: "",
@@ -434,9 +442,7 @@ export function makeEmptyExercise(opts?: { isMobility?: boolean }): z.infer<type
     rest: "",
     notes: "",
     is_mobility: !!opts?.isMobility,
-    __id: (typeof crypto !== "undefined" && crypto.randomUUID)
-      ? crypto.randomUUID()
-      : `ex_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`,
+    __id: genItemId("ex"),
   };
 }
 
@@ -453,9 +459,8 @@ export function makeEmptyMeal(name = "Refeição"): z.infer<typeof MealSchema> {
     },
     carbCycle: false,
     day_type: "all",
-    excludeFromDayTotal: false,
-    pairId: null,
     notes: "",
+    __id: genItemId("meal"),
   };
 }
 
