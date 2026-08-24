@@ -357,6 +357,8 @@ export const MealSchema = z.preprocess(
       fat: [{ name: "", weight: "" }, { name: "", weight: "" }],
     }),
     carbCycle: z.boolean().default(false),
+    // Dia em que esta refeição se aplica. Legado (sem o campo) = "all".
+    day_type: z.enum(["all", "training", "rest"]).default("all"),
     notes: z.string().optional().default(""),
     hiddenKinds: z.array(z.enum(["carb", "protein", "fat"])).optional().default([]),
   })
