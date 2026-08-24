@@ -359,6 +359,12 @@ export const MealSchema = z.preprocess(
     carbCycle: z.boolean().default(false),
     // Dia em que esta refeição se aplica. Legado (sem o campo) = "all".
     day_type: z.enum(["all", "training", "rest"]).default("all"),
+    // Não soma no total de kcal/macros do dia (ex.: refeição livre/bônus,
+    // ou uma das duas versões pareadas enquanto o coach monta a dieta).
+    excludeFromDayTotal: z.boolean().optional().default(false),
+    // Vincula esta refeição à sua "refeição irmã" de outro tipo de dia
+    // (ex.: Refeição 4 - Treino ↔ Refeição 4 - Descanso). Mesmo valor nas duas.
+    pairId: z.string().nullable().optional().default(null),
     notes: z.string().optional().default(""),
     hiddenKinds: z.array(z.enum(["carb", "protein", "fat"])).optional().default([]),
   })
@@ -447,6 +453,8 @@ export function makeEmptyMeal(name = "Refeição"): z.infer<typeof MealSchema> {
     },
     carbCycle: false,
     day_type: "all",
+    excludeFromDayTotal: false,
+    pairId: null,
     notes: "",
   };
 }
