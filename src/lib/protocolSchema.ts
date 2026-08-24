@@ -191,6 +191,21 @@ export const MealMacrosSchema = z.object({
   fat: z.number().min(0).default(0),
 });
 
+// Substituição opcional anexada a um alimento principal (1:1).
+// NUNCA entra no cálculo de kcal/macros da refeição — é apenas uma alternativa
+// equivalente em calorias que o aluno pode usar no lugar do item pai.
+export const MealSubstitutionItemSchema = z.object({
+  name: z.string().default(""),
+  weight: z.string().default(""),
+  baseName: z.string().optional(),
+  rawWeight: z.number().optional(),
+  cookFactor: z.number().optional(),
+  isTaco: z.boolean().optional(),
+  isIndustrial: z.boolean().optional(),
+});
+
+export type MealSubstitutionItem = z.infer<typeof MealSubstitutionItemSchema>;
+
 // Food item: name + weight/measure
 export const MealFoodItemSchema = z.preprocess(
   (v) => {
@@ -210,7 +225,11 @@ export const MealFoodItemSchema = z.preprocess(
     // e caía silenciosamente pra fora do cálculo de kcal/macros (calcItemMacros
     // só reconhece isTaco/isIndustrial). Ver src/data/industrialFoods.ts.
     isIndustrial: z.boolean().optional(),
-    optional: z.boolean().optional(), // <-- FLAG DE CORREÇÃO AQUI
+    // Legado: alimento solto marcado como "opcional (não soma)". Mantido para
+    // retrocompatibilidade — novos protocolos usam `substitution`.
+    optional: z.boolean().optional(),
+    // Substituição opcional anexada (máx. 1 por alimento).
+    substitution: MealSubstitutionItemSchema.optional(),
     manualMacros: z.object({
       protein: z.number().default(0),
       carbs: z.number().default(0),
@@ -219,6 +238,7 @@ export const MealFoodItemSchema = z.preprocess(
     }).optional(),
   })
 );
+
 
 // items may come as string (legacy) -> wrap into array
 const ItemsArraySchema = z.preprocess((v) => {
