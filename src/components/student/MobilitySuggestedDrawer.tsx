@@ -57,14 +57,14 @@ export function MobilitySuggestedDrawer({ open, onOpenChange, exercises }: Mobil
             <div className="text-left">
               <DrawerTitle className="flex items-center gap-2">
                 <StretchHorizontal className="w-4 h-4 text-sky-500" />
-                Mobilidade sugerida
+                Mobilidade pré-treino
               </DrawerTitle>
               <DrawerDescription>{DESCRIPTION}</DrawerDescription>
             </div>
             <DrawerClose asChild>
               <button
                 type="button"
-                aria-label="Fechar mobilidade sugerida"
+                aria-label="Fechar mobilidade pré-treino"
                 className="rounded-full p-2 hover:bg-black/10 transition-colors focus:outline-none focus:ring-2 focus:ring-primary shrink-0"
               >
                 <X className="w-5 h-5" />
@@ -85,7 +85,7 @@ export function MobilitySuggestedDrawer({ open, onOpenChange, exercises }: Mobil
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <StretchHorizontal className="w-4 h-4 text-sky-500" />
-            Mobilidade sugerida
+            Mobilidade pré-treino
           </DialogTitle>
           <DialogDescription>{DESCRIPTION}</DialogDescription>
         </DialogHeader>
