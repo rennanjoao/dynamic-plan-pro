@@ -34,7 +34,10 @@ export function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; s
   // refeições (soma da Opção 1 de cada kind, igual ao cálculo do dia na aba
   // Dieta). A diferença é o que dá pra redistribuir pelas refeições sem
   // trocar alimento nenhum — só ajustando gramagem.
-  const dayMacros = useMemo(() => calcDayMacros(payload.meals), [payload.meals]);
+  const dayMacros = useMemo(
+    () => calcDayMacros(payload.meals.filter((mm) => !(mm as any).excludeFromDayTotal)),
+    [payload.meals],
+  );
 
   // ── Refeições de Treino vs Descanso (independente do ciclo de carbo) ──
   const dayTypeOf = (meal: any): "all" | "training" | "rest" => (meal?.day_type ?? "all");
@@ -45,11 +48,15 @@ export function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; s
   const trainingDays = Math.min(7, Math.max(0, Number(payload.setup?.trainingDaysPerWeek ?? 5)));
   const kcalOf = (mac: { kcal: number }) => Math.round(mac.kcal);
   const trainingTotals = useMemo(
-    () => calcDayMacros(payload.meals.filter((mm) => dayTypeOf(mm) !== "rest")),
+    () => calcDayMacros(
+      payload.meals.filter((mm) => dayTypeOf(mm) !== "rest" && !(mm as any).excludeFromDayTotal)
+    ),
     [payload.meals],
   );
   const restTotals = useMemo(
-    () => calcDayMacros(payload.meals.filter((mm) => dayTypeOf(mm) !== "training")),
+    () => calcDayMacros(
+      payload.meals.filter((mm) => dayTypeOf(mm) !== "training" && !(mm as any).excludeFromDayTotal)
+    ),
     [payload.meals],
   );
   const weeklyAvgDayTypeKcal = Math.round(
