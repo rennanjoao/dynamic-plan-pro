@@ -52,12 +52,23 @@ export function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; s
   );
   const trainingDays = Math.min(7, Math.max(0, Number(payload.setup?.trainingDaysPerWeek ?? 5)));
   const kcalOf = (mac: { kcal: number }) => Math.round(mac.kcal);
+
+  // excludeFromDayTotal serve a 2 cenários diferentes:
+  //  1) refeição bônus/livre SEM pairId — nunca deve entrar em nenhum total.
+  //  2) uma perna de um par treino/descanso (COM pairId), isolada só na
+  //     barra única "Macros do dia" (acima) enquanto o coach monta a dieta.
+  //     Aqui o day_type já separa treino de descanso corretamente, então
+  //     essa flag não se aplica — do contrário o dia de descanso zeraria a
+  //     média semanal até o coach religar a flag manualmente.
+  // Só a flag "solta" (sem pairId) remove a refeição do cálculo por tipo de dia.
+  const includeInDayTypeTotal = (mm: any) => !mm.excludeFromDayTotal || !!mm.pairId;
+
   const trainingTotals = useMemo(
-    () => calcDayMacros(payload.meals.filter((mm) => dayTypeOf(mm) !== "rest")),
+    () => calcDayMacros(payload.meals.filter((mm) => dayTypeOf(mm) !== "rest" && includeInDayTypeTotal(mm))),
     [payload.meals],
   );
   const restTotals = useMemo(
-    () => calcDayMacros(payload.meals.filter((mm) => dayTypeOf(mm) !== "training")),
+    () => calcDayMacros(payload.meals.filter((mm) => dayTypeOf(mm) !== "training" && includeInDayTypeTotal(mm))),
     [payload.meals],
   );
   const weeklyAvgDayTypeKcal = Math.round(
