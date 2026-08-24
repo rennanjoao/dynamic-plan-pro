@@ -446,6 +446,7 @@ export function makeEmptyMeal(name = "Refeição"): z.infer<typeof MealSchema> {
       fat: [{ name: "", weight: "" }, { name: "", weight: "" }],
     },
     carbCycle: false,
+    day_type: "all",
     notes: "",
   };
 }
