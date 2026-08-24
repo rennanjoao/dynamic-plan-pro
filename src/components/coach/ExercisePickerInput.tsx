@@ -15,7 +15,9 @@ import {
   type MuscleGroup,
 } from "@/lib/muscleGroupClassifier";
 import { toExerciseKey } from "@/lib/workoutTypes";
-import { X } from "lucide-react";
+import { X, Maximize2 } from "lucide-react";
+import { useExerciseGif } from "@/hooks/useExerciseGif";
+import { ExerciseGifDialog } from "@/components/shared/ExerciseGifDialog";
 
 interface Suggestion {
   key: string;
@@ -58,6 +60,9 @@ export function ExercisePickerInput({
   // nome novo que o classificador não reconheceu. Nunca bloqueia salvar.
   const [needsGroupPrompt, setNeedsGroupPrompt] = useState<string | null>(null);
   const lastHandledName = useRef<string>("");
+  const [showGif, setShowGif] = useState(false);
+  const gifUrl = useExerciseGif(value, gifKey);
+
 
   useEffect(() => {
     if (skipNextSearch.current) {
@@ -161,6 +166,21 @@ export function ExercisePickerInput({
 
   return (
     <div className="flex flex-col">
+    <div className="flex items-start gap-2">
+      {gifUrl && (
+        <button
+          type="button"
+          onClick={() => setShowGif(true)}
+          className="relative w-9 h-9 rounded overflow-hidden shrink-0 border border-border/60 group"
+          title="Ver gif em tamanho maior"
+        >
+          <img src={gifUrl} alt="" loading="lazy" className="w-full h-full object-cover bg-muted" />
+          <span className="absolute inset-0 hidden group-hover:flex items-center justify-center bg-black/50">
+            <Maximize2 className="w-3.5 h-3.5 text-white" />
+          </span>
+        </button>
+      )}
+      <div className="flex-1 min-w-0">
     <Popover open={showList} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <div className="relative">
@@ -208,13 +228,15 @@ export function ExercisePickerInput({
               src={s.url}
               alt=""
               loading="lazy"
-              className="w-8 h-8 rounded object-cover bg-muted flex-shrink-0"
+              className="w-12 h-12 rounded object-cover bg-muted flex-shrink-0"
             />
             <span className="truncate">{s.displayName}</span>
           </button>
         ))}
       </PopoverContent>
     </Popover>
+      </div>
+    </div>
     {onQuickPreset && (
       <div className="flex flex-wrap gap-1 mt-1">
         {QUICK_SET_PRESETS.map((p) => (
@@ -255,6 +277,7 @@ export function ExercisePickerInput({
         </button>
       </div>
     )}
+    <ExerciseGifDialog open={showGif} onOpenChange={setShowGif} gifUrl={gifUrl} exerciseName={value} />
     </div>
   );
 }

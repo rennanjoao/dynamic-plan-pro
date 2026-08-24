@@ -10,6 +10,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ProtocolPayloadSchema, isMobilityExercise } from "@/lib/protocolSchema";
+import { ExerciseNameButton } from "@/components/shared/ExerciseNameButton";
 import ProtocolQuestionButton from "@/components/student/ProtocolQuestionButton";
 import WorkoutPeriodizationView from "@/components/student/WorkoutPeriodizationView";
 import WorkoutMode from "@/components/student/WorkoutMode";
@@ -332,7 +333,8 @@ export default function WorkoutPlan() {
                   className="bg-background border border-border/50 rounded-lg p-3"
                 >
                   <h4 className="font-bold text-sm text-primary mb-2 flex items-start gap-2">
-                    <span className="mt-0.5">•</span> {ex.name}
+                    <span className="mt-0.5">•</span>
+                    <ExerciseNameButton name={ex.name} gifKey={ex.gifKey} />
                   </h4>
                   <div className={`grid gap-2 mb-2 ${ex.cadence ? "grid-cols-4" : "grid-cols-3"}`}>
                     <div className="bg-muted/50 p-2 rounded text-center">

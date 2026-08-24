@@ -10,7 +10,8 @@ import { Card } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Activity, Dumbbell, UtensilsCrossed, FileText, BarChart3, Calendar } from "lucide-react";
 import type { ProtocolPayload } from "@/lib/protocolSchema";
-import { WEEKDAYS } from "@/lib/protocolSchema";
+import { WEEKDAYS, isMobilityExercise } from "@/lib/protocolSchema";
+import { MobilityExerciseRow } from "@/components/student/MobilityExerciseRow";
 import { Private } from "@/components/coach/PrivacyMode";
 
 export type PreviewSection = "macros" | "guidelines" | "workouts" | "diet" | "cycle";
@@ -74,6 +75,10 @@ export default function StudentProtocolPreview({ open, onClose, payload, student
                   const dayCardio = (payload.cardio ?? []).filter(
                     (c) => c.workoutKey === day.key && c.associationType === "workout"
                   );
+                  // Mobilidade nunca aparece junto com o treino de força — mesma
+                  // separação usada na tela real do aluno (WorkoutPlan.tsx).
+                  const dayMobility = (day.exercises ?? []).filter((ex) => isMobilityExercise(ex));
+                  const dayStrength = (day.exercises ?? []).filter((ex) => !isMobilityExercise(ex));
                   return (
                     <AccordionItem
                       key={i}
@@ -92,8 +97,18 @@ export default function StudentProtocolPreview({ open, onClose, payload, student
                         </div>
                       </AccordionTrigger>
                       <AccordionContent className="px-4 pb-4 border-t border-border/40">
+                        {dayMobility.length > 0 && (
+                          <div className="mt-3 rounded-lg border border-dashed border-sky-500/40 bg-sky-500/5 p-2 space-y-2">
+                            <p className="text-xs font-bold text-sky-500">
+                              Mobilidade pré-treino ({dayMobility.length})
+                            </p>
+                            {dayMobility.map((ex, idx) => (
+                              <MobilityExerciseRow key={`mob-${idx}`} ex={ex} />
+                            ))}
+                          </div>
+                        )}
                         <div className="space-y-3 mt-3">
-                          {day.exercises.map((ex, idx) => (
+                          {dayStrength.map((ex, idx) => (
                             <div
                               key={idx}
                               className="bg-background border border-border/50 rounded-lg p-3"

@@ -13,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import {
   Plus, Trash2, ArrowUp, ArrowDown, ChevronDown, CheckCircle2, GripVertical, Activity,
-  StretchHorizontal,
+  StretchHorizontal, Dumbbell,
 } from "lucide-react";
 import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
 import { ExerciseSubstitutesPopover } from "@/components/coach/ExerciseSubstitutesPopover";
@@ -326,24 +326,34 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                     <Input value={ex.sets ?? ""} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder="Séries (Ex: 2)" className="h-8 text-xs" />
                     <Input value={ex.reps ?? ""} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder="Tempo/Reps (Ex: 30s)" className="h-8 text-xs" />
                     <Input value={ex.notes ?? ""} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-xs" />
-                    {isLegacyMobilityExercise(ex) && (
+                    <div className="flex items-center gap-0.5 justify-self-end">
+                      {isLegacyMobilityExercise(ex) && (
+                        <button
+                          type="button"
+                          onClick={() => updEx(di, ei, { is_mobility: true })}
+                          className="text-sky-500 hover:text-sky-400 p-1.5"
+                          title="Corrigir: marcar como mobilidade permanentemente"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={() => updEx(di, ei, { is_mobility: true })}
-                        className="text-sky-500 hover:text-sky-400 p-1.5 justify-self-end"
-                        title="Corrigir: marcar como mobilidade permanentemente"
+                        onClick={() => updEx(di, ei, { is_mobility: false })}
+                        className="text-muted-foreground hover:text-foreground p-1.5"
+                        title="Não é mobilidade — mover para o treino de força"
                       >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <Dumbbell className="w-3.5 h-3.5" />
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => updDay(di, { exercises: day.exercises.filter((_, i) => i !== ei) })}
-                      className="text-muted-foreground hover:text-destructive p-1.5 justify-self-end"
-                      title="Remover mobilidade"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => updDay(di, { exercises: day.exercises.filter((_, i) => i !== ei) })}
+                        className="text-muted-foreground hover:text-destructive p-1.5"
+                        title="Remover mobilidade"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -428,6 +438,14 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                     value={((ex as any).allowed_substitutes ?? []) as string[]}
                     onChange={(next) => updEx(di, ei, { allowed_substitutes: next } as any)}
                   />
+                  <button
+                    type="button"
+                    onClick={() => { updEx(di, ei, { is_mobility: true }); setMobOpen((s) => ({ ...s, [di]: true })); }}
+                    className="text-muted-foreground hover:text-sky-500 p-1"
+                    title="É mobilidade/alongamento — mover para o bloco de mobilidade"
+                  >
+                    <StretchHorizontal className="w-3.5 h-3.5" />
+                  </button>
                   <button
                     type="button"
                     {...attributes}
