@@ -277,6 +277,27 @@ export function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; s
   );
 }
 
+function DayTypeTotalsCard({
+  title, totals, accent, borderClass,
+}: {
+  title: string;
+  totals: { kcal: number; protein: number; carbs: number; fat: number };
+  accent: string;
+  borderClass: string;
+}) {
+  return (
+    <div className={`rounded-lg border p-2 ${borderClass}`}>
+      <p className={`text-[9px] font-bold uppercase tracking-wide ${accent}`}>{title}</p>
+      <p className="text-sm font-bold text-foreground mt-0.5 leading-tight">
+        {Math.round(totals.kcal)}<span className="text-[9px] font-normal text-muted-foreground"> kcal</span>
+      </p>
+      <p className="text-[10px] text-muted-foreground leading-tight">
+        P {Math.round(totals.protein)}g · C {Math.round(totals.carbs)}g · G {Math.round(totals.fat)}g
+      </p>
+    </div>
+  );
+}
+
 function MacroDeltaBadge({ label, value }: { label: string; value: number }) {
   const r = Math.round(value);
   const cls = Math.abs(r) < 1 ? "text-muted-foreground" : r > 0 ? "text-emerald-500" : "text-rose-500";
