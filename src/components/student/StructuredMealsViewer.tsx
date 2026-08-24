@@ -238,13 +238,18 @@ function NutritionStrategyHeader({
   carbMode,
   highPct,
   lowPct,
+  meals: mealsProp,
 }: {
   payload: any;
   carbMode: CarbMode;
   highPct: number;
   lowPct: number;
+  /** Refeições consideradas no cálculo (já filtradas por tipo de dia). */
+  meals?: any[];
 }) {
-  const meals: any[] = Array.isArray(payload?.meals) ? payload.meals : [];
+  const meals: any[] = Array.isArray(mealsProp)
+    ? mealsProp
+    : Array.isArray(payload?.meals) ? payload.meals : [];
 
   // Usa os macros REAIS dos alimentos quando disponíveis; caso contrário,
   // cai para os macros-meta definidos pelo coach (payload.macros).
@@ -610,6 +615,28 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
   // ── Estado global — único para todas as refeições ──
   const [carbMode, setCarbMode] = useState<CarbMode>(todayInfo.carb as CarbMode);
   const [isCooked, setIsCooked] = useState(false);
+  const [isRestDay, setIsRestDay] = useState(false);
+
+  // ── Refeições de Treino vs Descanso ────────────────────────────────────
+  // CRÍTICO: nunca reindexar `meals`. O índice posicional original
+  // (originalIndex) é a chave usada em meal_checkins.meal_index.
+  const dayTypeOf = (meal: any): "all" | "training" | "rest" =>
+    (meal?.day_type === "training" || meal?.day_type === "rest") ? meal.day_type : "all";
+  const hasDayTypeVariation = useMemo(
+    () => meals.some((mm) => dayTypeOf(mm) !== "all"),
+    [meals],
+  );
+  const visibleMeals = useMemo(
+    () =>
+      meals
+        .map((meal, index) => ({ meal, originalIndex: index }))
+        .filter(({ meal }) => {
+          const dt = dayTypeOf(meal);
+          if (dt === "all") return true;
+          return isRestDay ? dt === "rest" : dt === "training";
+        }),
+    [meals, isRestDay],
+  );
 
   const highPct: number = safeData.carbCycleHighPct ?? 15;
   const lowPct: number  = safeData.carbCycleLowPct  ?? 15;
@@ -701,11 +728,33 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
       </div>
 
       {/* Macros — estático, não precisa de sticky */}
+      {hasDayTypeVariation && (
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold text-foreground leading-tight">
+              {isRestDay ? "Refeições para dias sem treino" : "Refeições para dias de treino"}
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Seu coach montou refeições diferentes por tipo de dia.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsRestDay((v) => !v)}
+            aria-pressed={isRestDay}
+            className="shrink-0 h-8 px-3 rounded-lg border border-primary/40 bg-primary/10 text-primary text-[11px] font-bold hover:bg-primary/20 transition-colors"
+          >
+            {isRestDay ? "Ver refeições para dias de treino" : "Ver refeições para dias sem treino"}
+          </button>
+        </div>
+      )}
+
       <NutritionStrategyHeader
         payload={safeData}
         carbMode={carbMode}
         highPct={highPct}
         lowPct={lowPct}
+        meals={visibleMeals.map((v) => v.meal)}
       />
 
       {/* Barra sticky com os dois controles */}
@@ -724,19 +773,19 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
 
       {/* Grid de refeições */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-4">
-        {meals.map((meal: any, i: number) => (
+        {visibleMeals.map(({ meal, originalIndex }) => (
           <MealCard
-            key={i}
+            key={originalIndex}
             meal={meal}
-            index={i}
+            index={originalIndex}
             mode={carbMode}
             isCooked={isCooked}
             highPct={highPct}
             lowPct={lowPct}
             supplements={safeData.supplements}
-            isChecked={!!checked[i]}
+            isChecked={!!checked[originalIndex]}
             onToggleChecked={uid ? toggle : undefined}
-            isCurrent={i === currentMealIndex}
+            isCurrent={originalIndex === currentMealIndex}
           />
         ))}
       </div>
