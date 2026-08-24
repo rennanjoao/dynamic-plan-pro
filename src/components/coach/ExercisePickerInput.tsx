@@ -277,6 +277,7 @@ export function ExercisePickerInput({
         </button>
       </div>
     )}
+    <ExerciseGifDialog open={showGif} onOpenChange={setShowGif} gifUrl={gifUrl} exerciseName={value} />
     </div>
   );
 }
