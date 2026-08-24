@@ -10,6 +10,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ProtocolPayloadSchema, isMobilityExercise } from "@/lib/protocolSchema";
+import { ExerciseNameButton } from "@/components/shared/ExerciseNameButton";
 import ProtocolQuestionButton from "@/components/student/ProtocolQuestionButton";
 import WorkoutPeriodizationView from "@/components/student/WorkoutPeriodizationView";
 import WorkoutMode from "@/components/student/WorkoutMode";
