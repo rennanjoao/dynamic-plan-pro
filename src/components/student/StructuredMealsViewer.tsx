@@ -350,19 +350,28 @@ function MacroSection({
         if (!name) return null;
         // CORREÇÃO: prioriza o weight textual do coach (preserva 'unidades', 'fatias', etc.).
         // rawWeight (gramas internas TACO) é usado apenas quando weight está vazio ou é só número.
-        const weightStr = stripHtml(it.weight || "");
-        const hasUnitWord = /un|unid|fatia|ovo|colher|copo|porc/i.test(weightStr);
-        const rawText = hasUnitWord
-          ? weightStr
-          : (it.rawWeight ? `${it.rawWeight}g` : weightStr);
-        const weight = rawText
-          ? applySmartMath(rawText, mode, isCooked, isCarb, name, highPct, lowPct)
-          : "";
-        return { name, weight };
+        const resolveWeight = (src: any) => {
+          const weightStr = stripHtml(src?.weight || "");
+          const hasUnitWord = /un|unid|fatia|ovo|colher|copo|porc/i.test(weightStr);
+          const rawText = hasUnitWord
+            ? weightStr
+            : (src?.rawWeight ? `${src.rawWeight}g` : weightStr);
+          return rawText
+            ? applySmartMath(rawText, mode, isCooked, isCarb, name, highPct, lowPct)
+            : "";
+        };
+        const sub = it?.substitution;
+        const subName = stripHtml(sub?.baseName || sub?.name || "");
+        return {
+          name,
+          weight: resolveWeight(it),
+          sub: subName ? { name: subName, weight: resolveWeight(sub) } : null,
+        };
       })
-      .filter(Boolean) as { name: string; weight: string }[];
+      .filter(Boolean) as { name: string; weight: string; sub: { name: string; weight: string } | null }[];
     return items;
   };
+
 
   return (
     <div className={`rounded-xl border ${cfg.border} ${cfg.bg} p-3`}>
