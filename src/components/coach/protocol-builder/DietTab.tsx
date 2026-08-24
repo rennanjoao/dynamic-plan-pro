@@ -19,13 +19,22 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   Plus, Trash2, ChevronDown, Copy, BookmarkPlus, Library, UtensilsCrossed, Pill,
-  ArrowUp, ArrowDown, Eye, EyeOff, AlertCircle, Sparkles, CheckCircle2, Loader2, TrendingUp,
-  Wand2, Repeat, Unlink,
+  ArrowUp, ArrowDown, Eye, AlertCircle, Sparkles, CheckCircle2, Loader2, TrendingUp,
+  Wand2, GripVertical,
 } from "lucide-react";
 import { loadCoachProfile } from "@/lib/prescriptionMemory";
 import {
-  ProtocolPayload, makeEmptyMeal, MEAL_NAME_PRESETS, SUPPLEMENT_OBJECTIVES,
+  ProtocolPayload, makeEmptyMeal, MEAL_NAME_PRESETS, SUPPLEMENT_OBJECTIVES, genItemId,
 } from "@/lib/protocolSchema";
+import {
+  DndContext, closestCenter, PointerSensor, KeyboardSensor,
+  useSensor, useSensors, type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, sortableKeyboardCoordinates,
+  useSortable, verticalListSortingStrategy, arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { DAY_KEYS } from "@/lib/weekCycle";
 import {
   calcMealMacros, calcDayMacros, tacoGroupToKind, parseWeightString, calcItemMacros,
@@ -56,9 +65,60 @@ function equivalentGramsForKcal(mainItem: any, hit: FoodHit): number {
 
 // ─── DietTab ─────────────────────────────────────────────────────────────────
 
+// Card sortable para drag-and-drop de refeições. Aplica transform no próprio
+// Card (mantém o layout original) e delega os listeners a um handle
+// dedicado (ícone GripVertical) para não interferir nos inputs — mesmo
+// padrão de SortableExerciseRow em WorkoutsTab.tsx.
+function SortableMealCard({
+  id, children,
+}: { id: string; children: (handle: { attributes: any; listeners: any; isDragging: boolean }) => React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    position: "relative",
+    zIndex: isDragging ? 20 : undefined,
+  };
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children({ attributes, listeners, isDragging })}
+    </div>
+  );
+}
+
 export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void }) {
   const [coachId, setCoachId] = useState<string | null>(null);
   useEffect(() => { supabase.auth.getSession().then(({ data }) => {   const id = data.session?.user?.id ?? null;   setCoachId(id);   loadCoachProfile(id); }); }, []);
+
+  // Backfill de __id em refeições carregadas de protocolos antigos (sem esse
+  // campo) — mesmo padrão do backfill de exercícios em WorkoutsTab.tsx.
+  // Necessário pro drag-and-drop ter uma identidade estável por item; roda
+  // uma única vez por payload, só quando alguma refeição está sem __id.
+  useEffect(() => {
+    const needs = payload.meals.some((m: any) => !m.__id);
+    if (!needs) return;
+    const nextMeals = payload.meals.map((m: any) => (m.__id ? m : { ...m, __id: genItemId("meal") }));
+    setPayload({ ...payload, meals: nextMeals });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sensors: só inicia drag após 5px de movimento p/ não interferir em
+  // cliques nos inputs/botões do card (mesma config de WorkoutsTab.tsx).
+  const mealSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  function handleMealDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const ids = payload.meals.map((m: any, i) => m.__id ?? `meal-${i}`);
+    const oldIndex = ids.indexOf(String(active.id));
+    const newIndex = ids.indexOf(String(over.id));
+    if (oldIndex < 0 || newIndex < 0) return;
+    setPayload({ ...payload, meals: arrayMove(payload.meals, oldIndex, newIndex) });
+  }
 
   const [saveTplFor, setSaveTplFor] = useState<{ idx: number; name: string; kind: string } | null>(null);
   const [loadTplOpen, setLoadTplOpen] = useState(false);
@@ -95,9 +155,10 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
   function attachTemplate(tpl: any) {
     try {
       const meal = tpl.meal_data;
-      // pairId nunca deve vir de um modelo salvo — evita vincular essa
-      // refeição nova a um par que não existe (ou existe em outro protocolo).
-      setPayload({ ...payload, meals: [...payload.meals, { ...meal, name: meal.name || tpl.name, pairId: null }] });
+      // __id novo: o template pode já ter um __id salvo de quando foi criado
+      // (ou já ter sido anexado antes) — sem isso, duas refeições da mesma
+      // origem colidiriam no drag-and-drop.
+      setPayload({ ...payload, meals: [...payload.meals, { ...meal, name: meal.name || tpl.name, __id: genItemId("meal") }] });
       toast.success("Modelo adicionado");
       setLoadTplOpen(false);
     } catch { toast.error("Modelo inválido"); }
@@ -107,74 +168,15 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
     const orig = payload.meals[mealIdx];
     const copy = JSON.parse(JSON.stringify(orig));
     copy.name = `${orig.name || "Refeição"} (cópia)`;
-    // Desvincula a cópia do par da original — senão passamos a ter 3
-    // refeições com o mesmo pairId, e "Ver par"/"Desvincular" ficam ambíguos.
-    copy.pairId = null;
+    // __id novo pra cópia — é um item distinto agora; manter o __id do
+    // original quebraria o drag-and-drop (dois itens com o mesmo id).
+    copy.__id = genItemId("meal");
     const next = [...payload.meals];
     next.splice(mealIdx + 1, 0, copy);
     setPayload({ ...payload, meals: next });
   }
 
-  // ── Refeições pareadas (Treino ↔ Descanso) ─────────────────────────────
-  // Cria uma versão vazia desta refeição para o dia sem treino, vinculada
-  // à original por `pairId`. NUNCA reindexa: apenas insere um novo item no
-  // array (a original mantém seu índice/posição).
-  const mealCardRefs = useRef<Record<number, HTMLDivElement | null>>({});
-  const [highlightedMeal, setHighlightedMeal] = useState<number | null>(null);
-
-  function scrollToMeal(mealIdx: number) {
-    setCollapsedMeals((prev) => ({ ...prev, [mealIdx]: false }));
-    setHighlightedMeal(mealIdx);
-    requestAnimationFrame(() => {
-      mealCardRefs.current[mealIdx]?.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
-    setTimeout(() => setHighlightedMeal((cur) => (cur === mealIdx ? null : cur)), 1600);
-  }
-
-  function createRestVersion(mealIdx: number) {
-    const orig = payload.meals[mealIdx];
-    const newPairId = (typeof crypto !== "undefined" && crypto.randomUUID)
-      ? crypto.randomUUID()
-      : `pair_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
-
-    const empty = makeEmptyMeal(orig.name || "Refeição");
-    (empty as any).time = orig.time || "";
-    (empty as any).day_type = "rest";
-    (empty as any).pairId = newPairId;
-    // Por padrão a versão nova entra "fora do total" pra não somar junto
-    // com a de treino na barra do topo — o coach liga/desliga cada uma
-    // manualmente quando quiser conferir o total de um dia específico.
-    (empty as any).excludeFromDayTotal = true;
-
-    const next = [...payload.meals];
-    // A original passa a valer só para dia de treino — senão ela continuaria
-    // aparecendo também no dia de descanso, junto da nova versão.
-    next[mealIdx] = {
-      ...next[mealIdx],
-      day_type: (next[mealIdx] as any).day_type === "rest" ? "rest" : "training",
-      pairId: newPairId,
-    } as any;
-    next.splice(mealIdx + 1, 0, empty as any);
-    setPayload({ ...payload, meals: next });
-
-    // Abre a nova refeição (vazia) já pronta pra edição.
-    setCollapsedMeals((prev) => ({ ...prev, [mealIdx + 1]: false }));
-    setTimeout(() => scrollToMeal(mealIdx + 1), 50);
-  }
-
-  function unpairMeal(mealIdx: number) {
-    const pid = (payload.meals[mealIdx] as any)?.pairId;
-    if (!pid) return;
-    const next = payload.meals.map((mm) =>
-      (mm as any).pairId === pid ? { ...mm, pairId: null } : mm
-    );
-    setPayload({ ...payload, meals: next as any });
-  }
-
-  const dayMacros = useMemo(
-    () => calcDayMacros(payload.meals.filter((mm) => !(mm as any).excludeFromDayTotal)),
-    [payload.meals],
-  );
+  const dayMacros = useMemo(() => calcDayMacros(payload.meals), [payload.meals]);
   const goals = payload.macros;
   const bars = [
     { label: "Kcal", cur: dayMacros.kcal, goal: goals.calories || 1, color: "bg-primary" },
@@ -324,16 +326,30 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
         </Card>
       </div>
 
+      <DndContext sensors={mealSensors} collisionDetection={closestCenter} onDragEnd={handleMealDragEnd}>
+      <SortableContext
+        items={payload.meals.map((m: any, i) => m.__id ?? `meal-${i}`)}
+        strategy={verticalListSortingStrategy}
+      >
       {payload.meals.map((m, mealIdx) => {
         const isCollapsed = !!collapsedMeals[mealIdx];
         const mealM = calcMealMacros(m);
+        const mealId = (m as any).__id ?? `meal-${mealIdx}`;
         return (
-        <Card
-          key={mealIdx}
-          ref={(el) => { mealCardRefs.current[mealIdx] = el; }}
-          className={`bg-card/60 border-border transition-shadow ${isCollapsed ? "overflow-hidden" : "overflow-visible relative focus-within:z-50"} ${highlightedMeal === mealIdx ? "ring-2 ring-primary shadow-lg shadow-primary/20" : ""}`}
-        >
+        <SortableMealCard key={mealId} id={mealId}>
+        {({ attributes, listeners }) => (
+        <Card className={`bg-card/60 border-border ${isCollapsed ? "overflow-hidden" : "overflow-visible relative focus-within:z-50"}`}>
           <div className={`flex items-center gap-2 px-4 py-3 border-b border-border/40 bg-muted/10 ${isCollapsed ? "" : "rounded-t-xl"}`}>
+            <button
+              type="button"
+              {...attributes}
+              {...listeners}
+              className="text-muted-foreground hover:text-primary p-1.5 shrink-0 cursor-grab active:cursor-grabbing touch-none"
+              title="Arrastar para reordenar"
+              aria-label="Arrastar refeição"
+            >
+              <GripVertical className="w-3.5 h-3.5" />
+            </button>
             <Input
               list="meal-name-presets"
               value={m.name}
@@ -381,55 +397,6 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
                 <TrendingUp className="w-3.5 h-3.5" /> Ciclo
               </button>
             )}
-            {/* Não contar nas kcal do dia — útil pra refeição bônus/livre, ou
-                pra isolar uma das duas versões pareadas enquanto a dieta é
-                montada (senão o total do topo soma treino + descanso juntos). */}
-            <button
-              type="button"
-              onClick={() => updMealField(mealIdx, { excludeFromDayTotal: !(m as any).excludeFromDayTotal } as any)}
-              title="Não contar as kcal desta refeição no total do dia (topo da tela)"
-              className={`h-8 px-2.5 rounded-lg border text-xs font-semibold transition-colors flex items-center gap-1 shrink-0 ${(m as any).excludeFromDayTotal ? "bg-amber-500/15 border-amber-500/40 text-amber-500" : "border-border/50 text-muted-foreground"}`}
-            >
-              <EyeOff className="w-3.5 h-3.5" /> {(m as any).excludeFromDayTotal ? "Fora do total" : "Contar kcal"}
-            </button>
-            {/* Refeição pareada Treino ↔ Descanso — mesma "posição" na dieta,
-                conteúdo diferente por tipo de dia, sem duplicar meal_index. */}
-            {(m as any).pairId ? (
-              <button
-                type="button"
-                onClick={() => {
-                  const pid = (m as any).pairId;
-                  const pairIdx = payload.meals.findIndex(
-                    (mm, i) => i !== mealIdx && (mm as any).pairId === pid
-                  );
-                  if (pairIdx >= 0) scrollToMeal(pairIdx);
-                }}
-                title="Ver a versão pareada desta refeição (treino/descanso)"
-                className="h-8 px-2.5 rounded-lg border border-sky-500/40 bg-sky-500/10 text-sky-500 text-xs font-semibold flex items-center gap-1 shrink-0"
-              >
-                <Repeat className="w-3.5 h-3.5" /> Ver par
-              </button>
-            ) : null}
-            {(m as any).pairId && (
-              <button
-                type="button"
-                onClick={() => unpairMeal(mealIdx)}
-                title="Desvincular o par (as duas refeições continuam existindo, só deixam de estar ligadas)"
-                className="text-muted-foreground hover:text-destructive p-1.5 shrink-0"
-              >
-                <Unlink className="w-3.5 h-3.5" />
-              </button>
-            )}
-            {!(m as any).pairId && (
-              <button
-                type="button"
-                onClick={() => createRestVersion(mealIdx)}
-                title="Criar uma versão vazia desta refeição só para o dia sem treino"
-                className="h-8 px-2.5 rounded-lg border border-dashed border-border/60 text-muted-foreground hover:text-primary hover:border-primary/50 text-xs font-semibold flex items-center gap-1 shrink-0"
-              >
-                <Plus className="w-3.5 h-3.5" /> Versão p/ descanso
-              </button>
-            )}
             <button
               type="button"
               onClick={() => setCollapsedMeals((prev) => ({ ...prev, [mealIdx]: !isCollapsed }))}
@@ -440,19 +407,7 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
             </button>
             <button onClick={() => duplicateMeal(mealIdx)} className="text-muted-foreground hover:text-primary p-1.5 shrink-0" title="Duplicar refeição"><Copy className="w-3.5 h-3.5" /></button>
             <button onClick={() => setSaveTplFor({ idx: mealIdx, name: m.name || "Modelo", kind: "mixed" })} className="text-muted-foreground hover:text-primary p-1.5 shrink-0" title="Salvar como modelo"><BookmarkPlus className="w-3.5 h-3.5" /></button>
-            <button onClick={() => {
-              // Ao apagar, limpa o pairId de quem ficar pra trás — senão o
-              // botão "Ver par" da refeição irmã aponta pra um item que não
-              // existe mais.
-              const removedPairId = (m as any).pairId as string | null;
-              let nextMeals = payload.meals.filter((_, idx) => idx !== mealIdx);
-              if (removedPairId) {
-                nextMeals = nextMeals.map((mm) =>
-                  (mm as any).pairId === removedPairId ? { ...mm, pairId: null } : mm
-                );
-              }
-              setPayload({ ...payload, meals: nextMeals as any });
-            }} className="text-muted-foreground hover:text-destructive p-1.5 shrink-0"><Trash2 className="w-4 h-4" /></button>
+            <button onClick={() => setPayload({ ...payload, meals: payload.meals.filter((_, idx) => idx !== mealIdx) })} className="text-muted-foreground hover:text-destructive p-1.5 shrink-0"><Trash2 className="w-4 h-4" /></button>
           </div>
 
           {!isCollapsed && (
@@ -708,8 +663,12 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
           </div>
           )}
         </Card>
+        )}
+        </SortableMealCard>
         );
       })}
+      </SortableContext>
+      </DndContext>
       <Button variant="outline" size="sm" onClick={() => setPayload({ ...payload, meals: [...payload.meals, makeEmptyMeal(`Refeição ${payload.meals.length + 1}`)] })} className="w-full">
         <Plus className="w-4 h-4 mr-1.5" /> Adicionar Nova Refeição
       </Button>
