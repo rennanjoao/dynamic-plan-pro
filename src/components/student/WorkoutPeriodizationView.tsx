@@ -4,10 +4,14 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { AlertTriangle, MoreVertical, Pencil, Check, Play } from "lucide-react";
+import { AlertTriangle, MoreVertical, Pencil, Check, Play, StretchHorizontal } from "lucide-react";
 import { DEFAULT_WEEKS, type WeekMeta } from "@/lib/periodizationDefaults";
+import { isMobilityExercise } from "@/lib/protocolSchema";
+import { MobilityExerciseRow } from "@/components/student/MobilityExerciseRow";
+import { ExerciseNameButton } from "@/components/shared/ExerciseNameButton";
 
 /* ---------- Tipos ---------- */
 interface Exercise {
@@ -17,6 +21,11 @@ interface Exercise {
   cadence?: string;
   rest?: string;
   notes?: string;
+  /** Flag de mobilidade (ver isMobilityExercise em lib/protocolSchema) — usada
+   *  para tirar esses itens da lista de força e mostrá-los no bloco próprio. */
+  is_mobility?: boolean;
+  /** Chave de match direto na biblioteca de gifs (lib/exerciseLibrary). */
+  gifKey?: string;
 }
 interface WorkoutDay {
   key: string;
@@ -47,6 +56,39 @@ type Overrides = Record<number, Record<string, Partial<Exercise>>>;
 
 function exId(day: WorkoutDay, idx: number) {
   return `${day.key}_${idx}`;
+}
+
+/**
+ * Bloco "Mobilidade pré-treino" dentro da visão periodizada — mesmo padrão do
+ * MobilityBlock usado no accordion legado (WorkoutPlan.tsx), reaproveitando o
+ * MobilityExerciseRow compartilhado (nome + miniatura clicáveis, abrindo o
+ * gif de execução via ExerciseGifDialog). Sem este bloco, os itens de
+ * mobilidade caíam direto no ExerciseRow abaixo — misturados com força e sem
+ * nenhuma prévia de mídia, já que ExerciseRow não sabe lidar com gif.
+ * Fechado por padrão; some da tela quando o dia não tem mobilidade.
+ */
+function PeriodizedMobilityBlock({ exercises }: { exercises: (Exercise & { __id: string })[] }) {
+  if (exercises.length === 0) return null;
+  return (
+    <Accordion type="single" collapsible>
+      <AccordionItem value="mobility" className="border-0">
+        <AccordionTrigger className="py-2 hover:no-underline">
+          <span className="flex items-center gap-2 text-sm font-bold text-primary">
+            <StretchHorizontal className="w-4 h-4" />
+            Mobilidade pré-treino
+            <Badge variant="outline" className="text-[10px] border-primary/40 text-primary">
+              {exercises.length}
+            </Badge>
+          </span>
+        </AccordionTrigger>
+        <AccordionContent className="pb-2 space-y-2">
+          {exercises.map((ex) => (
+            <MobilityExerciseRow key={ex.__id} ex={ex} />
+          ))}
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+  );
 }
 
 export default function WorkoutPeriodizationView({
@@ -214,6 +256,13 @@ export default function WorkoutPeriodizationView({
                 // continua sendo o identificador estável passado ao
                 // onStartWorkout (grava em workout_sessions.workout_key).
                 const letter = String.fromCharCode(65 + i);
+                // Mobilidade sai da lista de força e vai pro bloco próprio
+                // (PeriodizedMobilityBlock) — mesma regra do accordion legado,
+                // aplicada aqui porque esta é a view que de fato renderiza
+                // para o aluno quando a periodização está ativa.
+                const allExercises = day.exercises as (Exercise & { __id: string })[];
+                const mobilityExercises = allExercises.filter((ex) => isMobilityExercise(ex));
+                const strengthExercises = allExercises.filter((ex) => !isMobilityExercise(ex));
                 return (
                 <AccordionItem
                   key={i}
@@ -250,7 +299,8 @@ export default function WorkoutPeriodizationView({
                   </AccordionTrigger>
 
                   <AccordionContent className="px-4 pb-4 border-t border-border/40 space-y-3 pt-3">
-                    {(day.exercises as (Exercise & { __id: string })[]).map((ex) => (
+                    <PeriodizedMobilityBlock exercises={mobilityExercises} />
+                    {strengthExercises.map((ex) => (
                       <ExerciseRow
                         key={ex.__id}
                         exercise={ex}
@@ -290,7 +340,13 @@ function ExerciseRow({
             className="h-8 text-sm font-bold"
           />
         ) : (
-          <h4 className="font-bold text-sm text-primary flex-1">• {exercise.name}</h4>
+          <h4 className="font-bold text-sm text-primary flex-1 flex items-start gap-2">
+            <span className="mt-0.5">•</span>
+            {/* Nome + miniatura clicáveis: abrem o gif de execução em tamanho
+                grande (ExerciseGifDialog), sem precisar iniciar o treino —
+                mesmo componente já usado no accordion legado. */}
+            <ExerciseNameButton name={exercise.name} gifKey={exercise.gifKey} withThumb />
+          </h4>
         )}
         {editMode && (
           <Popover>
