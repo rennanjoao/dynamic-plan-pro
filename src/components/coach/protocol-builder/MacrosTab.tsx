@@ -40,6 +40,11 @@ export function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; s
   );
 
   // ── Refeições de Treino vs Descanso (independente do ciclo de carbo) ──
+  // IMPORTANTE: aqui NÃO filtramos por excludeFromDayTotal. Esses totais já
+  // são separados corretamente por day_type (treino vs. descanso), então não
+  // sofrem o problema de contagem dupla que o excludeFromDayTotal resolve na
+  // barra única "Macros do dia" (acima) — filtrar aqui de novo esconderia a
+  // refeição legítima do card do dia a que ela pertence.
   const dayTypeOf = (meal: any): "all" | "training" | "rest" => (meal?.day_type ?? "all");
   const hasDayVariation = useMemo(
     () => payload.meals.some((mm) => dayTypeOf(mm) !== "all"),
@@ -48,15 +53,11 @@ export function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; s
   const trainingDays = Math.min(7, Math.max(0, Number(payload.setup?.trainingDaysPerWeek ?? 5)));
   const kcalOf = (mac: { kcal: number }) => Math.round(mac.kcal);
   const trainingTotals = useMemo(
-    () => calcDayMacros(
-      payload.meals.filter((mm) => dayTypeOf(mm) !== "rest" && !(mm as any).excludeFromDayTotal)
-    ),
+    () => calcDayMacros(payload.meals.filter((mm) => dayTypeOf(mm) !== "rest")),
     [payload.meals],
   );
   const restTotals = useMemo(
-    () => calcDayMacros(
-      payload.meals.filter((mm) => dayTypeOf(mm) !== "training" && !(mm as any).excludeFromDayTotal)
-    ),
+    () => calcDayMacros(payload.meals.filter((mm) => dayTypeOf(mm) !== "training")),
     [payload.meals],
   );
   const weeklyAvgDayTypeKcal = Math.round(
