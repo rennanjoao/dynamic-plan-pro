@@ -38,6 +38,21 @@ const TACO_DATA = TACO_FOODS.map((t, i) => ({ ...t, id: String(i), cookFactor: t
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
 
+/**
+ * Regra de três: quantos gramas do alimento `hit` batem as mesmas kcal do
+ * alimento principal `mainItem`. Retorna 0 quando não é possível calcular
+ * (item principal sem kcal ou substituto sem tabela nutricional).
+ * O valor é apenas uma sugestão inicial — o coach edita livremente depois.
+ */
+function equivalentGramsForKcal(mainItem: any, hit: FoodHit): number {
+  const mainKcal = calcItemMacros(mainItem).kcal;
+  const per100 = Number((hit as any)?.kcal) || 0;
+  if (!mainKcal || mainKcal <= 0 || per100 <= 0) return 0;
+  const grams = Math.round((mainKcal / per100) * 100);
+  return isFinite(grams) && grams > 0 ? grams : 0;
+}
+
+
 
 // ─── DietTab ─────────────────────────────────────────────────────────────────
 
