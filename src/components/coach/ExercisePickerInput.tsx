@@ -15,7 +15,9 @@ import {
   type MuscleGroup,
 } from "@/lib/muscleGroupClassifier";
 import { toExerciseKey } from "@/lib/workoutTypes";
-import { X } from "lucide-react";
+import { X, Maximize2 } from "lucide-react";
+import { useExerciseGif } from "@/hooks/useExerciseGif";
+import { ExerciseGifDialog } from "@/components/shared/ExerciseGifDialog";
 
 interface Suggestion {
   key: string;
