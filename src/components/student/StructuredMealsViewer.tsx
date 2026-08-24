@@ -350,19 +350,28 @@ function MacroSection({
         if (!name) return null;
         // CORREÇÃO: prioriza o weight textual do coach (preserva 'unidades', 'fatias', etc.).
         // rawWeight (gramas internas TACO) é usado apenas quando weight está vazio ou é só número.
-        const weightStr = stripHtml(it.weight || "");
-        const hasUnitWord = /un|unid|fatia|ovo|colher|copo|porc/i.test(weightStr);
-        const rawText = hasUnitWord
-          ? weightStr
-          : (it.rawWeight ? `${it.rawWeight}g` : weightStr);
-        const weight = rawText
-          ? applySmartMath(rawText, mode, isCooked, isCarb, name, highPct, lowPct)
-          : "";
-        return { name, weight };
+        const resolveWeight = (src: any) => {
+          const weightStr = stripHtml(src?.weight || "");
+          const hasUnitWord = /un|unid|fatia|ovo|colher|copo|porc/i.test(weightStr);
+          const rawText = hasUnitWord
+            ? weightStr
+            : (src?.rawWeight ? `${src.rawWeight}g` : weightStr);
+          return rawText
+            ? applySmartMath(rawText, mode, isCooked, isCarb, name, highPct, lowPct)
+            : "";
+        };
+        const sub = it?.substitution;
+        const subName = stripHtml(sub?.baseName || sub?.name || "");
+        return {
+          name,
+          weight: resolveWeight(it),
+          sub: subName ? { name: subName, weight: resolveWeight(sub) } : null,
+        };
       })
-      .filter(Boolean) as { name: string; weight: string }[];
+      .filter(Boolean) as { name: string; weight: string; sub: { name: string; weight: string } | null }[];
     return items;
   };
+
 
   return (
     <div className={`rounded-xl border ${cfg.border} ${cfg.bg} p-3`}>
@@ -388,22 +397,34 @@ function MacroSection({
               )}
               <ul className="space-y-1">
                 {items.map((item, ii) => (
-                  <li
-                    key={ii}
-                    id={`${anchorBase}-item-${slug(item.name)}`}
-                    className="flex items-baseline justify-between gap-3 px-1"
-                  >
-                    <span className="text-sm leading-snug text-foreground/90 break-words min-w-0 flex-1">
-                      {item.name}
-                    </span>
-                    {item.weight && (
-                      <span className={`text-xs tabular-nums shrink-0 font-bold ${cfg.color}`}>
-                        {humanizeUnit(item.weight)}
+                  <li key={ii} id={`${anchorBase}-item-${slug(item.name)}`}>
+                    <div className="flex items-baseline justify-between gap-3 px-1">
+                      <span className="text-sm leading-snug text-foreground/90 break-words min-w-0 flex-1">
+                        {item.name}
                       </span>
+                      {item.weight && (
+                        <span className={`text-xs tabular-nums shrink-0 font-bold ${cfg.color}`}>
+                          {humanizeUnit(item.weight)}
+                        </span>
+                      )}
+                    </div>
+                    {item.sub && (
+                      <div className="mt-1 ml-4 pl-2.5 border-l-2 border-dashed border-amber-500/40 flex items-baseline justify-between gap-3">
+                        <span className="text-[11px] leading-snug text-muted-foreground break-words min-w-0 flex-1">
+                          <span className="text-amber-500 font-bold">↳ 🔁 Substituição opcional: </span>
+                          {item.sub.name}
+                        </span>
+                        {item.sub.weight && (
+                          <span className="text-[11px] tabular-nums shrink-0 font-bold text-amber-500">
+                            {humanizeUnit(item.sub.weight)}
+                          </span>
+                        )}
+                      </div>
                     )}
                   </li>
                 ))}
               </ul>
+
               {opt.notes?.trim() && (
                 <p className="text-[11px] text-muted-foreground italic mt-1.5 pl-1">
                   {stripHtml(opt.notes)}
