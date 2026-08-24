@@ -35,6 +35,27 @@ export function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; s
   // Dieta). A diferença é o que dá pra redistribuir pelas refeições sem
   // trocar alimento nenhum — só ajustando gramagem.
   const dayMacros = useMemo(() => calcDayMacros(payload.meals), [payload.meals]);
+
+  // ── Refeições de Treino vs Descanso (independente do ciclo de carbo) ──
+  const dayTypeOf = (meal: any): "all" | "training" | "rest" => (meal?.day_type ?? "all");
+  const hasDayVariation = useMemo(
+    () => payload.meals.some((mm) => dayTypeOf(mm) !== "all"),
+    [payload.meals],
+  );
+  const trainingDays = Math.min(7, Math.max(0, Number(payload.setup?.trainingDaysPerWeek ?? 5)));
+  const kcalOf = (mac: { kcal: number }) => Math.round(mac.kcal);
+  const trainingTotals = useMemo(
+    () => calcDayMacros(payload.meals.filter((mm) => dayTypeOf(mm) !== "rest")),
+    [payload.meals],
+  );
+  const restTotals = useMemo(
+    () => calcDayMacros(payload.meals.filter((mm) => dayTypeOf(mm) !== "training")),
+    [payload.meals],
+  );
+  const weeklyAvgDayTypeKcal = Math.round(
+    (kcalOf(trainingTotals) * trainingDays + kcalOf(restTotals) * (7 - trainingDays)) / 7,
+  );
+
   const macroDeltas = {
     carbs: m.carbs - dayMacros.carbs,
     protein: m.protein - dayMacros.protein,
@@ -124,6 +145,46 @@ export function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; s
         deltas={macroDeltas}
       />
 
+      {/* ── Treino vs Descanso — só aparece quando há refeições marcadas ── */}
+      <div className="border-t border-border/40 pt-3 mt-4">
+        <div className="flex items-end justify-between gap-3 flex-wrap">
+          <div>
+            <Label className="text-xs font-semibold">Dias de treino por semana</Label>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Usado na média calórica semanal das refeições de treino/descanso.
+            </p>
+          </div>
+          <Input
+            type="number"
+            min={0}
+            max={7}
+            value={trainingDays}
+            onChange={(e) => {
+              const v = Math.min(7, Math.max(0, Math.round(Number(e.target.value) || 0)));
+              setPayload({ ...payload, setup: { ...payload.setup, trainingDaysPerWeek: v } });
+            }}
+            className="h-9 text-sm w-20"
+          />
+        </div>
+
+        {hasDayVariation && (
+          <div className="mt-3 space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <DayTypeTotalsCard title="Dia de treino" totals={trainingTotals} accent="text-primary" borderClass="border-primary/30 bg-primary/5" />
+              <DayTypeTotalsCard title="Dia de descanso" totals={restTotals} accent="text-sky-500" borderClass="border-sky-500/30 bg-sky-500/5" />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-border/40 bg-card/60 px-3 py-1.5">
+              <span className="text-[10px] text-muted-foreground">
+                Média calórica semanal ({trainingDays} treino · {7 - trainingDays} descanso)
+              </span>
+              <span className="text-xs font-bold text-foreground">{weeklyAvgDayTypeKcal} kcal/dia</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+
+
       <div className="border-t border-border/40 pt-3 mt-4">
         <div className="flex items-center justify-between mb-2">
           <Label className="text-xs font-semibold">Ciclo de Carboidratos</Label>
@@ -212,6 +273,27 @@ export function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; s
         )}
       </div>
     </Card>
+  );
+}
+
+function DayTypeTotalsCard({
+  title, totals, accent, borderClass,
+}: {
+  title: string;
+  totals: { kcal: number; protein: number; carbs: number; fat: number };
+  accent: string;
+  borderClass: string;
+}) {
+  return (
+    <div className={`rounded-lg border p-2 ${borderClass}`}>
+      <p className={`text-[9px] font-bold uppercase tracking-wide ${accent}`}>{title}</p>
+      <p className="text-sm font-bold text-foreground mt-0.5 leading-tight">
+        {Math.round(totals.kcal)}<span className="text-[9px] font-normal text-muted-foreground"> kcal</span>
+      </p>
+      <p className="text-[10px] text-muted-foreground leading-tight">
+        P {Math.round(totals.protein)}g · C {Math.round(totals.carbs)}g · G {Math.round(totals.fat)}g
+      </p>
+    </div>
   );
 }
 

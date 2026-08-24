@@ -357,6 +357,8 @@ export const MealSchema = z.preprocess(
       fat: [{ name: "", weight: "" }, { name: "", weight: "" }],
     }),
     carbCycle: z.boolean().default(false),
+    // Dia em que esta refeição se aplica. Legado (sem o campo) = "all".
+    day_type: z.enum(["all", "training", "rest"]).default("all"),
     notes: z.string().optional().default(""),
     hiddenKinds: z.array(z.enum(["carb", "protein", "fat"])).optional().default([]),
   })
@@ -378,6 +380,7 @@ export const ProtocolPayloadSchema = z.object({
     split: z.string().default("ABC"),
     mealsCount: z.number().int().min(2).max(10).default(5),
     carbCycle: z.boolean().default(false),
+    trainingDaysPerWeek: z.number().int().min(0).max(7).default(5),
   }),
   macros: z.object({
     calories: z.number().default(2200),
@@ -443,6 +446,7 @@ export function makeEmptyMeal(name = "Refeição"): z.infer<typeof MealSchema> {
       fat: [{ name: "", weight: "" }, { name: "", weight: "" }],
     },
     carbCycle: false,
+    day_type: "all",
     notes: "",
   };
 }

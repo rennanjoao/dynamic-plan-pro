@@ -279,6 +279,33 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
                 {Math.round(mealM.kcal)} kcal
               </span>
             )}
+            {/* Dia em que a refeição se aplica — independente do ciclo de carbo */}
+            {(() => {
+              const dayType = ((m as any).day_type ?? "all") as "all" | "training" | "rest";
+              const DAY_TYPE_STYLE: Record<string, string> = {
+                all: "border-border/50 text-muted-foreground",
+                training: "bg-primary/15 border-primary/40 text-primary",
+                rest: "bg-sky-500/15 border-sky-500/40 text-sky-500",
+              };
+              return (
+                <Select
+                  value={dayType}
+                  onValueChange={(v) => updMealField(mealIdx, { day_type: v } as any)}
+                >
+                  <SelectTrigger
+                    className={`h-8 w-[132px] shrink-0 text-xs font-semibold ${DAY_TYPE_STYLE[dayType]}`}
+                    title="Em que dias esta refeição se aplica"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os Dias</SelectItem>
+                    <SelectItem value="training">Dia de Treino</SelectItem>
+                    <SelectItem value="rest">Dia de Descanso</SelectItem>
+                  </SelectContent>
+                </Select>
+              );
+            })()}
             {payload.setup.carbCycle && (
               <button type="button"
                 onClick={() => updMealField(mealIdx, { carbCycle: !(m as any).carbCycle } as any)}
