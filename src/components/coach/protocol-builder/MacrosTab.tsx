@@ -43,8 +43,7 @@ export function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; s
     [payload.meals],
   );
   const trainingDays = Math.min(7, Math.max(0, Number(payload.setup?.trainingDaysPerWeek ?? 5)));
-  const kcalOf = (mac: { protein: number; carbs: number; fat: number }) =>
-    Math.round(mac.protein * 4 + mac.carbs * 4 + mac.fat * 9);
+  const kcalOf = (mac: { kcal: number }) => Math.round(mac.kcal);
   const trainingTotals = useMemo(
     () => calcDayMacros(payload.meals.filter((mm) => dayTypeOf(mm) !== "rest")),
     [payload.meals],
