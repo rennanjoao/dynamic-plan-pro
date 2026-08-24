@@ -380,6 +380,7 @@ export const ProtocolPayloadSchema = z.object({
     split: z.string().default("ABC"),
     mealsCount: z.number().int().min(2).max(10).default(5),
     carbCycle: z.boolean().default(false),
+    trainingDaysPerWeek: z.number().int().min(0).max(7).default(5),
   }),
   macros: z.object({
     calories: z.number().default(2200),
