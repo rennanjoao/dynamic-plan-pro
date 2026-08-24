@@ -17,7 +17,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Loader2, BookmarkPlus, Trash2, Dumbbell, Utensils, FileText, ClipboardList, Eye, History } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmProvider";
-import { ProtocolPayloadSchema, type ProtocolPayload } from "@/lib/protocolSchema";
+import { ProtocolPayloadSchema, type ProtocolPayload, genItemId } from "@/lib/protocolSchema";
 import { checkMuscleRecovery } from "@/lib/muscleRecovery";
 import TemplateHistoryDialog from "./TemplateHistoryDialog";
 import { cn } from "@/lib/utils";
@@ -160,7 +160,7 @@ export default function TemplateLibraryDialog({
       toast.success(mode === "filled" ? "Treino aplicado com exercícios" : "Estrutura aplicada — adicione seus exercícios");
     } else if (item.type === "meal") {
       const meal = item.raw.meal_data;
-      setPayload({ ...payload, meals: [...payload.meals, { ...meal, name: meal?.name || item.name }] });
+      setPayload({ ...payload, meals: [...payload.meals, { ...meal, name: meal?.name || item.name, __id: genItemId("meal") }] });
       toast.success("Refeição adicionada");
     } else {
       if (!(await confirm({
