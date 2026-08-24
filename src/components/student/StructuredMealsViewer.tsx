@@ -460,6 +460,7 @@ const MEAL_ICONS = ["☀️", "🥗", "💪", "🍽️", "🌙", "⚡", "🥤", 
 
 function MealCard({
   meal, index, mode, isCooked, highPct, lowPct, supplements, isChecked, onToggleChecked, isCurrent,
+  hasPair, isRestDay, onToggleRestDay,
 }: {
   meal: any;
   index: number;
@@ -471,6 +472,10 @@ function MealCard({
   isChecked?: boolean;
   onToggleChecked?: (index: number) => void;
   isCurrent?: boolean;
+  /** Esta refeição tem uma versão "irmã" (treino ↔ descanso) em outro item do array. */
+  hasPair?: boolean;
+  isRestDay?: boolean;
+  onToggleRestDay?: () => void;
 }) {
   const [open, setOpen] = useState(isCurrent ?? index === 0);
 
@@ -535,13 +540,26 @@ function MealCard({
             )}
           </div>
         </div>
-        <span
-          className={`text-muted-foreground transition-transform duration-200 text-xs shrink-0 ml-2 ${
-            open ? "rotate-180" : ""
-          }`}
-        >
-          ▾
-        </span>
+        <div className="flex items-center gap-2 shrink-0 ml-2">
+          {hasPair && onToggleRestDay && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => { e.stopPropagation(); onToggleRestDay(); }}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onToggleRestDay(); } }}
+              className="text-[10px] font-bold px-2 py-1 rounded-full border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+            >
+              {isRestDay ? "← Ver versão de treino" : "Ver versão sem treino →"}
+            </span>
+          )}
+          <span
+            className={`text-muted-foreground transition-transform duration-200 text-xs shrink-0 ${
+              open ? "rotate-180" : ""
+            }`}
+          >
+            ▾
+          </span>
+        </div>
       </button>
 
       {open && (
@@ -754,7 +772,7 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
         carbMode={carbMode}
         highPct={highPct}
         lowPct={lowPct}
-        meals={visibleMeals.map((v) => v.meal)}
+        meals={visibleMeals.filter((v) => !(v.meal as any).excludeFromDayTotal).map((v) => v.meal)}
       />
 
       {/* Barra sticky com os dois controles */}
@@ -786,6 +804,9 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
             isChecked={!!checked[originalIndex]}
             onToggleChecked={uid ? toggle : undefined}
             isCurrent={originalIndex === currentMealIndex}
+            hasPair={!!meal?.pairId}
+            isRestDay={isRestDay}
+            onToggleRestDay={meal?.pairId ? () => setIsRestDay((v) => !v) : undefined}
           />
         ))}
       </div>
