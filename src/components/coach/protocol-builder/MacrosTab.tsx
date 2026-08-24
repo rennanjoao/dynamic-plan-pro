@@ -146,6 +146,46 @@ export function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; s
         deltas={macroDeltas}
       />
 
+      {/* ── Treino vs Descanso — só aparece quando há refeições marcadas ── */}
+      <div className="border-t border-border/40 pt-3 mt-4">
+        <div className="flex items-end justify-between gap-3 flex-wrap">
+          <div>
+            <Label className="text-xs font-semibold">Dias de treino por semana</Label>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Usado na média calórica semanal das refeições de treino/descanso.
+            </p>
+          </div>
+          <Input
+            type="number"
+            min={0}
+            max={7}
+            value={trainingDays}
+            onChange={(e) => {
+              const v = Math.min(7, Math.max(0, Math.round(Number(e.target.value) || 0)));
+              setPayload({ ...payload, setup: { ...payload.setup, trainingDaysPerWeek: v } });
+            }}
+            className="h-9 text-sm w-20"
+          />
+        </div>
+
+        {hasDayVariation && (
+          <div className="mt-3 space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <DayTypeTotalsCard title="Dia de treino" totals={trainingTotals} accent="text-primary" borderClass="border-primary/30 bg-primary/5" />
+              <DayTypeTotalsCard title="Dia de descanso" totals={restTotals} accent="text-sky-500" borderClass="border-sky-500/30 bg-sky-500/5" />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-border/40 bg-card/60 px-3 py-1.5">
+              <span className="text-[10px] text-muted-foreground">
+                Média calórica semanal ({trainingDays} treino · {7 - trainingDays} descanso)
+              </span>
+              <span className="text-xs font-bold text-foreground">{weeklyAvgDayTypeKcal} kcal/dia</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+
+
       <div className="border-t border-border/40 pt-3 mt-4">
         <div className="flex items-center justify-between mb-2">
           <Label className="text-xs font-semibold">Ciclo de Carboidratos</Label>
