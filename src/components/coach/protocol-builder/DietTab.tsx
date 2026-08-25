@@ -154,7 +154,12 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
 
   function attachTemplate(tpl: any) {
     try {
-      const meal = tpl.meal_data;
+      const meal = JSON.parse(JSON.stringify(tpl.meal_data ?? {}));
+      // Um template anexado é uma refeição independente: não pode carregar o
+      // pairId de uma versão anterior e criar um par fantasma no aluno.
+      delete meal.pairId;
+      meal.day_type = "all";
+      meal.excludeFromDayTotal = false;
       // __id novo: o template pode já ter um __id salvo de quando foi criado
       // (ou já ter sido anexado antes) — sem isso, duas refeições da mesma
       // origem colidiriam no drag-and-drop.
@@ -168,12 +173,48 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
     const orig = payload.meals[mealIdx];
     const copy = JSON.parse(JSON.stringify(orig));
     copy.name = `${orig.name || "Refeição"} (cópia)`;
+    // Duplicação comum cria uma refeição independente; o vínculo treino /
+    // descanso só é criado pelo botão dedicado abaixo.
+    delete copy.pairId;
+    copy.day_type = "all";
+    copy.excludeFromDayTotal = false;
     // __id novo pra cópia — é um item distinto agora; manter o __id do
     // original quebraria o drag-and-drop (dois itens com o mesmo id).
     copy.__id = genItemId("meal");
     const next = [...payload.meals];
     next.splice(mealIdx + 1, 0, copy);
     setPayload({ ...payload, meals: next });
+  }
+
+  function createDayTypeVersion(mealIdx: number) {
+    const orig = payload.meals[mealIdx] as any;
+    if (!orig || orig.pairId) return;
+
+    // Refeições novas e legadas sem day_type começam como a versão de treino;
+    // a cópia recebe a versão de descanso e pode ser editada livremente.
+    const sourceType: "training" | "rest" = orig.day_type === "rest" ? "rest" : "training";
+    const variantType: "training" | "rest" = sourceType === "rest" ? "training" : "rest";
+    const pairId = genItemId("meal-pair");
+    const nextSource = {
+      ...orig,
+      day_type: sourceType,
+      pairId,
+      excludeFromDayTotal: false,
+    };
+    const variant = JSON.parse(JSON.stringify(orig));
+    variant.name = `${orig.name || "Refeição"} (${variantType === "rest" ? "sem treino" : "com treino"})`;
+    variant.day_type = variantType;
+    variant.pairId = pairId;
+    // Mantém só uma perna do par na barra geral de macros; os cards
+    // separados da aba Macros continuam calculando cada tipo de dia.
+    variant.excludeFromDayTotal = true;
+    variant.__id = genItemId("meal");
+
+    const next = [...payload.meals];
+    next[mealIdx] = nextSource;
+    next.splice(mealIdx + 1, 0, variant);
+    setPayload({ ...payload, meals: next });
+    toast.success("Versão sem treino criada. Edite a cópia e salve o protocolo.");
   }
 
   const dayMacros = useMemo(() => calcDayMacros(payload.meals), [payload.meals]);
@@ -339,7 +380,7 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
         <SortableMealCard key={mealId} id={mealId}>
         {({ attributes, listeners }) => (
         <Card className={`bg-card/60 border-border ${isCollapsed ? "overflow-hidden" : "overflow-visible relative focus-within:z-50"}`}>
-          <div className={`flex items-center gap-2 px-4 py-3 border-b border-border/40 bg-muted/10 ${isCollapsed ? "" : "rounded-t-xl"}`}>
+          <div className={`flex flex-wrap items-center gap-2 px-4 py-3 border-b border-border/40 bg-muted/10 ${isCollapsed ? "" : "rounded-t-xl"}`}>
             <button
               type="button"
               {...attributes}
@@ -355,7 +396,7 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
               value={m.name}
               onChange={(e) => updMealField(mealIdx, { name: e.target.value })}
               placeholder="Nome (Café, Almoço...)"
-              className="h-8 text-sm font-bold text-primary flex-1"
+              className="h-8 text-sm font-bold text-primary flex-1 min-w-[140px]"
             />
             <Input value={m.time} onChange={(e) => updMealField(mealIdx, { time: e.target.value })} placeholder="07:00" className="h-8 text-sm w-20 shrink-0" />
             {isCollapsed && mealM.kcal > 0 && (
@@ -395,6 +436,18 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
                 onClick={() => updMealField(mealIdx, { carbCycle: !(m as any).carbCycle } as any)}
                 className={`h-8 px-2.5 rounded-lg border text-xs font-semibold transition-colors flex items-center gap-1 shrink-0 ${(m as any).carbCycle ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-500" : "border-border/50 text-muted-foreground"}`}>
                 <TrendingUp className="w-3.5 h-3.5" /> Ciclo
+              </button>
+            )}
+            {!((m as any).pairId) && (
+              <button
+                type="button"
+                onClick={() => createDayTypeVersion(mealIdx)}
+                className="h-8 px-2 rounded-lg border border-sky-500/40 bg-sky-500/10 text-sky-600 text-[10px] font-semibold transition-colors flex items-center gap-1 shrink-0 hover:bg-sky-500/20"
+                title={(m as any).day_type === "rest" ? "Criar uma cópia desta refeição para dias de treino" : "Criar uma cópia desta refeição para dias sem treino"}
+              >
+                <Copy className="w-3 h-3" />
+                <span className="hidden sm:inline">{(m as any).day_type === "rest" ? "Criar com treino" : "Criar sem treino"}</span>
+                <span className="sm:hidden">{(m as any).day_type === "rest" ? "Com treino" : "Sem treino"}</span>
               </button>
             )}
             <button
