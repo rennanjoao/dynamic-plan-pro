@@ -483,7 +483,28 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
             </button>
             <button onClick={() => duplicateMeal(mealIdx)} className="text-muted-foreground hover:text-primary p-1.5 shrink-0" title="Duplicar refeição"><Copy className="w-3.5 h-3.5" /></button>
             <button onClick={() => setSaveTplFor({ idx: mealIdx, name: m.name || "Modelo", kind: "mixed" })} className="text-muted-foreground hover:text-primary p-1.5 shrink-0" title="Salvar como modelo"><BookmarkPlus className="w-3.5 h-3.5" /></button>
-            <button onClick={() => setPayload({ ...payload, meals: payload.meals.filter((_, idx) => idx !== mealIdx) })} className="text-muted-foreground hover:text-destructive p-1.5 shrink-0"><Trash2 className="w-4 h-4" /></button>
+            <button
+              onClick={() => {
+                const target = payload.meals[mealIdx] as any;
+                const targetPairId = typeof target?.pairId === "string" ? target.pairId : null;
+                const nextMeals = payload.meals
+                  .filter((_, idx) => idx !== mealIdx)
+                  .map((mm) => {
+                    // Se a refeição removida era metade de um par, a outra metade não
+                    // pode ficar órfã com pairId — senão o botão de alternar versão
+                    // continua aparecendo pro aluno numa refeição sem parceira.
+                    if (targetPairId && (mm as any).pairId === targetPairId) {
+                      const { pairId, excludeFromDayTotal, ...rest } = mm as any;
+                      return { ...rest, day_type: "all" };
+                    }
+                    return mm;
+                  });
+                setPayload({ ...payload, meals: nextMeals });
+              }}
+              className="text-muted-foreground hover:text-destructive p-1.5 shrink-0"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           </div>
 
           {!isCollapsed && (
