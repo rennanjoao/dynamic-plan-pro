@@ -54,6 +54,7 @@ describe("ProtocolPayloadSchema — round-trip & legacy", () => {
       setup: { split: "ABC", mealsCount: 4, carbCycle: false },
       macros: { calories: 2500, protein: 180, carbs: 280, fat: 60, water: 3, goal: "hipertrofia" },
       guidelines: { training: "", diet: "", weekOrganization: "", supplementation: "" },
+      showGuidelines: true,
       workouts: [],
       meals: [
         {
@@ -73,6 +74,9 @@ describe("ProtocolPayloadSchema — round-trip & legacy", () => {
             fat: [{ name: "", weight: "" }, { name: "", weight: "" }],
           },
           carbCycle: false,
+          day_type: "rest",
+          pairId: "pair-almoco",
+          excludeFromDayTotal: true,
           notes: "",
         },
       ],
@@ -86,6 +90,10 @@ describe("ProtocolPayloadSchema — round-trip & legacy", () => {
     const r = ProtocolPayloadSchema.parse(payload);
     expect(r.meals[0].options[0].items[0].rawWeight).toBe(50);
     expect(r.meals[0].options[0].items[0].isTaco).toBe(true);
+    expect(r.meals[0].day_type).toBe("rest");
+    expect(r.meals[0].pairId).toBe("pair-almoco");
+    expect(r.meals[0].excludeFromDayTotal).toBe(true);
+    expect(r.showGuidelines).toBe(true);
     // re-parse
     const r2 = ProtocolPayloadSchema.parse(r);
     expect(r2.meals[0].options[0].items[0]).toEqual(r.meals[0].options[0].items[0]);
