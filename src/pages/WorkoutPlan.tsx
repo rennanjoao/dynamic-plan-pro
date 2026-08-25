@@ -308,7 +308,7 @@ export default function WorkoutPlan() {
           className={`bg-card border rounded-xl shadow-sm overflow-hidden ${isToday ? "border-primary/60 ring-1 ring-primary/30" : "border-border"}`}
         >
           <AccordionTrigger className="px-4 py-4 hover:no-underline hover:bg-muted/30">
-            <div className="flex items-center gap-3 text-left w-full">
+            <div className="flex items-center gap-3 text-left flex-1 min-w-0">
               <div className="w-10 h-10 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-black text-lg shrink-0">
                 {letter}
               </div>
