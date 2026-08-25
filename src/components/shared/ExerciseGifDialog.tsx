@@ -41,7 +41,7 @@ export function ExerciseGifDialog({ open, onOpenChange, gifUrl, exerciseName }: 
       <Drawer open={open} onOpenChange={onOpenChange}>
         <DrawerContent className="max-h-[90vh]">
           <DrawerHeader className="flex flex-row items-center justify-between gap-2">
-            <DrawerTitle className="text-left">{title}</DrawerTitle>
+            <DrawerTitle className="text-left truncate min-w-0">{title}</DrawerTitle>
             <DrawerClose asChild>
               <button
                 type="button"
