@@ -313,15 +313,22 @@ export default function TemplateLibraryDialog({
               </TabsList>
             </Tabs>
             <div className="flex items-center gap-2 sm:ml-auto">
+              {editingTemplate && (
+                <span className="text-[10px] font-bold px-2 py-1 rounded border bg-amber-500/10 text-amber-600 border-amber-500/30 flex items-center gap-1">
+                  Editando: {editingTemplate.name}
+                  <button className="underline" onClick={() => setEditingTemplate(null)}>cancelar</button>
+                </span>
+              )}
               <Button
                 size="sm" variant="outline" className="h-8 text-xs"
-                onClick={() => { setSaveName(protocolName || "Protocolo"); setSaveOpen("protocol"); }}
+                onClick={() => { setSaveName(editingTemplate?.name || protocolName || "Protocolo"); setSaveOpen("protocol"); }}
                 disabled={!payload}
               >
-                <BookmarkPlus className="w-3.5 h-3.5 mr-1" /> Salvar protocolo
+                <BookmarkPlus className="w-3.5 h-3.5 mr-1" /> {editingTemplate ? "Atualizar template" : "Salvar protocolo"}
               </Button>
             </div>
           </div>
+
 
           {filter === "workout" && (
             <div className="flex flex-wrap gap-1.5 pb-2 border-b border-border/40">
