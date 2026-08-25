@@ -60,35 +60,77 @@ export default function CopyProtocolDialog({
     }
     setCopying(true);
     try {
-      // Base do payload novo: começa pela estrutura completa do source, mas
-      // zera as seções não selecionadas para não vazar dados indesejados.
-      const next: ProtocolPayload = JSON.parse(JSON.stringify(payload));
-      if (!sections.workout) {
-        next.workouts = [];
-        (next as any).periodization = undefined;
-        (next as any).restNotes = "";
-      }
-      if (!sections.diet) {
-        next.meals = [];
-        (next as any).macros = { calories: 0, protein: 0, carbs: 0, fat: 0, water: 0 };
-        (next as any).carbCycle = undefined;
-      }
-      if (!sections.supplements) {
-        (next as any).supplements = [];
-        (next as any).supplementCombos = [];
+      const src: any = JSON.parse(JSON.stringify(payload));
+      const targetName = students.find((s) => s.id === selectedId)?.name || "aluno";
+
+      // [FIX crítico] Antes o copy SEMPRE inseria uma nova linha em `protocols`.
+      // Como o builder carrega o protocolo mais recente do aluno, essa linha
+      // nova "escondia" o protocolo real do destinatário (parecia que os dados
+      // tinham sido apagados). Agora, se o aluno já tem protocolo, fazemos
+      // MERGE PARCIAL das seções escolhidas dentro do rascunho dele — o
+      // conteúdo publicado e as seções não selecionadas ficam intactos.
+      const { data: target } = await sb
+        .from("protocols")
+        .select("id, payload, draft_payload")
+        .eq("student_id", selectedId)
+        .eq("is_template", false)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (target?.id) {
+        const base: any = JSON.parse(
+          JSON.stringify(target.draft_payload ?? target.payload ?? {})
+        );
+        if (sections.workout) {
+          base.workouts = src.workouts ?? [];
+          if (src.periodization !== undefined) base.periodization = src.periodization;
+        }
+        if (sections.diet) {
+          base.meals = src.meals ?? [];
+          base.macros = src.macros ?? base.macros;
+          if (src.carbCycle !== undefined) base.carbCycle = src.carbCycle;
+        }
+        if (sections.supplements) {
+          base.supplements = src.supplements ?? [];
+          base.supplementCombos = src.supplementCombos ?? [];
+        }
+
+        const { error } = await sb
+          .from("protocols")
+          .update({ draft_payload: base, updated_at: new Date().toISOString() })
+          .eq("id", target.id);
+        if (error) throw error;
+        toast.success(
+          `Seções copiadas para ${targetName} como rascunho — o restante do protocolo dele foi preservado`
+        );
+      } else {
+        const next: any = src;
+        if (!sections.workout) {
+          next.workouts = [];
+          next.periodization = undefined;
+        }
+        if (!sections.diet) {
+          next.meals = [];
+          next.macros = { calories: 0, protein: 0, carbs: 0, fat: 0, water: 0 };
+          next.carbCycle = undefined;
+        }
+        if (!sections.supplements) {
+          next.supplements = [];
+          next.supplementCombos = [];
+        }
+        const { error } = await sb.from("protocols").insert({
+          coach_id: coachId,
+          student_id: selectedId,
+          name: `${protocolName || "Protocolo"} (cópia)`,
+          is_template: false,
+          payload: next,
+          active: false,
+        });
+        if (error) throw error;
+        toast.success(`Protocolo copiado para ${targetName} como rascunho inativo`);
       }
 
-      const targetName = students.find((s) => s.id === selectedId)?.name || "aluno";
-      const { error } = await sb.from("protocols").insert({
-        coach_id: coachId,
-        student_id: selectedId,
-        name: `${protocolName || "Protocolo"} (cópia)`,
-        is_template: false,
-        payload: next,
-        active: false,
-      });
-      if (error) throw error;
-      toast.success(`Protocolo copiado para ${targetName} como rascunho inativo`);
       onOpenChange(false);
       setSelectedId(null);
       setSearch("");
@@ -98,6 +140,7 @@ export default function CopyProtocolDialog({
       setCopying(false);
     }
   }
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

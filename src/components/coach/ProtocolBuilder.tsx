@@ -124,6 +124,38 @@ interface ProtocolRow {
   updated_at: string;
 }
 
+/**
+ * [FIX crítico] Merge parcial de importação.
+ * Antes, importar um arquivo que continha só treino (ou só suplementos)
+ * substituía o payload inteiro e apagava o que o coach já tinha digitado nas
+ * outras abas. Agora só as seções realmente presentes no arquivo importado
+ * sobrescrevem o estado atual; o resto é preservado.
+ */
+function mergeImportedPayload(prev: ProtocolPayload | null, imported: ProtocolPayload): ProtocolPayload {
+  if (!prev) return imported;
+  const next: any = { ...prev };
+  const inc: any = imported;
+  const hasArr = (v: unknown) => Array.isArray(v) && v.length > 0;
+
+  if (hasArr(inc.workouts)) {
+    next.workouts = inc.workouts;
+    if (inc.periodization !== undefined) next.periodization = inc.periodization;
+  }
+  if (hasArr(inc.meals)) next.meals = inc.meals;
+  if (hasArr(inc.supplements)) next.supplements = inc.supplements;
+  if (hasArr(inc.supplementCombos)) next.supplementCombos = inc.supplementCombos;
+  if (hasArr(inc.cardio)) next.cardio = inc.cardio;
+  if (inc.macros && (inc.macros.calories || inc.macros.protein)) next.macros = inc.macros;
+  if (inc.guidelines && Object.values(inc.guidelines).some((v) => typeof v === "string" && v.trim())) {
+    next.guidelines = { ...(prev as any).guidelines, ...inc.guidelines };
+  }
+  if (inc.setup) next.setup = { ...(prev as any).setup, ...inc.setup };
+  if (inc.carbCycle && Object.keys(inc.carbCycle).length) next.carbCycle = inc.carbCycle;
+  if (inc.carbCycleNotes && Object.keys(inc.carbCycleNotes).length) next.carbCycleNotes = inc.carbCycleNotes;
+
+  return next as ProtocolPayload;
+}
+
 
 function computeCompletion(payload: ProtocolPayload | null) {
   if (!payload) return { macros: false, guidelines: false, workouts: false, diet: false, cycle: false };
@@ -821,7 +853,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                     </PopoverTrigger>
                     <PopoverContent align="start" className="w-60 p-1">
                       <div className="px-2 py-1.5">
-                        <ProtocolImportExport payload={payload} studentName={studentName} onImport={(p) => { updatePayload(p); setProtocolId(protocolId); }} />
+                        <ProtocolImportExport payload={payload} studentName={studentName} onImport={(p) => { updatePayload(mergeImportedPayload(payload, p)); setProtocolId(protocolId); }} />
                       </div>
                     </PopoverContent>
                   </Popover>

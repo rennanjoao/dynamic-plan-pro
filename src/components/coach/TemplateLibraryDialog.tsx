@@ -81,6 +81,8 @@ export default function TemplateLibraryDialog({
   const [saving, setSaving] = useState(false);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [historyItem, setHistoryItem] = useState<{ id: string; name: string } | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<{ id: string; name: string } | null>(null);
+
 
   async function reload() {
     if (!coachId) return;
@@ -194,14 +196,37 @@ export default function TemplateLibraryDialog({
     reload();
   }
 
+  /** Carrega o template no builder e entra em modo edição (próximo salvar = UPDATE). */
+  async function editItem(item: TplItem) {
+    if (!payload || item.isSystem || item.type !== "protocol") return;
+    const parsed = ProtocolPayloadSchema.safeParse(item.raw.payload);
+    if (!parsed.success) { toast.error("Template com payload inválido"); return; }
+    setPayload(parsed.data);
+    setEditingTemplate({ id: item.id, name: item.name });
+    onOpenChange(false);
+    toast.success(`Editando "${item.name}" — ajuste e clique em Salvar protocolo`);
+  }
+
   async function saveProtocolTemplate() {
     if (!coachId || !payload) return;
     const trimmed = saveName.trim();
     if (!trimmed) { toast.error("Dê um nome"); return; }
     setSaving(true);
     try {
-      await saveProtocolAsTemplate(coachId, trimmed, payload);
-      toast.success("Protocolo salvo como template");
+      if (editingTemplate) {
+        const parsed = ProtocolPayloadSchema.parse(payload);
+        const { error } = await supabase
+          .from("protocols")
+          .update({ name: trimmed, payload: parsed as any })
+          .eq("id", editingTemplate.id)
+          .eq("is_template", true);
+        if (error) throw error;
+        toast.success("Template atualizado");
+        setEditingTemplate(null);
+      } else {
+        await saveProtocolAsTemplate(coachId, trimmed, payload);
+        toast.success("Protocolo salvo como template");
+      }
       setSaveOpen(null);
       setSaveName("");
       reload();
@@ -209,6 +234,7 @@ export default function TemplateLibraryDialog({
       toast.error(e?.message || "Falha ao salvar");
     } finally { setSaving(false); }
   }
+
 
   function restoreFromVersion(treinos: any) {
     if (!payload) return;
@@ -287,15 +313,22 @@ export default function TemplateLibraryDialog({
               </TabsList>
             </Tabs>
             <div className="flex items-center gap-2 sm:ml-auto">
+              {editingTemplate && (
+                <span className="text-[10px] font-bold px-2 py-1 rounded border bg-amber-500/10 text-amber-600 border-amber-500/30 flex items-center gap-1">
+                  Editando: {editingTemplate.name}
+                  <button className="underline" onClick={() => setEditingTemplate(null)}>cancelar</button>
+                </span>
+              )}
               <Button
                 size="sm" variant="outline" className="h-8 text-xs"
-                onClick={() => { setSaveName(protocolName || "Protocolo"); setSaveOpen("protocol"); }}
+                onClick={() => { setSaveName(editingTemplate?.name || protocolName || "Protocolo"); setSaveOpen("protocol"); }}
                 disabled={!payload}
               >
-                <BookmarkPlus className="w-3.5 h-3.5 mr-1" /> Salvar protocolo
+                <BookmarkPlus className="w-3.5 h-3.5 mr-1" /> {editingTemplate ? "Atualizar template" : "Salvar protocolo"}
               </Button>
             </div>
           </div>
+
 
           {filter === "workout" && (
             <div className="flex flex-wrap gap-1.5 pb-2 border-b border-border/40">
@@ -410,6 +443,15 @@ export default function TemplateLibraryDialog({
                             <History className="w-3.5 h-3.5" />
                           </button>
                         )}
+                        {item.type === "protocol" && !item.isSystem && (
+                          <button
+                            onClick={() => editItem(item)}
+                            className="text-muted-foreground hover:text-primary p-1"
+                            title="Editar template"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         {!item.isSystem && (
                           <button
                             onClick={() => deleteItem(item)}
@@ -419,6 +461,7 @@ export default function TemplateLibraryDialog({
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}
+
                       </div>
                       {expandedKey === key && (
                         <div className="mt-2 pt-2 border-t border-border/40">
