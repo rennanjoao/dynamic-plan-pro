@@ -1,871 +1,339 @@
 /**
- * StructuredMealsViewer.tsx
+ * StudentPlanCard.tsx — "Meu Plano" (área do aluno).
  *
- * MUDANÇAS DESTA VERSÃO:
- * - carbMode e isCooked agora vivem aqui (estado global), não nos MealCards
- * - StickyDietBar centraliza os dois controles numa barra sticky no topo
- * - MealCard não tem mais useState para isCooked nem o toggle local de cru/cozido
- * - NutritionStrategyHeader recalcula iterativamente macros REAIS da dieta considerando
- * se a refeição participa do ciclo e dimensionando resíduos (proteína/gordura) da fonte de carbo.
+ * Pagamentos via Mercado Pago (Checkout Pro). O card NUNCA libera plano:
+ * o checkout apenas abre o link gerado no backend, e a confirmação real
+ * chega pelo webhook validado. Ao voltar do Mercado Pago mostramos só um
+ * aviso informativo.
  */
-
-import { useEffect, useState, useMemo } from "react";
-import { motion } from "framer-motion";
-import { Clock, Flame, Dna, Wheat, Droplets, Salad, Check } from "lucide-react";
-import { type CarbMode } from "@/components/student/CarbCycleSelector";
-import StickyDietBar from "@/components/student/StickyDietBar";
-import { calcItemMacros } from "@/lib/macroCalc";
-import { buildWeekStrip, CARB_LABEL, CARB_COLOR, todayKey, tomorrowKey } from "@/lib/weekCycle";
-import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useMealCheckins } from "@/hooks/useMealCheckins";
-import { slug } from "@/lib/slug";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { CreditCard, ChevronDown, ExternalLink, Loader2, RefreshCw, Repeat, Clock } from "lucide-react";
+import { formatCents, toCents } from "@/lib/studentPlans";
+import { formatDatePtBR } from "@/lib/formatDate";
+import { useMyStudentSubscription, useStudentPlanCatalog } from "@/hooks/useStudentPlans";
 
-// ─── Math engine ──────────────────────────────────────────────────────────────
-/** Retorna saudação de acordo com o horário local do dispositivo */
-function getGreeting(): string {
-  const h = new Date().getHours();
-  if (h >= 5 && h < 12) return "Bom dia";
-  if (h >= 12 && h < 18) return "Boa tarde";
-  return "Boa noite";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const sb: any = supabase;
+
+const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
+  active:   { label: "Em dia",    cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  pending:  { label: "Pendente",  cls: "bg-amber-100 text-amber-700 border-amber-200" },
+  overdue:  { label: "Em atraso", cls: "bg-red-100 text-red-700 border-red-200" },
+  canceled: { label: "Cancelado", cls: "bg-muted text-muted-foreground border-border" },
+  ended:    { label: "Encerrado", cls: "bg-muted text-muted-foreground border-border" },
+  suspended:{ label: "Suspenso",  cls: "bg-muted text-muted-foreground border-border" },
+};
+
+const SOURCE_LABEL: Record<string, string> = {
+  manual: "Registrado pelo treinador",
+  gateway: "Pago pelo checkout",
+};
+
+/** Dias até `dateStr` (YYYY-MM-DD), por calendário UTC — evita erro de 1 dia por fuso. */
+function daysUntil(dateStr: string): number {
+  const [y, m, d] = dateStr.slice(0, 10).split("-").map(Number);
+  const target = Date.UTC(y, m - 1, d);
+  const now = new Date();
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.round((target - today) / 86_400_000);
 }
 
-/** Parse seguro de hora no formato HH:MM. Retorna minutos desde 00:00 ou null. */
-function parseTimeMinutes(time: unknown): number | null {
-  if (typeof time !== "string") return null;
-  const trimmed = time.trim();
-  const match = trimmed.match(/^([0-9]{1,2}):([0-9]{2})$/);
-  if (!match) return null;
-  const hours = parseInt(match[1], 10);
-  const minutes = parseInt(match[2], 10);
-  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
-  return hours * 60 + minutes;
+/** Desconto do ciclo vs. o preço mensal equivalente do plano Mensal do catálogo. */
+function discountLabel(plan: { price_cents: number; duration_months: number }, basePlans: { price_cents: number; duration_months: number }[]): string | null {
+  const monthly = basePlans.find((p) => p.duration_months === 1);
+  if (!monthly || plan.duration_months <= 1) return null;
+  const baseRate = monthly.price_cents;
+  const planRate = plan.price_cents / plan.duration_months;
+  const pct = Math.round((1 - planRate / baseRate) * 100);
+  return pct > 0 ? `-${pct}%` : null;
 }
 
-/**
- * Decide qual refeição deve vir aberta com base no horário local.
- * Regras:
- * - Só confia em meal.time quando estiver no padrão HH:MM.
- * - Não reordena o array: retorna o índice posicional do array original.
- * - Preferência: a refeição futura mais próxima da hora atual. Se todas já
- *   passaram, a última do dia. Se nenhum horário for válido, volta para 0.
- */
-function getCurrentMealIndex(meals: any[]): number {
-  if (!meals.length) return 0;
-  const currentMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+const RETURN_MESSAGE: Record<string, string> = {
+  retorno: "Pagamento recebido pelo Mercado Pago. A liberação acontece assim que a confirmação chegar.",
+  pendente: "Pagamento pendente no Mercado Pago. Assim que for aprovado, seu plano é atualizado automaticamente.",
+  falha: "O pagamento não foi concluído. Você pode tentar novamente.",
+};
 
-  let bestIndex = 0;
-  let bestFutureDiff: number | null = null;
-  let bestPastDiff: number | null = null;
-  let bestPastIndex = 0;
-  let hasAnyValidTime = false;
-
-  meals.forEach((meal, index) => {
-    const mealMinutes = parseTimeMinutes(meal?.time);
-    if (mealMinutes === null) return;
-    hasAnyValidTime = true;
-
-    if (mealMinutes >= currentMinutes) {
-      const diff = mealMinutes - currentMinutes;
-      if (bestFutureDiff === null || diff < bestFutureDiff) {
-        bestFutureDiff = diff;
-        bestIndex = index;
-      }
-    } else {
-      const diff = currentMinutes - mealMinutes;
-      if (bestPastDiff === null || diff < bestPastDiff) {
-        bestPastDiff = diff;
-        bestPastIndex = index;
-      }
-    }
-  });
-
-  if (!hasAnyValidTime) return 0;
-  return bestFutureDiff !== null ? bestIndex : bestPastIndex;
+interface ChargeRow {
+  id: string; description: string; amount: number; status: string;
+  plan_slug: string | null; subscription_id: string | null;
+  due_date: string | null; paid_at: string | null; payment_method: string | null;
+  source: string | null; checkout_url: string | null; receipt_url: string | null;
+  card_installments: number | null; provider: string | null;
+  mercado_pago_payment_id: string | null;
 }
 
+export function StudentPlanCard({ userId }: { userId: string | null | undefined }) {
+  const { data: sub } = useMyStudentSubscription(userId);
+  const { data: catalog = [] } = useStudentPlanCatalog(sub?.coach_id ?? null);
+  const [open, setOpen] = useState(false);
+  const [showPlans, setShowPlans] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [params, setParams] = useSearchParams();
+  const qc = useQueryClient();
 
-function getCookedMultiplier(name: string): number {
-  const s = name.toLowerCase();
-  if (/\barroz(?!\s+integral)/.test(s)) return 2.5;
-  if (/arroz\s+integral/.test(s)) return 2.4;
-  if (/(macarr[aã]o|massa|talharim|espaguete|penne|p[aã]o)/.test(s)) return 2.2;
-  if (/(cuscuz|quinoa)/.test(s)) return 2.4;
-  if (/aveia/.test(s)) return 2.5;
-  if (/feij[aã]o/.test(s)) return 2.3;
-  if (/lentilha|gr[aã]o[- ]de[- ]bico/.test(s)) return 2.4;
-  if (/(batata\s+doce|batata|mandioca|aipim|inhame|cará)/.test(s)) return 0.85;
-  if (/(frango|peito\s+de\s+frango|peru)/.test(s)) return 0.70;
-  if (/(patinho|alcatra|coxão|filé\s+mignon|carne\s+vermelha|carne\s+moída|carne\s+bovina|boi|suíno|porco|lombo)/.test(s)) return 0.70;
-  if (/(peixe|til[áa]pia|salm[ãa]o|atum|merluza|pescada|bacalhau)/.test(s)) return 0.75;
-  if (/(camar[ãa]o|fruto.*mar)/.test(s)) return 0.75;
-  if (/(ovo)/.test(s)) return 0.90;
-  if (/(coração|fígado|moela)/.test(s)) return 0.70;
-  if (/(m[uú]sculo\s+bovino|ac[eé]m|costela|bisteca)/.test(s)) return 0.68;
-  if (/(pernil|lombo\s+su[ií]no)/.test(s)) return 0.72;
-  if (/(sardinha|mussarela|queijo)/.test(s)) return 1;
-  return 1;
-}
+  // Retorno do checkout: apenas mensagem informativa (o webhook é quem libera).
+  useEffect(() => {
+    const state = params.get("checkout");
+    if (!state) return;
+    const message = RETURN_MESSAGE[state];
+    if (message) toast.info(message);
+    qc.invalidateQueries({ queryKey: ["my-plan-charges", userId] });
+    qc.invalidateQueries({ queryKey: ["my-student-subscription", userId] });
+    params.delete("checkout");
+    setParams(params, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-function applySmartMath(
-  text: string,
-  mode: CarbMode,
-  isCooked: boolean,
-  isCarbGroup: boolean,
-  foodName = "",
-  highPct = 15,
-  lowPct = 15,
-): string {
-  if (!text) return "";
-  const carbMult =
-    mode === "high"
-      ? 1 + highPct / 100
-      : mode === "low" || mode === "off"
-      ? 1 - lowPct / 100
-      : 1;
-  const cookedMult = isCooked ? getCookedMultiplier(foodName || text) : 1;
-  let out = text.replace(
-    /(\d+(?:[.,]\d+)?)(\s*)(g|ml|kg)/gi,
-    (_, num, sp, unit) => {
-      let v = Number(String(num).replace(",", "."));
-      if (isCarbGroup) v *= carbMult;
-      v *= cookedMult;
-      return `${Math.round(v)}${sp}${unit}`;
+  const { data: charges = [] } = useQuery({
+    queryKey: ["my-plan-charges", userId],
+    enabled: !!userId,
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
+    queryFn: async () => {
+      const { data } = await sb
+        .from("coach_finances")
+        .select(
+          "id, description, amount, status, due_date, paid_at, payment_method, source, checkout_url, receipt_url, card_installments, provider, mercado_pago_payment_id, plan_slug, subscription_id",
+        )
+        .eq("student_id", userId)
+        .order("due_date", { ascending: false })
+        .limit(24);
+      return (data ?? []) as ChargeRow[];
     },
-  );
-  if (isCooked) {
-    out = out
-      .replace(/\bcru(a)?\b/gi, "cozido")
-      .replace(/\b(grelhado|assado)\b/gi, "cozido");
-  } else {
-    out = out.replace(/\b(pronto|cozido|grelhado|assado)(a)?\b/gi, "cru");
-  }
-  return out;
-}
-
-function stripHtml(str: string): string {
-  return (str || "")
-    .replace(/<[^>]*>/g, "")
-    .replace(/class\s*=\s*["'][^"']*["']/gi, "")
-    .replace(/&nbsp;/g, " ")
-    .trim();
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-const COOKABLE_REGEX =
-  /(arroz|macarr[aã]o|massa|cuscuz|aveia|mandioca|batata|frango|carne|patinho|peixe|til[áa]pia|salm[ãa]o|boi|su[ií]no|porco)/i;
-
-function mealHasCookable(meal: any): boolean {
-  const opts: any[] = Array.isArray(meal.options) ? meal.options : [];
-  return opts
-    .filter((o: any) => o?.kind === "carb" || o?.kind === "protein")
-    .some(
-      (o: any) =>
-        Array.isArray(o.items) &&
-        o.items.some((it: any) =>
-          COOKABLE_REGEX.test(stripHtml(it?.baseName || it?.name || "")),
-        ),
-    );
-}
-
-function calculateRealTotals(
-  meals: any[],
-  carbMode: CarbMode,
-  highPct: number,
-  lowPct: number
-) {
-  let totalP = 0;
-  let totalC = 0;
-  let totalF = 0;
-
-  meals.forEach((meal) => {
-    // Isola as refeições que não participam do ciclo
-    const effectiveMode = meal.carbCycle === false ? "base" : carbMode;
-    const carbMult =
-      effectiveMode === "high"
-        ? 1 + highPct / 100
-        : effectiveMode === "low" || effectiveMode === "off"
-        ? 1 - lowPct / 100
-        : 1;
-
-    const opts: any[] = Array.isArray(meal.options) ? meal.options : [];
-    const seenKind: Record<string, boolean> = {};
-
-    opts.forEach((opt) => {
-      const kind = opt?.kind || "other";
-      // Soma apenas a Opção Principal (Opção 1) no placar
-      if (seenKind[kind]) return;
-      seenKind[kind] = true;
-
-      const isCarbGroup = kind === "carb";
-      const items: any[] = Array.isArray(opt?.items) ? opt.items : [];
-
-      items.forEach((it) => {
-        const m = calcItemMacros(it);
-        // Aplica o ciclo apenas no grupo carboidrato.
-        // Como fisicamente aumenta a porção da aveia/arroz, escala C, P e F do item.
-        const mult = isCarbGroup ? carbMult : 1;
-
-        totalP += m.protein * mult;
-        totalC += m.carbs * mult;
-        totalF += m.fat * mult;
-      });
-    });
   });
 
-  return {
-    protein: Math.round(totalP),
-    carbs: Math.round(totalC),
-    fat: Math.round(totalF),
+  // O card só representa um plano que o coach selecionou para cobrar.
+  // Cobranças avulsas não criam plano para o aluno. Depois da baixa, não há
+  // mais cobrança de plano pendente e o card desaparece.
+  const pendingPlanCharge = charges.find(
+    (c) => c.status === "pending" && Number(c.amount) > 0 && (!!c.plan_slug || !!c.subscription_id),
+  );
+
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel(`student-plan-billing-${userId}`)
+      .on(
+        "postgres_changes" as never,
+        { event: "*", schema: "public", table: "coach_finances", filter: `student_id=eq.${userId}` },
+        () => {
+          qc.invalidateQueries({ queryKey: ["my-plan-charges", userId] });
+          qc.invalidateQueries({ queryKey: ["my-student-subscription", userId] });
+          qc.invalidateQueries({ queryKey: ["student-billing-alert", userId] });
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [qc, userId]);
+
+  if (!pendingPlanCharge) return null;
+
+  const openCheckout = async (body: Record<string, unknown>, key: string) => {
+    setBusy(key);
+    try {
+      const { data, error } = await supabase.functions.invoke("mercadopago-create-preference", { body });
+      if (error) throw error;
+      if (!data?.url) throw new Error(data?.error || "Não foi possível abrir o checkout");
+      qc.invalidateQueries({ queryKey: ["my-plan-charges", userId] });
+      window.location.href = data.url;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao abrir o checkout");
+    } finally {
+      setBusy(null);
+    }
   };
-}
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const KIND_META = {
-  carb:    { label: "CARBOIDRATO",       color: "text-amber-400",   border: "border-amber-500/20",   bg: "bg-amber-500/5"   },
-  protein: { label: "PROTEÍNA",          color: "text-blue-400",    border: "border-blue-500/20",    bg: "bg-blue-500/5"    },
-  fat:     { label: "GORDURA",           color: "text-rose-400",    border: "border-rose-500/20",    bg: "bg-rose-500/5"    },
-  veg:     { label: "LEGUMES E SALADAS", color: "text-emerald-400", border: "border-emerald-500/20", bg: "bg-emerald-500/5" },
-} as const;
+  const status = sub ? (STATUS_LABEL[sub.status] ?? STATUS_LABEL.pending) : null;
+  // Só mostra pro aluno os planos que o próprio coach cadastrou no painel
+  // ("Meus Planos"). Planos padrão/legado (coach_id null) e o fallback
+  // hardcoded de useStudentPlanCatalog nunca aparecem aqui.
+  const availablePlans = catalog.filter((p) => p.is_active && !!sub?.coach_id && p.coach_id === sub.coach_id);
 
-type Kind = keyof typeof KIND_META;
-
-const OPTION_LABELS = ["OPÇÃO PRINCIPAL", "OPÇÃO ALTERNATIVA", "OPÇÃO 3", "OPÇÃO 4", "OPÇÃO 5"];
-
-// ─── NutritionStrategyHeader — macros recalculados de forma exata ─────────────
-function NutritionStrategyHeader({
-  payload,
-  carbMode,
-  highPct,
-  lowPct,
-  meals: mealsProp,
-}: {
-  payload: any;
-  carbMode: CarbMode;
-  highPct: number;
-  lowPct: number;
-  /** Refeições consideradas no cálculo (já filtradas por tipo de dia). */
-  meals?: any[];
-}) {
-  const meals: any[] = Array.isArray(mealsProp)
-    ? mealsProp
-    : Array.isArray(payload?.meals) ? payload.meals : [];
-
-  // Usa os macros REAIS dos alimentos quando disponíveis; caso contrário,
-  // cai para os macros-meta definidos pelo coach (payload.macros).
-  const realTotals = calculateRealTotals(meals, carbMode, highPct, lowPct);
-  const hasRealData = realTotals.protein > 0 || realTotals.carbs > 0 || realTotals.fat > 0;
-
-  const m = payload?.macros ?? {};
-  const carbMult =
-    carbMode === "high"
-      ? 1 + highPct / 100
-      : carbMode === "low" || carbMode === "off"
-      ? 1 - lowPct / 100
-      : 1;
-
-  const baseCarbs   = Number(m.carbs   ?? 0);
-  const baseFat     = Number(m.fat     ?? 0);
-  const baseProtein = Number(m.protein ?? 0);
-  const adjCarbs    = Math.round(baseCarbs * carbMult);
-
-  // Prioriza totais reais dos alimentos TACO/industriais;
-  // usa metas do coach como fallback quando não há dados TACO.
-  const dispProtein = hasRealData ? realTotals.protein : baseProtein;
-  const dispCarbs   = hasRealData ? realTotals.carbs   : adjCarbs;
-  const dispFat     = hasRealData ? realTotals.fat     : baseFat;
-
-  const adjCalories = dispProtein > 0 || dispCarbs > 0 || dispFat > 0
-    ? Math.round(dispProtein * 4 + dispCarbs * 4 + dispFat * 9)
-    : 0;
-
-  const macros = [
-    { icon: Flame,    value: adjCalories || "—", unit: "kcal", label: "Energia"  },
-    { icon: Dna,      value: dispProtein || "—", unit: "g",   label: "Proteína" },
-    { icon: Wheat,    value: dispCarbs   || "—", unit: "g",   label: "Carbo"    },
-    { icon: Droplets, value: dispFat     || "—", unit: "g",   label: "Gordura"  },
-  ];
-
-  const modeLabel = carbMode === "high" ? "↑ Carboidrato Alto"
-    : carbMode === "low" || carbMode === "off" ? "↓ Carboidrato Baixo"
-    : null;
+  // Aviso proativo de vencimento: só quando ainda não existe cobrança pendente
+  // (senão o bloco de "Pagamento pendente" abaixo já cobre) e faltam 0-3 dias.
+  const daysUntilDue = sub?.next_due_date ? daysUntil(sub.next_due_date) : null;
+  const showUpcoming =
+    !!sub && sub.status === "active" && !pendingPlanCharge && daysUntilDue !== null && daysUntilDue >= 0 && daysUntilDue <= 3;
+  const dueSoonLabel =
+    daysUntilDue === 0 ? "hoje" : daysUntilDue === 1 ? "amanhã" : `em ${daysUntilDue} dias`;
 
   return (
-    <div className="glass-strong rounded-2xl overflow-hidden glow-primary mb-4">
-      <div className="gradient-primary-soft px-5 py-3 border-b border-white/5 flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-[0.2em] text-primary/70 font-bold">
-          Estratégia Nutricional
-        </p>
-        {modeLabel && (
-          <span className="text-[10px] font-bold text-amber-400">{modeLabel}</span>
-        )}
-      </div>
-      <div className="grid grid-cols-4 divide-x divide-white/5">
-        {macros.map(({ icon: Icon, value, unit, label }) => (
-          <div key={label} className="flex flex-col items-center py-4 px-2 min-w-0">
-            <Icon className="w-3.5 h-3.5 text-primary/60 mb-1.5" />
-            <span className="text-xl font-black text-foreground leading-none">{value}</span>
-            <span className="text-[10px] text-primary font-bold mt-0.5">{unit}</span>
-            <span className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">{label}</span>
+    <Card className="p-4 bg-card/60 border border-border/60">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <CreditCard className="w-4 h-4 text-primary shrink-0" />
+            <h3 className="text-sm font-bold text-foreground">
+              {sub ? `Plano ${sub.plan_name}` : "Meu Plano"}
+            </h3>
+            {status && (
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${status.cls}`}>
+                {status.label}
+              </span>
+            )}
+            {pendingPlanCharge && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-amber-100 text-amber-700 border-amber-200">
+                Pagamento pendente
+              </span>
+            )}
           </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function humanizeUnit(weight: string): string {
-  if (!weight) return "";
-  return weight
-    .replace(/\b(uni|un)\b/gi, "unidade(s)")
-    .replace(/\bml\b/gi, "ml (mililitros)")
-    .replace(/\bmg\b/gi, "mg (miligramas)")
-    .replace(/\bkg\b/gi, "kg (quilogramas)")
-    .replace(/\bg\b/gi, "g (gramas)");
-}
-
-// ─── MacroSection ─────────────────────────────────────────────────────────────
-function MacroSection({
-  kind, opts, mode, isCooked, highPct, lowPct, mealName,
-}: {
-  kind: Kind; opts: any[]; mode: CarbMode; isCooked: boolean; highPct: number; lowPct: number; mealName: string;
-}) {
-  const cfg = KIND_META[kind];
-  const isCarb = kind === "carb";
-  const [showAlternatives, setShowAlternatives] = useState(false);
-
-  const filledOpts = opts.filter(
-    (o: any) =>
-      Array.isArray(o.items) &&
-      o.items.some((it: any) => stripHtml(it?.baseName || it?.name || "")),
-  );
-  if (!filledOpts.length) return null;
-
-  const hasAlternatives = filledOpts.length > 1;
-  // A macro no topo da tela sempre soma a primeira opção — então é ela que
-  // fica em destaque por padrão. As demais são substituições, não itens
-  // extras: ficam escondidas atrás de um toque explícito, em vez de
-  // empilhadas junto da opção principal.
-  const visibleOpts = showAlternatives ? filledOpts : filledOpts.slice(0, 1);
-
-  const renderItems = (opt: any) => {
-    const items = (opt.items as any[])
-      .map((it: any) => {
-        const name = stripHtml(it?.baseName || it?.name || "");
-        if (!name) return null;
-        // CORREÇÃO: prioriza o weight textual do coach (preserva 'unidades', 'fatias', etc.).
-        // rawWeight (gramas internas TACO) é usado apenas quando weight está vazio ou é só número.
-        const resolveWeight = (src: any) => {
-          const weightStr = stripHtml(src?.weight || "");
-          const hasUnitWord = /un|unid|fatia|ovo|colher|copo|porc/i.test(weightStr);
-          const rawText = hasUnitWord
-            ? weightStr
-            : (src?.rawWeight ? `${src.rawWeight}g` : weightStr);
-          return rawText
-            ? applySmartMath(rawText, mode, isCooked, isCarb, name, highPct, lowPct)
-            : "";
-        };
-        const sub = it?.substitution;
-        const subName = stripHtml(sub?.baseName || sub?.name || "");
-        return {
-          name,
-          weight: resolveWeight(it),
-          sub: subName ? { name: subName, weight: resolveWeight(sub) } : null,
-        };
-      })
-      .filter(Boolean) as { name: string; weight: string; sub: { name: string; weight: string } | null }[];
-    return items;
-  };
-
-
-  return (
-    <div className={`rounded-xl border ${cfg.border} ${cfg.bg} p-3`}>
-      <p className={`text-[10px] uppercase tracking-[0.18em] font-black mb-3 ${cfg.color} flex items-center gap-1.5`}>
-        {kind === "veg" && <Salad className="w-3 h-3" />}
-        {cfg.label}
-      </p>
-
-      <div className="space-y-3">
-        {visibleOpts.map((opt: any, i: number) => {
-          const optIdx = filledOpts.indexOf(opt);
-          const items = renderItems(opt);
-          if (!items.length) return null;
-
-          const optTitle = String(opt?.title || `Opção ${optIdx + 1}`);
-          const anchorBase = `meal-${slug(mealName)}-${kind}-${slug(optTitle)}`;
-          return (
-            <div key={optIdx} className={i > 0 ? "pt-3 border-t border-white/5" : ""}>
-              {hasAlternatives && (
-                <p className="text-[9px] uppercase tracking-[0.15em] text-muted-foreground font-bold mb-1.5">
-                  {OPTION_LABELS[optIdx] ?? `OPÇÃO ${optIdx + 1}`}
+          {sub ? (
+            <>
+              <p className="text-xs text-muted-foreground mt-1">
+                {formatCents(sub.price_cents)} · ciclo de {sub.cycle_months}{" "}
+                {sub.cycle_months === 1 ? "mês" : "meses"}
+              </p>
+              {sub.next_due_date && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Próximo vencimento: {formatDatePtBR(sub.next_due_date)}
                 </p>
               )}
-              <ul className="space-y-1">
-                {items.map((item, ii) => (
-                  <li key={ii} id={`${anchorBase}-item-${slug(item.name)}`}>
-                    <div className="flex items-baseline justify-between gap-3 px-1">
-                      <span className="text-sm leading-snug text-foreground/90 break-words min-w-0 flex-1">
-                        {item.name}
-                      </span>
-                      {item.weight && (
-                        <span className={`text-xs tabular-nums shrink-0 font-bold ${cfg.color}`}>
-                          {humanizeUnit(item.weight)}
-                        </span>
-                      )}
-                    </div>
-                    {item.sub && (
-                      <div className="mt-1 ml-4 pl-2.5 border-l-2 border-dashed border-amber-500/40 flex items-baseline justify-between gap-3">
-                        <span className="text-[11px] leading-snug text-muted-foreground break-words min-w-0 flex-1">
-                          <span className="text-amber-500 font-bold">↳ 🔁 Substituição opcional: </span>
-                          {item.sub.name}
-                        </span>
-                        {item.sub.weight && (
-                          <span className="text-[11px] tabular-nums shrink-0 font-bold text-amber-500">
-                            {humanizeUnit(item.sub.weight)}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ul>
-
-              {opt.notes?.trim() && (
-                <p className="text-[11px] text-muted-foreground italic mt-1.5 pl-1">
-                  {stripHtml(opt.notes)}
-                </p>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {hasAlternatives && (
-        <button
-          type="button"
-          onClick={() => setShowAlternatives((v) => !v)}
-          className={`mt-3 text-[11px] font-bold ${cfg.color} opacity-80 hover:opacity-100 transition-opacity`}
-        >
-          {showAlternatives
-            ? "Ocultar outras opções"
-            : `Trocar por outra opção (${filledOpts.length - 1})`}
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ─── MealCard — sem estado local de isCooked, recebe via props ────────────────
-const MEAL_ICONS = ["☀️", "🥗", "💪", "🍽️", "🌙", "⚡", "🥤", "🌿"];
-
-function MealCard({
-  meal, index, mode, isCooked, highPct, lowPct, supplements, isChecked, onToggleChecked, isCurrent,
-  hasPair, isRestDay, onToggleRestDay,
-}: {
-  meal: any;
-  index: number;
-  mode: CarbMode;
-  isCooked: boolean;
-  highPct: number;
-  lowPct: number;
-  supplements?: any[];
-  isChecked?: boolean;
-  onToggleChecked?: (index: number) => void;
-  isCurrent?: boolean;
-  /** Esta refeição tem uma versão "irmã" (treino ↔ descanso) em outro item do array. */
-  hasPair?: boolean;
-  isRestDay?: boolean;
-  onToggleRestDay?: () => void;
-}) {
-  const [open, setOpen] = useState(isCurrent ?? index === 0);
-
-
-  const allOptions: any[] = Array.isArray(meal.options) ? meal.options : [];
-  const hiddenKinds: string[] = Array.isArray(meal.hiddenKinds) ? meal.hiddenKinds : [];
-  const isHidden = (k: string) => hiddenKinds.includes(k);
-  const mealName = meal.name || `Refeição ${index + 1}`;
-  const linkedSupps = (supplements || []).filter(
-    (s: any) => s?.mealRef && s.mealRef === mealName,
-  );
-
-  const carbOpts    = allOptions.filter((o: any) => o?.kind === "carb");
-  const proteinOpts = allOptions.filter((o: any) => o?.kind === "protein");
-  const fatOpts     = allOptions.filter((o: any) => o?.kind === "fat");
-  const vegOpts     = allOptions.filter(
-    (o: any) => o?.kind === "veg" || o?.kind === "vegetable" || o?.kind === "salad",
-  );
-
-  // Se a refeição individual não participa do ciclo de carbo, força "base"
-  const effectiveMode: CarbMode = meal.carbCycle === false ? "base" : mode;
-  const icon = MEAL_ICONS[index % MEAL_ICONS.length];
-
-  return (
-    <div className="glass rounded-2xl overflow-hidden card-hover border border-white/[0.06]">
-      <div className="flex items-center gap-2 px-4 sm:px-5 py-4">
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground mt-1">
+              Você ainda não tem um plano contratado. Escolha um plano abaixo para começar.
+            </p>
+          )}
+        </div>
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          className="flex items-center gap-3 flex-1 min-w-0 text-left"
+          className="text-muted-foreground hover:text-foreground shrink-0"
+          aria-label="Ver histórico de cobranças"
         >
-          {onToggleChecked && (
-            <motion.span
-              role="checkbox"
-              aria-checked={!!isChecked}
-              aria-label={isChecked ? "Marcar como não feita" : "Marcar refeição como feita"}
-              onClick={(e) => { e.stopPropagation(); onToggleChecked(index); }}
-              whileTap={{ scale: 0.85 }}
-              animate={isChecked ? { scale: [1, 1.2, 1] } : { scale: 1 }}
-              transition={{ duration: 0.25 }}
-              className={cn(
-                "w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors cursor-pointer",
-                isChecked
-                  ? "bg-emerald-500 border-emerald-500 text-black"
-                  : "border-white/20 text-white/40 hover:border-emerald-500/60",
-              )}
-            >
-              {isChecked ? <Check className="w-4 h-4" strokeWidth={3} /> : null}
-            </motion.span>
-          )}
-          <span className="text-xl leading-none shrink-0">{icon}</span>
-          <span className="min-w-0">
-            <span className="block font-bold text-foreground text-sm leading-tight truncate">
-              {meal.name || `Refeição ${index + 1}`}
-            </span>
-            {meal.time && (
-              <span className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                <Clock className="w-3 h-3" />
-                {meal.time}
-              </span>
-            )}
-          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} />
         </button>
-        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-          {hasPair && onToggleRestDay && (
-            <button
-              type="button"
-              onClick={onToggleRestDay}
-              aria-label={isRestDay ? "Ver versão de treino" : "Ver versão sem treino"}
-              className="text-[10px] font-bold px-2 py-1 rounded-full border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 transition-colors whitespace-nowrap"
-            >
-              {isRestDay ? (
-                <>
-                  <span className="hidden sm:inline">← Ver versão de treino</span>
-                  <span className="sm:hidden">← Treino</span>
-                </>
-              ) : (
-                <>
-                  <span className="hidden sm:inline">Ver versão sem treino →</span>
-                  <span className="sm:hidden">Sem treino →</span>
-                </>
-              )}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            aria-label={open ? "Recolher refeição" : "Expandir refeição"}
-            className="p-1 text-muted-foreground transition-transform duration-200 shrink-0"
-          >
-            <span className={cn("block text-xs", open && "rotate-180")}>▾</span>
-          </button>
-        </div>
       </div>
 
+      {showUpcoming && (
+        <div className="flex items-center gap-2 mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+          <Clock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+          <p className="text-xs font-medium text-amber-800">
+            Seu plano vence {dueSoonLabel}. Renove abaixo pra não perder o acesso.
+          </p>
+        </div>
+      )}
+
+      <div className="grid gap-2 mt-3">
+        {pendingPlanCharge ? (
+          <>
+            <Button
+              size="sm"
+              disabled={busy === "pending"}
+              onClick={() => openCheckout({ finance_id: pendingPlanCharge.id }, "pending")}
+            >
+              {busy === "pending" ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : null}
+              Pagar {formatCents(toCents(Number(pendingPlanCharge.amount)))}
+            </Button>
+            {pendingPlanCharge.checkout_url && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => window.open(pendingPlanCharge.checkout_url!, "_blank", "noopener")}
+              >
+                Continuar checkout aberto <ExternalLink className="w-3.5 h-3.5 ml-1" />
+              </Button>
+            )}
+          </>
+        ) : sub ? (
+          <Button
+            size="sm"
+            disabled={busy === "renew"}
+            onClick={() => {
+              const plan = availablePlans.find((p) => p.slug === sub.plan_slug);
+              if (!plan) {
+                toast.error("Plano atual indisponível no catálogo. Fale com seu treinador.");
+                return;
+              }
+              openCheckout({ plan_id: plan.id }, "renew");
+            }}
+          >
+            {busy === "renew" ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1" />}
+            Renovar plano
+          </Button>
+        ) : null}
+
+        <Button size="sm" variant="outline" onClick={() => setShowPlans((v) => !v)}>
+          <Repeat className="w-3.5 h-3.5 mr-1" />
+          {sub ? "Trocar plano" : "Escolher plano"}
+        </Button>
+      </div>
+
+      {showPlans && (
+        <div className="mt-3 border-t border-border/60 pt-3 space-y-2">
+          {availablePlans.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Nenhum plano disponível no momento.</p>
+          ) : (
+            availablePlans.map((plan) => (
+              <div
+                key={plan.id}
+                className="flex items-center justify-between gap-2 rounded-lg border border-border/60 p-2"
+              >
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-foreground truncate">{plan.name}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {formatCents(plan.price_cents)} · {plan.duration_months}{" "}
+                    {plan.duration_months === 1 ? "mês" : "meses"}
+                    {discountLabel(plan, availablePlans) && (
+                      <span className="ml-1 text-emerald-600 font-semibold">
+                        {discountLabel(plan, availablePlans)}
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant={plan.slug === sub?.plan_slug ? "outline" : "default"}
+                  disabled={busy === plan.id}
+                  onClick={() => openCheckout({ plan_id: plan.id }, plan.id)}
+                >
+                  {busy === plan.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Contratar"}
+                </Button>
+              </div>
+            ))
+          )}
+          <p className="text-[10px] text-muted-foreground">
+            A troca de plano só é aplicada após a confirmação do pagamento pelo Mercado Pago.
+          </p>
+        </div>
+      )}
+
       {open && (
-        <div className="px-4 pb-4 space-y-2.5 border-t border-white/5 pt-3">
-          {!isHidden("carb") && (
-            <MacroSection kind="carb" opts={carbOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} mealName={mealName} />
-          )}
-          {!isHidden("protein") && (
-            <MacroSection kind="protein" opts={proteinOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} mealName={mealName} />
-          )}
-          {!isHidden("fat") && (
-            <MacroSection kind="fat" opts={fatOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} mealName={mealName} />
-          )}
-          <MacroSection kind="veg" opts={vegOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} mealName={mealName} />
-
-          {linkedSupps.length > 0 && (
-            <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5 space-y-1">
-              <p className="text-[10px] uppercase tracking-wider font-bold text-primary">
-                Suplementos desta refeição
-              </p>
-              {linkedSupps.map((s: any, i: number) => (
-                <p key={i} className="text-xs text-foreground/90">
-                  <span className="font-semibold">{s.name}</span>
-                  {s.dose ? ` · ${s.dose}` : ""}
-                  {s.notes ? (
-                    <span className="text-muted-foreground"> — {s.notes}</span>
-                  ) : null}
-                </p>
-              ))}
-            </div>
-          )}
-
-          {meal.notes && (
-            <div className="rounded-lg border border-white/10 bg-white/[0.02] p-2.5">
-              <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1">
-                Observação
-              </p>
-              <p className="text-xs text-foreground/90 break-words whitespace-pre-wrap">
-                {stripHtml(meal.notes)}
-              </p>
-            </div>
+        <div className="mt-3 border-t border-border/60 pt-3 space-y-2">
+          {charges.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Nenhuma cobrança registrada ainda.</p>
+          ) : (
+            charges.map((c) => (
+              <div key={c.id} className="flex items-center justify-between gap-2 text-xs">
+                <div className="min-w-0">
+                  <p className="font-medium text-foreground truncate">{c.description}</p>
+                  <p className="text-muted-foreground">
+                    {c.paid_at
+                      ? `Pago em ${formatDatePtBR(c.paid_at)}`
+                      : c.due_date
+                        ? `Vence em ${formatDatePtBR(c.due_date)}`
+                        : "Sem vencimento"}
+                    {c.source && ` · ${SOURCE_LABEL[c.source] ?? c.source}`}
+                    {c.card_installments && c.card_installments > 1 && ` · ${c.card_installments}x`}
+                  </p>
+                </div>
+                <span className="shrink-0 font-bold text-foreground">
+                  {formatCents(toCents(Number(c.amount)))}
+                </span>
+              </div>
+            ))
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-// ─── Root ─────────────────────────────────────────────────────────────────────
-export default function StructuredMealsViewer({ payload, studentName }: { payload: any; studentName?: string }) {
-  const safeData = payload || {};
-  const meals: any[] = Array.isArray(safeData.meals) ? safeData.meals : [];
-
-  // Sessão do aluno para gravar meal_checkins do dia.
-  const [uid, setUid] = useState<string | null>(null);
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setUid(data.session?.user?.id ?? null));
-  }, []);
-  const dayKey = new Date().toISOString().slice(0, 10);
-  const { checked, toggle } = useMealCheckins(uid, dayKey, meals.length);
-
-  // ── Contexto do dia ─────────────────────────────────────────────────────
-  const strip = buildWeekStrip(safeData);
-  const todayInfo = strip.find((d) => d.isToday)!;
-  const tomorrowInfo = strip.find((d) => d.key === tomorrowKey())!;
-  const workouts: any[] = Array.isArray(safeData.workouts) ? safeData.workouts : [];
-  const findWorkout = (k: string) => workouts.find((w) => w.key === k);
-  const todayWorkout = todayInfo.workoutKey ? findWorkout(todayInfo.workoutKey) : null;
-  const tomorrowWorkout = tomorrowInfo.workoutKey ? findWorkout(tomorrowInfo.workoutKey) : null;
-
-  // ── Estado dos controles da tela ───────────────────────────────────────
-  const [carbMode, setCarbMode] = useState<CarbMode>(todayInfo.carb as CarbMode);
-  const [isCooked, setIsCooked] = useState(false);
-  const [selectedDayTypeByPair, setSelectedDayTypeByPair] = useState<Record<string, "training" | "rest">>({});
-
-  // ── Refeições de Treino vs Descanso ────────────────────────────────────
-  // CRÍTICO: nunca reindexar `meals`. O índice posicional original
-  // (originalIndex) é a chave usada em meal_checkins.meal_index.
-  const dayTypeOf = (meal: any): "all" | "training" | "rest" =>
-    (meal?.day_type === "training" || meal?.day_type === "rest") ? meal.day_type : "all";
-  const defaultDayType: "training" | "rest" = todayWorkout ? "training" : "rest";
-  const visibleMeals = useMemo(
-    () =>
-      meals
-        .map((meal, index) => ({ meal, originalIndex: index }))
-        .filter(({ meal }) => {
-          const dt = dayTypeOf(meal);
-          if (dt === "all") return true;
-          const pairId = typeof meal?.pairId === "string" ? meal.pairId : "";
-          const selectedType = pairId ? (selectedDayTypeByPair[pairId] ?? defaultDayType) : defaultDayType;
-          return dt === selectedType;
-        }),
-    [meals, selectedDayTypeByPair, defaultDayType],
-  );
-
-  const highPct: number = safeData.carbCycleHighPct ?? 15;
-  const lowPct: number  = safeData.carbCycleLowPct  ?? 15;
-
-  const hasCarbCycle =
-    safeData?.setup?.carbCycle === true || safeData?.carbCycle === true;
-
-  // Verifica se ALGUMA refeição tem alimento cozinhável (calcula uma vez)
-  const hasCookable = useMemo(
-    () => meals.some(mealHasCookable),
-    [meals],
-  );
-
-  // ── Progresso de check-in — precisa refletir só o que está VISÍVEL agora ──
-  // `checked` guarda status por índice ABSOLUTO (correto p/ persistência/Supabase),
-  // mas a barra de progresso (StickyDietBar) deve somar só sobre visibleMeals —
-  // senão o denominador conta a metade oculta do par treino/descanso e a barra
-  // nunca fecha em 100%. Reindexamos aqui só para exibição; checked/toggle
-  // continuam absolutos (não afeta a Vulnerabilidade 1).
-  const visibleCheckinStats = useMemo(() => {
-    const visibleChecked: Record<number, boolean> = {};
-    visibleMeals.forEach(({ originalIndex }, pos) => {
-      visibleChecked[pos] = !!checked[originalIndex];
-    });
-    const total = visibleMeals.length;
-    const done = Object.values(visibleChecked).filter(Boolean).length;
-    return {
-      checked: visibleChecked,
-      totalMeals: total,
-      doneCount: done,
-      progressPct: total ? Math.round((done / total) * 100) : 0,
-    };
-  }, [checked, visibleMeals]);
-
-  // Índice da refeição que deve vir aberta por padrão (baseado no horário local).
-  // NÃO reordena o array — mantém a referência posicional usada por meal_checkins.
-  // Se a refeição "atual" por horário cair na metade OCULTA (ex.: treino,
-  // mas o aluno está vendo a visão de descanso), recalcula só entre as
-  // refeições realmente visíveis para não deixar nenhum card aberto por padrão.
-  const currentMealIndex = useMemo(() => {
-    const idx = getCurrentMealIndex(meals);
-    if (visibleMeals.some((v) => v.originalIndex === idx)) return idx;
-    const localIdx = getCurrentMealIndex(visibleMeals.map((v) => v.meal));
-    return visibleMeals[localIdx]?.originalIndex ?? idx;
-  }, [meals, visibleMeals]);
-
-  if (meals.length === 0) return null;
-
-
-  const carbCfg = CARB_COLOR[todayInfo.carb];
-  const carbCfgT = CARB_COLOR[tomorrowInfo.carb];
-
-  return (
-    <div className="w-full max-w-full overflow-x-hidden">
-      {/* ── Card de contexto do dia — saudação + carbo + treino ── */}
-      <div className={cn(
-        "rounded-2xl border p-4 mb-3 flex flex-col gap-2",
-        carbCfg.border, carbCfg.bg
-      )}>
-        {/* Linha 1 — Saudação */}
-        <p className="text-sm font-semibold text-foreground leading-tight">
-          {getGreeting()}{studentName ? `, ${studentName}` : ""}! 👋
-        </p>
-
-        {/* Linha 2 — Tipo de carbo do dia */}
-        <div className="flex items-baseline justify-between gap-3 flex-wrap">
-          <div className="min-w-0">
-            <p className={cn("text-[10px] uppercase tracking-[0.2em] font-bold", carbCfg.text)}>
-              Hoje · Carbo
-            </p>
-            <p className={cn("text-3xl font-black leading-none mt-0.5", carbCfg.text)}>
-              {CARB_LABEL[todayInfo.carb]}
-            </p>
-          </div>
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            {todayInfo.label}
-          </span>
-        </div>
-
-        {/* Linha 3 — Treino ou mensagem de descanso */}
-        {todayWorkout ? (
-          <p className="text-[12px] text-muted-foreground">
-            Dia de treino{" "}
-            <span className="text-foreground font-semibold">{todayWorkout.key}</span>
-            {todayWorkout.focus ? <> · {todayWorkout.focus}</> : null}
-            {" "}— foco total na execução 💪
-          </p>
-        ) : (
-          <p className="text-[12px] text-muted-foreground italic">
-            Dia de descanso — recuperação é parte do processo. Hidrate-se bem e durma cedo 🌙
-          </p>
-        )}
-      </div>
-
-      {/* ── Week strip (read-only) ── */}
-      <div className="grid grid-cols-7 gap-1 mb-4">
-        {strip.map((d) => {
-          const cc = CARB_COLOR[d.carb];
-          return (
-            <div
-              key={d.key}
-              className={cn(
-                "rounded-lg border bg-background/50 px-1 py-1 flex flex-col items-center gap-0.5",
-                d.isToday ? "border-[#CC0000]" : "border-border/40"
-              )}
-            >
-              <span className="text-[9px] uppercase text-muted-foreground tracking-wider">{d.abbr}</span>
-              <span className="text-[12px] font-bold text-foreground leading-none">{d.workoutKey || "—"}</span>
-              <span className={cn("text-[8px] font-bold uppercase px-1 py-px rounded border leading-none mt-0.5", cc.pill)}>
-                {CARB_LABEL[d.carb]}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-
-
-
-      <NutritionStrategyHeader
-        payload={safeData}
-        carbMode={carbMode}
-        highPct={highPct}
-        lowPct={lowPct}
-        meals={visibleMeals.map((v) => v.meal)}
-      />
-
-      {/* Barra sticky com os dois controles */}
-      <StickyDietBar
-        carbMode={carbMode}
-        onCarbChange={setCarbMode}
-        isCooked={isCooked}
-        onCookedChange={setIsCooked}
-        hasCarbCycle={hasCarbCycle}
-        hasCookable={hasCookable}
-        totalMeals={visibleCheckinStats.totalMeals}
-        doneCount={visibleCheckinStats.doneCount}
-        progressPct={visibleCheckinStats.progressPct}
-        checked={visibleCheckinStats.checked}
-      />
-
-      {/* Grid de refeições */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-4">
-        {visibleMeals.map(({ meal, originalIndex }) => (
-          <MealCard
-            key={originalIndex}
-            meal={meal}
-            index={originalIndex}
-            mode={carbMode}
-            isCooked={isCooked}
-            highPct={highPct}
-            lowPct={lowPct}
-            supplements={safeData.supplements}
-            isChecked={!!checked[originalIndex]}
-            onToggleChecked={uid ? toggle : undefined}
-            isCurrent={originalIndex === currentMealIndex}
-            hasPair={!!meal?.pairId}
-            isRestDay={dayTypeOf(meal) === "rest"}
-            onToggleRestDay={meal?.pairId ? () => {
-              const pairId = String(meal.pairId);
-              const currentType = selectedDayTypeByPair[pairId] ?? defaultDayType;
-              setSelectedDayTypeByPair((prev) => ({
-                ...prev,
-                [pairId]: currentType === "rest" ? "training" : "rest",
-              }));
-            } : undefined}
-          />
-        ))}
-      </div>
-
-      {/* ── Preview de amanhã ── */}
-      <div className={cn(
-        "mt-4 rounded-xl border px-4 py-3 flex flex-col gap-1",
-        carbCfgT.border, carbCfgT.bg
-      )}>
-        <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-bold">
-          Amanhã — prepare-se
-        </p>
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <p className="text-sm text-foreground/90">
-            {tomorrowWorkout ? (
-              <>
-                Treino{" "}
-                <span className="font-bold">{tomorrowWorkout.key}</span>
-                {tomorrowWorkout.focus ? <> · {tomorrowWorkout.focus}</> : null}
-              </>
-            ) : (
-              <span className="italic text-muted-foreground">Descanso</span>
-            )}
-          </p>
-          <span className={cn(
-            "text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border shrink-0",
-            carbCfgT.pill
-          )}>
-            Carbo {CARB_LABEL[tomorrowInfo.carb]}
-          </span>
-        </div>
-        <p className="text-[11px] text-muted-foreground mt-0.5">
-          {tomorrowWorkout
-            ? "Organize suas refeições com antecedência para garantir energia no treino."
-            : "Aproveite para descansar e repor as energias para os próximos dias."}
-        </p>
-      </div>
-    </div>
+    </Card>
   );
 }
