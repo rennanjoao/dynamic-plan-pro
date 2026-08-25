@@ -227,7 +227,7 @@ export function PartnersTab({ coachId }: { coachId: string | null }) {
         <h3 className="text-sm font-bold flex items-center gap-2"><Ticket className="w-4 h-4 text-primary" /> Gerar código de acesso</h3>
         <div className="grid md:grid-cols-3 gap-2">
           <select
-            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            className="h-10 rounded-md border border-input bg-background px-3 text-base md:text-sm"
             value={kind}
             onChange={(e) => setKind(e.target.value as "student" | "partner")}
           >
@@ -236,7 +236,7 @@ export function PartnersTab({ coachId }: { coachId: string | null }) {
           </select>
           {kind === "student" ? (
             <select
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              className="h-10 rounded-md border border-input bg-background px-3 text-base md:text-sm"
               value={selectedPartner}
               onChange={(e) => setSelectedPartner(e.target.value)}
             >
