@@ -62,6 +62,7 @@ const RETURN_MESSAGE: Record<string, string> = {
 
 interface ChargeRow {
   id: string; description: string; amount: number; status: string;
+  plan_slug: string | null; subscription_id: string | null;
   due_date: string | null; paid_at: string | null; payment_method: string | null;
   source: string | null; checkout_url: string | null; receipt_url: string | null;
   card_installments: number | null; provider: string | null;
@@ -93,11 +94,13 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
   const { data: charges = [] } = useQuery({
     queryKey: ["my-plan-charges", userId],
     enabled: !!userId,
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       const { data } = await sb
         .from("coach_finances")
         .select(
-          "id, description, amount, status, due_date, paid_at, payment_method, source, checkout_url, receipt_url, card_installments, provider, mercado_pago_payment_id",
+          "id, description, amount, status, due_date, paid_at, payment_method, source, checkout_url, receipt_url, card_installments, provider, mercado_pago_payment_id, plan_slug, subscription_id",
         )
         .eq("student_id", userId)
         .order("due_date", { ascending: false })
@@ -106,7 +109,33 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
     },
   });
 
-  const pending = charges.find((c) => c.status === "pending" && Number(c.amount) > 0);
+  // O card só representa um plano que o coach selecionou para cobrar.
+  // Cobranças avulsas não criam plano para o aluno. Depois da baixa, não há
+  // mais cobrança de plano pendente e o card desaparece.
+  const pendingPlanCharge = charges.find(
+    (c) => c.status === "pending" && Number(c.amount) > 0 && (!!c.plan_slug || !!c.subscription_id),
+  );
+
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel(`student-plan-billing-${userId}`)
+      .on(
+        "postgres_changes" as never,
+        { event: "*", schema: "public", table: "coach_finances", filter: `student_id=eq.${userId}` },
+        () => {
+          qc.invalidateQueries({ queryKey: ["my-plan-charges", userId] });
+          qc.invalidateQueries({ queryKey: ["my-student-subscription", userId] });
+          qc.invalidateQueries({ queryKey: ["student-billing-alert", userId] });
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [qc, userId]);
+
+  if (!pendingPlanCharge) return null;
 
   const openCheckout = async (body: Record<string, unknown>, key: string) => {
     setBusy(key);
@@ -133,7 +162,7 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
   // (senão o bloco de "Pagamento pendente" abaixo já cobre) e faltam 0-3 dias.
   const daysUntilDue = sub?.next_due_date ? daysUntil(sub.next_due_date) : null;
   const showUpcoming =
-    !!sub && sub.status === "active" && !pending && daysUntilDue !== null && daysUntilDue >= 0 && daysUntilDue <= 3;
+    !!sub && sub.status === "active" && !pendingPlanCharge && daysUntilDue !== null && daysUntilDue >= 0 && daysUntilDue <= 3;
   const dueSoonLabel =
     daysUntilDue === 0 ? "hoje" : daysUntilDue === 1 ? "amanhã" : `em ${daysUntilDue} dias`;
 
@@ -151,7 +180,7 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
                 {status.label}
               </span>
             )}
-            {pending && (
+            {pendingPlanCharge && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-amber-100 text-amber-700 border-amber-200">
                 Pagamento pendente
               </span>
@@ -195,21 +224,21 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
       )}
 
       <div className="grid gap-2 mt-3">
-        {pending ? (
+        {pendingPlanCharge ? (
           <>
             <Button
               size="sm"
               disabled={busy === "pending"}
-              onClick={() => openCheckout({ finance_id: pending.id }, "pending")}
+              onClick={() => openCheckout({ finance_id: pendingPlanCharge.id }, "pending")}
             >
               {busy === "pending" ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : null}
-              Pagar {formatCents(toCents(Number(pending.amount)))}
+              Pagar {formatCents(toCents(Number(pendingPlanCharge.amount)))}
             </Button>
-            {pending.checkout_url && (
+            {pendingPlanCharge.checkout_url && (
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => window.open(pending.checkout_url!, "_blank", "noopener")}
+                onClick={() => window.open(pendingPlanCharge.checkout_url!, "_blank", "noopener")}
               >
                 Continuar checkout aberto <ExternalLink className="w-3.5 h-3.5 ml-1" />
               </Button>
