@@ -555,7 +555,7 @@ export default function CheckinFeedbackPanel(props: Props) {
                   <select
                     value={ci?.id ?? ""}
                     onChange={(e) => selectCheckin(e.target.value)}
-                    className="flex-1 text-xs rounded-md border border-border bg-background px-2 py-1.5"
+                    className="flex-1 text-base md:text-xs rounded-md border border-border bg-background px-2 py-1.5"
                     disabled={sending}
                   >
                     {allCheckins.map((c) => (
