@@ -12,6 +12,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMediaUrl } from "@/lib/studentMedia";
+import { cn } from "@/lib/utils";
 
 const SESSION_KEY = "epx_privacy_mode";
 
@@ -89,7 +90,7 @@ export function PrivateImg({ className = "", src, ...rest }: React.ImgHTMLAttrib
     <img
       {...rest}
       src={resolved || undefined}
-      className={`${className} ${privacy ? "blur-xl select-none pointer-events-none" : ""}`.trim()}
+      className={cn("max-w-full h-auto", className, privacy && "blur-xl select-none pointer-events-none")}
     />
   );
 }
