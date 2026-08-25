@@ -31,7 +31,7 @@ export function GuidelinesTab({ payload, setPayload }: { payload: ProtocolPayloa
     { k: "training",         label: "Diretrizes de treino", hint: "Regras gerais (foco, intensidade, falha, descanso)", minH: "min-h-[100px]" },
     { k: "diet",             label: "Diretrizes da dieta",  hint: "Hidratação, sal, fibras, suplementos com refeições",  minH: "min-h-[100px]" },
     { k: "weekOrganization", label: "Organização da semana", hint: "Ex.: Seg/Qua/Sex carbo alto · Ter/Qui/Sab/Dom carbo baixo", minH: "min-h-[80px]" },
-    { k: "supplementation",  label: "Suplementação — obs. gerais", minH: "min-h-[100px]" },
+    { k: "supplementation",  label: "Sono", hint: "Rotina, duração, qualidade e higiene do sono", minH: "min-h-[100px]" },
   ];
   const showToStudent: boolean = (payload as any).showGuidelines ?? false;
   const setShowToStudent = (v: boolean) => setPayload({ ...payload, showGuidelines: v } as any);
@@ -328,7 +328,7 @@ function SupplementsSection({
     <div className="border-t border-border/40 pt-4 space-y-2">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <Label className="text-sm font-semibold flex items-center gap-2">
-          <Pill className="w-4 h-4 text-primary" /> Suplementos
+          <Pill className="w-4 h-4 text-primary" /> Suplementos prescritos
         </Label>
         <div className="flex items-center gap-2">
           <Button
