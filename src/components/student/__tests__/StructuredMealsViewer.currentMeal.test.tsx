@@ -105,6 +105,9 @@ describe("StructuredMealsViewer - abertura automática da refeição atual", () 
   it("exibe e alterna a versão sem treino de uma refeição pareada", () => {
     mockTime(12, 0);
     const payload = buildPayload();
+    const weekdayKeys = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
+    payload.weekDays = { [weekdayKeys[new Date().getDay()]]: "A" };
+    payload.workouts = [{ key: "A", focus: "Treino" }];
     const mealBase = {
       time: "12:30",
       macros: { carbs: 0, protein: 0, fat: 0 },
@@ -113,13 +116,17 @@ describe("StructuredMealsViewer - abertura automática da refeição atual", () 
       pairId: "pair-almoco",
     };
     payload.meals = [
+      { name: "Café da manhã", time: "07:00", macros: { carbs: 0, protein: 0, fat: 0 }, options: [], substitutions: { carb: [], protein: [], fat: [] } },
       { ...mealBase, name: "Almoço", day_type: "training", excludeFromDayTotal: false },
       { ...mealBase, name: "Almoço (sem treino)", day_type: "rest", excludeFromDayTotal: true },
+      { name: "Jantar", time: "19:30", macros: { carbs: 0, protein: 0, fat: 0 }, options: [], substitutions: { carb: [], protein: [], fat: [] } },
     ];
 
     render(<StructuredMealsViewer payload={payload} />, { wrapper });
 
-    const toggle = screen.getByRole("button", { name: "Ver versão sem treino" });
+    const toggles = screen.getAllByRole("button", { name: "Ver versão sem treino" });
+    expect(toggles).toHaveLength(1);
+    const toggle = toggles[0];
     expect(toggle).toBeInTheDocument();
     fireEvent.click(toggle);
     expect(screen.getByText("Almoço (sem treino)")).toBeInTheDocument();
