@@ -269,34 +269,36 @@ export default function WorkoutPeriodizationView({
                   value={`pw-${i}`}
                   className="bg-card border border-border rounded-xl overflow-hidden"
                 >
-                  <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/30">
-                    <div className="flex items-center gap-2 sm:gap-3 text-left flex-1 min-w-0">
-                      <div className="w-9 h-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-black shrink-0">
-                        {letter}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-sm">Treino {letter}</h3>
-                        <p className="text-[11px] text-muted-foreground truncate">
-                          {day.focus || "Geral"}
-                        </p>
-                      </div>
-                      {/* ── BOTÃO INICIAR — só aparece para o aluno (não no modo edição do coach) ── */}
-                      {!allowEdit && onStartWorkout && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onStartWorkout(day.key, activeWeek);
-                          }}
-                          style={{ backgroundColor: "#CC0000" }}
-                          className="shrink-0 flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-full text-white text-[11px] font-bold mr-0 sm:mr-1 whitespace-nowrap"
-                        >
-                          <Play className="w-3 h-3 fill-white" />
-                          Iniciar
-                        </button>
-                      )}
+                  <div className="flex items-center gap-2 px-3 sm:px-4">
+                    <div className="min-w-0 flex-1">
+                      <AccordionTrigger className="w-full min-w-0 px-1 py-3 hover:no-underline hover:bg-muted/30">
+                        <div className="flex items-center gap-2 sm:gap-3 text-left flex-1 min-w-0">
+                          <div className="w-9 h-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-black shrink-0">
+                            {letter}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-sm">Treino {letter}</h3>
+                            <p className="text-[11px] text-muted-foreground truncate">
+                              {day.focus || "Geral"}
+                            </p>
+                          </div>
+                        </div>
+                      </AccordionTrigger>
                     </div>
-                  </AccordionTrigger>
+                    {/* Fica fora do AccordionTrigger para não criar botão dentro de
+                        botão e para manter uma largura estável em qualquer mobile. */}
+                    {!allowEdit && onStartWorkout && (
+                      <button
+                        type="button"
+                        onClick={() => onStartWorkout(day.key, activeWeek)}
+                        style={{ backgroundColor: "#CC0000" }}
+                        className="shrink-0 inline-flex items-center justify-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-full text-white text-[11px] font-bold whitespace-nowrap"
+                      >
+                        <Play className="w-3 h-3 fill-white" />
+                        <span>Iniciar</span>
+                      </button>
+                    )}
+                  </div>
 
                   <AccordionContent className="px-4 pb-4 border-t border-border/40 space-y-3 pt-3">
                     <PeriodizedMobilityBlock exercises={mobilityExercises} />
