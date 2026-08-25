@@ -966,7 +966,7 @@ const Anamnesis = () => {
         </div>
       </div>
 
-      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-card border border-border px-5 py-3 rounded-xl text-sm shadow-lg z-50 whitespace-nowrap">{toast}</div>}
+      {toast && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-sm bg-card border border-border px-5 py-3 rounded-xl text-sm shadow-lg z-50 text-center break-words">{toast}</div>}
     </div>
   );
 };
