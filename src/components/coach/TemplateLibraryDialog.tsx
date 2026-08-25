@@ -194,14 +194,37 @@ export default function TemplateLibraryDialog({
     reload();
   }
 
+  /** Carrega o template no builder e entra em modo edição (próximo salvar = UPDATE). */
+  async function editItem(item: TplItem) {
+    if (!payload || item.isSystem || item.type !== "protocol") return;
+    const parsed = ProtocolPayloadSchema.safeParse(item.raw.payload);
+    if (!parsed.success) { toast.error("Template com payload inválido"); return; }
+    setPayload(parsed.data);
+    setEditingTemplate({ id: item.id, name: item.name });
+    onOpenChange(false);
+    toast.success(`Editando "${item.name}" — ajuste e clique em Salvar protocolo`);
+  }
+
   async function saveProtocolTemplate() {
     if (!coachId || !payload) return;
     const trimmed = saveName.trim();
     if (!trimmed) { toast.error("Dê um nome"); return; }
     setSaving(true);
     try {
-      await saveProtocolAsTemplate(coachId, trimmed, payload);
-      toast.success("Protocolo salvo como template");
+      if (editingTemplate) {
+        const parsed = ProtocolPayloadSchema.parse(payload);
+        const { error } = await supabase
+          .from("protocols")
+          .update({ name: trimmed, payload: parsed as any })
+          .eq("id", editingTemplate.id)
+          .eq("is_template", true);
+        if (error) throw error;
+        toast.success("Template atualizado");
+        setEditingTemplate(null);
+      } else {
+        await saveProtocolAsTemplate(coachId, trimmed, payload);
+        toast.success("Protocolo salvo como template");
+      }
       setSaveOpen(null);
       setSaveName("");
       reload();
@@ -209,6 +232,7 @@ export default function TemplateLibraryDialog({
       toast.error(e?.message || "Falha ao salvar");
     } finally { setSaving(false); }
   }
+
 
   function restoreFromVersion(treinos: any) {
     if (!payload) return;
