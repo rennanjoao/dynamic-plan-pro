@@ -78,7 +78,7 @@ export default function Supplements() {
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-lg font-bold text-foreground">Diretrizes & Suplementação</h1>
+          <h1 className="text-lg font-bold text-foreground">Diretrizes & Sono</h1>
           <p className="text-xs text-muted-foreground">Orientações do seu coach</p>
         </div>
         
@@ -159,7 +159,7 @@ export default function Supplements() {
           return (
             <div className="space-y-3">
               <h2 className="font-bold text-sm text-foreground flex items-center gap-2">
-                <Pill className="w-4 h-4 text-primary" /> Suplementos
+                <Pill className="w-4 h-4 text-primary" /> Suplementos prescritos
               </h2>
 
               {/* Combos primeiro (nome do combo como cabeçalho) */}
@@ -207,11 +207,11 @@ export default function Supplements() {
           );
         })()}
 
-        {/* Observações gerais de suplementação */}
+        {/* Diretriz geral de sono */}
         {supplementationGuideline.trim() && (
           <div className="glass rounded-2xl p-4 border border-white/[0.06]">
             <h3 className="text-sm font-bold mb-2 text-foreground flex items-center gap-2">
-              <Info className="w-4 h-4 text-primary" /> Observações de Suplementação
+              <Info className="w-4 h-4 text-primary" /> Sono
             </h3>
             <p className="text-sm whitespace-pre-wrap text-foreground/85 leading-relaxed">{supplementationGuideline}</p>
           </div>
