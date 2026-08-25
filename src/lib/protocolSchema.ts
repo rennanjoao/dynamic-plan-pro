@@ -253,6 +253,8 @@ const ItemsArraySchema = z.preprocess((v) => {
 export const MealOptionSchema = z.object({
   kind: z.enum(["carb", "protein", "fat"]).default("carb"),
   title: z.string().default(""),
+  // Observação específica da opção, editada no DietTab e exibida ao aluno.
+  notes: z.string().optional().default(""),
   items: ItemsArraySchema,
 });
 
@@ -359,6 +361,14 @@ export const MealSchema = z.preprocess(
     carbCycle: z.boolean().default(false),
     // Dia em que esta refeição se aplica. Legado (sem o campo) = "all".
     day_type: z.enum(["all", "training", "rest"]).default("all"),
+    // Identificador compartilhado entre as versões com e sem treino da mesma
+    // refeição. Sem esse campo o Zod removia o vínculo no autosave/load e o
+    // aluno não conseguia alternar entre os dois cards.
+    pairId: z.string().optional(),
+    // Quando verdadeiro, a refeição não entra na barra única de macros do
+    // coach. Em um par, os totais separados por tipo de dia continuam usando
+    // as duas pernas; refeições bônus sem par ficam fora de todos os totais.
+    excludeFromDayTotal: z.boolean().optional().default(false),
     notes: z.string().optional().default(""),
     hiddenKinds: z.array(z.enum(["carb", "protein", "fat"])).optional().default([]),
     // Identificador estável do item para drag-and-drop no builder — mesmo
@@ -401,6 +411,10 @@ export const ProtocolPayloadSchema = z.object({
     weekOrganization: z.string().default(""),
     supplementation: z.string().default(""),
   }).default({} as any),
+  // Controla se as diretrizes do coach são exibidas ao aluno. Este campo já é
+  // editado pela GuidelinesTab; declará-lo aqui evita que seja descartado no
+  // parse antes de chegar ao Plano de Treino.
+  showGuidelines: z.boolean().optional().default(false),
   workouts: z.array(WorkoutDaySchema).default([]),
   meals: z.array(MealSchema).default([]),
   carbCycle: z.record(CarbDayTolerant).default({}),
