@@ -217,7 +217,10 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
     toast.success("Versão sem treino criada. Edite a cópia e salve o protocolo.");
   }
 
-  const dayMacros = useMemo(() => calcDayMacros(payload.meals), [payload.meals]);
+  const dayMacros = useMemo(
+    () => calcDayMacros(payload.meals.filter((meal) => !(meal as any).excludeFromDayTotal)),
+    [payload.meals],
+  );
   const goals = payload.macros;
   const bars = [
     { label: "Kcal", cur: dayMacros.kcal, goal: goals.calories || 1, color: "bg-primary" },
@@ -438,6 +441,26 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
                 <TrendingUp className="w-3.5 h-3.5" /> Ciclo
               </button>
             )}
+            {(() => {
+              const excludedFromTotal = !!(m as any).excludeFromDayTotal;
+              return (
+                <button
+                  type="button"
+                  aria-pressed={excludedFromTotal}
+                  onClick={() => updMealField(mealIdx, { excludeFromDayTotal: !excludedFromTotal } as any)}
+                  className={`h-8 px-2.5 rounded-lg border text-[10px] font-semibold transition-colors flex items-center gap-1 shrink-0 whitespace-nowrap ${
+                    excludedFromTotal
+                      ? "bg-amber-500/15 border-amber-500/40 text-amber-600"
+                      : "border-border/50 text-muted-foreground hover:text-foreground"
+                  }`}
+                  title={excludedFromTotal ? "Voltar a contabilizar esta refeição nas kcal" : "Não contabilizar esta refeição nas kcal"}
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  {excludedFromTotal ? "Contabilizar" : "Não contabilizar"}
+                </button>
+              );
+            })()}
+
             {!((m as any).pairId) && (
               <button
                 type="button"
