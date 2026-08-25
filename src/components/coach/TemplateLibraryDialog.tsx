@@ -81,6 +81,8 @@ export default function TemplateLibraryDialog({
   const [saving, setSaving] = useState(false);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [historyItem, setHistoryItem] = useState<{ id: string; name: string } | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<{ id: string; name: string } | null>(null);
+
 
   async function reload() {
     if (!coachId) return;
