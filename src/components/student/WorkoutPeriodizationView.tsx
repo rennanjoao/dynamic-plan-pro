@@ -270,7 +270,7 @@ export default function WorkoutPeriodizationView({
                   className="bg-card border border-border rounded-xl overflow-hidden"
                 >
                   <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/30">
-                    <div className="flex items-center gap-3 text-left w-full">
+                    <div className="flex items-center gap-2 sm:gap-3 text-left flex-1 min-w-0">
                       <div className="w-9 h-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-black shrink-0">
                         {letter}
                       </div>
@@ -289,7 +289,7 @@ export default function WorkoutPeriodizationView({
                             onStartWorkout(day.key, activeWeek);
                           }}
                           style={{ backgroundColor: "#CC0000" }}
-                          className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-white text-[11px] font-bold mr-1"
+                          className="shrink-0 flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-full text-white text-[11px] font-bold mr-0 sm:mr-1 whitespace-nowrap"
                         >
                           <Play className="w-3 h-3 fill-white" />
                           Iniciar
