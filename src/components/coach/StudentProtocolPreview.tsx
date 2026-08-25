@@ -263,7 +263,7 @@ function GuidelinesPreview({ payload }: { payload: ProtocolPayload }) {
     ["Treino", g?.training || ""],
     ["Dieta", g?.diet || ""],
     ["Organização da Semana", g?.weekOrganization || ""],
-    ["Suplementação", g?.supplementation || ""],
+    ["Sono", g?.supplementation || ""],
   ];
   const hasAny = blocks.some(([, v]) => v.trim());
   if (!hasAny) {
