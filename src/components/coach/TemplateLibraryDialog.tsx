@@ -436,6 +436,15 @@ export default function TemplateLibraryDialog({
                             <History className="w-3.5 h-3.5" />
                           </button>
                         )}
+                        {item.type === "protocol" && !item.isSystem && (
+                          <button
+                            onClick={() => editItem(item)}
+                            className="text-muted-foreground hover:text-primary p-1"
+                            title="Editar template"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         {!item.isSystem && (
                           <button
                             onClick={() => deleteItem(item)}
@@ -445,6 +454,7 @@ export default function TemplateLibraryDialog({
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}
+
                       </div>
                       {expandedKey === key && (
                         <div className="mt-2 pt-2 border-t border-border/40">
