@@ -5,7 +5,7 @@
  * Cobre manhã, tarde, noite e fallback sem horários válidos.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import StructuredMealsViewer from "@/components/student/StructuredMealsViewer";
@@ -25,7 +25,7 @@ vi.mock("@/hooks/useMealCheckins", () => ({
   }),
 }));
 
-function buildPayload() {
+function buildPayload(): any {
   return {
     setup: { carbCycle: false },
     macros: { calories: 2200, protein: 160, carbs: 250, fat: 55, water: 3, goal: "hipertrofia" },
@@ -100,6 +100,30 @@ describe("StructuredMealsViewer - abertura automática da refeição atual", () 
     ];
     render(<StructuredMealsViewer payload={payload} />, { wrapper });
     expect(screen.getByRole("button", { name: /Refeição 1/i })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("exibe e alterna a versão sem treino de uma refeição pareada", () => {
+    mockTime(12, 0);
+    const payload = buildPayload();
+    const mealBase = {
+      time: "12:30",
+      macros: { carbs: 0, protein: 0, fat: 0 },
+      options: [],
+      substitutions: { carb: [], protein: [], fat: [] },
+      pairId: "pair-almoco",
+    };
+    payload.meals = [
+      { ...mealBase, name: "Almoço", day_type: "training", excludeFromDayTotal: false },
+      { ...mealBase, name: "Almoço (sem treino)", day_type: "rest", excludeFromDayTotal: true },
+    ];
+
+    render(<StructuredMealsViewer payload={payload} />, { wrapper });
+
+    const toggle = screen.getByRole("button", { name: "Ver versão sem treino" });
+    expect(toggle).toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(screen.getByText("Almoço (sem treino)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ver versão de treino" })).toBeInTheDocument();
   });
 
 });
