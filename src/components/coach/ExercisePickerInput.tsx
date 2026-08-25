@@ -255,7 +255,7 @@ export function ExercisePickerInput({
       <div className="mt-1 flex items-center gap-1 rounded-md border border-dashed border-border/60 bg-muted/30 px-2 py-1">
         <span className="text-[10px] text-muted-foreground shrink-0">Grupo muscular?</span>
         <select
-          className="h-6 text-[10px] rounded border border-border/60 bg-background px-1 flex-1 min-w-0"
+          className="h-7 md:h-6 text-base md:text-[10px] rounded border border-border/60 bg-background px-1 flex-1 min-w-0"
           defaultValue=""
           onChange={(e) => {
             const v = e.target.value as MuscleGroup | "";
