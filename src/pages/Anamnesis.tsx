@@ -33,8 +33,8 @@ function Choices({ options, group, state, setState, cols = 3 }: { options: { val
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <div className="flex flex-col gap-1.5"><label className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">{label}</label>{children}</div>; }
-function FiInput({ name, type = "text", placeholder, step, value, onChange }: { name: string; type?: string; placeholder?: string; step?: string; value: string; onChange: (v: string) => void; }) { return <input name={name} type={type} step={step} placeholder={placeholder} value={value} onChange={e => onChange(e.target.value)} className="w-full px-4 py-3 rounded-lg bg-card border border-border/60 text-foreground text-sm outline-none focus:border-primary/50 transition-colors" />; }
-function FiTextarea({ name, placeholder, value, onChange, rows = 3 }: { name: string; placeholder?: string; value: string; onChange: (v: string) => void; rows?: number; }) { return <textarea name={name} placeholder={placeholder} value={value} rows={rows} onChange={e => onChange(e.target.value)} className="w-full px-4 py-3 rounded-lg bg-card border border-border/60 text-foreground text-sm outline-none focus:border-primary/50 transition-colors resize-none" />; }
+function FiInput({ name, type = "text", placeholder, step, value, onChange }: { name: string; type?: string; placeholder?: string; step?: string; value: string; onChange: (v: string) => void; }) { return <input name={name} type={type} step={step} placeholder={placeholder} value={value} onChange={e => onChange(e.target.value)} className="w-full px-4 py-3 rounded-lg bg-card border border-border/60 text-foreground text-base md:text-sm outline-none focus:border-primary/50 transition-colors" />; }
+function FiTextarea({ name, placeholder, value, onChange, rows = 3 }: { name: string; placeholder?: string; value: string; onChange: (v: string) => void; rows?: number; }) { return <textarea name={name} placeholder={placeholder} value={value} rows={rows} onChange={e => onChange(e.target.value)} className="w-full px-4 py-3 rounded-lg bg-card border border-border/60 text-foreground text-base md:text-sm outline-none focus:border-primary/50 transition-colors resize-none" />; }
 function SecHead({ num, title }: { num: string; title: string }) { return <div className="flex items-center gap-3 mb-4"><span className="text-xs font-bold text-primary border border-primary/30 rounded-md px-2 py-0.5">{num}</span><span className="font-bold text-lg text-foreground">{title}</span></div>; }
 function Card({ children, label }: { children: React.ReactNode; label?: string }) { return <div className="bg-card border border-border/40 rounded-xl p-4 mb-3 space-y-4">{label && <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground border-b border-border/30 pb-2">{label}</p>}{children}</div>; }
 
@@ -653,7 +653,7 @@ const Anamnesis = () => {
             <div className="space-y-3">
               <Field label="Como você conheceu a EliteHub?">
                 <select
-                  className="w-full h-11 rounded-lg border border-input bg-background px-3 text-sm"
+                  className="w-full h-11 rounded-lg border border-input bg-background px-3 text-base md:text-sm"
                   value={g("self_reported_source")}
                   onChange={(e) => set("self_reported_source")(e.target.value)}
                 >
