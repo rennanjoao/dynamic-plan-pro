@@ -461,6 +461,29 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
               );
             })()}
 
+            {(() => {
+              const myPairId = typeof (m as any).pairId === "string" ? (m as any).pairId : "";
+              if (!myPairId) return null;
+              const partnerExists = payload.meals.some(
+                (mm, idx) => idx !== mealIdx && (mm as any).pairId === myPairId,
+              );
+              if (partnerExists) return null;
+              // pairId preenchido mas sem parceira real: a aluna não vê o botão de
+              // alternar (por design, desde a correção do "botão fantasma"). Provável
+              // causa: a outra metade foi apagada/editada fora do fluxo "Criar sem
+              // treino", ou é um par antigo criado antes dessa correção.
+              return (
+                <button
+                  type="button"
+                  onClick={() => updMealField(mealIdx, { pairId: undefined, excludeFromDayTotal: false, day_type: "all" } as any)}
+                  className="h-8 px-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-600 text-[10px] font-semibold transition-colors flex items-center gap-1 shrink-0 hover:bg-amber-500/20"
+                  title="Esta refeição tem um par configurado, mas a outra metade não existe mais (ou nunca teve o mesmo pairId). Por isso a aluna não vê o botão de alternar. Clique para desfazer esse vínculo quebrado e, se quiser, crie o par de novo."
+                >
+                  ⚠ Par quebrado — corrigir
+                </button>
+              );
+            })()}
+
             {!((m as any).pairId) && (
               <button
                 type="button"
