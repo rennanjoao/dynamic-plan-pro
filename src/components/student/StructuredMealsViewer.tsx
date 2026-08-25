@@ -640,20 +640,17 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
   const todayWorkout = todayInfo.workoutKey ? findWorkout(todayInfo.workoutKey) : null;
   const tomorrowWorkout = tomorrowInfo.workoutKey ? findWorkout(tomorrowInfo.workoutKey) : null;
 
-  // ── Estado global — único para todas as refeições ──
+  // ── Estado dos controles da tela ───────────────────────────────────────
   const [carbMode, setCarbMode] = useState<CarbMode>(todayInfo.carb as CarbMode);
   const [isCooked, setIsCooked] = useState(false);
-  const [isRestDay, setIsRestDay] = useState(false);
+  const [selectedDayTypeByPair, setSelectedDayTypeByPair] = useState<Record<string, "training" | "rest">>({});
 
   // ── Refeições de Treino vs Descanso ────────────────────────────────────
   // CRÍTICO: nunca reindexar `meals`. O índice posicional original
   // (originalIndex) é a chave usada em meal_checkins.meal_index.
   const dayTypeOf = (meal: any): "all" | "training" | "rest" =>
     (meal?.day_type === "training" || meal?.day_type === "rest") ? meal.day_type : "all";
-  const hasDayTypeVariation = useMemo(
-    () => meals.some((mm) => dayTypeOf(mm) !== "all"),
-    [meals],
-  );
+  const defaultDayType: "training" | "rest" = todayWorkout ? "training" : "rest";
   const visibleMeals = useMemo(
     () =>
       meals
@@ -661,9 +658,11 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
         .filter(({ meal }) => {
           const dt = dayTypeOf(meal);
           if (dt === "all") return true;
-          return isRestDay ? dt === "rest" : dt === "training";
+          const pairId = typeof meal?.pairId === "string" ? meal.pairId : "";
+          const selectedType = pairId ? (selectedDayTypeByPair[pairId] ?? defaultDayType) : defaultDayType;
+          return dt === selectedType;
         }),
-    [meals, isRestDay],
+    [meals, selectedDayTypeByPair, defaultDayType],
   );
 
   const highPct: number = safeData.carbCycleHighPct ?? 15;
@@ -781,27 +780,7 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
         })}
       </div>
 
-      {/* Macros — estático, não precisa de sticky */}
-      {hasDayTypeVariation && (
-        <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3">
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold text-foreground leading-tight">
-              {isRestDay ? "Refeições para dias sem treino" : "Refeições para dias de treino"}
-            </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              Seu coach montou refeições diferentes por tipo de dia.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setIsRestDay((v) => !v)}
-            aria-pressed={isRestDay}
-            className="shrink-0 h-8 px-3 rounded-lg border border-primary/40 bg-primary/10 text-primary text-[11px] font-bold hover:bg-primary/20 transition-colors"
-          >
-            {isRestDay ? "Ver refeições para dias de treino" : "Ver refeições para dias sem treino"}
-          </button>
-        </div>
-      )}
+
 
       <NutritionStrategyHeader
         payload={safeData}
@@ -841,8 +820,15 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
             onToggleChecked={uid ? toggle : undefined}
             isCurrent={originalIndex === currentMealIndex}
             hasPair={!!meal?.pairId}
-            isRestDay={isRestDay}
-            onToggleRestDay={meal?.pairId ? () => setIsRestDay((v) => !v) : undefined}
+            isRestDay={dayTypeOf(meal) === "rest"}
+            onToggleRestDay={meal?.pairId ? () => {
+              const pairId = String(meal.pairId);
+              const currentType = selectedDayTypeByPair[pairId] ?? defaultDayType;
+              setSelectedDayTypeByPair((prev) => ({
+                ...prev,
+                [pairId]: currentType === "rest" ? "training" : "rest",
+              }));
+            } : undefined}
           />
         ))}
       </div>
