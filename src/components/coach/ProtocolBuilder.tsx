@@ -821,7 +821,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                     </PopoverTrigger>
                     <PopoverContent align="start" className="w-60 p-1">
                       <div className="px-2 py-1.5">
-                        <ProtocolImportExport payload={payload} studentName={studentName} onImport={(p) => { updatePayload(p); setProtocolId(protocolId); }} />
+                        <ProtocolImportExport payload={payload} studentName={studentName} onImport={(p) => { updatePayload(mergeImportedPayload(payload, p)); setProtocolId(protocolId); }} />
                       </div>
                     </PopoverContent>
                   </Popover>
