@@ -65,12 +65,12 @@ export function ExerciseVideoSheet({
       <Drawer open={open} onOpenChange={onOpenChange}>
         <DrawerContent className="max-h-[85vh]">
           <DrawerHeader className="flex flex-row items-center justify-between gap-2">
-            <DrawerTitle className="text-left">{title}</DrawerTitle>
+            <DrawerTitle className="text-left truncate min-w-0">{title}</DrawerTitle>
             <DrawerClose asChild>
               <button
                 type="button"
                 aria-label="Fechar vídeo"
-                className="rounded-full p-2 hover:bg-black/10 transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
+                className="rounded-full p-2 hover:bg-black/10 transition-colors focus:outline-none focus:ring-2 focus:ring-primary shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
