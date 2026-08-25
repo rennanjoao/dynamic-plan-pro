@@ -100,7 +100,7 @@ export function ExerciseMuscleGroupReviewQueue() {
                 const v = e.target.value as MuscleGroup | "";
                 if (v) assign(row.exercise_key, v);
               }}
-              className="h-8 text-xs rounded border border-border bg-background px-2"
+              className="h-8 text-base md:text-xs rounded border border-border bg-background px-2"
             >
               <option value="" disabled>Selecionar grupo…</option>
               {MUSCLE_GROUP_OPTIONS.map((g) => (
