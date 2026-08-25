@@ -65,6 +65,9 @@ export function exportProtocolXlsx(payload: ProtocolPayload, studentName: string
         row[`Sub ${label} ${si + 1} Peso`] = s.weight;
       }
     });
+    row["Dia"] = m.day_type === "training" ? "Treino" : m.day_type === "rest" ? "Descanso" : "Todos";
+    row["Pair ID"] = m.pairId || "";
+    row["Excluir do total geral"] = m.excludeFromDayTotal ? "SIM" : "NAO";
     row["Observações"] = m.notes || "";
     return row;
   });
@@ -126,7 +129,8 @@ export function exportProtocolXlsx(payload: ProtocolPayload, studentName: string
     { Categoria: "Treino", Descrição: g.training },
     { Categoria: "Dieta", Descrição: g.diet },
     { Categoria: "Semana", Descrição: g.weekOrganization },
-    { Categoria: "Suplementos Gerais", Descrição: g.supplementation },
+    { Categoria: "Sono", Descrição: g.supplementation },
+    { Categoria: "Exibir Diretrizes para o aluno", Descrição: payload.showGuidelines ? "SIM" : "NAO" },
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(guideData), "Diretrizes");
 
@@ -145,6 +149,19 @@ export async function importProtocolXlsx(file: File): Promise<ProtocolPayload> {
   if (wsMeals) {
     const rows = XLSX.utils.sheet_to_json<any>(wsMeals);
     base.meals = rows.map((r) => {
+      const dayLabel = String(r["Dia"] || r["Tipo de Dia"] || "").trim().toLowerCase();
+      const day_type = dayLabel.includes("desc") || dayLabel === "rest"
+        ? "rest"
+        : dayLabel.includes("trein") || dayLabel === "training"
+        ? "training"
+        : "all";
+      const rawPairId = String(r["Pair ID"] || r["pairId"] || "").trim();
+      const rawExclude = String(r["Excluir do total geral"] || r["excludeFromDayTotal"] || "").trim().toLowerCase();
+      const dayFields = {
+        day_type,
+        ...(rawPairId ? { pairId: rawPairId } : {}),
+        excludeFromDayTotal: ["sim", "yes", "true", "1"].includes(rawExclude),
+      };
       const buildOpts = (kind: "carb" | "protein" | "fat") => {
         const label = kind === "carb" ? "Carbo" : kind === "protein" ? "Prot" : "Gord";
         const opts: any[] = [];
@@ -183,6 +200,7 @@ export async function importProtocolXlsx(file: File): Promise<ProtocolPayload> {
           carbs: r["Carboidratos"] ? String(r["Carboidratos"]).split("|").map((s) => s.trim()).filter(Boolean) : [],
           proteins: r["Proteínas"] ? String(r["Proteínas"]).split("|").map((s) => s.trim()).filter(Boolean) : [],
           fats: r["Gorduras"] ? String(r["Gorduras"]).split("|").map((s) => s.trim()).filter(Boolean) : [],
+          ...dayFields,
           notes: String(r["Observações"] || ""),
           macros: {
             carbs: Number(r["Carbs (g)"]) || Number(r["Carbo Macro(g)"]) || 0,
@@ -201,6 +219,7 @@ export async function importProtocolXlsx(file: File): Promise<ProtocolPayload> {
         },
         options: [...buildOpts("carb"), ...buildOpts("protein"), ...buildOpts("fat")],
         substitutions: { carb: buildSubs("carb"), protein: buildSubs("protein"), fat: buildSubs("fat") },
+        ...dayFields,
         notes: String(r["Observações"] || ""),
       } as any;
     });
@@ -288,7 +307,8 @@ export async function importProtocolXlsx(file: File): Promise<ProtocolPayload> {
       if (cat.includes("treino")) base.guidelines.training = desc;
       else if (cat.includes("dieta")) base.guidelines.diet = desc;
       else if (cat.includes("semana")) base.guidelines.weekOrganization = desc;
-      else if (cat.includes("supl")) base.guidelines.supplementation = desc;
+      else if (cat.includes("sono") || cat.includes("supl")) base.guidelines.supplementation = desc;
+      else if (cat.includes("exibir") || cat.includes("visib")) base.showGuidelines = ["sim", "yes", "true", "1"].includes(desc.trim().toLowerCase());
     });
   }
 
