@@ -501,66 +501,76 @@ function MealCard({
 
   return (
     <div className="glass rounded-2xl overflow-hidden card-hover border border-white/[0.06]">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="w-full flex items-center justify-between px-5 py-4 text-left"
-      >
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center gap-2 px-4 sm:px-5 py-4">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="flex items-center gap-3 flex-1 min-w-0 text-left"
+        >
           {onToggleChecked && (
-            <motion.button
-              type="button"
+            <motion.span
+              role="checkbox"
+              aria-checked={!!isChecked}
+              aria-label={isChecked ? "Marcar como não feita" : "Marcar refeição como feita"}
               onClick={(e) => { e.stopPropagation(); onToggleChecked(index); }}
               whileTap={{ scale: 0.85 }}
               animate={isChecked ? { scale: [1, 1.2, 1] } : { scale: 1 }}
               transition={{ duration: 0.25 }}
-              aria-pressed={!!isChecked}
-              aria-label={isChecked ? "Marcar como não feita" : "Marcar refeição como feita"}
               className={cn(
-                "w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
+                "w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors cursor-pointer",
                 isChecked
                   ? "bg-emerald-500 border-emerald-500 text-black"
                   : "border-white/20 text-white/40 hover:border-emerald-500/60",
               )}
             >
               {isChecked ? <Check className="w-4 h-4" strokeWidth={3} /> : null}
-            </motion.button>
+            </motion.span>
           )}
           <span className="text-xl leading-none shrink-0">{icon}</span>
-          <div className="min-w-0">
-            <p className="font-bold text-foreground text-sm leading-tight truncate">
+          <span className="min-w-0">
+            <span className="block font-bold text-foreground text-sm leading-tight truncate">
               {meal.name || `Refeição ${index + 1}`}
-            </p>
+            </span>
             {meal.time && (
-              <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+              <span className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
                 <Clock className="w-3 h-3" />
                 {meal.time}
-              </p>
+              </span>
             )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0 ml-2">
-          {hasPair && onToggleRestDay && (
-            <span
-              role="button"
-              tabIndex={0}
-              onClick={(e) => { e.stopPropagation(); onToggleRestDay(); }}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onToggleRestDay(); } }}
-              className="text-[10px] font-bold px-2 py-1 rounded-full border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-            >
-              {isRestDay ? "← Ver versão de treino" : "Ver versão sem treino →"}
-            </span>
-          )}
-          <span
-            className={`text-muted-foreground transition-transform duration-200 text-xs shrink-0 ${
-              open ? "rotate-180" : ""
-            }`}
-          >
-            ▾
           </span>
+        </button>
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          {hasPair && onToggleRestDay && (
+            <button
+              type="button"
+              onClick={onToggleRestDay}
+              aria-label={isRestDay ? "Ver versão de treino" : "Ver versão sem treino"}
+              className="text-[10px] font-bold px-2 py-1 rounded-full border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 transition-colors whitespace-nowrap"
+            >
+              {isRestDay ? (
+                <>
+                  <span className="hidden sm:inline">← Ver versão de treino</span>
+                  <span className="sm:hidden">← Treino</span>
+                </>
+              ) : (
+                <>
+                  <span className="hidden sm:inline">Ver versão sem treino →</span>
+                  <span className="sm:hidden">Sem treino →</span>
+                </>
+              )}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-label={open ? "Recolher refeição" : "Expandir refeição"}
+            className="p-1 text-muted-foreground transition-transform duration-200 shrink-0"
+          >
+            <span className={cn("block text-xs", open && "rotate-180")}>▾</span>
+          </button>
         </div>
-      </button>
+      </div>
 
       {open && (
         <div className="px-4 pb-4 space-y-2.5 border-t border-white/5 pt-3">
