@@ -651,6 +651,21 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
   const dayTypeOf = (meal: any): "all" | "training" | "rest" =>
     (meal?.day_type === "training" || meal?.day_type === "rest") ? meal.day_type : "all";
   const defaultDayType: "training" | "rest" = todayWorkout ? "training" : "rest";
+
+  // Um pairId só é válido se existir de fato uma refeição parceira com o
+  // mesmo pairId. Se a outra perna foi apagada no coach (ou perdida num
+  // import de XLSX) sem limpar o pairId dela, a refeição fica "órfã": teria
+  // pairId mas nenhuma parceira — o botão de alternar apareceria sem nada
+  // pra alternar. Validamos aqui como rede de segurança.
+  const validPairIds = useMemo(() => {
+    const counts: Record<string, number> = {};
+    meals.forEach((mm) => {
+      const pid = typeof (mm as any)?.pairId === "string" ? (mm as any).pairId : "";
+      if (pid) counts[pid] = (counts[pid] ?? 0) + 1;
+    });
+    return new Set(Object.keys(counts).filter((pid) => counts[pid] >= 2));
+  }, [meals]);
+
   const visibleMeals = useMemo(
     () =>
       meals
@@ -658,11 +673,12 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
         .filter(({ meal }) => {
           const dt = dayTypeOf(meal);
           if (dt === "all") return true;
-          const pairId = typeof meal?.pairId === "string" ? meal.pairId : "";
+          const rawPairId = typeof meal?.pairId === "string" ? meal.pairId : "";
+          const pairId = rawPairId && validPairIds.has(rawPairId) ? rawPairId : "";
           const selectedType = pairId ? (selectedDayTypeByPair[pairId] ?? defaultDayType) : defaultDayType;
           return dt === selectedType;
         }),
-    [meals, selectedDayTypeByPair, defaultDayType],
+    [meals, selectedDayTypeByPair, defaultDayType, validPairIds],
   );
 
   const highPct: number = safeData.carbCycleHighPct ?? 15;
@@ -819,9 +835,9 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
             isChecked={!!checked[originalIndex]}
             onToggleChecked={uid ? toggle : undefined}
             isCurrent={originalIndex === currentMealIndex}
-            hasPair={!!meal?.pairId}
+            hasPair={!!meal?.pairId && validPairIds.has(meal.pairId)}
             isRestDay={dayTypeOf(meal) === "rest"}
-            onToggleRestDay={meal?.pairId ? () => {
+            onToggleRestDay={(meal?.pairId && validPairIds.has(meal.pairId)) ? () => {
               const pairId = String(meal.pairId);
               const currentType = selectedDayTypeByPair[pairId] ?? defaultDayType;
               setSelectedDayTypeByPair((prev) => ({
