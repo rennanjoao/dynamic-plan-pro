@@ -16,7 +16,7 @@ export default function WeekPreviewDialog({ open, onOpenChange, payload, weekInd
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[680px] max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-[calc(100vw-1rem)] sm:max-w-[680px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-base">
             Prévia — {meta?.label || `Semana ${weekIndex + 1}`}
