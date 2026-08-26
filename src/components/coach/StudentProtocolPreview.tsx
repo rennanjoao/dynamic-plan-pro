@@ -233,9 +233,10 @@ export default function StudentProtocolPreview({ open, onClose, payload, student
               </>
             )}
           </div>
+          </div>
         </ScrollArea>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
 
