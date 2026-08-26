@@ -85,7 +85,6 @@ import {
   type ProtocolChange,
 } from "@/lib/protocolChangeDetector";
 import { mergeProtocolChanges } from "@/lib/protocolChangeMerge";
-import { saveProtocolAsTemplate } from "@/lib/protocolTemplates";
 import {
   DndContext, closestCenter, PointerSensor, KeyboardSensor,
   useSensor, useSensors, type DragEndEvent,
@@ -812,19 +811,13 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
     } finally { setSaving(false); }
   }
 
-  async function saveAsTemplate() {
-    if (!payload) { toast.error("Sem protocolo para salvar"); return; }
-    if (!coachId) { toast.error("Coach não identificado"); return; }
-    const tplName = window.prompt("Nome do template", name || "Template");
-    if (!tplName?.trim()) return;
-    setSaving(true);
-    try {
-      await saveProtocolAsTemplate(coachId, tplName, payload);
-      toast.success("Template salvo na sua biblioteca");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha ao salvar template");
-    } finally { setSaving(false); }
-  }
+  // [Consolidação de templates] O antigo saveAsTemplate() daqui sempre fazia
+  // INSERT (mesmo quando o protocolo tinha se originado de um template),
+  // divergindo do fluxo de TemplateLibraryDialog (que já sabia fazer
+  // UPDATE via `editingTemplate`). Nenhum botão desta tela chamava essa
+  // função — removida para eliminar o mecanismo de salvar duplicado e
+  // deixar TemplateLibraryDialog como o único ponto de salvar/atualizar
+  // template, evitando duplicatas.
 
   if (isLoading) return <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
 
