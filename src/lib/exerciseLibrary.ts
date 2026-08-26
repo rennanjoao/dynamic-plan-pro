@@ -135,7 +135,7 @@ export async function searchExerciseLibrary(
  * Reaproveita o mesmo cache de `loadLibrary()` usado por `searchExerciseLibrary`;
  * não é uma fonte de dados paralela.
  */
-export async function listAllLibraryExercises(): Promise
+export async function listAllLibraryExercises(): Promise<
   Array<{ key: string; displayName: string; url: string }>
 > {
   const lib = await loadLibrary();
