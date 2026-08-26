@@ -157,7 +157,7 @@ export function CoachExerciseLibraryDialog({
         </div>
 
         <DialogFooter className="p-4 pt-3 border-t border-border/40 gap-2 flex-wrap">
-          
+          <a
             href={mailtoHref}
             className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 flex items-center gap-1 mr-auto"
           >
