@@ -120,6 +120,19 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
     setPayload({ ...payload, meals: arrayMove(payload.meals, oldIndex, newIndex) });
   }
 
+  // Reordenação manual por botões (alternativa acessível ao drag-and-drop).
+  function moveMeal(index: number, direction: -1 | 1) {
+    const target = index + direction;
+    if (target < 0 || target >= payload.meals.length) return;
+    const next = [...payload.meals];
+    [next[index], next[target]] = [next[target], next[index]];
+    setPayload({ ...payload, meals: next });
+    // O estado de colapso é indexado por posição — troca junto pra o card
+    // continuar visualmente no mesmo estado após o swap.
+    setCollapsedMeals((prev) => ({ ...prev, [index]: !!prev[target], [target]: !!prev[index] }));
+  }
+
+
   const [saveTplFor, setSaveTplFor] = useState<{ idx: number; name: string; kind: string } | null>(null);
   const [loadTplOpen, setLoadTplOpen] = useState(false);
   const [templates, setTemplates] = useState<any[]>([]);
