@@ -3,12 +3,12 @@
  * Permite ao coach visualizar o protocolo exatamente como o aluno veria,
  * usando os dados atuais do payload (mesmo sem salvar).
  */
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Activity, Dumbbell, UtensilsCrossed, FileText, BarChart3, Calendar } from "lucide-react";
+import { Activity, Dumbbell, UtensilsCrossed, FileText, BarChart3, Calendar, X } from "lucide-react";
 import type { ProtocolPayload } from "@/lib/protocolSchema";
 import { WEEKDAYS, isMobilityExercise } from "@/lib/protocolSchema";
 import { MobilityExerciseRow } from "@/components/student/MobilityExerciseRow";
