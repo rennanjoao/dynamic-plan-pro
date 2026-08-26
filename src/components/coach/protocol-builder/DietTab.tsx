@@ -18,7 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
-  Plus, Trash2, ChevronDown, Copy, BookmarkPlus, Library, UtensilsCrossed, Pill,
+  Plus, Trash2, ChevronDown, ChevronUp, Copy, BookmarkPlus, Library, UtensilsCrossed, Pill,
   ArrowUp, ArrowDown, Eye, AlertCircle, Sparkles, CheckCircle2, Loader2, TrendingUp,
   Wand2, GripVertical,
 } from "lucide-react";
