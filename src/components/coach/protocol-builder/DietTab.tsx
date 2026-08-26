@@ -18,7 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
-  Plus, Trash2, ChevronDown, Copy, BookmarkPlus, Library, UtensilsCrossed, Pill,
+  Plus, Trash2, ChevronDown, ChevronUp, Copy, BookmarkPlus, Library, UtensilsCrossed, Pill,
   ArrowUp, ArrowDown, Eye, AlertCircle, Sparkles, CheckCircle2, Loader2, TrendingUp,
   Wand2, GripVertical,
 } from "lucide-react";
@@ -119,6 +119,19 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
     if (oldIndex < 0 || newIndex < 0) return;
     setPayload({ ...payload, meals: arrayMove(payload.meals, oldIndex, newIndex) });
   }
+
+  // Reordenação manual por botões (alternativa acessível ao drag-and-drop).
+  function moveMeal(index: number, direction: -1 | 1) {
+    const target = index + direction;
+    if (target < 0 || target >= payload.meals.length) return;
+    const next = [...payload.meals];
+    [next[index], next[target]] = [next[target], next[index]];
+    setPayload({ ...payload, meals: next });
+    // O estado de colapso é indexado por posição — troca junto pra o card
+    // continuar visualmente no mesmo estado após o swap.
+    setCollapsedMeals((prev) => ({ ...prev, [index]: !!prev[target], [target]: !!prev[index] }));
+  }
+
 
   const [saveTplFor, setSaveTplFor] = useState<{ idx: number; name: string; kind: string } | null>(null);
   const [loadTplOpen, setLoadTplOpen] = useState(false);
@@ -394,19 +407,29 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
             >
               <GripVertical className="w-3.5 h-3.5" />
             </button>
-            <Input
-              list="meal-name-presets"
-              value={m.name}
-              onChange={(e) => updMealField(mealIdx, { name: e.target.value })}
-              placeholder="Nome (Café, Almoço...)"
-              className="h-8 text-sm font-bold text-primary flex-1 min-w-[140px]"
-            />
-            <Input value={m.time} onChange={(e) => updMealField(mealIdx, { time: e.target.value })} placeholder="07:00" className="h-8 text-sm w-20 shrink-0" />
-            {isCollapsed && mealM.kcal > 0 && (
-              <span className="text-[10px] font-bold tabular-nums text-muted-foreground shrink-0 px-1.5 py-0.5 rounded bg-muted/40 border border-border/40">
-                {Math.round(mealM.kcal)} kcal
-              </span>
-            )}
+            {/* Reordenação manual (sem drag) — swap simples no array */}
+            <div className="flex flex-col shrink-0">
+              <button
+                type="button"
+                onClick={() => moveMeal(mealIdx, -1)}
+                disabled={mealIdx === 0}
+                className="text-muted-foreground hover:text-primary disabled:opacity-30 disabled:hover:text-muted-foreground p-0.5"
+                title="Mover refeição para cima"
+                aria-label="Mover refeição para cima"
+              >
+                <ChevronUp className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => moveMeal(mealIdx, 1)}
+                disabled={mealIdx === payload.meals.length - 1}
+                className="text-muted-foreground hover:text-primary disabled:opacity-30 disabled:hover:text-muted-foreground p-0.5"
+                title="Mover refeição para baixo"
+                aria-label="Mover refeição para baixo"
+              >
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
             {/* Dia em que a refeição se aplica — independente do ciclo de carbo */}
             {(() => {
               const dayType = ((m as any).day_type ?? "all") as "all" | "training" | "rest";
@@ -434,6 +457,19 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
                 </Select>
               );
             })()}
+            <Input
+              list="meal-name-presets"
+              value={m.name}
+              onChange={(e) => updMealField(mealIdx, { name: e.target.value })}
+              placeholder="Nome (Café, Almoço...)"
+              className="h-8 text-sm font-bold text-primary flex-1 min-w-[140px]"
+            />
+            <Input value={m.time} onChange={(e) => updMealField(mealIdx, { time: e.target.value })} placeholder="07:00" className="h-8 text-sm w-20 shrink-0" />
+            {isCollapsed && mealM.kcal > 0 && (
+              <span className="text-[10px] font-bold tabular-nums text-muted-foreground shrink-0 px-1.5 py-0.5 rounded bg-muted/40 border border-border/40">
+                {Math.round(mealM.kcal)} kcal
+              </span>
+            )}
             {payload.setup.carbCycle && (
               <button type="button"
                 onClick={() => updMealField(mealIdx, { carbCycle: !(m as any).carbCycle } as any)}

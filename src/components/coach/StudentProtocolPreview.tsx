@@ -3,12 +3,12 @@
  * Permite ao coach visualizar o protocolo exatamente como o aluno veria,
  * usando os dados atuais do payload (mesmo sem salvar).
  */
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Activity, Dumbbell, UtensilsCrossed, FileText, BarChart3, Calendar } from "lucide-react";
+import { Activity, Dumbbell, UtensilsCrossed, FileText, BarChart3, Calendar, X } from "lucide-react";
 import type { ProtocolPayload } from "@/lib/protocolSchema";
 import { WEEKDAYS, isMobilityExercise } from "@/lib/protocolSchema";
 import { MobilityExerciseRow } from "@/components/student/MobilityExerciseRow";
@@ -41,20 +41,33 @@ export default function StudentProtocolPreview({ open, onClose, payload, student
   const HeaderIcon = meta.Icon;
 
   return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="w-full sm:max-w-[640px] overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <HeaderIcon className="w-5 h-5 text-primary" />
-            Visão do Aluno — {meta.title}
-            {studentName ? <> · <Private>{studentName}</Private></> : null}
-          </SheetTitle>
-          <SheetDescription className="text-xs">
-            Preview em tempo real. Salve o protocolo para publicar.
-          </SheetDescription>
-        </SheetHeader>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent
+        className="max-w-[100vw] w-screen h-[100dvh] m-0 p-0 rounded-none border-0 gap-0 translate-x-0 translate-y-0 left-0 top-0 flex flex-col overflow-hidden sm:rounded-none [&>button]:hidden"
+      >
+        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-black text-white shrink-0">
+          <div className="min-w-0">
+            <DialogTitle className="flex items-center gap-2 text-sm font-bold text-white truncate">
+              <HeaderIcon className="w-4 h-4 text-primary" />
+              👀 Visualizando como Aluno — {meta.title}
+              {studentName ? <> · <Private>{studentName}</Private></> : null}
+            </DialogTitle>
+            <DialogDescription className="text-[11px] text-white/60">
+              Preview em tempo real. Salve o protocolo para publicar.
+            </DialogDescription>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-white text-black px-3 py-1.5 text-xs font-bold hover:bg-white/90 transition-colors"
+          >
+            <X className="w-3.5 h-3.5" /> Fechar
+          </button>
+        </div>
 
-        <ScrollArea className="mt-4 h-[calc(100vh-120px)] pr-2">
+        <ScrollArea className="flex-1 min-h-0 px-4 py-4">
+          <div className="mx-auto w-full max-w-[640px]">
+
           <div className="space-y-4">
             {section === "macros" && <MacrosPreview payload={payload} />}
             {section === "guidelines" && <GuidelinesPreview payload={payload} />}
@@ -220,9 +233,10 @@ export default function StudentProtocolPreview({ open, onClose, payload, student
               </>
             )}
           </div>
+          </div>
         </ScrollArea>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
 
