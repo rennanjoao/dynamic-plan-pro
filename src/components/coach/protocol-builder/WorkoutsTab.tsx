@@ -13,13 +13,16 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import {
   Plus, Trash2, ArrowUp, ArrowDown, ChevronDown, CheckCircle2, GripVertical, Activity,
-  StretchHorizontal, Dumbbell,
+  StretchHorizontal, Dumbbell, Library, CopyPlus,
 } from "lucide-react";
 import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
 import { ExerciseSubstitutesPopover } from "@/components/coach/ExerciseSubstitutesPopover";
+import { CoachExerciseLibraryDialog, type LibraryPickItem } from "@/components/coach/CoachExerciseLibraryDialog";
 import WorkoutPeriodizationEditor from "../WorkoutPeriodizationEditor";
 import { ProtocolPayload, makeEmptyExercise, isMobilityExercise, isLegacyMobilityExercise } from "@/lib/protocolSchema";
+import { applyDayExercisesChange, buildExercisesWithLibraryAdditions } from "@/lib/workoutExerciseOps";
 import { normalizeCarb, cycleCarb, CARB_LABEL, DAY_KEYS } from "@/lib/weekCycle";
+import { useConfirm } from "@/components/ConfirmProvider";
 import {
   DndContext, closestCenter, PointerSensor, KeyboardSensor,
   useSensor, useSensors, type DragEndEvent,
@@ -72,10 +75,20 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const confirm = useConfirm();
   const updDay = (idx: number, patch: Partial<ProtocolPayload["workouts"][number]>) => { const n = [...payload.workouts]; n[idx] = { ...n[idx], ...patch }; setPayload({ ...payload, workouts: n }); };
   const updEx = (di: number, ei: number, patch: any) => { const n = [...payload.workouts]; const exs = [...n[di].exercises]; exs[ei] = { ...exs[ei], ...patch }; n[di] = { ...n[di], exercises: exs }; setPayload({ ...payload, workouts: n }); };
+  // Remove um exercício (força ou mobilidade) de um dia. Passa pelo helper
+  // de remapeamento de periodização — a posição de TODOS os itens seguintes
+  // no array muda, então overrides antigos precisam ser realinhados ou
+  // descartados junto com o item removido.
+  const removeExerciseAt = (di: number, ei: number) => {
+    const nextExercises = payload.workouts[di].exercises.filter((_, i) => i !== ei);
+    setPayload(applyDayExercisesChange(payload, di, nextExercises));
+  };
   // Move um item de força para a posição do vizinho de FORÇA (ignorando itens
-  // de mobilidade que possam estar entre eles no array completo).
+  // de mobilidade que possam estar entre eles no array completo). Passa pelo
+  // helper de periodização pois troca os índices dos dois itens no array.
   const swapStrength = (
     di: number,
     strengthList: Array<{ ex: any; ei: number }>,
@@ -86,11 +99,50 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
     if (targetSi < 0 || targetSi >= strengthList.length) return;
     const a = strengthList[si].ei;
     const b = strengthList[targetSi].ei;
-    const n = [...payload.workouts];
-    const exs = [...n[di].exercises];
+    const exs = [...payload.workouts[di].exercises];
     [exs[a], exs[b]] = [exs[b], exs[a]];
-    n[di] = { ...n[di], exercises: exs };
-    setPayload({ ...payload, workouts: n });
+    setPayload(applyDayExercisesChange(payload, di, exs));
+  };
+  // Insere em massa os itens escolhidos na CoachExerciseLibraryDialog: gera
+  // __id novo para cada item (nunca reaproveita o key da biblioteca — o
+  // mesmo exercício pode ser adicionado 2x no bloco), reconstrói o array
+  // como força + novos + mobilidade e faz UMA única mutação imutável,
+  // já remapeando periodização.
+  const [libraryDayIndex, setLibraryDayIndex] = useState<number | null>(null);
+  const insertFromLibrary = (di: number, items: LibraryPickItem[]) => {
+    const additions = items.map((item) => ({
+      ...makeEmptyExercise(),
+      name: item.displayName,
+      gifKey: item.key,
+    }));
+    const nextExercises = buildExercisesWithLibraryAdditions(payload.workouts[di].exercises as any, additions);
+    setPayload(applyDayExercisesChange(payload, di, nextExercises));
+  };
+  // Replica sets/reps/rest/cadence do primeiro exercício de FORÇA do bloco
+  // para os exercícios de força subsequentes (nunca mobilidade). Copia só
+  // esses 4 campos — nome, gif, notas, substitutos e __id nunca são tocados.
+  // Campo vazio na origem limpa o campo correspondente no destino.
+  const replicateBaseConfig = async (di: number, strengthList: Array<{ ex: any; ei: number }>) => {
+    if (strengthList.length < 2) return;
+    const [{ ex: source, ei: sourceEi }, ...rest] = strengthList;
+    if (!(await confirm({
+      title: "Replicar configuração",
+      description: `Copiar séries, reps, cadência e descanso de "${source.name || "exercício 1"}" para os outros ${rest.length} exercício(s) de força deste treino?`,
+      confirmLabel: "Replicar",
+    }))) return;
+    const fields = {
+      sets: source.sets ?? "",
+      reps: source.reps ?? "",
+      rest: source.rest ?? "",
+      cadence: source.cadence ?? "",
+    };
+    const targetEis = new Set(rest.map((r) => r.ei));
+    const nextExercises = payload.workouts[di].exercises.map((exercise, i) =>
+      i === sourceEi || !targetEis.has(i) ? exercise : { ...exercise, ...fields }
+    );
+    // Não muda índices (só valores de campos) — remap é no-op aqui, mas
+    // mantemos o mesmo caminho de mutação por consistência e segurança.
+    setPayload(applyDayExercisesChange(payload, di, nextExercises));
   };
   // Sensors: só inicia drag após 5px de movimento p/ não interferir em cliques
   // nos botões (mover, deletar, picker de exercício, etc.).
@@ -122,9 +174,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
     const reordered = arrayMove(strength.map((s) => s.ex), oldIndex, newIndex);
     const nextExs = [...exs];
     strength.forEach(({ ei }, k) => { nextExs[ei] = reordered[k]; });
-    const n = [...payload.workouts];
-    n[di] = { ...n[di], exercises: nextExs };
-    setPayload({ ...payload, workouts: n });
+    setPayload(applyDayExercisesChange(payload, di, nextExs));
   };
   // Reordena o CARD do dia inteiro (ex: mover "Perna" para cima de "Peito")
   const moveDay = (di: number, direction: "up" | "down") => {
@@ -223,8 +273,8 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
       const { strength: strengthList, mobility: mobilityList } = splitExercises(day);
       return (
         <Card key={day.key} className="bg-card/60 border-border p-4">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="flex flex-col -my-1">
+          <div className="flex items-center gap-3 mb-3 flex-wrap">
+            <div className="flex flex-col -my-1 shrink-0">
               <button
                 type="button"
                 onClick={() => moveDay(di, "up")}
@@ -249,7 +299,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
               value={day.focus}
               onChange={(e) => updDay(di, { focus: e.target.value })}
               placeholder="Nome do treino (ex: Dorsal · Peito · Inferiores)"
-              className="h-10 text-base font-bold flex-1 border-0 bg-transparent focus-visible:ring-1 focus-visible:ring-primary/40 px-2"
+              className="h-10 text-base font-bold flex-1 min-w-0 border-0 bg-transparent focus-visible:ring-1 focus-visible:ring-primary/40 px-2"
             />
             <Popover>
               <PopoverTrigger asChild>
@@ -323,9 +373,9 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                       onChange={(patch) => updEx(di, ei, patch)}
                       placeholder="Ex: Mobilidade de quadril"
                     />
-                    <Input value={ex.sets ?? ""} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder="Séries (Ex: 2)" className="h-8 text-xs" />
-                    <Input value={ex.reps ?? ""} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder="Tempo/Reps (Ex: 30s)" className="h-8 text-xs" />
-                    <Input value={ex.notes ?? ""} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-xs" />
+                    <Input value={ex.sets ?? ""} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder="Séries (Ex: 2)" className="h-8 text-base md:text-sm" />
+                    <Input value={ex.reps ?? ""} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder="Tempo/Reps (Ex: 30s)" className="h-8 text-base md:text-sm" />
+                    <Input value={ex.notes ?? ""} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-base md:text-sm" />
                     <div className="flex items-center gap-0.5 justify-self-end">
                       {isLegacyMobilityExercise(ex) && (
                         <button
@@ -347,7 +397,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                       </button>
                       <button
                         type="button"
-                        onClick={() => updDay(di, { exercises: day.exercises.filter((_, i) => i !== ei) })}
+                        onClick={() => removeExerciseAt(di, ei)}
                         className="text-muted-foreground hover:text-destructive p-1.5"
                         title="Remover mobilidade"
                       >
@@ -416,22 +466,34 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                 )}
               >
               {({ attributes, listeners }) => (<>
-                <ExercisePickerInput
-                  value={ex.name}
-                  gifKey={(ex as any).gifKey}
-                  onChange={(patch) => updEx(di, ei, patch)}
-                  placeholder="Ex: Supino reto"
-                />
+                <div className="min-w-0">
+                  <ExercisePickerInput
+                    value={ex.name}
+                    gifKey={(ex as any).gifKey}
+                    onChange={(patch) => updEx(di, ei, patch)}
+                    placeholder="Ex: Supino reto"
+                  />
+                  {si === 0 && strengthList.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => replicateBaseConfig(di, strengthList)}
+                      className="mt-1 inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
+                      title="Copia séries, reps, cadência e descanso deste exercício para os demais de força do treino"
+                    >
+                      <CopyPlus className="w-3 h-3" /> Replicar configuração ⬇️
+                    </button>
+                  )}
+                </div>
                 {!collapsed && (
                   <>
-                    <Input value={effSets} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder={phSets} className={cn("h-8 text-xs", periodOn && !ex.sets && effSets ? "text-muted-foreground italic" : "")} title={periodOn && !ex.sets ? "Valor da Semana 1 — edite para personalizar" : ""} />
-                    <Input value={effReps} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder={phReps} className={cn("h-8 text-xs", periodOn && !ex.reps && effReps ? "text-muted-foreground italic" : "")} title={periodOn && !ex.reps ? "Valor da Semana 1 — edite para personalizar" : ""} />
-                    <Input value={effCadence} onChange={(e) => updEx(di, ei, { cadence: e.target.value })} placeholder={phCadence} className={cn("h-8 text-xs", periodOn && !ex.cadence && effCadence ? "text-muted-foreground italic" : "")} title="3010 = Excêntrico / Pausa / Concêntrico / Pausa" />
-                    <Input value={effRest} onChange={(e) => updEx(di, ei, { rest: e.target.value })} placeholder={phRest} className={cn("h-8 text-xs", periodOn && !ex.rest && effRest ? "text-muted-foreground italic" : "")} title={periodOn && !ex.rest ? "Valor da Semana 1 — edite para personalizar" : ""} />
+                    <Input value={effSets} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder={phSets} className={cn("h-8 text-base md:text-sm", periodOn && !ex.sets && effSets ? "text-muted-foreground italic" : "")} title={periodOn && !ex.sets ? "Valor da Semana 1 — edite para personalizar" : ""} />
+                    <Input value={effReps} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder={phReps} className={cn("h-8 text-base md:text-sm", periodOn && !ex.reps && effReps ? "text-muted-foreground italic" : "")} title={periodOn && !ex.reps ? "Valor da Semana 1 — edite para personalizar" : ""} />
+                    <Input value={effCadence} onChange={(e) => updEx(di, ei, { cadence: e.target.value })} placeholder={phCadence} className={cn("h-8 text-base md:text-sm", periodOn && !ex.cadence && effCadence ? "text-muted-foreground italic" : "")} title="3010 = Excêntrico / Pausa / Concêntrico / Pausa" />
+                    <Input value={effRest} onChange={(e) => updEx(di, ei, { rest: e.target.value })} placeholder={phRest} className={cn("h-8 text-base md:text-sm", periodOn && !ex.rest && effRest ? "text-muted-foreground italic" : "")} title={periodOn && !ex.rest ? "Valor da Semana 1 — edite para personalizar" : ""} />
                   </>
                 )}
-                <Input value={ex.notes} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-xs" />
-                <div className="flex items-center gap-0.5">
+                <Input value={ex.notes} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-base md:text-sm min-w-0" />
+                <div className="flex items-center gap-0.5 flex-wrap justify-end shrink-0">
                   <ExerciseSubstitutesPopover
                     exerciseName={ex.name}
                     gifKey={(ex as any).gifKey}
@@ -474,7 +536,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                   >
                     <ArrowDown className="w-3.5 h-3.5" />
                   </button>
-                  <button onClick={() => updDay(di, { exercises: day.exercises.filter((_, i) => i !== ei) })} className="text-muted-foreground hover:text-destructive p-1.5"><Trash2 className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => removeExerciseAt(di, ei)} className="text-muted-foreground hover:text-destructive p-1.5"><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>
               </>)}
               </SortableExerciseRow>
@@ -486,6 +548,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
 
 
             <div className="flex flex-wrap gap-2 mt-1">
+              <Button size="sm" variant="outline" onClick={() => setLibraryDayIndex(di)} className="h-7 text-xs border-primary/40 text-primary hover:bg-primary/10"><Library className="w-3 h-3 mr-1" /> Abrir Biblioteca</Button>
               <Button size="sm" variant="outline" onClick={() => updDay(di, { exercises: [...day.exercises, makeEmptyExercise()] })} className="h-7 text-xs"><Plus className="w-3 h-3 mr-1" /> Exercício</Button>
               <Button
                 size="sm"
@@ -563,7 +626,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                               setPayload({ ...payload, cardio: n });
                             }}
                             placeholder="40 min"
-                            className="h-8 text-xs mt-1"
+                            className="h-8 text-base md:text-sm mt-1"
                           />
                         </div>
                         <div>
@@ -593,7 +656,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                           setPayload({ ...payload, cardio: n });
                         }}
                         placeholder="Observações do aeróbico"
-                        className="h-8 text-xs"
+                        className="h-8 text-base md:text-sm"
                       />
                     </div>
                   );
@@ -652,7 +715,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
           value={(payload as any).restNotes ?? ""}
           onChange={(e) => setPayload({ ...payload, restNotes: e.target.value } as any)}
           placeholder="Observação opcional para os dias de descanso (ex.: mobilidade leve, caminhada, sono/recuperação)."
-          className="min-h-[60px] text-xs bg-background/60"
+          className="min-h-[60px] text-base md:text-sm bg-background/60"
         />
       </Card>
       <div className="mt-4 space-y-2">
@@ -671,7 +734,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
               <button onClick={() => setPayload({ ...payload, cardio: (payload.cardio ?? []).filter((_, j) => j !== ci) })} className="text-muted-foreground hover:text-destructive p-1.5"><Trash2 className="w-3.5 h-3.5" /></button>
             </div>
             <div className="grid grid-cols-2 gap-2 mb-2">
-              <div><Label className="text-[10px] uppercase text-muted-foreground">Duração</Label><Input value={c.duration} onChange={(e) => { const n = [...(payload.cardio ?? [])]; n[ci] = { ...n[ci], duration: e.target.value }; setPayload({ ...payload, cardio: n }); }} placeholder="40 min" className="h-8 text-xs mt-1" /></div>
+              <div><Label className="text-[10px] uppercase text-muted-foreground">Duração</Label><Input value={c.duration} onChange={(e) => { const n = [...(payload.cardio ?? [])]; n[ci] = { ...n[ci], duration: e.target.value }; setPayload({ ...payload, cardio: n }); }} placeholder="40 min" className="h-8 text-base md:text-sm mt-1" /></div>
               <div>
                 <Label className="text-[10px] uppercase text-muted-foreground">Intensidade</Label>
                 <Select value={c.intensity || "Moderada"} onValueChange={(v) => { const n = [...(payload.cardio ?? [])]; n[ci] = { ...n[ci], intensity: v }; setPayload({ ...payload, cardio: n }); }}>
@@ -680,10 +743,25 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                 </Select>
               </div>
             </div>
-            <Input value={c.notes} onChange={(e) => { const n = [...(payload.cardio ?? [])]; n[ci] = { ...n[ci], notes: e.target.value }; setPayload({ ...payload, cardio: n }); }} placeholder="Observações" className="h-8 text-xs mt-2" />
+            <Input value={c.notes} onChange={(e) => { const n = [...(payload.cardio ?? [])]; n[ci] = { ...n[ci], notes: e.target.value }; setPayload({ ...payload, cardio: n }); }} placeholder="Observações" className="h-8 text-base md:text-sm mt-2" />
           </Card>
         ))}
       </div>
+
+      <CoachExerciseLibraryDialog
+        open={libraryDayIndex !== null}
+        onOpenChange={(v) => { if (!v) setLibraryDayIndex(null); }}
+        dayLabel={libraryDayIndex !== null ? `Treino ${positionLetter(libraryDayIndex)}` : undefined}
+        existingKeys={
+          libraryDayIndex !== null
+            ? (payload.workouts[libraryDayIndex]?.exercises ?? []).map((e: any) => e.gifKey).filter(Boolean)
+            : undefined
+        }
+        onConfirm={(items) => {
+          if (libraryDayIndex === null) return;
+          insertFromLibrary(libraryDayIndex, items);
+        }}
+      />
     </div>
   );
 }
