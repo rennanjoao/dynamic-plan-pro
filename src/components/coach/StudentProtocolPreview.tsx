@@ -43,8 +43,7 @@ export default function StudentProtocolPreview({ open, onClose, payload, student
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
-        className="max-w-[100vw] w-screen h-[100dvh] m-0 p-0 rounded-none border-0 gap-0 translate-x-0 translate-y-0 left-0 top-0 flex flex-col overflow-hidden sm:rounded-none"
-        hideCloseButton
+        className="max-w-[100vw] w-screen h-[100dvh] m-0 p-0 rounded-none border-0 gap-0 translate-x-0 translate-y-0 left-0 top-0 flex flex-col overflow-hidden sm:rounded-none [&>button]:hidden"
       >
         <div className="flex items-center justify-between gap-3 px-4 py-3 bg-black text-white shrink-0">
           <div className="min-w-0">
