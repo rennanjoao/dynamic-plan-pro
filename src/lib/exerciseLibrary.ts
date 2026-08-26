@@ -129,6 +129,21 @@ export async function searchExerciseLibrary(
   return results.slice(0, limit).map(({ key, displayName, url }) => ({ key, displayName, url }));
 }
 
+/**
+ * Lista TODAS as entradas da biblioteca, ordenadas por nome — usado por
+ * telas de navegação/seleção em massa (ex.: CoachExerciseLibraryDialog).
+ * Reaproveita o mesmo cache de `loadLibrary()` usado por `searchExerciseLibrary`;
+ * não é uma fonte de dados paralela.
+ */
+export async function listAllLibraryExercises(): Promise
+  Array<{ key: string; displayName: string; url: string }>
+> {
+  const lib = await loadLibrary();
+  return [...lib.values()]
+    .map(({ key, displayName, url }) => ({ key, displayName, url }))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName, "pt-BR"));
+}
+
 /** Entrada da biblioteca por gifKey (preferencial) ou nome. */
 export async function getLibraryEntry(
   exerciseName?: string | null,
