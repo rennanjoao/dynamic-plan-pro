@@ -229,7 +229,7 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
                   <Input
                     value={w.label}
                     onChange={(e) => updateWeek(i, "label", e.target.value)}
-                    className={cn("h-8 text-xs font-bold", errorByWeek[i]?.label && "border-destructive")}
+                    className={cn("h-8 text-base md:text-sm font-bold", errorByWeek[i]?.label && "border-destructive")}
                     placeholder={`Semana ${i + 1}`}
                   />
                   <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Prévia" onClick={() => setPreviewWeek(i)}>
@@ -270,7 +270,7 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
                       <Input
                         value={w[f]}
                         onChange={(e) => updateWeek(i, f, e.target.value)}
-                        className={cn("h-8 text-xs mt-1", errorByWeek[i]?.[f] && "border-destructive")}
+                        className={cn("h-8 text-base md:text-sm mt-1", errorByWeek[i]?.[f] && "border-destructive")}
                       />
                       {errorByWeek[i]?.[f] && (
                         <p className="text-[10px] text-destructive mt-0.5">{errorByWeek[i][f]}</p>
@@ -313,12 +313,12 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
                                 value={ov.name ?? ""}
                                 onChange={(e) => setOverride(weekIdx, id, { name: e.target.value })}
                                 placeholder={`= ${ex.name || "(base)"}`}
-                                className="h-7 text-xs"
+                                className="h-7 text-base md:text-sm"
                               />
-                              <Input value={ov.sets ?? ""}    onChange={(e) => setOverride(weekIdx, id, { sets: e.target.value })}    placeholder="séries"   className={cn("h-7 text-xs", ovErr("sets") && "border-destructive")} />
-                              <Input value={ov.reps ?? ""}    onChange={(e) => setOverride(weekIdx, id, { reps: e.target.value })}    placeholder="reps"     className={cn("h-7 text-xs", ovErr("reps") && "border-destructive")} />
-                              <Input value={ov.cadence ?? ""} onChange={(e) => setOverride(weekIdx, id, { cadence: e.target.value })} placeholder="cadência" className={cn("h-7 text-xs", ovErr("cadence") && "border-destructive")} />
-                              <Input value={ov.rest ?? ""}    onChange={(e) => setOverride(weekIdx, id, { rest: e.target.value })}    placeholder="descanso" className={cn("h-7 text-xs", ovErr("rest") && "border-destructive")} />
+                              <Input value={ov.sets ?? ""}    onChange={(e) => setOverride(weekIdx, id, { sets: e.target.value })}    placeholder="séries"   className={cn("h-7 text-base md:text-sm", ovErr("sets") && "border-destructive")} />
+                              <Input value={ov.reps ?? ""}    onChange={(e) => setOverride(weekIdx, id, { reps: e.target.value })}    placeholder="reps"     className={cn("h-7 text-base md:text-sm", ovErr("reps") && "border-destructive")} />
+                              <Input value={ov.cadence ?? ""} onChange={(e) => setOverride(weekIdx, id, { cadence: e.target.value })} placeholder="cadência" className={cn("h-7 text-base md:text-sm", ovErr("cadence") && "border-destructive")} />
+                              <Input value={ov.rest ?? ""}    onChange={(e) => setOverride(weekIdx, id, { rest: e.target.value })}    placeholder="descanso" className={cn("h-7 text-base md:text-sm", ovErr("rest") && "border-destructive")} />
                             </div>
                           );
                         })}
@@ -376,7 +376,7 @@ function BulkApplyPopover({
           <Wand2 className="w-3 h-3 mr-1" /> Aplicar em massa
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-64 p-3 space-y-2">
+      <PopoverContent align="end" className="w-64 max-w-[calc(100vw-1rem)] p-3 space-y-2">
         <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
           Aplicar em toda a {weekLabel}
         </p>
@@ -401,7 +401,7 @@ function BulkApplyPopover({
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder={field === "reps" ? "Ex: 8-12" : field === "rest" ? "Ex: 60s" : ""}
-          className="h-8 text-xs"
+          className="h-8 text-base md:text-sm"
         />
         <Button
           size="sm"
