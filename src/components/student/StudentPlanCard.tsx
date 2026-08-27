@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CreditCard, ChevronDown, ExternalLink, Loader2, RefreshCw, Repeat, Clock } from "lucide-react";
+import { CreditCard, ChevronDown, Loader2, RefreshCw, Repeat, Clock, X } from "lucide-react";
 import { formatCents, toCents } from "@/lib/studentPlans";
 import { formatDatePtBR } from "@/lib/formatDate";
 import { useMyStudentSubscription, useStudentPlanCatalog } from "@/hooks/useStudentPlans";
@@ -77,6 +77,19 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
   const [busy, setBusy] = useState<string | null>(null);
   const [params, setParams] = useSearchParams();
   const qc = useQueryClient();
+  const dismissKey = `student_plan_card_dismissed_${userId ?? "anon"}`;
+  const [dismissedId, setDismissedId] = useState<string | null>(() => {
+    try { return localStorage.getItem(dismissKey); } catch { return null; }
+  });
+  const dismissCard = (chargeId: string) => {
+    setDismissedId(chargeId);
+    try { localStorage.setItem(dismissKey, chargeId); } catch { /* quota */ }
+  };
+  useEffect(() => {
+    try { setDismissedId(localStorage.getItem(dismissKey)); } catch { /* noop */ }
+  }, [dismissKey]);
+
+
 
   // Retorno do checkout: apenas mensagem informativa (o webhook é quem libera).
   useEffect(() => {
@@ -136,6 +149,10 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
   }, [qc, userId]);
 
   if (!pendingPlanCharge) return null;
+  // O aluno pode fechar o aviso da cobrança pendente; ele volta a aparecer
+  // quando surgir uma nova cobrança (a chave é o id da cobrança).
+  if (dismissedId === pendingPlanCharge.id) return null;
+
 
   const openCheckout = async (body: Record<string, unknown>, key: string) => {
     setBusy(key);
@@ -204,14 +221,25 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
             </p>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="text-muted-foreground hover:text-foreground shrink-0"
-          aria-label="Ver histórico de cobranças"
-        >
-          <ChevronDown className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} />
-        </button>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="text-muted-foreground hover:text-foreground"
+            aria-label="Ver histórico de cobranças"
+          >
+            <ChevronDown className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} />
+          </button>
+          <button
+            type="button"
+            onClick={() => dismissCard(pendingPlanCharge.id)}
+            className="text-muted-foreground hover:text-foreground"
+            aria-label="Dispensar aviso de plano"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
       </div>
 
       {showUpcoming && (
@@ -234,15 +262,8 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
               {busy === "pending" ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : null}
               Pagar {formatCents(toCents(Number(pendingPlanCharge.amount)))}
             </Button>
-            {pendingPlanCharge.checkout_url && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => window.open(pendingPlanCharge.checkout_url!, "_blank", "noopener")}
-              >
-                Continuar checkout aberto <ExternalLink className="w-3.5 h-3.5 ml-1" />
-              </Button>
-            )}
+            {/* "Continuar checkout aberto" removido: redundante com o botão de pagar. */}
+
           </>
         ) : sub ? (
           <Button
