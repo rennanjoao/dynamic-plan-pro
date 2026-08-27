@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CreditCard, ChevronDown, ExternalLink, Loader2, RefreshCw, Repeat, Clock } from "lucide-react";
+import { CreditCard, ChevronDown, Loader2, RefreshCw, Repeat, Clock, X } from "lucide-react";
 import { formatCents, toCents } from "@/lib/studentPlans";
 import { formatDatePtBR } from "@/lib/formatDate";
 import { useMyStudentSubscription, useStudentPlanCatalog } from "@/hooks/useStudentPlans";
