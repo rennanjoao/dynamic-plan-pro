@@ -337,32 +337,51 @@ export default function WorkoutPlan() {
                     <ExerciseNameButton name={ex.name} gifKey={ex.gifKey} withThumb />
                   </h4>
 
-                  <div className={`grid gap-2 mb-2 ${ex.cadence ? "grid-cols-4" : "grid-cols-3"}`}>
-                    <div className="bg-muted/50 p-2 rounded text-center">
-                      <p className="text-[10px] text-muted-foreground uppercase">Séries</p>
-                      <p className="font-semibold text-sm">{ex.sets || "-"}</p>
-                    </div>
-                    <div className="bg-muted/50 p-2 rounded text-center">
-                      <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
-                        Reps <InfoPopover termKey="reps" />
-                      </p>
-                      <p className="font-semibold text-sm">{ex.reps || "-"}</p>
-                    </div>
-                    {ex.cadence && (
-                      <div className="bg-muted/50 p-2 rounded text-center">
-                        <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
-                          Cadência <InfoPopover termKey="cadence" />
-                        </p>
-                        <p className="font-semibold text-sm">{ex.cadence}</p>
-                      </div>
-                    )}
-                    <div className="bg-muted/50 p-2 rounded text-center">
-                      <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
-                        Descanso <InfoPopover termKey="rest" />
-                      </p>
-                      <p className="font-semibold text-sm">{ex.rest || "-"}</p>
-                    </div>
-                  </div>
+                  {(() => {
+                    // Com periodização ativa, os blocos refletem a semana
+                    // vigente (o aluno perde a barra de topo ao rolar a tela).
+                    const wm = periodizationEnabled ? weeks[currentWeek] : null;
+                    const vSets = wm?.sets || ex.sets;
+                    const vReps = wm?.reps || ex.reps;
+                    const vCadence = wm?.cadence || ex.cadence;
+                    const vRest = wm?.rest || ex.rest;
+                    return (
+                      <>
+                        {wm && (
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-primary/80 mb-1">
+                            Semana {currentWeek + 1} de {weeks.length}
+                          </p>
+                        )}
+                        <div className={`grid gap-2 mb-2 ${vCadence ? "grid-cols-4" : "grid-cols-3"}`}>
+                          <div className="bg-muted/50 p-2 rounded text-center">
+                            <p className="text-[10px] text-muted-foreground uppercase">Séries</p>
+                            <p className="font-semibold text-sm">{vSets || "-"}</p>
+                          </div>
+                          <div className="bg-muted/50 p-2 rounded text-center">
+                            <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
+                              Reps <InfoPopover termKey="reps" />
+                            </p>
+                            <p className="font-semibold text-sm">{vReps || "-"}</p>
+                          </div>
+                          {vCadence && (
+                            <div className="bg-muted/50 p-2 rounded text-center">
+                              <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
+                                Cadência <InfoPopover termKey="cadence" />
+                              </p>
+                              <p className="font-semibold text-sm">{vCadence}</p>
+                            </div>
+                          )}
+                          <div className="bg-muted/50 p-2 rounded text-center">
+                            <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
+                              Descanso <InfoPopover termKey="rest" />
+                            </p>
+                            <p className="font-semibold text-sm">{vRest || "-"}</p>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+
                   {ex.notes && (
                     <p className="text-xs text-muted-foreground mt-2 italic bg-muted/30 p-2 rounded border-l-2 border-primary/50">
                       {ex.notes}
