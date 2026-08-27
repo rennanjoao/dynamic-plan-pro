@@ -431,19 +431,20 @@ function SupplementsSection({
                   return (
                     <label
                       key={i}
-                      className="flex items-center gap-2 text-xs py-1 px-1 rounded hover:bg-muted/50 cursor-pointer"
+                      className="flex items-start gap-2 text-xs py-1 px-1 rounded hover:bg-muted/50 cursor-pointer"
                     >
                       <input
                         type="checkbox"
                         checked={comboPicks.has(i)}
                         onChange={() => togglePick(i)}
-                        className="accent-primary"
+                        className="accent-primary mt-0.5 shrink-0"
                       />
-                      <span className="flex-1 truncate">
+                      <span className="flex-1 min-w-0 whitespace-pre-wrap break-words">
                         {s.name || <span className="italic text-muted-foreground">(sem nome)</span>}
                         {s.dose ? <span className="text-muted-foreground"> — {s.dose}</span> : null}
                       </span>
                     </label>
+
                   );
                 })}
               </div>
