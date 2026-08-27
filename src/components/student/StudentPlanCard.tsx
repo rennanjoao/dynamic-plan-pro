@@ -245,15 +245,8 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
               {busy === "pending" ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : null}
               Pagar {formatCents(toCents(Number(pendingPlanCharge.amount)))}
             </Button>
-            {pendingPlanCharge.checkout_url && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => window.open(pendingPlanCharge.checkout_url!, "_blank", "noopener")}
-              >
-                Continuar checkout aberto <ExternalLink className="w-3.5 h-3.5 ml-1" />
-              </Button>
-            )}
+            {/* "Continuar checkout aberto" removido: redundante com o botão de pagar. */}
+
           </>
         ) : sub ? (
           <Button
