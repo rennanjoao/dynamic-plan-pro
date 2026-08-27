@@ -145,22 +145,52 @@ export default function Supplements() {
               id={`supplement-${slug(s.name)}`}
               className="border-b border-border/40 last:border-0 pb-2 last:pb-0"
             >
-              <p className="text-sm text-foreground">
+              <p className="text-sm text-foreground whitespace-pre-wrap break-words">
                 <span className="text-primary">•</span>{" "}
                 <span className="font-bold">{s.name}</span>
                 {s.dose && <span className="font-bold"> — {s.dose}</span>}
               </p>
               {s.notes && (
-                <p className="text-xs text-muted-foreground italic mt-0.5 pl-3">{s.notes}</p>
+                <p className="text-xs text-muted-foreground italic mt-0.5 pl-3 whitespace-pre-wrap break-words">{s.notes}</p>
               )}
             </li>
           );
 
+          // Texto puro da prescrição — para o aluno copiar e cotar.
+          const itemLine = (s: any) =>
+            `• ${s.name ?? ""}${s.dose ? ` — ${s.dose}` : ""}${s.notes ? ` (${s.notes})` : ""}`;
+          const fullText = [
+            ...supplementCombos.map((c: any) => {
+              const items = (Array.isArray(c?.supplementIndexes) ? c.supplementIndexes : [])
+                .map((i: number) => supplements[i])
+                .filter(Boolean);
+              if (items.length === 0) return "";
+              return `${c.name || "Combo"}${c.timing ? ` (${c.timing})` : ""}\n${items.map(itemLine).join("\n")}`;
+            }),
+            ...keys.map((t) => `${t}\n${groups[t].map(itemLine).join("\n")}`),
+          ]
+            .filter(Boolean)
+            .join("\n\n");
+
+          const copyAll = async () => {
+            try {
+              await navigator.clipboard.writeText(fullText);
+              toast.success("Lista de suplementos copiada");
+            } catch {
+              toast.error("Não foi possível copiar");
+            }
+          };
+
           return (
             <div className="space-y-3">
-              <h2 className="font-bold text-sm text-foreground flex items-center gap-2">
-                <Pill className="w-4 h-4 text-primary" /> Suplementos prescritos
-              </h2>
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="font-bold text-sm text-foreground flex items-center gap-2">
+                  <Pill className="w-4 h-4 text-primary" /> Suplementos prescritos
+                </h2>
+                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={copyAll}>
+                  <Copy className="w-3.5 h-3.5 mr-1" /> Copiar para cotação
+                </Button>
+              </div>
 
               {/* Combos primeiro (nome do combo como cabeçalho) */}
               {supplementCombos.map((c: any, ci: number) => {
@@ -171,17 +201,21 @@ export default function Supplements() {
                 if (items.length === 0) return null;
                 return (
                   <div key={`combo-${ci}`} className="glass rounded-2xl p-4 border border-primary/20 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs border-primary/60 text-primary bg-primary/10 font-bold">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2 flex-wrap min-w-0">
+                        <Badge
+                          variant="outline"
+                          className="text-xs border-primary/60 text-primary bg-primary/10 font-bold max-w-full whitespace-normal break-words text-left h-auto"
+                        >
                           {c.name || "Combo"}
                         </Badge>
                         {c.timing && (
-                          <span className="text-[10px] text-muted-foreground">{c.timing}</span>
+                          <span className="text-[10px] text-muted-foreground mt-1">{c.timing}</span>
                         )}
                       </div>
-                      <span className="text-[10px] text-muted-foreground">{items.length} item(ns)</span>
+                      <span className="text-[10px] text-muted-foreground shrink-0">{items.length} item(ns)</span>
                     </div>
+
                     <ul className="space-y-2 pt-1">
                       {items.map((s: any, i: number) => renderItem(s, i))}
                     </ul>
