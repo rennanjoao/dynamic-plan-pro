@@ -136,6 +136,10 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
   }, [qc, userId]);
 
   if (!pendingPlanCharge) return null;
+  // O aluno pode fechar o aviso da cobrança pendente; ele volta a aparecer
+  // quando surgir uma nova cobrança (a chave é o id da cobrança).
+  if (dismissedId === pendingPlanCharge.id) return null;
+
 
   const openCheckout = async (body: Record<string, unknown>, key: string) => {
     setBusy(key);
