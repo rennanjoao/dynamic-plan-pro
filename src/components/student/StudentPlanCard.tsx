@@ -77,6 +77,15 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
   const [busy, setBusy] = useState<string | null>(null);
   const [params, setParams] = useSearchParams();
   const qc = useQueryClient();
+  const dismissKey = `student_plan_card_dismissed_${userId ?? "anon"}`;
+  const [dismissedId, setDismissedId] = useState<string | null>(() => {
+    try { return localStorage.getItem(dismissKey); } catch { return null; }
+  });
+  const dismissCard = (chargeId: string) => {
+    setDismissedId(chargeId);
+    try { localStorage.setItem(dismissKey, chargeId); } catch { /* quota */ }
+  };
+
 
   // Retorno do checkout: apenas mensagem informativa (o webhook é quem libera).
   useEffect(() => {
