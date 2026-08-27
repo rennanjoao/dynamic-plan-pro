@@ -117,7 +117,9 @@ function playBeep(type: "warn" | "end" = "end") {
       gain.gain.linearRampToValueAtTime(0, now + 0.14);
       osc.start(now); osc.stop(now + 0.16);
     }
-  } catch {}
+  } catch {
+    // bipe é cosmético; se o WebAudio falhar (navegador/contexto sem suporte), ignora.
+  }
 }
 
 /* ── Main Component ── */
