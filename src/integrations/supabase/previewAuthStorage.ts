@@ -35,6 +35,7 @@ export function brokeredPreviewStorage() {
     new Promise((resolve) => {
       const requestId = newId();
       let done = false;
+      // eslint-disable-next-line prefer-const -- só é atribuído depois, dentro do closure de `finish` definido logo abaixo; forçar const aqui exigiria reordenar o closure num arquivo que trata token de sessão, não vale o risco por uma regra de estilo.
       let timer: ReturnType<typeof setTimeout>;
       const finish = (r: { ok: boolean; value?: string | null } | null) => {
         if (done) return;
