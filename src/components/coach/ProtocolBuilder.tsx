@@ -840,11 +840,11 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                         size="sm"
                         className="h-8 bg-emerald-500 hover:bg-emerald-600 text-white border-0"
                       >
-                        <Settings2 className="w-3.5 h-3.5 mr-1.5" /> Modo Avançado
+                        <Settings2 className="w-3.5 h-3.5 mr-1.5" /> Importar / Exportar
                         <ChevronDown className="w-3.5 h-3.5 ml-1 opacity-80" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent align="start" className="w-60 p-1">
+                    <PopoverContent align="start" className="w-80 p-1">
                       <div className="px-2 py-1.5">
                         <ProtocolImportExport payload={payload} studentName={studentName} onImport={(p) => { updatePayload(mergeImportedPayload(payload, p)); setProtocolId(protocolId); }} />
                       </div>
