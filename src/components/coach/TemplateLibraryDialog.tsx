@@ -199,6 +199,12 @@ export default function TemplateLibraryDialog({
   /** Carrega o template no builder e entra em modo edição (próximo salvar = UPDATE). */
   async function editItem(item: TplItem) {
     if (!payload || item.isSystem || item.type !== "protocol") return;
+    if (!(await confirm({
+      title: "Editar template no builder",
+      description: "Isso substitui TODO o conteúdo atual (treino, dieta, suplementos e macros) pelo do template. Se você estava editando o protocolo de um aluno, essa edição em andamento será perdida. Continuar?",
+      destructive: true,
+      confirmLabel: "Carregar template",
+    }))) return;
     const parsed = ProtocolPayloadSchema.safeParse(item.raw.payload);
     if (!parsed.success) { toast.error("Template com payload inválido"); return; }
     setPayload(parsed.data);
