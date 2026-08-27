@@ -85,6 +85,10 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
     setDismissedId(chargeId);
     try { localStorage.setItem(dismissKey, chargeId); } catch { /* quota */ }
   };
+  useEffect(() => {
+    try { setDismissedId(localStorage.getItem(dismissKey)); } catch { /* noop */ }
+  }, [dismissKey]);
+
 
 
   // Retorno do checkout: apenas mensagem informativa (o webhook é quem libera).
