@@ -1,10 +1,19 @@
 // src/components/GlobalAIAssistant.tsx
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, Suspense } from "react";
 import { useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { FitnessChatBot } from "@/components/fitness/FitnessChatBot";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import { supabase } from "@/integrations/supabase/client";
 import { sortPriorityQueue, AI_QUEUE_LIMIT, buildOpenAlerts } from "@/lib/coachPriorityQueue";
+
+// FitnessChatBot puxa framer-motion + react-markdown — só quem realmente usa
+// o chat de IA deveria pagar esse peso. Como esse componente monta em toda
+// página (não é rota), importar direto colocava essas libs no bundle
+// principal pra todo mundo, chat aberto ou não. lazyWithRetry (mesmo helper
+// usado nas rotas) resolve isso sem mudar nenhum comportamento visível.
+const FitnessChatBot = lazyWithRetry(() =>
+  import("@/components/fitness/FitnessChatBot").then((m) => ({ default: m.FitnessChatBot })),
+);
 
 const HIDDEN_ROUTES = new Set(["/", "/auth", "/admin-login", "/student", "/anamnesis", "/workout-plan"]);
 
@@ -308,11 +317,13 @@ export const GlobalAIAssistant = () => {
 
   if (HIDDEN_ROUTES.has(pathname)) return null;
   return (
-    <FitnessChatBot
-      athleteContext={ctx}
-      onOpen={handleChatOpen}
-      proactiveMessage={proactiveMessage}
-      whatsappNumber={coachWhatsapp ?? null}
-    />
+    <Suspense fallback={null}>
+      <FitnessChatBot
+        athleteContext={ctx}
+        onOpen={handleChatOpen}
+        proactiveMessage={proactiveMessage}
+        whatsappNumber={coachWhatsapp ?? null}
+      />
+    </Suspense>
   );
 };
