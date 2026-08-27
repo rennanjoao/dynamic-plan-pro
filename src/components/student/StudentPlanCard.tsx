@@ -204,14 +204,25 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
             </p>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="text-muted-foreground hover:text-foreground shrink-0"
-          aria-label="Ver histórico de cobranças"
-        >
-          <ChevronDown className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} />
-        </button>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="text-muted-foreground hover:text-foreground"
+            aria-label="Ver histórico de cobranças"
+          >
+            <ChevronDown className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} />
+          </button>
+          <button
+            type="button"
+            onClick={() => dismissCard(pendingPlanCharge.id)}
+            className="text-muted-foreground hover:text-foreground"
+            aria-label="Dispensar aviso de plano"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
       </div>
 
       {showUpcoming && (
