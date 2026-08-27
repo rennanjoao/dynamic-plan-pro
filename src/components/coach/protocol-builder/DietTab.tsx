@@ -101,7 +101,7 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
     const nextMeals = payload.meals.map((m: any) => (m.__id ? m : { ...m, __id: genItemId("meal") }));
     setPayload({ ...payload, meals: nextMeals });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [payload.meals]);
 
   // Sensors: só inicia drag após 5px de movimento p/ não interferir em
   // cliques nos inputs/botões do card (mesma config de WorkoutsTab.tsx).
