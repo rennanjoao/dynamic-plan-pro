@@ -40,6 +40,13 @@ export interface StudentStatus {
   clinicalSignal: ClinicalSignal | null;
   /** Situação do Radar de Evolução (coach_insights); null se o aluno ainda não tem leitura. */
   insightSituacao: CoachInsightSituacao | null;
+  /**
+   * true quando o coach ainda NÃO salvou nenhum protocolo pra esse aluno.
+   * Nesse estado o aluno só fez a anamnese — o "radar" de check-in não
+   * começou a contar ainda, então alertLevel fica forçado em "ok" e a UI
+   * deve mostrar "Fez anamnese" em vez de "Em dia"/dias sem feedback.
+   */
+  awaitingFirstProtocol: boolean;
 }
 
 export interface PagedStudentsResult {
@@ -177,7 +184,7 @@ export function useCoachStudentsPaged(
       if (!links || links.length === 0) return { rows: [] as StudentStatus[] };
       const ids = links.map((l) => l.student_id);
 
-      const [{ data: sProfiles }, { data: profiles }, { data: lastCi }] = await Promise.all([
+      const [{ data: sProfiles }, { data: profiles }, { data: lastCi }, { data: protoRows }] = await Promise.all([
         supabase.from("student_profiles").select("user_id, full_name").in("user_id", ids),
         supabase.from("profiles").select("user_id, full_name, email").in("user_id", ids),
         supabase
@@ -186,6 +193,12 @@ export function useCoachStudentsPaged(
           .in("student_id", ids)
           .order("submitted_at", { ascending: false })
           .limit(ids.length * 3), // teto explícito, evita full-scan se aluno tiver muitos check-ins
+        supabase
+          .from("protocols")
+          .select("student_id, created_at")
+          .in("student_id", ids)
+          .eq("is_template", false)
+          .order("created_at", { ascending: true }), // o primeiro da lista por aluno = 1º protocolo salvo
       ]);
 
       // O "último check-in" mede o atraso DO ALUNO, então usa somente
@@ -211,6 +224,14 @@ export function useCoachStudentsPaged(
         }
       });
 
+      // Data do 1º protocolo real (não-template) salvo pra cada aluno —
+      // ordenado ascendente acima, então o primeiro que aparece por
+      // student_id já é o mais antigo.
+      const firstProtocolByStudent = new Map<string, string>();
+      protoRows?.forEach((p) => {
+        if (!firstProtocolByStudent.has(p.student_id)) firstProtocolByStudent.set(p.student_id, p.created_at);
+      });
+
       const rows: StudentStatus[] = ids.map((sid) => {
         const sp = sProfiles?.find((p) => p.user_id === sid);
         const pp = profiles?.find((p) => p.user_id === sid);
@@ -219,6 +240,15 @@ export function useCoachStudentsPaged(
         const critical = link.critical_days ?? 16;
         const interval = link.feedback_interval_days ?? feedbackIntervalDays ?? 14;
         const lastFeedback = lastCiByStudent.get(sid) ?? null;
+        const firstProtocolAt = firstProtocolByStudent.get(sid) ?? null;
+
+        // Sem NENHUM protocolo salvo ainda, o aluno só fez a anamnese — o
+        // radar não começou a contar, não pode aparecer como crítico.
+        const awaitingFirstProtocol = !firstProtocolAt;
+        // Assim que existe protocolo, a referência pra contar dias é o
+        // check-in mais recente (se já fez algum) ou, na falta dele, a
+        // data do próprio 1º protocolo — nunca o sentinela de "nunca fez".
+        const referenceDate = lastFeedback ?? firstProtocolAt;
         const name =
           sp?.full_name ||
           pp?.full_name ||
@@ -232,9 +262,10 @@ export function useCoachStudentsPaged(
           lastFeedback,
           lastWorkout: null,
           lastMeal: null,
-          alertLevel: getAlertLevel(lastFeedback, warning, critical),
-          daysInactive: daysSince(lastFeedback),
-          daysSinceLastFeedback: daysSince(lastFeedback),
+          alertLevel: awaitingFirstProtocol ? "ok" : getAlertLevel(referenceDate, warning, critical),
+          awaitingFirstProtocol,
+          daysInactive: awaitingFirstProtocol ? 0 : daysSince(referenceDate),
+          daysSinceLastFeedback: awaitingFirstProtocol ? 0 : daysSince(referenceDate),
           goal: "—",
           currentWeight: null,
           targetWeight: null,
