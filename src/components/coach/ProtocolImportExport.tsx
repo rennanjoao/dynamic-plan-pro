@@ -25,10 +25,9 @@
 
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Download, Upload, FileSpreadsheet, FileJson, Settings2, ChevronDown } from "lucide-react";
+import { Download, FileSpreadsheet, FileJson, Settings2 } from "lucide-react";
 import { ProtocolPayloadSchema, type ProtocolPayload } from "@/lib/protocolSchema";
-import { exportProtocolXlsx, importProtocolXlsx, ProtocolXlsxError } from "@/lib/protocolXlsx";
+import { exportProtocolXlsx } from "@/lib/protocolXlsx";
 import { fuzzyFindTaco, parseRawWeight, isCompositeItem } from "@/lib/macroCalc";
 import {
   validateAndMapImport,
@@ -499,8 +498,6 @@ function buildTemplateNotes(p: ProtocolPayload) {
 
 export default function ProtocolImportExport({ payload, studentName, onImport }: Props) {
   const jsonRef = useRef<HTMLInputElement>(null);
-  const xlsxRef = useRef<HTMLInputElement>(null);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [importState, setImportState] = useState<ImportState>({ stage: "IDLE" });
 
   /**
@@ -678,49 +675,8 @@ export default function ProtocolImportExport({ payload, studentName, onImport }:
     }
   };
 
-  const onXlsxFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const parsed = await importProtocolXlsx(file);
-      const fuzzy  = applyFuzzyTacoMatch(parsed);
-      onImport(fuzzy.next);
-      toast.success(`Planilha importada — ${parsed.meals.length} refeição(ões). ${fuzzy.matched} item(ns) TACO.`);
-
-      if (fuzzy.lowConfidenceMatches.length > 0) {
-        const examples = fuzzy.lowConfidenceMatches
-          .slice(0, 3)
-          .map((m) => `"${m.original}" → "${m.resolved}"`)
-          .join(" • ");
-        toast.warning(`${fuzzy.lowConfidenceMatches.length} vínculo(s) com baixa confiança — revise`, {
-          description: examples,
-          duration: 9000,
-        });
-      }
-
-      if (fuzzy.unmatched.length > 0) {
-        toast.warning(`${fuzzy.unmatched.length} item(ns) sem correspondência TACO`, {
-          description: fuzzy.unmatched.slice(0, 3).join(" • ") + (fuzzy.unmatched.length > 3 ? "…" : ""),
-          duration: 7000,
-        });
-      }
-    } catch (err) {
-      console.error("import xlsx error", err);
-      if (err instanceof ProtocolXlsxError) {
-        toast.error(err.message, {
-          description: err.details.length ? err.details.join(" • ") : undefined,
-          duration: 7000,
-        });
-      } else {
-        toast.error("Excel inválido: " + (err instanceof Error ? err.message : "formato desconhecido"));
-      }
-    } finally {
-      if (xlsxRef.current) xlsxRef.current.value = "";
-    }
-  };
-
   return (
-    <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="inline-block">
+    <div className="inline-block w-full">
       <ProtocolImportResolverModal
         open={importState.stage === "RESOLVING_ANOMALIES"}
         anomalies={importState.stage === "RESOLVING_ANOMALIES" ? importState.anomalies : []}
@@ -758,34 +714,22 @@ export default function ProtocolImportExport({ payload, studentName, onImport }:
           void commit(next);
         }}
       />
-      <CollapsibleTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded"
-        >
-          <Settings2 className="w-3 h-3" />
-          Modo avançado · JSON / Excel
-          <ChevronDown className={`w-3 h-3 transition-transform ${advancedOpen ? "rotate-180" : ""}`} />
-        </button>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div className="flex flex-wrap items-center gap-1.5 mt-2 p-2 rounded-lg bg-muted/20 border border-border/40">
-          <Button variant="outline" size="sm" onClick={downloadXlsx} type="button" title="Baixar esboço .xlsx">
-            <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Excel
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => xlsxRef.current?.click()} type="button" title="Importar .xlsx">
-            <Upload className="w-3.5 h-3.5 mr-1.5" /> Importar Excel
-          </Button>
-          <Button variant="ghost" size="sm" onClick={downloadJson} type="button" title="Baixar JSON">
-            <FileJson className="w-3.5 h-3.5 mr-1.5" /> JSON
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => jsonRef.current?.click()} type="button" title="Importar JSON">
-            <Download className="w-3.5 h-3.5 rotate-180 mr-1.5" /> Importar JSON
-          </Button>
-          <input ref={xlsxRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={onXlsxFile} />
-          <input ref={jsonRef} type="file" accept="application/json,.json" className="hidden" onChange={onJsonFile} />
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
+      <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground px-1 pb-1.5">
+        <Settings2 className="w-3 h-3" />
+        Importar / Exportar protocolo
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-lg bg-muted/20 border border-border/40">
+        <Button variant="outline" size="sm" onClick={downloadXlsx} type="button" title="Baixar esboço .xlsx">
+          <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Excel
+        </Button>
+        <Button variant="ghost" size="sm" onClick={downloadJson} type="button" title="Baixar JSON">
+          <FileJson className="w-3.5 h-3.5 mr-1.5" /> JSON
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => jsonRef.current?.click()} type="button" title="Importar JSON">
+          <Download className="w-3.5 h-3.5 rotate-180 mr-1.5" /> Importar JSON
+        </Button>
+        <input ref={jsonRef} type="file" accept="application/json,.json" className="hidden" onChange={onJsonFile} />
+      </div>
+    </div>
   );
 }
