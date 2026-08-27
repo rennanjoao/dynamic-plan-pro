@@ -17,8 +17,14 @@ export function StudentRow({
 }) {
   // Sempre em dias exatos (nunca "há N semana(s)") — o coach precisa comparar
   // isso diretamente com os limites de atenção/crítico, que também são em dias.
+  //
+  // Checagem por `!student.lastFeedback` (não por daysSinceLastFeedback >= 999):
+  // desde que o relógio passou a poder contar a partir da data do 1º
+  // protocolo (quando ainda não há nenhum check-in), daysSinceLastFeedback
+  // pode ser um número pequeno normal mesmo sem check-in nenhum — só
+  // lastFeedback (a data real do check-in) diz com certeza se existe um.
   const feedbackLabel = (() => {
-    if (student.daysSinceLastFeedback >= 999 || !student.lastFeedback) return "Sem check-in registrado";
+    if (!student.lastFeedback) return "Sem check-in registrado";
     const d = student.daysSinceLastFeedback;
     if (d <= 0) return "Último check-in: hoje";
     if (d === 1) return "Último check-in: ontem";
@@ -54,6 +60,7 @@ export function StudentRow({
             warningDays={student.warningDays}
             criticalDays={student.criticalDays}
             lastFeedback={student.lastFeedback}
+            awaitingFirstProtocol={student.awaitingFirstProtocol}
           />
           <ClinicalSignalBadge signal={student.clinicalSignal} />
           <InsightBadge situacao={student.insightSituacao} />
@@ -61,15 +68,15 @@ export function StudentRow({
         <p className="text-xs text-muted-foreground truncate">{student.goal || "Objetivo não definido"}</p>
         <button
           type="button"
-          onClick={() => student.daysSinceLastFeedback < 999 && onLatestFeedback(student)}
-          disabled={student.daysSinceLastFeedback >= 999}
+          onClick={() => student.lastFeedback && onLatestFeedback(student)}
+          disabled={!student.lastFeedback}
           className={`text-xs flex items-center gap-1 mt-0.5 rounded px-1 -mx-1 transition-colors ${
-            student.daysSinceLastFeedback >= 999 ? "text-muted-foreground cursor-default" :
+            !student.lastFeedback ? "text-muted-foreground cursor-default" :
             student.daysSinceLastFeedback >= student.criticalDays ? "text-red-500 font-medium hover:bg-red-500/10" :
             student.daysSinceLastFeedback >= student.warningDays ? "text-orange-500 hover:bg-orange-500/10" :
             "text-emerald-500 hover:bg-emerald-500/10"
           }`}
-          title={student.daysSinceLastFeedback < 999 ? "Ver feedback atual" : undefined}
+          title={student.lastFeedback ? "Ver feedback atual" : undefined}
         >
           <MessageSquare className="w-3 h-3" />
           {feedbackLabel}
