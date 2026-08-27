@@ -25,7 +25,9 @@ export function lazyWithRetry<T extends ComponentType<any>>(
     try {
       const mod = await factory();
       // Sucesso: limpa flag para próximos deploys.
-      try { sessionStorage.removeItem(RELOAD_KEY); } catch {}
+      try { sessionStorage.removeItem(RELOAD_KEY); } catch {
+        /* sessionStorage indisponível (ex.: modo privado) — ignora, é só housekeeping */
+      }
       return mod;
     } catch (err) {
       if (!isChunkLoadError(err)) throw err;
@@ -34,17 +36,23 @@ export function lazyWithRetry<T extends ComponentType<any>>(
       try {
         await new Promise((r) => setTimeout(r, 400));
         const mod = await factory();
-        try { sessionStorage.removeItem(RELOAD_KEY); } catch {}
+        try { sessionStorage.removeItem(RELOAD_KEY); } catch {
+        /* sessionStorage indisponível (ex.: modo privado) — ignora, é só housekeeping */
+      }
         return mod;
       } catch (err2) {
         if (!isChunkLoadError(err2)) throw err2;
 
         // Evita loop: só recarrega uma vez por sessão.
         let alreadyReloaded = false;
-        try { alreadyReloaded = sessionStorage.getItem(RELOAD_KEY) === "1"; } catch {}
+        try { alreadyReloaded = sessionStorage.getItem(RELOAD_KEY) === "1"; } catch {
+        /* sessionStorage indisponível (ex.: modo privado) — ignora, é só housekeeping */
+      }
 
         if (!alreadyReloaded) {
-          try { sessionStorage.setItem(RELOAD_KEY, "1"); } catch {}
+          try { sessionStorage.setItem(RELOAD_KEY, "1"); } catch {
+        /* sessionStorage indisponível (ex.: modo privado) — ignora, é só housekeeping */
+      }
           // Hard reload para pegar o index.html novo (com hashes atuais).
           window.location.reload();
           // Promise pendente até o reload acontecer.
@@ -66,9 +74,13 @@ export function installChunkErrorReloader() {
     if (!isChunkLoadError(reason)) return;
 
     let alreadyReloaded = false;
-    try { alreadyReloaded = sessionStorage.getItem(RELOAD_KEY) === "1"; } catch {}
+    try { alreadyReloaded = sessionStorage.getItem(RELOAD_KEY) === "1"; } catch {
+        /* sessionStorage indisponível (ex.: modo privado) — ignora, é só housekeeping */
+      }
     if (alreadyReloaded) return;
-    try { sessionStorage.setItem(RELOAD_KEY, "1"); } catch {}
+    try { sessionStorage.setItem(RELOAD_KEY, "1"); } catch {
+        /* sessionStorage indisponível (ex.: modo privado) — ignora, é só housekeeping */
+      }
     window.location.reload();
   };
   window.addEventListener("error", handler);
