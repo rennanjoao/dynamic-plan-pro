@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Apple, Dumbbell, Pill, TrendingUp, CheckCircle2,
@@ -850,7 +851,7 @@ export default function StudentArea() {
 
           {/* Dieta */}
           <Card
-            className="hover:shadow-md transition-all bg-card/60 border border-amber-500/20 cursor-pointer"
+            className="card-hover bg-card/60 border border-amber-500/20 cursor-pointer"
             onClick={() => navigate("/routine")}
           >
             <CardContent className="p-5">
@@ -875,7 +876,7 @@ export default function StudentArea() {
 
           {/* Treino */}
           <Card
-            className="hover:shadow-md transition-all bg-card/60 border border-blue-500/20 cursor-pointer"
+            className="card-hover bg-card/60 border border-blue-500/20 cursor-pointer"
             onClick={() => navigate("/workout-plan")}
           >
             <CardContent className="p-5">
@@ -890,8 +891,8 @@ export default function StudentArea() {
                     {logsLoading
                       ? <WorkoutBadgeSkeleton />
                       : trainedToday
-                      ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600">✓ Feito hoje</span>
-                      : <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-600">Pendente</span>
+                      ? <Badge variant="success" className="text-[10px] px-2 py-0.5">✓ Feito hoje</Badge>
+                      : <Badge variant="secondary" className="text-[10px] px-2 py-0.5">Pendente</Badge>
                     }
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">Séries, cadência e diretrizes biomecânicas.</p>
@@ -912,7 +913,7 @@ export default function StudentArea() {
           {secondaryModules.map((mod) => (
             <Card
               key={mod.title}
-              className={`hover:shadow-md transition-all bg-card/60 border ${mod.border} cursor-pointer ${mod.title === "Evolução" && hasUnreadFeedback ? "animate-pulse ring-2 ring-emerald-500/40" : ""}`}
+              className={`card-hover bg-card/60 border ${mod.border} cursor-pointer ${mod.title === "Evolução" && hasUnreadFeedback ? "animate-pulse ring-2 ring-emerald-500/40" : ""}`}
               onClick={() => navigate(mod.route)}
             >
               <CardContent className="p-4">
