@@ -344,7 +344,16 @@ function CoachDashboardInner() {
           </TabsContent>
         </Tabs>
 
-        {coachId && <ProfileDialog coachId={coachId} open={showProfile} onClose={() => setShowProfile(false)} />}
+        {coachId && (
+          <ProfileDialog
+            coachId={coachId}
+            open={showProfile}
+            onClose={() => setShowProfile(false)}
+            platformStatus={platformStatus}
+            platformCharges={platformCharges}
+            onOpenFinances={() => setActiveTab("finances")}
+          />
+        )}
 
         <AlertDialog open={!!unlinkTarget} onOpenChange={(o) => !o && setUnlinkTarget(null)}>
           <AlertDialogContent>
