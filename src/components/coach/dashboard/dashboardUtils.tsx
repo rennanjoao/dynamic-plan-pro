@@ -12,6 +12,26 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const sb: any = supabase;
 
+// Fonte única de verdade pras 3 cores de status usadas nos selos do coach
+// (crítico/atenção/ok). Usa os tokens semânticos em opacidade — funciona em
+// claro e escuro sem precisar de par dark: manual (mesmo truque já usado
+// nos cards de módulo do aluno, ex. bg-amber-500/10).
+export const STATUS_PILL: Record<"critical" | "warning" | "ok", string> = {
+  critical: "bg-destructive/10 text-destructive border-destructive/20",
+  warning: "bg-warning/10 text-warning border-warning/20",
+  ok: "bg-success/10 text-success border-success/20",
+};
+export const STATUS_TEXT: Record<"critical" | "warning" | "ok", string> = {
+  critical: "text-destructive",
+  warning: "text-warning",
+  ok: "text-success",
+};
+export const STATUS_DOT: Record<"critical" | "warning" | "ok", string> = {
+  critical: "bg-destructive",
+  warning: "bg-warning",
+  ok: "bg-success",
+};
+
 export function useCoachId() {
   const [coachId, setCoachId] = useState<string | null>(null);
   useEffect(() => {
@@ -24,8 +44,8 @@ export function useCoachId() {
 
 export function StatCard({ label, value, icon, accent }: { label: string; value: number | string; icon: React.ReactNode; accent: string }) {
   return (
-    <div className="bg-card rounded-xl border border-border p-4">
-      <div className="w-8 h-8 rounded-lg flex items-center justify-center mb-2" style={{ background: `${accent}15` }}>
+    <div className="bg-card rounded-xl border border-border p-4 transition-shadow duration-300 hover:shadow-md">
+      <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-2" style={{ background: `${accent}15` }}>
         <span style={{ color: accent }}>{icon}</span>
       </div>
       <p className="text-2xl font-bold text-foreground">{value}</p>
@@ -79,7 +99,7 @@ export function AlertBadge({
   // aqui, independente de quantos dias já se passaram.
   if (awaitingFirstProtocol) {
     const badge = (
-      <span className="text-xs font-semibold px-2 py-0.5 rounded-full border cursor-default bg-emerald-100 text-emerald-700 border-emerald-200">
+      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border cursor-default ${STATUS_PILL.ok}`}>
         Fez anamnese
       </span>
     );
@@ -94,9 +114,9 @@ export function AlertBadge({
   }
 
   const map: Record<AlertLevel, { label: string; cls: string }> = {
-    critical: { label: "Crítico", cls: "bg-red-100 text-red-700 border-red-200" },
-    warning:  { label: "Atenção", cls: "bg-amber-100 text-amber-700 border-amber-200" },
-    ok:       { label: "Em dia",  cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+    critical: { label: "Crítico", cls: STATUS_PILL.critical },
+    warning:  { label: "Atenção", cls: STATUS_PILL.warning },
+    ok:       { label: "Em dia",  cls: STATUS_PILL.ok },
   };
   const { label, cls } = map[level] || map.ok;
   const badge = (
@@ -129,9 +149,9 @@ export function AlertBadge({
 export function ClinicalSignalBadge({ signal }: { signal: ClinicalSignal | null | undefined }) {
   if (!signal) return null;
   const map: Record<ClinicalSignal, { label: string; dot: string; text: string; tip: string }> = {
-    alerta:  { label: "Sinal ruim",  dot: "bg-red-500",     text: "text-red-600 dark:text-red-400",       tip: "Último check-in com pedido de atenção urgente ou várias respostas no pior nível." },
-    atencao: { label: "Observar",    dot: "bg-amber-500",   text: "text-amber-600 dark:text-amber-400",   tip: "Último check-in com sinais intermediários — vale acompanhar." },
-    ok:      { label: "Bem",         dot: "bg-emerald-500", text: "text-emerald-600 dark:text-emerald-400", tip: "Último check-in sem sinais negativos relevantes." },
+    alerta:  { label: "Sinal ruim",  dot: STATUS_DOT.critical, text: STATUS_TEXT.critical, tip: "Último check-in com pedido de atenção urgente ou várias respostas no pior nível." },
+    atencao: { label: "Observar",    dot: STATUS_DOT.warning,  text: STATUS_TEXT.warning,  tip: "Último check-in com sinais intermediários — vale acompanhar." },
+    ok:      { label: "Bem",         dot: STATUS_DOT.ok,       text: STATUS_TEXT.ok,       tip: "Último check-in sem sinais negativos relevantes." },
   };
   const { label, dot, text, tip } = map[signal];
   return (
@@ -157,9 +177,9 @@ export function InsightBadge({ situacao }: { situacao: CoachInsightSituacao | nu
   const meta = INSIGHT_META[situacao];
   if (!meta) return null;
   const textCls: Record<CoachInsightSituacao, string> = {
-    boa:                 "text-emerald-600 dark:text-emerald-400",
-    atencao:             "text-amber-600 dark:text-amber-400",
-    risco:               "text-red-600 dark:text-red-400",
+    boa:                 STATUS_TEXT.ok,
+    atencao:             STATUS_TEXT.warning,
+    risco:               STATUS_TEXT.critical,
     dados_insuficientes: "text-muted-foreground",
   };
   return (
