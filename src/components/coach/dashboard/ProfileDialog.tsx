@@ -253,8 +253,8 @@ export function ProfileDialog({
               <div
                 className={`rounded-xl border px-3 py-2.5 flex items-start gap-2.5 ${
                   platformStatus === "blocked"
-                    ? "border-red-200 bg-red-50 text-red-700 dark:bg-red-950/20 dark:border-red-900 dark:text-red-400"
-                    : "border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:border-amber-900 dark:text-amber-400"
+                    ? "border-destructive/20 bg-destructive/10 text-destructive"
+                    : "border-warning/20 bg-warning/10 text-warning"
                 }`}
               >
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -318,7 +318,7 @@ export function ProfileDialog({
             </div>
 
             <div>
-              <Label className="text-xs text-emerald-600 font-bold">WhatsApp para dúvidas</Label>
+              <Label className="text-xs text-success font-bold">WhatsApp para dúvidas</Label>
               <Input
                 value={supportWhatsapp}
                 onChange={(e) => setSupportWhatsapp(e.target.value)}
@@ -337,7 +337,7 @@ export function ProfileDialog({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs text-amber-600 font-bold">Chave PIX</Label>
+                <Label className="text-xs text-warning font-bold">Chave PIX</Label>
                 <Input
                   value={pixKey}
                   onChange={(e) => setPixKey(e.target.value)}
@@ -385,7 +385,7 @@ export function ProfileDialog({
             </div>
 
             <div>
-              <Label className="text-xs text-emerald-600 font-bold">Intervalo de feedback</Label>
+              <Label className="text-xs text-success font-bold">Intervalo de feedback</Label>
               <p className="text-[11px] text-muted-foreground mb-1">A cada quantos dias você quer receber feedback dos alunos?</p>
               <div className="flex items-center gap-2">
                 <Input
@@ -412,7 +412,7 @@ export function ProfileDialog({
                 <Button type="button" variant="outline" size="sm" onClick={copyCode} disabled={!inviteCode}>Copiar</Button>
               </div>
               {inviteCodeHasAmbiguousChars && (
-                <p className="text-[10px] text-amber-600">
+                <p className="text-[10px] text-warning">
                   Contém caracteres parecidos entre si (0/O, 1/I) — pode confundir o aluno ao digitar.
                 </p>
               )}
