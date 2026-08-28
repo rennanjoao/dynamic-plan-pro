@@ -32,8 +32,15 @@
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 88%;
-    --input: 0 0% 88%;
+    --success: 152 55% 36%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 42%;
+    --warning-foreground: 0 0% 100%;
+    --info: 217 91% 55%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 0 0% 85%;
+    --input: 0 0% 85%;
     --ring: 357 62% 47%;
     --accent-gold: 43 80% 38%;
 
@@ -72,6 +79,13 @@
 
     --destructive: 0 63% 31%;
     --destructive-foreground: 0 0% 98%;
+
+    --success: 152 45% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 85% 52%;
+    --warning-foreground: 0 0% 100%;
+    --info: 217 80% 62%;
+    --info-foreground: 0 0% 100%;
 
     --border: 0 0% 12%;
     --input: 0 0% 12%;
