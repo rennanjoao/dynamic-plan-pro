@@ -163,7 +163,7 @@ function CoachDashboardInner() {
               <LogOut className="w-4 h-4 mr-1.5" /> Sair
             </Button>
             {stats.critical > 0 && (
-              <div className="hidden sm:flex items-center gap-1.5 bg-red-50 border border-red-200 text-red-700 dark:bg-red-950/30 dark:border-red-900 dark:text-red-400 text-xs font-semibold px-2.5 py-1.5 rounded-lg">
+              <div className="hidden sm:flex items-center gap-1.5 bg-destructive/10 border border-destructive/20 text-destructive text-xs font-semibold px-2.5 py-1.5 rounded-lg">
                 <AlertTriangle className="w-3.5 h-3.5" />
                 {stats.critical} crítico{stats.critical > 1 ? "s" : ""}
               </div>
@@ -173,7 +173,7 @@ function CoachDashboardInner() {
               {platformStatus && (
                 <span
                   title={platformStatus === "blocked" ? "Assinatura da plataforma bloqueada" : "Assinatura da plataforma pendente"}
-                  className={`ml-1 w-2 h-2 rounded-full ${platformStatus === "blocked" ? "bg-red-500" : "bg-amber-500"}`}
+                  className={`ml-1 w-2 h-2 rounded-full ${platformStatus === "blocked" ? "bg-destructive" : "bg-warning"}`}
                 />
               )}
             </Button>
@@ -344,16 +344,7 @@ function CoachDashboardInner() {
           </TabsContent>
         </Tabs>
 
-        {coachId && (
-          <ProfileDialog
-            coachId={coachId}
-            open={showProfile}
-            onClose={() => setShowProfile(false)}
-            platformStatus={platformStatus}
-            platformCharges={platformCharges}
-            onOpenFinances={() => setActiveTab("finances")}
-          />
-        )}
+        {coachId && <ProfileDialog coachId={coachId} open={showProfile} onClose={() => setShowProfile(false)} />}
 
         <AlertDialog open={!!unlinkTarget} onOpenChange={(o) => !o && setUnlinkTarget(null)}>
           <AlertDialogContent>
