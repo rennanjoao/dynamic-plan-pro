@@ -1,8 +1,17 @@
 // supabase/functions/notify-coach/index.ts
-// Notifica o coach vinculado ao aluno autenticado por e-mail (via Resend).
+// Notifica o coach vinculado ao aluno autenticado: grava o sino em
+// coach_notifications e, best-effort, envia e-mail (via Resend).
 // Recebe { coachEmail?, studentName, studentEmail, kind, subject?, summary?, data?, photos? }.
 // O campo coachEmail vindo do cliente é IGNORADO — o e-mail correto é buscado
 // server-side via coach_students + profiles (duas queries, sem JOIN com hint).
+//
+// Contrato de resposta: a partir do momento em que tentamos gravar o sino,
+// toda resposta volta com HTTP 200 e um `ok` definitivo (true = sino
+// gravado ou nada a fazer; false = falha real de persistência). O cliente
+// (src/lib/notifyCoach.ts) trata qualquer corpo JSON como final e não
+// repete a chamada — só retenta em erro de transporte (sem corpo algum) —
+// então nunca devolvemos um status não-2xx depois desse ponto: isso faria
+// o cliente reter e re-inserir o sino, duplicando a notificação.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -93,7 +102,9 @@ serve(async (req: Request) => {
       .maybeSingle();
 
     if (!link?.coach_id) {
-      return new Response(JSON.stringify({ ok: false, reason: "no_coach_linked" }), {
+      // Não é uma falha: não há coach ativo vinculado a este aluno agora, e
+      // retentar não muda isso. ok:true encerra o retry no cliente.
+      return new Response(JSON.stringify({ ok: true, reason: "no_coach_linked" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -119,6 +130,7 @@ serve(async (req: Request) => {
       || (body.kind === "anamnesis" ? "Nova anamnese enviada."
           : body.kind === "checkin" ? "Novo check-in enviado."
           : "Nova dúvida.");
+    let bellPersisted = false;
     try {
       await admin.from("coach_notifications").insert({
         coach_id: link.coach_id,
@@ -127,19 +139,25 @@ serve(async (req: Request) => {
         context: contextLabel,
         message: persistedMessage,
       });
+      bellPersisted = true;
     } catch (persistErr) {
       console.warn("[notify-coach] persist coach_notifications falhou", persistErr);
     }
 
+    // Dali em diante, `ok` reflete só se o sino foi gravado — é a garantia
+    // que este endpoint promete. O e-mail é um bônus best-effort: sua falha
+    // não deve fazer o cliente achar que precisa retentar (o que só
+    // duplicaria o INSERT acima) nem reportar a operação como um todo como
+    // falha quando o coach já vai ver o alerta ao abrir o painel.
     if (!coachEmail) {
-      return new Response(JSON.stringify({ ok: false, reason: "coach_without_email" }), {
+      return new Response(JSON.stringify({ ok: bellPersisted, reason: "coach_without_email" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     if (!RESEND_KEY) {
       console.warn("[notify-coach] RESEND_API_KEY ausente — pulando envio");
-      return new Response(JSON.stringify({ ok: false, reason: "no_resend_key" }), {
+      return new Response(JSON.stringify({ ok: bellPersisted, reason: "no_resend_key" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -174,7 +192,7 @@ serve(async (req: Request) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Elite Prime Hub <no-reply@eliteprimehub.com.br>",
+        from: "Elite Prime Hub <noreply@eliteprimehub.com.br>",
         to: [coachEmail],
         reply_to: body.studentEmail || undefined,
         subject,
@@ -185,12 +203,15 @@ serve(async (req: Request) => {
     if (!resendRes.ok) {
       const errText = await resendRes.text();
       console.error("[notify-coach] Resend falhou", resendRes.status, errText);
-      return new Response(JSON.stringify({ ok: false, reason: "resend_failed", status: resendRes.status }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      // HTTP 200 (não 502): o sino já foi gravado acima, então isto não é
+      // mais retryable — um 502 aqui faria o cliente reter e duplicar o
+      // INSERT em coach_notifications sem nunca conseguir enviar o e-mail.
+      return new Response(JSON.stringify({ ok: bellPersisted, emailSent: false, reason: "resend_failed", status: resendRes.status }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    return new Response(JSON.stringify({ ok: true }), {
+    return new Response(JSON.stringify({ ok: true, emailSent: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

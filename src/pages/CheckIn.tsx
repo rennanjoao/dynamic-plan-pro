@@ -353,38 +353,29 @@ export default function CheckIn() {
         newCheckInId = inserted?.id ?? null;
       }
 
+      // O coach (e o e-mail dele) é resolvido inteiramente no servidor, dentro
+      // da function notify-coach, a partir do aluno autenticado — repetir a
+      // mesma consulta a coach_students/profiles aqui só duplicava round-trips
+      // ao banco. Chamamos sempre, sem gate por e-mail: mesmo quando o coach
+      // não tem e-mail de notificação configurado, o sino dele ainda precisa
+      // ser gravado — só o e-mail é opcional, e quem decide isso é o servidor.
       try {
-        const { data: link } = await sb
-          .from("coach_students")
-          .select("coach_id")
-          .eq("student_id", studentId)
-          .eq("status", "active")
-          .maybeSingle();
-        if (link?.coach_id) {
-          const { data: coachProfile } = await sb
-            .from("profiles")
-            .select("notification_email, email, full_name")
-            .eq("user_id", link.coach_id)
-            .maybeSingle();
-          const coachEmail = coachProfile?.notification_email || coachProfile?.email;
-          const anaPayload = (anamnesis?.payload as Record<string, unknown>) || {};
-          const studentName = String(anaPayload.nome ?? "Aluno");
-          const studentEmail = String(anaPayload.email ?? "");
-          if (coachEmail) {
-            void notifyCoach({
-              coachEmail,
-              studentName,
-              studentEmail,
-              kind: "checkin",
-              summary:
-                (data.atencao_urgente === "Sim" ? "⚠️ Atenção prioritária solicitada pelo aluno. " : "") +
-                (mode === "update"
-                  ? "Aluno atualizou o último check-in."
-                  : "Aluno enviou um novo check-in quinzenal."),
-              data: { ...data, ...current_metrics, fotos, _updated: mode === "update" },
-            });
-          }
-        }
+        const anaPayload = (anamnesis?.payload as Record<string, unknown>) || {};
+        const studentName = String(anaPayload.nome ?? "Aluno");
+        const studentEmail = String(anaPayload.email ?? "");
+        void notifyCoach({
+          studentName,
+          studentEmail,
+          kind: "checkin",
+          summary:
+            (data.atencao_urgente === "Sim" ? "⚠️ Atenção prioritária solicitada pelo aluno. " : "") +
+            (mode === "update"
+              ? "Aluno atualizou o último check-in."
+              : "Aluno enviou um novo check-in quinzenal."),
+          data: { ...data, ...current_metrics, fotos, _updated: mode === "update" },
+        }).then((ok) => {
+          if (!ok) console.warn("notifyCoach retornou false (check-in) — coach pode não ter sido notificado.");
+        });
       } catch (notifyErr) {
         console.warn("notifyCoach falhou (check-in)", notifyErr);
       }
@@ -443,8 +434,8 @@ export default function CheckIn() {
 
       toast.success(
         mode === "update"
-          ? "Check-in atualizado e enviado ao seu coach."
-          : "Check-in enviado ao seu coach."
+          ? "Check-in atualizado com sucesso."
+          : "Check-in enviado com sucesso."
       );
       qc.invalidateQueries({ queryKey: ["check-ins", studentId] });
       setTimeout(() => navigate("/evolution"), 1000);

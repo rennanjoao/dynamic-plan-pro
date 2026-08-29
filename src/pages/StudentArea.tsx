@@ -282,7 +282,7 @@ export default function StudentArea() {
     queryFn: async () => {
       const { data: link } = await supabase
         .from("coach_students")
-        .select("coach_id")
+        .select("coach_id, warning_days, critical_days")
         .eq("student_id", userId)
         .eq("status", "active")
         .maybeSingle();
@@ -292,7 +292,9 @@ export default function StudentArea() {
         .select("full_name, pix_key, pix_holder_name, pix_city, billing_alert_days")
         .eq("user_id", link.coach_id)
         .maybeSingle();
-      return coach ? { ...coach, coachId: link.coach_id } : null;
+      return coach
+        ? { ...coach, coachId: link.coach_id, warningDays: link.warning_days, criticalDays: link.critical_days }
+        : null;
     },
   });
 
@@ -799,7 +801,7 @@ export default function StudentArea() {
           const slots: { key: string; node: React.ReactNode; known?: boolean }[] = [
             { key: "billing",   node: billingNode || null, known: billingActive },
             { key: "trainer",   node: <TrainerAlert coachName={coachLink?.full_name} /> },
-            { key: "countdown", node: userId ? <FeedbackCountdownAlert userId={userId} dismissed={dismissedAlerts} onDismiss={dismissAlert} /> : null },
+            { key: "countdown", node: userId ? <FeedbackCountdownAlert userId={userId} dismissed={dismissedAlerts} onDismiss={dismissAlert} warningDays={coachLink?.warningDays ?? undefined} criticalDays={coachLink?.criticalDays ?? undefined} /> : null },
             { key: "updates",   node: <CoachUpdatesCard /> },
           ];
 

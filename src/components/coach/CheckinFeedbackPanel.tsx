@@ -264,7 +264,7 @@ export default function CheckinFeedbackPanel(props: Props) {
       }
 
       const { error: fnErr } = await supabase.functions.invoke("reply-to-student", {
-        body: { studentId, message: msg },
+        body: { studentId, message: msg, context: "Check-in" },
       });
       if (fnErr) throw new Error(`Feedback salvo, mas o envio ao aluno falhou: ${fnErr.message}`);
       notifiedOk = true;

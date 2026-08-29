@@ -459,19 +459,18 @@ const Anamnesis = () => {
         }
       }
 
-      if (coach.email) {
-        await notifyCoach({
-          coachEmail: coach.email,
-          studentName: String(payload.nome ?? ""),
-          studentEmail: String(payload.email ?? ""),
-          kind: "anamnesis",
-          summary: isEditMode
-            ? `Aluno atualizou a própria anamnese (edição ${studentEditCount + 1}/2).`
-            : `Aluno enviou anamnese completa (${Object.keys(payload).length} campos).`,
-          data: { ...payload, genero: gender, tpm: tpm.join(", "), queda_capilar: quedaF.join(", ") },
-          photos: fotos,
-        });
-      }
+      // Sem gate por coach.email: notify-coach sempre resolve o coach (e o
+      // e-mail dele) no servidor e grava o sino mesmo sem e-mail configurado.
+      await notifyCoach({
+        studentName: String(payload.nome ?? ""),
+        studentEmail: String(payload.email ?? ""),
+        kind: "anamnesis",
+        summary: isEditMode
+          ? `Aluno atualizou a própria anamnese (edição ${studentEditCount + 1}/2).`
+          : `Aluno enviou anamnese completa (${Object.keys(payload).length} campos).`,
+        data: { ...payload, genero: gender, tpm: tpm.join(", "), queda_capilar: quedaF.join(", ") },
+        photos: fotos,
+      });
 
       if (isEditMode) {
         showToast("Anamnese atualizada com sucesso.");
