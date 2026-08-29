@@ -1,0 +1,1 @@
+REVOKE ALL ON FUNCTION public.set_checkin_coach_id() FROM PUBLIC, anon, authenticated;
