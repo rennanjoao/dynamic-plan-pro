@@ -73,7 +73,9 @@ serve(async (req) => {
     //    CORREÇÃO: usamos frequency="once" e target_date=today, mas o TrainerAlert
     //    no frontend agora exibe alertas "once" por até 7 dias após created_at,
     //    garantindo que o aluno veja a resposta mesmo abrindo amanhã ou depois.
-    const alertMessage = `💬 Resposta de ${coachName}: ${body.message.trim()}`;
+    const alertMessage = body.context
+      ? `💬 Resposta de ${coachName} (${body.context}): ${body.message.trim()}`
+      : `💬 Resposta de ${coachName}: ${body.message.trim()}`;
     const { error: alertErr } = await admin.from("daily_alerts").insert({
       trainer_id: user.id,
       student_id: body.studentId,

@@ -1,7 +1,13 @@
 import { supabase } from "@/integrations/supabase/client";
 
 export interface NotifyCoachInput {
-  coachEmail: string;
+  /**
+   * Nunca é usado pelo servidor para decidir para quem notificar — a
+   * function notify-coach sempre resolve o coach (e o e-mail dele) a partir
+   * do aluno autenticado, via coach_students/profiles. Mantido só como
+   * campo legado/opcional; não use para decidir se deve chamar notifyCoach.
+   */
+  coachEmail?: string;
   studentName?: string;
   studentEmail?: string;
   kind: "anamnesis" | "checkin" | "question";
@@ -11,7 +17,6 @@ export interface NotifyCoachInput {
   photos?: Record<string, string>;
 }
 
-const NOTIFY_QUEUE_KEY = "notify_coach_pending_queue";
 const MAX_ATTEMPTS = 3;
 const RETRY_DELAYS_MS = [500, 1500]; // entre a 1ª→2ª e a 2ª→3ª tentativa
 
@@ -19,37 +24,39 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Guarda a notificação que falhou mesmo após as retentativas, para não perdê-la
-// silenciosamente. Não é uma fila com sincronização automática — é uma rede de
-// segurança para diagnóstico/reenvio manual (evita que uma falha de rede na
-// função de notificação vire uma notificação de saúde/progresso perdida para sempre).
-function queueFailedNotification(input: NotifyCoachInput) {
-  try {
-    const raw = localStorage.getItem(NOTIFY_QUEUE_KEY);
-    const queue = raw ? JSON.parse(raw) : [];
-    queue.push({ ...input, failedAt: Date.now() });
-    localStorage.setItem(NOTIFY_QUEUE_KEY, JSON.stringify(queue.slice(-20)));
-  } catch {
-    // noop — localStorage indisponível/cheio
-  }
-}
-
+/**
+ * Notifica o coach (sino em coach_notifications + e-mail best-effort) sobre
+ * um evento do aluno.
+ *
+ * A function notify-coach grava o sino do coach já na primeira execução —
+ * antes mesmo de tentar o e-mail — e só então decide se envia (ou não)
+ * o e-mail. Por isso, qualquer resposta com corpo JSON (`ok:true` ou
+ * `ok:false` com um motivo conhecido: sem coach vinculado, coach sem
+ * e-mail, Resend indisponível etc.) é definitiva: repetir a chamada não
+ * mudaria o resultado e só arriscaria duplicar a notificação no sino.
+ * Retentamos aqui SOMENTE quando a chamada não voltou com corpo algum —
+ * exceção de rede/timeout ou a function não respondeu (5xx do runtime) —
+ * porque esses são os únicos casos em que ainda não sabemos se o sino foi
+ * gravado.
+ */
 export async function notifyCoach(input: NotifyCoachInput): Promise<boolean> {
-  if (!input.coachEmail) return false;
-
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
       const { data, error } = await supabase.functions.invoke("notify-coach", {
         body: input,
       });
-      if (!error && (data as { ok?: boolean })?.ok) return true;
-      if (error) console.error(`notify-coach error (tentativa ${attempt}/${MAX_ATTEMPTS})`, error);
+
+      if (data && typeof data === "object") {
+        // Resposta definitiva do servidor — não repetir, seja ok:true ou ok:false.
+        return (data as { ok?: boolean }).ok === true;
+      }
+      if (error) console.error(`notify-coach sem resposta utilizável (tentativa ${attempt}/${MAX_ATTEMPTS})`, error);
     } catch (e) {
-      console.error(`notify-coach exception (tentativa ${attempt}/${MAX_ATTEMPTS})`, e);
+      console.error(`notify-coach exceção de transporte (tentativa ${attempt}/${MAX_ATTEMPTS})`, e);
     }
+
     if (attempt < MAX_ATTEMPTS) await sleep(RETRY_DELAYS_MS[attempt - 1] ?? 1500);
   }
 
-  queueFailedNotification(input);
   return false;
 }

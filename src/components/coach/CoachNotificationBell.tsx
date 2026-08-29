@@ -8,7 +8,6 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
-import { formatDateTimePtBR } from "@/lib/formatDate";
 import { Private, usePrivacyMode } from "@/components/coach/PrivacyMode";
 
 interface Notification {
@@ -74,91 +73,40 @@ export default function CoachNotificationBell() {
 
   useEffect(() => {
     if (!coachId) return;
-    let cancelled = false;
 
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-    let checkinsChannel: ReturnType<typeof supabase.channel> | null = null;
-
-    (async () => {
-      // Carrega a carteira de alunos deste coach ANTES de assinar o canal —
-      // usamos isso para escopar o filtro do Realtime (in.(...)) e o nome do
-      // canal, evitando que o coach receba (e processe) INSERTs de check_ins
-      // de TODOS os alunos da plataforma, não só os seus.
-      const { data: links } = await supabase
-        .from("coach_students")
-        .select("student_id")
-        .eq("coach_id", coachId)
-        .eq("status", "active");
-      if (cancelled) return;
-
-      const myStudentIds = new Set((links ?? []).map((l) => l.student_id));
-      const idsList = (links ?? []).map((l) => l.student_id);
-      // Filtro Realtime via URL tem limite prático de tamanho — acima de ~150
-      // alunos, voltamos a escutar sem filtro de student_id e confiamos no
-      // checkinsChannel ainda no nome do canal e na conferência client-side.
-      const idsFilter = idsList.length > 0 && idsList.length <= 150 ? idsList.join(",") : null;
-      const hasStudents = idsList.length > 0;
-
-      channel = supabase
-        .channel(`coach-notifications-realtime-${coachId}`)
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "coach_notifications", filter: `coach_id=eq.${coachId}` },
-          (payload) => {
-            const n = payload.new as Notification;
-            setNotifications((prev) => [n, ...prev]);
-            const who = privacyRef.current ? "Aluno" : n.student_name;
-            const title =
-              n.context === "Anamnese" ? `📋 ${who} enviou uma anamnese`
-              : n.context === "Check-in" ? `✅ ${who} enviou um check-in`
-              : `Nova dúvida de ${who}`;
-            toast(title, {
-              description: privacyRef.current
-                ? `${n.context}: mensagem oculta (Modo Privacidade)`
-                : `${n.context}: "${n.message.substring(0, 60)}${n.message.length > 60 ? "…" : ""}"`,
-              icon: <Bell className="w-4 h-4 text-primary" />,
-              duration: 6000,
-              action: { label: "Ver", onClick: () => setOpen(true) },
-            });
-          }
-        )
-        .subscribe();
-
-      // Toast transiente de check-ins (feedback ao vivo). A contagem persistente
-      // do sininho já vem via coach_notifications (insert feito no notify-coach),
-      // então NÃO incrementamos badge aqui — evita contagem duplicada.
-      if (hasStudents) {
-        checkinsChannel = supabase
-          .channel(`coach-checkins-realtime-${coachId}`)
-          .on(
-            "postgres_changes",
-            idsFilter
-              ? { event: "INSERT", schema: "public", table: "check_ins", filter: `student_id=in.(${idsFilter})` }
-              : { event: "INSERT", schema: "public", table: "check_ins" },
-            async (payload) => {
-              const studentId = (payload.new as { student_id?: string })?.student_id;
-              if (!studentId || !myStudentIds.has(studentId)) return; // defesa extra
-              const { data: prof } = await supabase
-                .from("profiles")
-                .select("full_name")
-                .eq("user_id", studentId)
-                .maybeSingle();
-              const nome = privacyRef.current ? "Aluno" : (prof?.full_name ?? "Aluno");
-              toast(`✅ ${nome} enviou um check-in!`, {
-                description: `Check-in · Recebido em ${formatDateTimePtBR(new Date())}`,
-                duration: 8000,
-                action: { label: "Ver", onClick: () => setOpen(true) },
-              });
-            }
-          )
-          .subscribe();
-      }
-    })();
+    // Único canal Realtime: coach_notifications já é a fonte persistente de
+    // todo alerta (anamnese, check-in ou dúvida) — notify-coach grava ali
+    // para qualquer um dos três. Não assinamos mais um canal separado em
+    // check_ins: ele emitia um segundo toast para o mesmo check-in (o
+    // "recebido em ...") sempre que este canal também disparava o dele,
+    // e exigia buscar a carteira de alunos só para escopar aquele filtro.
+    const channel = supabase
+      .channel(`coach-notifications-realtime-${coachId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "coach_notifications", filter: `coach_id=eq.${coachId}` },
+        (payload) => {
+          const n = payload.new as Notification;
+          setNotifications((prev) => [n, ...prev]);
+          const who = privacyRef.current ? "Aluno" : n.student_name;
+          const title =
+            n.context === "Anamnese" ? `📋 ${who} enviou uma anamnese`
+            : n.context === "Check-in" ? `✅ ${who} enviou um check-in`
+            : `Nova dúvida de ${who}`;
+          toast(title, {
+            description: privacyRef.current
+              ? `${n.context}: mensagem oculta (Modo Privacidade)`
+              : `${n.context}: "${n.message.substring(0, 60)}${n.message.length > 60 ? "…" : ""}"`,
+            icon: <Bell className="w-4 h-4 text-primary" />,
+            duration: 6000,
+            action: { label: "Ver", onClick: () => setOpen(true) },
+          });
+        }
+      )
+      .subscribe();
 
     return () => {
-      cancelled = true;
-      if (channel) supabase.removeChannel(channel);
-      if (checkinsChannel) supabase.removeChannel(checkinsChannel);
+      supabase.removeChannel(channel);
     };
   }, [coachId]);
 
@@ -229,7 +177,7 @@ export default function CoachNotificationBell() {
         <button
           type="button"
           className="relative p-2 cursor-pointer hover:bg-muted rounded-full transition-colors"
-          aria-label="Caixa de dúvidas"
+          aria-label="Alertas de alunos"
         >
           <Bell className="w-5 h-5 text-foreground" />
           {totalBadge > 0 && (
@@ -242,7 +190,7 @@ export default function CoachNotificationBell() {
       <SheetContent className="w-full sm:max-w-md overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
-            <Inbox className="w-4 h-4 text-primary" /> Dúvidas dos Alunos
+            <Inbox className="w-4 h-4 text-primary" /> Alertas de Alunos
           </SheetTitle>
         </SheetHeader>
 
@@ -253,7 +201,7 @@ export default function CoachNotificationBell() {
             </div>
           ) : notifications.length === 0 ? (
             <div className="text-center py-10 text-sm text-muted-foreground">
-              Nenhuma dúvida pendente
+              Nenhum alerta pendente
             </div>
           ) : (
             notifications.map((n) => (

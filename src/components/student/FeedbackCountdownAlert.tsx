@@ -2,14 +2,22 @@
  * FeedbackCountdownAlert — Avisa o aluno sobre o próximo feedback.
  * Aparece nos mesmos slots dos demais alertas (StudentArea).
  *
- * Regras (a contagem usa o último check-in ou, se inexistente, a anamnese):
+ * A contagem usa o último check-in ou, se inexistente, a anamnese, e os
+ * limiares (`warningDays`/`criticalDays`) são os MESMOS que o coach
+ * configurou para este aluno em coach_students — os mesmos que já valem
+ * para o badge "Crítico"/"Atenção" no dashboard do coach (useCoachStudents)
+ * e para os e-mails de lembrete (checkin-reminder-emails). Sem isso, um
+ * aluno com cadência customizada (ex.: acompanhamento semanal) via este
+ * card mostrando prazos fixos de 13/14/16/17 dias, fora de sincronia com o
+ * que o coach e os e-mails já mostravam para o mesmo aluno.
+ *
+ * Regras (com os defaults de 14/16 dias, iguais aos do resto do app):
  *  - 13 dias  → pré-aviso (azul)
  *  - 14 dias  → dia do feedback (verde)
  *  - 15-16    → atrasado leve (laranja)
  *  - ≥17      → atrasado crítico (vermelho)
  */
 
-import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -19,6 +27,10 @@ interface Props {
   userId: string;
   dismissed: string[];
   onDismiss: (id: string) => void;
+  /** Vem de coach_students.warning_days (via coachLink em StudentArea). Default 14, igual ao resto do app. */
+  warningDays?: number;
+  /** Vem de coach_students.critical_days (via coachLink em StudentArea). Default 16, igual ao resto do app. */
+  criticalDays?: number;
 }
 
 function daysSince(iso: string | null | undefined): number | null {
@@ -28,8 +40,15 @@ function daysSince(iso: string | null | undefined): number | null {
   return Math.floor((Date.now() - t) / 86_400_000);
 }
 
-export default function FeedbackCountdownAlert({ userId, dismissed, onDismiss }: Props) {
+export default function FeedbackCountdownAlert({ userId, dismissed, onDismiss, warningDays, criticalDays }: Props) {
   const navigate = useNavigate();
+
+  // Mesmos defaults usados em useCoachStudents.ts (dashboard do coach) e em
+  // checkin-reminder-emails (e-mails D-1/D0/D+2) — se o coach não customizou
+  // nada para este aluno, os três sistemas concordam em 14/16.
+  const warning = warningDays ?? 14;
+  const critical = criticalDays ?? 16;
+  const preDay = Math.max(warning - 1, 1);
 
   const { data } = useQuery({
     queryKey: ["student-feedback-countdown", userId],
@@ -66,14 +85,17 @@ export default function FeedbackCountdownAlert({ userId, dismissed, onDismiss }:
   // Conta a partir do último feedback OU da anamnese se ainda não houver feedback.
   const days = daysSince(data.lastCheckin) ?? daysAna;
 
-  // Renderização positiva: se ainda não é dia de feedback (days < 13) mas o
-  // aluno tem sequência (streak >= 2) e já está na reta final (>= 10 dias),
-  // reforça o gatilho de "não quebrar a série" antes de virar cobrança.
-  if (days < 13) {
+  // Renderização positiva: se ainda não é dia de feedback (days < preDay) mas
+  // o aluno tem sequência (streak >= 2) e já está na reta final, reforça o
+  // gatilho de "não quebrar a série" antes de virar cobrança. A "reta final"
+  // é sempre 3 dias antes do pré-aviso (10 quando warning=14, preDay=13 —
+  // igual ao comportamento original; escala junto se o coach customizar).
+  if (days < preDay) {
     return (
       <StreakEncouragement
         userId={userId}
         days={days}
+        retaFinalThreshold={Math.max(preDay - 3, 1)}
         dismissed={dismissed}
         onDismiss={onDismiss}
       />
@@ -83,7 +105,7 @@ export default function FeedbackCountdownAlert({ userId, dismissed, onDismiss }:
   // Bucket
   type Bucket = "pre" | "today" | "late" | "critical";
   const bucket: Bucket =
-    days === 13 ? "pre" : days === 14 ? "today" : days <= 16 ? "late" : "critical";
+    days === preDay ? "pre" : days === warning ? "today" : days <= critical ? "late" : "critical";
 
   // ID por bucket + dia para o dismiss ser "do dia"
   const todayKey = new Date().toISOString().slice(0, 10);
@@ -119,7 +141,7 @@ export default function FeedbackCountdownAlert({ userId, dismissed, onDismiss }:
           Icon: CalendarCheck,
           title: "Feedback pendente",
           body:
-            `Seu feedback está ${days - 14} dia(s) atrasado. Sem essa atualização fica mais difícil acompanhar sua evolução — envie assim que possível para mantermos o plano calibrado.`,
+            `Seu feedback está ${days - warning} dia(s) atrasado. Sem essa atualização fica mais difícil acompanhar sua evolução — envie assim que possível para mantermos o plano calibrado.`,
           cta: "Enviar feedback",
           cls: "bg-orange-500/10 border-orange-500/25 text-orange-700 dark:text-orange-300",
           iconCls: "text-orange-500",
@@ -174,9 +196,9 @@ export default function FeedbackCountdownAlert({ userId, dismissed, onDismiss }:
  * Usa a função `get_checkin_streak` do banco.
  */
 function StreakEncouragement({
-  userId, days, dismissed, onDismiss,
+  userId, days, retaFinalThreshold, dismissed, onDismiss,
 }: {
-  userId: string; days: number; dismissed: string[]; onDismiss: (id: string) => void;
+  userId: string; days: number; retaFinalThreshold: number; dismissed: string[]; onDismiss: (id: string) => void;
 }) {
   const { data: streak } = useQuery({
     queryKey: ["checkin-streak", userId],
@@ -189,7 +211,7 @@ function StreakEncouragement({
     },
   });
 
-  if (!streak || streak < 2 || days < 10) return null;
+  if (!streak || streak < 2 || days < retaFinalThreshold) return null;
   const todayKey = new Date().toISOString().slice(0, 10);
   const id = `fb-streak-${todayKey}`;
   if (dismissed.includes(id)) return null;
