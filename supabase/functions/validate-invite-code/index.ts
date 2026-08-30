@@ -40,6 +40,7 @@ serve(async (req) => {
     }
     if (coach?.coach_id) {
       return new Response(JSON.stringify({
+        valid: true,
         coach_id: coach.coach_id,
         coach_name: coach.coach_name,
         notification_email: coach.notification_email,
