@@ -41,12 +41,14 @@ export interface StudentStatus {
   /** Situação do Radar de Evolução (coach_insights); null se o aluno ainda não tem leitura. */
   insightSituacao: CoachInsightSituacao | null;
   /**
-   * true quando o coach ainda NÃO salvou nenhum protocolo pra esse aluno.
-   * Nesse estado o aluno só fez a anamnese — o "radar" de check-in não
-   * começou a contar ainda, então alertLevel fica forçado em "ok" e a UI
-   * deve mostrar "Fez anamnese" em vez de "Em dia"/dias sem feedback.
+   * true enquanto o ALUNO ainda não abriu nenhum protocolo pela primeira vez
+   * (ou o coach nem salvou protocolo ainda) e nunca enviou check-in. Nesse
+   * estado o "radar" de feedback não começou a contar, então alertLevel fica
+   * forçado em "ok" e a UI mostra "Aguardando abrir plano" em vez de
+   * "Em dia"/dias sem feedback.
    */
   awaitingFirstProtocol: boolean;
+
 }
 
 export interface PagedStudentsResult {
