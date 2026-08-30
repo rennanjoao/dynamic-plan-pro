@@ -78,6 +78,8 @@ export const ANAMNESIS_SECTIONS: AnamnesisSection[] = [
   { id: "objetivos", title: "Para onde quer chegar", fields: [
     { key: "meta_prioridade", label: "Prioridade", type: "choices", options: ["Hipertrofia", "Perda de gordura", "Recomposição", "Performance", "Saúde"] },
     { key: "objetivos", label: "Objetivos detalhados" },
+    { key: "musculo_enfase", label: "Qual músculo você quer dar mais ênfase?" },
+    { key: "shape_inspiracao", label: "Anexe a foto de um shape que admira (Opcional)", type: "image" },
   ]},
   { id: "rotina", title: "Sua rotina real", fields: [
     { key: "profissao", label: "Profissão e horário" },
@@ -89,6 +91,9 @@ export const ANAMNESIS_SECTIONS: AnamnesisSection[] = [
     { key: "anos_treino", label: "Anos treinando" },
     { key: "nivel_treino", label: "Nível", type: "choices", options: ["Iniciante", "Intermediário", "Avançado"] },
     { key: "atividades", label: "Atividades atuais" },
+    { key: "descricao_treino", label: "Descreva seu treino atual (exercícios, dias, séries e repetições)" },
+    { key: "dificuldade_treino", label: "Qual a sua maior dificuldade nos treinos?" },
+    { key: "musculo_facilidade", label: "Qual músculo você acha que desenvolve com mais facilidade?" },
     { key: "horarios_treino", label: "Horários dos treinos" },
     { key: "dias_treino", label: "Dias/semana" },
     { key: "duracao_sessao", label: "Duração máxima" },
@@ -108,6 +113,7 @@ export const ANAMNESIS_SECTIONS: AnamnesisSection[] = [
     { key: "suplementacao", label: "Suplementação atual" },
   ]},
   { id: "alimentacao", title: "Alimentação & digestão", fields: [
+    { key: "dificuldade_alimentacao", label: "Qual a sua maior dificuldade na alimentação?" },
     { key: "hidratacao", label: "Água/dia", type: "choices", options: ["≤1L", "2L", "3L", "4L", "5L+"] },
     { key: "tolerancia_volume", label: "Tolerância ao volume alimentar", type: "choices", options: ["Alta", "Moderada", "Baixa", "Muito baixa"] },
     { key: "recordatorio", label: "Recordatório alimentar" },
@@ -162,11 +168,3 @@ export function extractBaseline(payload: Record<string, unknown>) {
   }
   return b;
 }
-
-// Uploads de fotos/exames agora vão para o bucket PRIVADO `student-media`
-// (ver `src/lib/studentMedia.ts`). O Cloudinary foi removido: o preset era
-// unsigned e entregava URLs públicas e adivinháveis.
-
-// Envio de email ao coach agora é feito exclusivamente pela edge function
-// `notify-coach` (Resend). As funções legadas Web3Forms foram removidas
-// para evitar entrega a destinatários hardcoded.
