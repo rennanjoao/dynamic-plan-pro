@@ -19,6 +19,7 @@ import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
 import { ExerciseSubstitutesPopover } from "@/components/coach/ExerciseSubstitutesPopover";
 import { CoachExerciseLibraryDialog, type LibraryPickItem } from "@/components/coach/CoachExerciseLibraryDialog";
 import WorkoutPeriodizationEditor from "../WorkoutPeriodizationEditor";
+import { WeeklyVolumeDashboard } from "./WeeklyVolumeDashboard";
 import { ProtocolPayload, makeEmptyExercise, isMobilityExercise, isLegacyMobilityExercise } from "@/lib/protocolSchema";
 import { applyDayExercisesChange, buildExercisesWithLibraryAdditions } from "@/lib/workoutExerciseOps";
 import { normalizeCarb, cycleCarb, CARB_LABEL, DAY_KEYS } from "@/lib/weekCycle";
@@ -268,6 +269,8 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
           })}
         </div>
       </Card>
+
+      <WeeklyVolumeDashboard workouts={payload.workouts} weekDays={weekDays} />
 
       {payload.workouts.map((day, di) => {
       const { strength: strengthList, mobility: mobilityList } = splitExercises(day);
