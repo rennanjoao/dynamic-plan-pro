@@ -94,24 +94,25 @@ export function AlertBadge({
   lastFeedback?: string | null;
   awaitingFirstProtocol?: boolean;
 }) {
-  // Aluno fez a anamnese mas o coach ainda não salvou o 1º protocolo dele —
-  // não existe "radar" ainda pra esse aluno, então nunca é crítico/atenção
-  // aqui, independente de quantos dias já se passaram.
+  // O aluno ainda não abriu o protocolo pela primeira vez (e nunca enviou
+  // check-in) — não existe "radar" ainda pra esse aluno, então nunca é
+  // crítico/atenção aqui, independente de quantos dias já se passaram.
   if (awaitingFirstProtocol) {
     const badge = (
       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border cursor-default ${STATUS_PILL.ok}`}>
-        Fez anamnese
+        Aguardando abrir plano
       </span>
     );
     return (
       <Tooltip>
         <TooltipTrigger asChild>{badge}</TooltipTrigger>
         <TooltipContent side="top" className="max-w-[240px] text-xs leading-relaxed">
-          Anamnese preenchida. O radar de check-in só começa a contar a partir do 1º protocolo salvo pra esse aluno.
+          O radar de check-in só começa a contar a partir do momento em que o aluno abre o protocolo novo pela primeira vez.
         </TooltipContent>
       </Tooltip>
     );
   }
+
 
   const map: Record<AlertLevel, { label: string; cls: string }> = {
     critical: { label: "Crítico", cls: STATUS_PILL.critical },
