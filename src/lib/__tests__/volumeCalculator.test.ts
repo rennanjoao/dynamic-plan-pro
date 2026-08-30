@@ -65,6 +65,66 @@ describe("extractHardSetsCount", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
+// 1.1 extractHardSetsCount — filtro fisiológico (reps) e notação "+"
+// ─────────────────────────────────────────────────────────────────────────
+
+describe("extractHardSetsCount — filtro neural/lixo (campo reps)", () => {
+  const zeroCases: Array<[string, string]> = [
+    ["4", "aquecimento"],
+    ["4", "warmup"],
+    ["4", "warm-up"],
+    ["3", "feeder"],
+    ["3", "reconhecimento"],
+    ["4", "teste de carga"],
+    ["2", "tentativa"],
+  ];
+
+  it.each(zeroCases)("zera HSE quando reps='%s' contém termo de sensação/abertura ('%s')", (sets, reps) => {
+    expect(extractHardSetsCount(sets, reps)).toBe(0);
+  });
+
+  it("NÃO zera quando reps menciona RIR ou RPE (são sinal de hard set efetivo, não de aquecimento)", () => {
+    expect(extractHardSetsCount("3", "8-10 RIR 2")).toBe(3);
+    expect(extractHardSetsCount("4", "RPE 8")).toBe(4);
+  });
+});
+
+describe("extractHardSetsCount — peso fracionado para força pura/neural", () => {
+  it("aplica STRENGTH_WORK_HSE_WEIGHT (0.3) quando reps indica XRM", () => {
+    expect(extractHardSetsCount("4", "3RM")).toBeCloseTo(4 * 0.3);
+    expect(extractHardSetsCount("2", "1RM")).toBeCloseTo(2 * 0.3);
+  });
+
+  it("aplica STRENGTH_WORK_HSE_WEIGHT (0.3) quando reps indica força pura", () => {
+    expect(extractHardSetsCount("3", "força")).toBeCloseTo(3 * 0.3);
+  });
+
+  it("não confunde palavras contendo 'força' como substring (ex.: 'reforça') com força pura", () => {
+    expect(extractHardSetsCount("4", "8-10 reforça o padrão motor")).toBe(4);
+  });
+});
+
+describe("extractHardSetsCount — notação warmup+hardsets ('+')", () => {
+  it("descarta os segmentos anteriores e usa apenas o último número (ex.: '1+3' -> 3)", () => {
+    expect(extractHardSetsCount("1+3")).toBe(3);
+    expect(extractHardSetsCount("2+2+3")).toBe(3);
+  });
+
+  it("respeita um '0' explícito no último segmento em vez de cair no fallback", () => {
+    expect(extractHardSetsCount("3+0")).toBe(0);
+  });
+
+  it("cai no número líder da string inteira quando o '+' é usado para anexar uma nota sem número (ex.: dropset)", () => {
+    expect(extractHardSetsCount("3x10 + dropset até falha")).toBe(3);
+    expect(extractHardSetsCount("4 + rest-pause")).toBe(4);
+  });
+
+  it("combina notação '+' com o peso fracionado de força quando aplicável", () => {
+    expect(extractHardSetsCount("1+3", "3RM")).toBeCloseTo(3 * 0.3);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
 // 2. resolveExerciseMuscleGroups — cascata library -> classificador por nome
 // ─────────────────────────────────────────────────────────────────────────
 
