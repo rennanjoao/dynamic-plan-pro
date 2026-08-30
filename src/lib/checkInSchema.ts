@@ -164,9 +164,9 @@ export const CHECKIN_HIGHLIGHT_KEYS = [
  *
  *  1. `atencao_urgente === "Sim"` → 'alerta' imediato.
  *  2. Senão, contam-se as respostas de CHECKIN_HIGHLIGHT_KEYS:
- *     - 2+ respostas no PIOR valor da escala          → 'alerta'
+ *     - 2+ respostas no PIOR valor da escala         → 'alerta'
  *     - 1 resposta no pior valor OU 2+ no intermediário → 'atencao'
- *     - caso contrário                                 → 'ok'
+ *     - caso contrário                                  → 'ok'
  *  3. Sem check-in → null (neutro, não renderiza badge).
  *
  * `anamnesisPayload` é aceito para uso futuro (contexto de linha de base);
@@ -225,12 +225,12 @@ export const CHECKIN_SECTIONS: SectionDef[] = [
     id: "dieta",
     title: "02 · Dieta e adesão",
     fields: [
-      { key: "dieta_adesao",      label: "Seguiu o protocolo?",           type: "choices", options: ["100%", "Maioria", "Desvios"] },
+      { key: "dieta_adesao",      label: "Seguiu o protocolo?",            type: "choices", options: ["100%", "Maioria", "Desvios"] },
       { key: "refeicoes_fora",    label: "Refeições fora de casa",        type: "choices", options: ["Nenhuma", "1 ou 2", "3+"] },
-      { key: "agua",              label: "Água diária (média)",           type: "choices", options: ["≤2L", "3L", "4L+"] },
-      { key: "carbo_sensacao",    label: "Sensação após carbo alto",      type: "choices", options: ["Melhor", "Igual", "Pior", "Não fiz"] },
+      { key: "agua",              label: "Água diária (média)",            type: "choices", options: ["≤2L", "3L", "4L+"] },
+      { key: "carbo_sensacao",    label: "Sensação após carbo alto",       type: "choices", options: ["Melhor", "Igual", "Pior", "Não fiz"] },
       { key: "compulsao_estado",  label: "Episódios de compulsão",       type: "choices", options: ["Nenhum", "Melhorou", "Igual", "Piorou"] },
-      { key: "dieta_dificuldade", label: "Você tem dificuldade com alguma refeição? (Ex: horários, volume, estufamento, paladar)", type: "textarea", placeholder: "Descreva brevemente, se houver…" },
+      { key: "dieta_dificuldade", label: "Quais as maiores dificuldades na dieta?", type: "textarea", placeholder: "Ex: horários, volume de comida, estufamento, paladar, vontade de doce…" },
       {
         key: "compulsao_detalhes", label: "Intensidade / gatilho (se houver)", type: "text", placeholder: "Ex: Ansiedade à noite…",
         condition: (ctx) => answeredButNot(ctx, "compulsao_estado", "Nenhum"),
@@ -277,19 +277,19 @@ export const CHECKIN_SECTIONS: SectionDef[] = [
     id: "treino_sono",
     title: "04 · Treino e sono",
     fields: [
-      { key: "treino_falta",   label: "Faltou algum treino?",             type: "choices", options: ["Nenhum", "1 dia", "2+ dias"] },
-      { key: "treino_perf",    label: "Pump e desempenho",                type: "choices", options: ["Excelente", "Médio", "Ruim"] },
-      { key: "treino_dificuldade", label: "Você teve alguma dificuldade com os treinos?", type: "textarea", placeholder: "Ex: dor, falta de tempo, exercício difícil, queda de desempenho…" },
+      { key: "treino_falta",   label: "Faltou algum treino?",              type: "choices", options: ["Nenhum", "1 dia", "2+ dias"] },
+      { key: "treino_perf",    label: "Pump e desempenho",                 type: "choices", options: ["Excelente", "Médio", "Ruim"] },
+      { key: "treino_dificuldade", label: "Quais as maiores dificuldades no treino?", type: "textarea", placeholder: "Ex: dor, falta de tempo, exercício difícil, queda de desempenho, fadiga…" },
       { key: "aerobico_orientacoes", label: "Está seguindo as orientações do aeróbico?", type: "choices", options: ["Sim", "Não"] },
       {
         key: "aerobico_obs", label: "Explique o que dificultou o aeróbico", type: "textarea", placeholder: "Descreva brevemente…",
         condition: (ctx) => answeredIs(ctx, "aerobico_orientacoes", "Não"),
       },
       { key: "treino_horario", label: "Horário de treino p/ próxima quinzena", type: "text", placeholder: "Ex: 19:30" },
-      { key: "sono_disp",        label: "Sono",                             type: "choices", options: ["Ótimo", "Regular", "Ruim"] },
-      { key: "sono_como_acorda", label: "Como acorda?",                     type: "choices", options: ["Descansado", "Com disposição", "Cansado", "Com dor"] },
-      { key: "sono_acorda",      label: "Acorda à noite?",                  type: "choices", options: ["Não", "1x", "2x+"] },
-      { key: "stress",         label: "Stress geral",                     type: "choices", options: ["Baixo", "Médio", "Alto"] },
+      { key: "sono_disp",        label: "Sono",                            type: "choices", options: ["Ótimo", "Regular", "Ruim"] },
+      { key: "sono_como_acorda", label: "Como acorda?",                    type: "choices", options: ["Descansado", "Com disposição", "Cansado", "Com dor"] },
+      { key: "sono_acorda",      label: "Acorda à noite?",                 type: "choices", options: ["Não", "1x", "2x+"] },
+      { key: "stress",         label: "Stress geral",                      type: "choices", options: ["Baixo", "Médio", "Alto"] },
     ],
   },
   {
@@ -307,17 +307,17 @@ export const CHECKIN_SECTIONS: SectionDef[] = [
     id: "final",
     title: "06 · Finalização",
     fields: [
-      { key: "aparencia",          label: "Notou melhora no corpo?",           type: "choices", options: ["Melhorou", "Igual", "Piorou"] },
+      { key: "aparencia",          label: "Notou melhora no corpo?",            type: "choices", options: ["Melhorou", "Igual", "Piorou"] },
       { key: "meta_ainda_valida",  label: "Sua meta ainda é a mesma da Anamnese?", type: "choices", options: ["Sim", "Mudou"] },
       {
         key: "aparencia_desc", label: "Descreva brevemente", type: "text", placeholder: "Definição, retenção…",
         condition: (ctx) => answeredButNot(ctx, "aparencia", "Igual"),
       },
-      { key: "temp_d1",            label: "Temp. D1 (manhã)",                  type: "number", step: "0.01", unit: "°C", half: true },
-      { key: "temp_d2",            label: "Temp. D2",                          type: "number", step: "0.01", unit: "°C", half: true },
-      { key: "temp_d3",            label: "Temp. D3",                          type: "number", step: "0.01", unit: "°C", half: true },
-      { key: "temp_d4",            label: "Temp. D4",                          type: "number", step: "0.01", unit: "°C", half: true },
-      { key: "temp_d5",            label: "Temp. D5",                          type: "number", step: "0.01", unit: "°C", half: true },
+      { key: "temp_d1",            label: "Temp. D1 (manhã)",                   type: "number", step: "0.01", unit: "°C", half: true },
+      { key: "temp_d2",            label: "Temp. D2",                           type: "number", step: "0.01", unit: "°C", half: true },
+      { key: "temp_d3",            label: "Temp. D3",                           type: "number", step: "0.01", unit: "°C", half: true },
+      { key: "temp_d4",            label: "Temp. D4",                           type: "number", step: "0.01", unit: "°C", half: true },
+      { key: "temp_d5",            label: "Temp. D5",                           type: "number", step: "0.01", unit: "°C", half: true },
       { key: "exame_obs",          label: "Algo novo em exames que o coach deveria saber?", type: "text", placeholder: "Se anexou ou fez exame recente — resultado alterado, orientação médica…" },
       { key: "observacoes",        label: "Observações livres pro coach",       type: "textarea" },
     ],
