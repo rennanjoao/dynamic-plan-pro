@@ -17,11 +17,68 @@ type WorkoutDay = ProtocolPayload["workouts"][number];
 // 1. REGEX BLINDADA — EXTRAÇÃO DIRETA DE SÉRIES
 // ─────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────
+// 1.1 FILTRO NEURAL/LIXO — palavras que zeram o HSE (sem dano tecidual real)
+// ─────────────────────────────────────────────────────────────────────────
+
+// Sets de "sensação"/abertura: não geram estresse metabólico nem tensão
+// mecânica relevante. Zero absoluto, sempre.
+const ZERO_HSE_PATTERN =
+  /\b(aquecimento|warm[\s-]?up|feeder|reconhecimento|teste|tentativa)\b/i;
+
+// Trabalho de força pura / neural (1 a ~5RM, testes de força). Não é zero
+// fisiológico puro (ver Parte 1 da auditoria), mas também não é hipertrofia
+// plena — recebe peso fracionado configurável em vez de eliminar o dado.
+const STRENGTH_WORK_PATTERN = /\b(\d+\s*rm|for[çc]a)\b/i;
+
+// Peso fracionado aplicado a séries de força pura/neurais dentro do MRV de
+// hipertrofia. Ajustável conforme a filosofia do app (0 = zera como antes).
+export const STRENGTH_WORK_HSE_WEIGHT = 0.3;
+
 /**
- * Extrai o número de séries válidas de forma infalível.
- * - Lê números isolados (ex: "4", "100")
- * - Lê notações de soma (ex: "2+3" pega o total ou a última parte)
- * - Respeita o filtro de repetições (ex: se reps for 1RM, zera o HSE)
+ * Núcleo "nullable" da extração: distingue explicitamente "não havia número
+ * nenhum" (null) de "havia um número e ele era 0" (0) — essa diferença
+ * importa para a notação "+" abaixo, onde um segmento sem dígito deve
+ * disparar fallback, mas um segmento com "0" explícito deve ser respeitado.
+ *
+ * Sempre conservador: nunca superestima.
+ * - Ignora tudo que não seja o número-líder (ex.: "4x12" -> 4, "10x8" -> 10)
+ * - Ranges pegam o menor valor (ex.: "3-4" ou "3 a 4 séries" -> 3)
+ * - Decimais são arredondados para baixo (ex.: "3.5" -> 3), aceitando
+ *   vírgula ou ponto como separador (padrão BR)
+ * - Notações sem número líder válido (ex.: "x5") retornam null — dado
+ *   ambíguo não deve virar volume contabilizado nem disparar suposições
+ */
+function tryExtractLeadingSetsNumber(value: string): number | null {
+  const trimmed = value.trim();
+  const match = trimmed.match(/^(\d+(?:[.,]\d+)?)/);
+  if (!match) return null;
+
+  const parsed = parseFloat(match[1].replace(",", "."));
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+
+  return Math.floor(parsed);
+}
+
+/** Wrapper conveniente para os caminhos que só precisam de um número (0 = "nada encontrado"). */
+function extractLeadingSetsNumber(value: string): number {
+  return tryExtractLeadingSetsNumber(value) ?? 0;
+}
+
+/**
+ * Extrai o número de HARD SETS (já ponderados fisiologicamente) de forma
+ * infalível a partir do texto livre do coach.
+ *
+ * Ordem de resolução:
+ *  1. Filtro neural/lixo no campo `reps` → aquecimento/feeder/reconhecimento
+ *     zeram o HSE incondicionalmente (sem dano tecidual = sem volume).
+ *  2. Força pura / neural (XRM, "força") → conta, mas com peso fracionado
+ *     (STRENGTH_WORK_HSE_WEIGHT), pois há tensão mecânica real, ainda que
+ *     subótima para hipertrofia.
+ *  3. Notação "aquecimento + hard sets" no campo `sets` (ex.: "1+3",
+ *     "1+1+3") → descarta todos os segmentos exceto o ÚLTIMO, que é
+ *     sempre o hard set de verdade nessa convenção.
+ *  4. Extração numérica líder padrão (ranges, decimais, "NxM", etc.).
  */
 export function extractHardSetsCount(
   rawSets: string | null | undefined,
@@ -29,31 +86,34 @@ export function extractHardSetsCount(
 ): number {
   if (!rawSets) return 0;
 
-  // Filtro de segurança fisiológica: se for aquecimento ou 1RM/força pura, o HSE é 0
-  if (rawReps) {
-    const r = rawReps.toLowerCase();
-    if (r.includes("aquecimento") || r.includes("warmup")) return 0;
-    if (/\b[1-3]\s*rm\b/.test(r) || /\bfor[çc]a\b/.test(r)) return 0;
-  }
+  // 1) Filtro de segurança fisiológica: sets de sensação/abertura são 0 HSE.
+  const reps = (rawReps ?? "").toLowerCase();
+  if (ZERO_HSE_PATTERN.test(reps)) return 0;
+
+  // 2) Peso fracionado para força pura/neural (não é zero, não é hard set cheio).
+  const strengthWeight = STRENGTH_WORK_PATTERN.test(reps) ? STRENGTH_WORK_HSE_WEIGHT : 1;
 
   const cleanSets = String(rawSets).trim();
+  if (!cleanSets) return 0;
 
-  // Se houver uma expressão com "+" (ex: 2+3), somamos os valores ou pegamos o total
+  // 3) Notação "warmup+hard sets" (ex.: "1+3" → descarta o 1, fica com o 3).
+  //    Convenção: o ÚLTIMO segmento é sempre o hard set real — MAS só quando
+  //    ele de fato começa com um número. Se o coach usou o "+" para anexar
+  //    uma nota descritiva (ex.: "3x10 + dropset até falha"), o último
+  //    segmento não tem dígito líder: nesse caso caímos para o número líder
+  //    da string inteira, em vez de zerar um exercício que claramente tem
+  //    hard sets prescritos.
   if (cleanSets.includes("+")) {
-    const parts = cleanSets.split("+").map(p => {
-      const m = p.trim().match(/(\d+(?:\.\d+)?)/);
-      return m ? parseFloat(m[1]) : 0;
-    });
-    const sum = parts.reduce((acc, curr) => acc + curr, 0);
-    if (sum > 0) return sum;
+    const segments = cleanSets.split("+");
+    const lastSegment = segments[segments.length - 1];
+    const lastSegmentSets = tryExtractLeadingSetsNumber(lastSegment);
+    const hardSets = lastSegmentSets !== null ? lastSegmentSets : extractLeadingSetsNumber(cleanSets);
+    return hardSets * strengthWeight;
   }
 
-  // Extração universal de qualquer número na string de séries (ex: "4x12", "10", "100 séries")
-  const match = cleanSets.match(/(\d+(?:\.\d+)?)/);
-  if (!match) return 0;
-
-  const parsed = parseFloat(match[1]);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  // 4) Caminho padrão: número líder, com postura conservadora em ranges/decimais.
+  const hardSets = extractLeadingSetsNumber(cleanSets);
+  return hardSets * strengthWeight;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
