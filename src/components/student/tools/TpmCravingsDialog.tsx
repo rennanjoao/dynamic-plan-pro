@@ -2,7 +2,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Heart, Flame, AlertTriangle } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Props { trigger?: React.ReactNode }
 
@@ -184,7 +183,7 @@ export default function TpmCravingsDialog({ trigger }: Props) {
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-md bg-zinc-950 border-white/10 rounded-2xl p-0 overflow-hidden flex flex-col max-h-[85vh]">
+      <DialogContent className="max-w-md bg-zinc-950 border-white/10 rounded-2xl p-0 overflow-hidden flex flex-col max-h-[85dvh]">
         
         <DialogHeader className="p-6 pb-4 border-b border-white/5 bg-pink-500/10 shrink-0">
           <DialogTitle className="flex items-center gap-2 text-xl font-black italic uppercase text-pink-500">
@@ -195,7 +194,7 @@ export default function TpmCravingsDialog({ trigger }: Props) {
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 min-h-0 p-4">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4" style={{ WebkitOverflowScrolling: "touch" }}>
           <div className="space-y-3">
             {CRAVING_OPTIONS.map((opt, i) => (
               <Card key={i} className="bg-white/5 border-white/10 p-3 hover:border-pink-500/30 transition-colors">
@@ -218,7 +217,7 @@ export default function TpmCravingsDialog({ trigger }: Props) {
               </Card>
             ))}
           </div>
-        </ScrollArea>
+        </div>
 
         <div className="p-4 bg-red-500/10 border-t border-red-500/20 shrink-0">
           <div className="flex items-start gap-2.5 text-xs text-red-200">
