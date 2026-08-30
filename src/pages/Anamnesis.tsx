@@ -461,6 +461,21 @@ const Anamnesis = () => {
         }
       }
 
+      // Acende o Radar de Evolução já no 1º envio da anamnese: a IA lê os dados
+      // e, se houver pontos de atenção clínicos, o coach vê 🟡/🔴 na lista.
+      // Roda depois do vínculo aluno→coach (senão a function pula por "sem_coach").
+      if (finalAnamnesisId) {
+        try {
+          await supabase.functions.invoke("coach-insight-summary", {
+            body: { studentId },
+          });
+        } catch (radarErr) {
+          console.warn("coach-insight-summary falhou ao disparar (não bloqueia o cadastro)", radarErr);
+        }
+      }
+
+
+
       // Sem gate por coach.email: notify-coach sempre resolve o coach (e o
       // e-mail dele) no servidor e grava o sino mesmo sem e-mail configurado.
       await notifyCoach({
