@@ -248,15 +248,16 @@ export function useCoachStudentsPaged(
         const critical = link.critical_days ?? 16;
         const interval = link.feedback_interval_days ?? feedbackIntervalDays ?? 14;
         const lastFeedback = lastCiByStudent.get(sid) ?? null;
-        const firstProtocolAt = firstProtocolByStudent.get(sid) ?? null;
+        const firstOpenedAt = firstViewByStudent.get(sid) ?? null;
 
-        // Sem NENHUM protocolo salvo ainda, o aluno só fez a anamnese — o
-        // radar não começou a contar, não pode aparecer como crítico.
-        const awaitingFirstProtocol = !firstProtocolAt;
-        // Assim que existe protocolo, a referência pra contar dias é o
-        // check-in mais recente (se já fez algum) ou, na falta dele, a
-        // data do próprio 1º protocolo — nunca o sentinela de "nunca fez".
-        const referenceDate = lastFeedback ?? firstProtocolAt;
+        // O radar só liga quando o aluno ABRIU o protocolo pela primeira vez
+        // (ou quando ele já enviou algum check-in, caso de alunos antigos).
+        // Antes disso nunca é crítico/atenção.
+        const awaitingFirstProtocol = !firstOpenedAt && !lastFeedback;
+        // Referência pra contar dias: último check-in ou, na falta dele, a
+        // primeira abertura do protocolo pelo aluno.
+        const referenceDate = lastFeedback ?? firstOpenedAt;
+
         const name =
           sp?.full_name ||
           pp?.full_name ||
