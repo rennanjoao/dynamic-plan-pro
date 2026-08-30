@@ -39,6 +39,9 @@ const sb: any = supabase;
 
 export function useStudentData(explicitStudentId?: string) {
   const qc = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const previewAs = searchParams.get("previewAs");
+  const draftPreview = searchParams.get("draftPreview") === "1";
 
   const { data: sessionUserId, isLoading: sessionLoading } = useQuery({
     queryKey: ["session-user-id"],
@@ -49,7 +52,7 @@ export function useStudentData(explicitStudentId?: string) {
     staleTime: 5 * 60_000,
   });
 
-  const studentId = explicitStudentId ?? sessionUserId ?? null;
+  const studentId = explicitStudentId ?? previewAs ?? sessionUserId ?? null;
 
   const anamnesisQ = useQuery({
     queryKey: ["anamnesis", studentId],
