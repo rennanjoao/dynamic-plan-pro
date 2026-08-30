@@ -30,7 +30,16 @@ export function invalidateExerciseLibraryCache(): void {
   inflight = null;
 }
 
-async function loadLibrary(): Promise<Map<string, LibraryEntry>> {
+/**
+ * Exportada (era função privada do módulo) para permitir que telas que
+ * precisam do Map inteiro — ex. WeeklyVolumeDashboard.tsx, que roda
+ * `calculateWeeklyVolume` de forma síncrona sobre todos os exercícios da
+ * semana de uma vez — resolvam a Promise UMA vez e guardem o resultado em
+ * estado local, em vez de repetir N chamadas a `getLibraryEntry` (uma por
+ * exercício). Continua sendo o MESMO cache/inflight-promise usado por todo
+ * o resto do arquivo — não é uma segunda fonte de dados.
+ */
+export async function loadLibrary(): Promise<Map<string, LibraryEntry>> {
   if (cache) return cache;
   if (inflight) return inflight;
 
