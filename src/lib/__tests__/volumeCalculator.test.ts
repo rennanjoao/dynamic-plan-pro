@@ -124,7 +124,7 @@ describe("extractHardSetsCount — peso fracionado para resistência muscular (r
   it("força pura tem prioridade sobre a checagem de reps altas (são mutuamente exclusivas)", () => {
     expect(extractHardSetsCount("3", "3RM")).toBeCloseTo(3 * 0.3);
   });
-});
+
   it("descarta os segmentos anteriores e usa apenas o último número (ex.: '1+3' -> 3)", () => {
     expect(extractHardSetsCount("1+3")).toBe(3);
     expect(extractHardSetsCount("2+2+3")).toBe(3);

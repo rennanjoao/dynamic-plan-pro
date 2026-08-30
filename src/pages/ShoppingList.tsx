@@ -13,7 +13,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +32,7 @@ import {
   Info,
 } from "lucide-react";
 import jsPDF from "jspdf";
+import PreviewModeBar from "@/components/student/PreviewModeBar";
 import {
   aggregateShoppingList,
   formatQty,
@@ -705,6 +706,9 @@ function HaveAtHomeSlider({ item, value, onChange, onClose }: HaveAtHomeSliderPr
 
 export default function ShoppingList() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const previewAs = searchParams.get("previewAs");
+  const draftPreview = searchParams.get("draftPreview") === "1";
 
   const [protocol, setProtocol] = useState<any>(null);
   const [protocolId, setProtocolId] = useState<string>("");
@@ -734,12 +738,12 @@ export default function ShoppingList() {
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session?.user) { navigate("/auth"); return; }
-      const uid = data.session.user.id;
+      const uid = previewAs || data.session.user.id;
       setUserId(uid);
 
       const { data: p } = await supabase
         .from("protocols")
-        .select("id, payload, name, updated_at")
+        .select("id, payload, draft_payload, name, updated_at")
         .eq("student_id", uid)
         .eq("is_template", false)
         .eq("active", true)
@@ -747,7 +751,11 @@ export default function ShoppingList() {
         .limit(1)
         .maybeSingle();
 
-      setProtocol(p);
+      const effectivePayload =
+        draftPreview && (p as any)?.draft_payload && Object.keys((p as any).draft_payload as object).length > 0
+          ? (p as any).draft_payload
+          : p?.payload;
+      setProtocol(p ? { ...p, payload: effectivePayload } : p);
 
       if (p?.id) {
         setProtocolId(p.id);
@@ -1532,7 +1540,8 @@ export default function ShoppingList() {
         />
       )}
 
-      <header style={headerStyle}>
+      <PreviewModeBar />
+      <header style={previewAs ? { ...headerStyle, position: "static" } : headerStyle}>
         {choices.length > 0 ? (
           <button onClick={() => { setChoiceStep(choices.length - 1); setPhase("choosing"); }} style={backBtnStyle} aria-label="Voltar às escolhas">
             <ArrowLeft size={18} />

@@ -189,6 +189,9 @@ export default function StudentArea() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const previewAs = searchParams.get("previewAs");
+  const draftPreview = searchParams.get("draftPreview") === "1";
+  // Sufixo propagado nos links internos para manter o Modo Espelho ao navegar.
+  const previewQS = previewAs ? `previewAs=${previewAs}${draftPreview ? "&draftPreview=1" : ""}` : "";
 
   const [userId, setUserId] = useState<string | null>(null);
   const { data: partnerProfile } = usePartnerProfile(userId);
@@ -458,10 +461,10 @@ export default function StudentArea() {
   }
 
   const secondaryModules = [
-    { title: "Sono & Diretrizes", description: "Qualidade do sono e orientações do coach.",   icon: Pill,          color: "text-purple-500",  bg: "bg-purple-500/10",  border: "border-purple-500/20",  route: `/supplements${previewAs ? `?previewAs=${previewAs}` : ''}`  },
-    { title: "Evolução",       description: "Fotos, gráficos e progresso.",      icon: TrendingUp,    color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", route: `/evolution${previewAs ? `?previewAs=${previewAs}` : ''}`, showAnamnesisEdit: true },
-    { title: "Check-in",       description: "Feedback periódico ao treinador.",  icon: CheckCircle2,  color: "text-rose-500",    bg: "bg-rose-500/10",    border: "border-rose-500/20",    route: `/check-in${previewAs ? `?previewAs=${previewAs}` : ''}`     },
-    { title: "Lista de Compras", description: "Compras agregadas e PDF.",        icon: ShoppingCart,  color: "text-orange-500",  bg: "bg-orange-500/10",  border: "border-orange-500/20",  route: `/shopping-list${previewAs ? `?previewAs=${previewAs}` : ''}`},
+    { title: "Sono & Diretrizes", description: "Qualidade do sono e orientações do coach.",   icon: Pill,          color: "text-purple-500",  bg: "bg-purple-500/10",  border: "border-purple-500/20",  route: `/supplements${previewAs ? `?${previewQS}` : ''}`  },
+    { title: "Evolução",       description: "Fotos, gráficos e progresso.",      icon: TrendingUp,    color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", route: `/evolution${previewAs ? `?${previewQS}` : ''}`, showAnamnesisEdit: true },
+    { title: "Check-in",       description: "Feedback periódico ao treinador.",  icon: CheckCircle2,  color: "text-rose-500",    bg: "bg-rose-500/10",    border: "border-rose-500/20",    route: `/check-in${previewAs ? `?${previewQS}` : ''}`     },
+    { title: "Lista de Compras", description: "Compras agregadas e PDF.",        icon: ShoppingCart,  color: "text-orange-500",  bg: "bg-orange-500/10",  border: "border-orange-500/20",  route: `/shopping-list${previewAs ? `?${previewQS}` : ''}`},
   ];
 
   if (partnerProfile?.status === "active") {
@@ -552,7 +555,7 @@ export default function StudentArea() {
           <Card
             className={`border-primary/20 bg-primary/5 ${todayPlan?.tipo === "treino" ? "cursor-pointer hover:bg-primary/10 transition-colors" : ""}`}
             onClick={() => {
-              if (todayPlan?.tipo === "treino") navigate(`/workout-plan?start=${encodeURIComponent(todayPlan.letra)}${previewAs ? `&previewAs=${previewAs}` : ''}`);
+              if (todayPlan?.tipo === "treino") navigate(`/workout-plan?start=${encodeURIComponent(todayPlan.letra)}${previewAs ? `&${previewQS}` : ''}`);
             }}
           >
             <CardContent className="p-4 flex items-start gap-3">
@@ -668,7 +671,7 @@ export default function StudentArea() {
         <StudentPlanCard userId={userId} />
 
         <div className="space-y-3">
-          <Card className="card-hover bg-card/60 border border-amber-500/20 cursor-pointer" onClick={() => navigate(`/routine${previewAs ? `?previewAs=${previewAs}` : ''}`)}>
+          <Card className="card-hover bg-card/60 border border-amber-500/20 cursor-pointer" onClick={() => navigate(`/routine${previewAs ? `?${previewQS}` : ''}`)}>
             <CardContent className="p-5 flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0"><Apple className="w-6 h-6 text-amber-500" /></div>
               <div className="flex-1 min-w-0">
@@ -679,7 +682,7 @@ export default function StudentArea() {
             </CardContent>
           </Card>
 
-          <Card className="card-hover bg-card/60 border border-blue-500/20 cursor-pointer" onClick={() => navigate(`/workout-plan${previewAs ? `?previewAs=${previewAs}` : ''}`)}>
+          <Card className="card-hover bg-card/60 border border-blue-500/20 cursor-pointer" onClick={() => navigate(`/workout-plan${previewAs ? `?${previewQS}` : ''}`)}>
             <CardContent className="p-5 flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0"><Dumbbell className="w-6 h-6 text-blue-500" /></div>
               <div className="flex-1 min-w-0">
@@ -704,7 +707,7 @@ export default function StudentArea() {
                 <h3 className="font-bold text-foreground text-sm">{mod.title}</h3>
                 <p className="text-[11px] text-muted-foreground mt-0.5">{mod.description}</p>
                 {(mod as any).showAnamnesisEdit && anamnesisMeta?.submitted_at && canEditAnamnesis && (
-                  <button className="mt-2 flex items-center gap-1 text-[10px] text-rose-400 hover:text-rose-500" onClick={(e) => { e.stopPropagation(); navigate(`/anamnesis?mode=edit${previewAs ? `&previewAs=${previewAs}` : ''}`); }}>
+                  <button className="mt-2 flex items-center gap-1 text-[10px] text-rose-400 hover:text-rose-500" onClick={(e) => { e.stopPropagation(); navigate(`/anamnesis?mode=edit${previewAs ? `&${previewQS}` : ''}`); }}>
                     <FileEdit className="w-3 h-3" />
                     Editar anamnese ({2 - anamnesisEdits}x restante)
                   </button>

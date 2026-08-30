@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface Anamnesis {
@@ -28,6 +29,7 @@ export interface Protocol {
   title: string;
   html_content: string;
   payload?: Record<string, unknown> | null;
+  draft_payload?: Record<string, unknown> | null;
   active: boolean;
   updated_at: string;
 }
@@ -37,6 +39,9 @@ const sb: any = supabase;
 
 export function useStudentData(explicitStudentId?: string) {
   const qc = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const previewAs = searchParams.get("previewAs");
+  const draftPreview = searchParams.get("draftPreview") === "1";
 
   const { data: sessionUserId, isLoading: sessionLoading } = useQuery({
     queryKey: ["session-user-id"],
@@ -47,7 +52,7 @@ export function useStudentData(explicitStudentId?: string) {
     staleTime: 5 * 60_000,
   });
 
-  const studentId = explicitStudentId ?? sessionUserId ?? null;
+  const studentId = explicitStudentId ?? previewAs ?? sessionUserId ?? null;
 
   const anamnesisQ = useQuery({
     queryKey: ["anamnesis", studentId],
@@ -142,11 +147,18 @@ export function useStudentData(explicitStudentId?: string) {
 
   const isExplicit = !!explicitStudentId;
 
+  const protocol = protocolQ.data ?? null;
+  const effectiveProtocolPayload =
+    draftPreview && protocol?.draft_payload && Object.keys(protocol.draft_payload as object).length > 0
+      ? protocol.draft_payload
+      : protocol?.payload ?? null;
+
   return {
     studentId,
     anamnesis: anamnesisQ.data ?? null,
     checkIns: checkInsQ.data ?? [],
-    protocol: protocolQ.data ?? null,
+    protocol,
+    effectiveProtocolPayload,
     loading:
       (!isExplicit && sessionLoading) ||
       (!!studentId && (anamnesisQ.isLoading || checkInsQ.isLoading || protocolQ.isLoading)),
