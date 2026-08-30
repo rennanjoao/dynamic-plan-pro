@@ -430,7 +430,17 @@ const Anamnesis = () => {
         } catch (summaryErr) {
           console.warn("anamnesis-summary falhou ao disparar (não bloqueia o cadastro)", summaryErr);
         }
+        // Acende o Radar de Evolução já no 1º envio: a IA lê a anamnese e, se
+        // houver pontos de atenção clínicos, o coach vê 🟡/🔴 na lista.
+        try {
+          await supabase.functions.invoke("coach-insight-summary", {
+            body: { studentId },
+          });
+        } catch (radarErr) {
+          console.warn("coach-insight-summary falhou ao disparar (não bloqueia o cadastro)", radarErr);
+        }
       }
+
 
       // Vincula aluno→coach
       if (coachIdOrNull && !isEditMode) {
