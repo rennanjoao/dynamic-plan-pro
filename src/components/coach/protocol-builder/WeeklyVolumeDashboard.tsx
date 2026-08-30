@@ -1,21 +1,3 @@
-/**
- * WeeklyVolumeDashboard.tsx — painel "Análise de Volume Semanal (HSE)".
- *
- * Lê a PRESCRIÇÃO do coach (payload.workouts + payload.weekDays) e projeta,
- * por grupo muscular, o volume semanal em Hard Set Equivalents contra os
- * landmarks RP (src/lib/hseVolumeLandmarks.ts), via src/lib/volumeCalculator.ts.
- *
- * Performance: recebe só `workouts`/`weekDays` (não o `payload` inteiro) e é
- * exportado envolto em `React.memo`, então só recalcula quando esses dois
- * slices realmente mudam de referência — o que só acontece quando o coach
- * de fato edita um treino, não quando outras abas do protocolo (Dieta,
- * Macros) disparam um novo objeto `payload`. As linhas da lista de grupos
- * também são memoizadas individualmente (`VolumeGroupRow`).
- *
- * `exerciseLibrary.loadLibrary()` é assíncrona (Supabase); este componente
- * resolve a Promise UMA vez em um `useEffect` e guarda o Map resultante em
- * estado local — o motor de cálculo em si permanece 100% síncrono e puro.
- */
 import { memo, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, TrendingUp } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -37,6 +19,7 @@ type WeekDaysProp = ProtocolPayload["weekDays"];
 interface WeeklyVolumeDashboardProps {
   workouts: WorkoutsProp;
   weekDays: WeekDaysProp;
+  periodization?: ProtocolPayload["periodization"]; 
 }
 
 interface StatusMeta {
@@ -45,14 +28,6 @@ interface StatusMeta {
   barClass: string;
 }
 
-// Paleta "termal" com as MESMAS famílias de cor já usadas em
-// src/lib/volumeLandmarks.ts / StudentWorkoutAnalytics.tsx (vermelho/âmbar/
-// esmeralda em badges "soft" — bg-{cor}/10 + texto + borda), reaplicadas aos
-// 7 estados de HseVolumeStatus (que têm um landmark a mais — MV — do que o
-// VolumeStatus antigo). Vermelho é reservado para os dois extremos
-// (abaixo do MV / acima do MRV): tanto treinar de menos a ponto de nem
-// manter quanto ultrapassar o teto recuperável são, na prática, o mesmo
-// tipo de alerta para o coach — só em direções opostas.
 const STATUS_META: Record<VolumeStatus, StatusMeta> = {
   abaixo_mv: {
     label: "Abaixo do MV",
@@ -91,7 +66,6 @@ const STATUS_META: Record<VolumeStatus, StatusMeta> = {
   },
 };
 
-/** "4" para inteiros, "4.5" para meios — nunca "4.0" (HSE só soma em múltiplos de 0.5). */
 function formatHse(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
@@ -148,33 +122,56 @@ const VolumeGroupRow = memo(function VolumeGroupRow({ row }: { row: MuscleGroupV
 });
 VolumeGroupRow.displayName = "VolumeGroupRow";
 
-function WeeklyVolumeDashboardImpl({ workouts, weekDays }: WeeklyVolumeDashboardProps) {
+function WeeklyVolumeDashboardImpl({ workouts, weekDays, periodization }: WeeklyVolumeDashboardProps) {
   const [libraryMap, setLibraryMap] = useState<Map<string, LibraryEntry> | null>(null);
+  const [activeWeek, setActiveWeek] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     loadLibrary()
-      .then((map) => {
-        if (!cancelled) setLibraryMap(map);
-      })
-      .catch(() => {
-        // Nunca deixa o painel travado em "carregando" para sempre — se a
-        // library falhar, segue com um Map vazio (tudo cai no fallback do
-        // classificador por nome dentro de calculateWeeklyVolume).
-        if (!cancelled) setLibraryMap(new Map());
-      });
-    return () => {
-      cancelled = true;
-    };
+      .then((map) => { if (!cancelled) setLibraryMap(map); })
+      .catch(() => { if (!cancelled) setLibraryMap(new Map()); });
+    return () => { cancelled = true; };
   }, []);
+
+  // Previne index out-of-bounds caso alguma semana seja deletada
+  const safeActiveWeek = periodization?.enabled && periodization.weeks && activeWeek >= periodization.weeks.length ? 0 : activeWeek;
 
   const report: WeeklyVolumeReport | null = useMemo(() => {
     if (!libraryMap) return null;
-    return calculateWeeklyVolume(workouts, weekDays, libraryMap);
-  }, [workouts, weekDays, libraryMap]);
 
-  // Grupos com hse > 0 primeiro (mais treinado -> menos treinado); grupos
-  // zerados depois, na ordem natural do enum MuscleGroup.
+    const wSets = periodization?.enabled ? periodization.weeks?.[safeActiveWeek]?.sets : "";
+    const wReps = periodization?.enabled ? periodization.weeks?.[safeActiveWeek]?.reps : "";
+
+    const effectiveWorkouts = workouts?.map(day => ({
+      ...day,
+      exercises: day.exercises?.map((ex, ei) => {
+        let effSets = ex.sets;
+        let effReps = ex.reps;
+
+        if (periodization?.enabled) {
+           // Resgata o override específico deste exercício nesta semana, se o coach tiver feito algum
+           const ov = periodization.overrides?.[String(safeActiveWeek)]?.[`${day.key}_${ei}`];
+           
+           // A precedência obedece a visão real do aluno:
+           // 1. Override específico do exercício na semana
+           // 2. Regra global da semana
+           // 3. O valor padrão do exercício base
+           effSets = (ov?.sets && ov.sets.trim() !== "") ? ov.sets : (wSets && wSets.trim() !== "") ? wSets : ex.sets;
+           effReps = (ov?.reps && ov.reps.trim() !== "") ? ov.reps : (wReps && wReps.trim() !== "") ? wReps : ex.reps;
+        }
+
+        return {
+          ...ex,
+          sets: effSets,
+          reps: effReps,
+        };
+      })
+    }));
+
+    return calculateWeeklyVolume(effectiveWorkouts, weekDays, libraryMap);
+  }, [workouts, weekDays, periodization, libraryMap, safeActiveWeek]);
+
   const sortedRows = useMemo(() => {
     if (!report) return [];
     return [...report.byMuscleGroup].sort((a, b) => {
@@ -190,20 +187,24 @@ function WeeklyVolumeDashboardImpl({ workouts, weekDays }: WeeklyVolumeDashboard
   const hasWarnings = hasUnscheduled || hasUnclassified;
   const warningCount = report ? report.unscheduledWorkoutKeys.length + report.unclassifiedExercises.length : 0;
 
+  const headerText = periodization?.enabled && periodization.weeks?.[safeActiveWeek]
+    ? `Análise de Volume (HSE) — ${periodization.weeks[safeActiveWeek].label || `Semana ${safeActiveWeek + 1}`}`
+    : "Análise de Volume Semanal (HSE)";
+
   return (
     <Card className="bg-card/40 border-border p-2.5">
       <Accordion type="single" collapsible>
         <AccordionItem value="weekly-volume" className="border-none">
           <AccordionTrigger className="px-1.5 py-1.5 text-sm hover:no-underline">
-            <div className="flex flex-1 items-center justify-between pr-2">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">Análise de Volume Semanal (HSE)</span>
+            <div className="flex flex-1 items-center justify-between pr-2 min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <TrendingUp className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="font-medium truncate">{headerText}</span>
               </div>
               {hasWarnings && (
                 <Badge
                   variant="outline"
-                  className="gap-1 border-amber-500/20 bg-amber-500/10 px-1.5 py-0 text-[10px] font-normal text-amber-500"
+                  className="gap-1 border-amber-500/20 bg-amber-500/10 px-1.5 py-0 text-[10px] font-normal text-amber-500 shrink-0 ml-2"
                 >
                   <AlertTriangle className="h-3 w-3" />
                   {warningCount}
@@ -213,6 +214,25 @@ function WeeklyVolumeDashboardImpl({ workouts, weekDays }: WeeklyVolumeDashboard
           </AccordionTrigger>
 
           <AccordionContent className="px-1.5">
+            {periodization?.enabled && periodization.weeks && periodization.weeks.length > 0 && (
+              <div className="mb-4 flex flex-wrap gap-2 bg-muted/20 p-2 rounded-lg border border-border/40">
+                {periodization.weeks.map((w, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setActiveWeek(idx)}
+                    className={cn(
+                      "px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-full border transition-all",
+                      safeActiveWeek === idx
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                        : "bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                    )}
+                  >
+                    {w.label || `S ${idx + 1}`}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {!report ? (
               <p className="py-2 text-xs text-muted-foreground">Carregando biblioteca de exercícios…</p>
             ) : (
