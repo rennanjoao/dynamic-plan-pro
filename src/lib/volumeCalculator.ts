@@ -14,44 +14,45 @@ import { getHseVolumeLandmark, type HseVolumeLandmark } from "@/lib/hseVolumeLan
 type WorkoutDay = ProtocolPayload["workouts"][number];
 
 // ─────────────────────────────────────────────────────────────────────────
-// 1. REGEX — EXTRAÇÃO INTELIGENTE DE HARD SETS
+// 1. REGEX BLINDADA — EXTRAÇÃO DIRETA DE SÉRIES
 // ─────────────────────────────────────────────────────────────────────────
 
 /**
- * Extrai o número de séries válidas (Hard Sets) cruzando a notação
- * do campo "sets" com o contexto fisiológico do campo "reps".
+ * Extrai o número de séries válidas de forma infalível.
+ * - Lê números isolados (ex: "4", "100")
+ * - Lê notações de soma (ex: "2+3" pega o total ou a última parte)
+ * - Respeita o filtro de repetições (ex: se reps for 1RM, zera o HSE)
  */
 export function extractHardSetsCount(
   rawSets: string | null | undefined,
   rawReps?: string | null | undefined,
-  manualOverride?: number | null
 ): number {
-  // 1. A Palavra Final: Se o coach forçou um número manualmente na UI, ele vence.
-  if (manualOverride !== undefined && manualOverride !== null) {
-    return manualOverride;
-  }
-
   if (!rawSets) return 0;
 
-  // 2. Penalização por Repetições (Contexto Fisiológico)
+  // Filtro de segurança fisiológica: se for aquecimento ou 1RM/força pura, o HSE é 0
   if (rawReps) {
     const r = rawReps.toLowerCase();
-    // Séries puramente de aquecimento não geram HSE
     if (r.includes("aquecimento") || r.includes("warmup")) return 0;
-    // Foco neural puro (ex: 1RM, 2RM, 3RM, "força") tem baixo impacto hipertrófico direto
     if (/\b[1-3]\s*rm\b/.test(r) || /\bfor[çc]a\b/.test(r)) return 0;
   }
 
-  // 3. Resolução de Notações Complexas (Ex: "1+3", "2 aquecimento + 2 validas")
-  // Dividimos pelo "+" e sempre pegamos a última parte (que tradicionalmente indica a carga de trabalho final)
-  const parts = String(rawSets).split("+");
-  const targetPart = parts.length > 1 ? parts[parts.length - 1] : parts[0];
+  const cleanSets = String(rawSets).trim();
 
-  // 4. Extração do primeiro número disponível na parte alvo
-  const match = targetPart.trim().match(/(\d+)/);
+  // Se houver uma expressão com "+" (ex: 2+3), somamos os valores ou pegamos o total
+  if (cleanSets.includes("+")) {
+    const parts = cleanSets.split("+").map(p => {
+      const m = p.trim().match(/(\d+(?:\.\d+)?)/);
+      return m ? parseFloat(m[1]) : 0;
+    });
+    const sum = parts.reduce((acc, curr) => acc + curr, 0);
+    if (sum > 0) return sum;
+  }
+
+  // Extração universal de qualquer número na string de séries (ex: "4x12", "10", "100 séries")
+  const match = cleanSets.match(/(\d+(?:\.\d+)?)/);
   if (!match) return 0;
 
-  const parsed = parseInt(match[1], 10);
+  const parsed = parseFloat(match[1]);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 }
 
@@ -183,9 +184,8 @@ export function calculateWeeklyVolume(
         continue;
       }
 
-      // NOVO: Passando reps e o override manual guardado no objeto
-      const override = (exercise as any).validSetsOverride;
-      const hardSetsPerOccurrence = extractHardSetsCount(exercise.sets, exercise.reps, override);
+      // Extração direta e limpa de séries e reps
+      const hardSetsPerOccurrence = extractHardSetsCount(exercise.sets, exercise.reps);
       const resolved = resolveExerciseMuscleGroups(exercise, libraryMap);
 
       if (!resolved) {
