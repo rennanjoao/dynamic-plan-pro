@@ -1706,6 +1706,7 @@ export type Database = {
           is_template: boolean | null
           name: string
           payload: Json
+          student_first_viewed_at: string | null
           student_id: string | null
           template_division: string | null
           template_profile: string | null
@@ -1721,6 +1722,7 @@ export type Database = {
           is_template?: boolean | null
           name: string
           payload?: Json
+          student_first_viewed_at?: string | null
           student_id?: string | null
           template_division?: string | null
           template_profile?: string | null
@@ -1736,6 +1738,7 @@ export type Database = {
           is_template?: boolean | null
           name?: string
           payload?: Json
+          student_first_viewed_at?: string | null
           student_id?: string | null
           template_division?: string | null
           template_profile?: string | null
@@ -2453,6 +2456,10 @@ export type Database = {
       }
       mark_daily_alert_read: {
         Args: { p_alert_id: string }
+        Returns: undefined
+      }
+      mark_protocol_viewed: {
+        Args: { p_protocol_id: string }
         Returns: undefined
       }
       refresh_coach_ai_profile: {
