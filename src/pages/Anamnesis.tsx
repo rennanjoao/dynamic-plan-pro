@@ -291,7 +291,20 @@ const Anamnesis = () => {
     setValidating(true);
     try {
       const { data, error } = await supabase.functions.invoke('validate-invite-code', { body: { code } });
-      if (error || !data?.coach_id) throw new Error(data?.error || "Código inválido ou inexistente.");
+      if (error) {
+        // Respostas não-2xx vêm em error.context; extrai a mensagem real do backend
+        let msg = "Código inválido ou inexistente.";
+        try {
+          const ctx = (error as unknown as { context?: Response }).context;
+          if (ctx && typeof ctx.json === "function") {
+            const body = await ctx.clone().json();
+            if (body?.error) msg = String(body.error);
+          }
+        } catch { /* mantém mensagem padrão */ }
+        throw new Error(msg);
+      }
+      if (!data?.coach_id) throw new Error(data?.error || "Código inválido ou inexistente.");
+
       
       setCoach({ id: data.coach_id, name: data.coach_name, email: data.notification_email });
       if (data.access_code) setResolvedAccessCode(String(data.access_code).toUpperCase());
