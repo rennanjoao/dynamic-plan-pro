@@ -96,8 +96,19 @@
         // Registra o Service Worker para PWA somente fora do preview/dev
         if ("serviceWorker" in navigator) {
           window.addEventListener("load", function () {
-            navigator.serviceWorker.register("/sw.js").catch(function (err) {
+            navigator.serviceWorker.register("/sw.js").then(function (reg) {
+              // Força busca de nova versão do SW a cada carregamento.
+              reg.update();
+            }).catch(function (err) {
               console.warn("SW registration failed:", err);
+            });
+            // Quando um SW novo assume o controle, recarrega uma única vez
+            // para o usuário nunca ficar preso a um bundle antigo em cache.
+            var reloadedForUpdate = false;
+            navigator.serviceWorker.addEventListener("controllerchange", function () {
+              if (reloadedForUpdate) return;
+              reloadedForUpdate = true;
+              window.location.reload();
             });
           });
         }
