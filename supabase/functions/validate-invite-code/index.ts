@@ -21,10 +21,23 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const admin = createClient(supabaseUrl, serviceRoleKey);
 
-    const { data, error } = await admin.rpc("get_coach_by_invite_code", { p_code: normalizedCode });
-    if (error) throw error;
+    // Variantes toleradas: com/sem hífen, com/sem prefixo ELT-
+    const bare = normalizedCode.replace(/[^A-Z0-9]/g, "");
+    const withoutPrefix = bare.startsWith("ELT") ? bare.slice(3) : bare;
+    const candidates = Array.from(new Set([
+      normalizedCode,
+      bare,
+      withoutPrefix,
+      `ELT-${withoutPrefix}`,
+    ])).filter(Boolean);
 
-    const coach = Array.isArray(data) ? data[0] : null;
+    let coach: { coach_id?: string; coach_name?: string; notification_email?: string } | null = null;
+    for (const c of candidates) {
+      const { data, error } = await admin.rpc("get_coach_by_invite_code", { p_code: c });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : null;
+      if (row?.coach_id) { coach = row; break; }
+    }
     if (coach?.coach_id) {
       return new Response(JSON.stringify({
         coach_id: coach.coach_id,
@@ -36,9 +49,13 @@ serve(async (req) => {
     }
 
     // Fallback: código de acesso de parceria (ex.: ELT-7K4P92)
-    const { data: acRows, error: acErr } = await admin.rpc("resolve_access_code", { p_code: normalizedCode });
-    if (acErr) throw acErr;
-    const access = Array.isArray(acRows) ? acRows[0] : null;
+    let access: { id?: string; code?: string; coach_id?: string; status?: string; expires_at?: string } | null = null;
+    for (const c of candidates) {
+      const { data: acRows, error: acErr } = await admin.rpc("resolve_access_code", { p_code: c });
+      if (acErr) throw acErr;
+      const row = Array.isArray(acRows) ? acRows[0] : null;
+      if (row?.coach_id) { access = row; break; }
+    }
 
     const expired = access?.expires_at ? new Date(access.expires_at).getTime() < Date.now() : false;
     if (!access?.coach_id) {
