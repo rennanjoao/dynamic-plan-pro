@@ -29,6 +29,7 @@ export interface Protocol {
   title: string;
   html_content: string;
   payload?: Record<string, unknown> | null;
+  draft_payload?: Record<string, unknown> | null;
   active: boolean;
   updated_at: string;
 }
