@@ -25,6 +25,7 @@ import { useCurrentPeriodizationWeek } from "@/hooks/useCurrentPeriodizationWeek
 import { DEFAULT_WEEKS } from "@/lib/periodizationDefaults";
 import { useAuthUserId } from "@/hooks/useAuthUserId";
 import { PageLoader } from "@/components/ui/PageLoader";
+import PreviewModeBar from "@/components/student/PreviewModeBar";
 import { isSessionStale } from "@/hooks/useWorkoutSession";
 
 
@@ -91,6 +92,8 @@ function MobilityBlock({ exercises }: { exercises: any[] }) {
 export default function WorkoutPlan() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const previewAs = searchParams.get("previewAs");
+  const draftPreview = searchParams.get("draftPreview") === "1";
   const userId = useAuthUserId({ redirectTo: "/auth" });
   const [showWorkoutMode, setShowWorkoutMode] = useState(false);
   const [workoutModeDay, setWorkoutModeDay] = useState<string | undefined>(undefined);
@@ -157,14 +160,14 @@ export default function WorkoutPlan() {
   }, [userId, showWorkoutMode, workoutModeDay, workoutModeWeek]);
 
   const { data: planData, isLoading } = useQuery({
-    queryKey: ["student-workout-json", userId],
+    queryKey: ["student-workout-json", userId, draftPreview],
     enabled: !!userId,
     queryFn: async () => {
       // 1) Fonte primária: protocols (gravação que o coach sempre garante que
       //    aconteceu — a réplica em coach_plans é "best effort" e pode falhar).
       const { data: protocol } = await supabase
         .from("protocols")
-        .select("payload, coach_id")
+        .select("payload, draft_payload, coach_id")
         .eq("student_id", userId)
         .eq("is_template", false)
         .eq("active", true)
@@ -172,10 +175,14 @@ export default function WorkoutPlan() {
         .limit(1)
         .maybeSingle();
 
-      if (protocol?.payload && Object.keys(protocol.payload as object).length > 0) {
+      const effective =
+        draftPreview && protocol?.draft_payload && Object.keys(protocol.draft_payload as object).length > 0
+          ? protocol.draft_payload
+          : protocol?.payload;
+      if (effective && Object.keys(effective as object).length > 0) {
         return {
-          workout_periodization_json: protocol.payload,
-          coach_id: protocol.coach_id,
+          workout_periodization_json: effective,
+          coach_id: protocol?.coach_id,
         };
       }
 
@@ -432,7 +439,8 @@ export default function WorkoutPlan() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 bg-background border-b px-4 py-3 flex items-center gap-3 shadow-sm">
+      <PreviewModeBar />
+      <header className={`bg-background border-b px-4 py-3 flex items-center gap-3 shadow-sm ${!previewAs ? "sticky top-0 z-40" : ""}`}>
         <Button variant="ghost" size="icon" onClick={() => navigate("/student-area")}>
           <ArrowLeft className="w-5 h-5" />
         </Button>

@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { CHECKIN_SECTIONS, CHECKIN_METRICS } from "@/lib/checkInSchema";
@@ -26,6 +26,7 @@ import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, TrendingDown, TrendingUp,
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatDatePtBR } from "@/lib/formatDate";
+import PreviewModeBar from "@/components/student/PreviewModeBar";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
@@ -86,6 +87,8 @@ const STEP1_SECTION_IDS = ["identificacao", "dieta", "protocolo", "treino_sono"]
 
 export default function CheckIn() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const previewAs = searchParams.get("previewAs");
   const qc = useQueryClient();
   const { studentId, anamnesis } = useStudentData();
 
@@ -451,7 +454,8 @@ export default function CheckIn() {
   if (mode === "choose") {
     return (
       <div className="min-h-screen bg-background">
-        <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border">
+        <PreviewModeBar />
+        <header className={`bg-background/95 backdrop-blur border-b border-border ${!previewAs ? "sticky top-0 z-20" : ""}`}>
           <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => navigate("/student-area")}>
               <ArrowLeft className="w-4 h-4" />
@@ -523,7 +527,8 @@ export default function CheckIn() {
 
   return (
     <div className="min-h-screen bg-background pb-32">
-      <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border">
+      <PreviewModeBar />
+      <header className={`bg-background/95 backdrop-blur border-b border-border ${!previewAs ? "sticky top-0 z-20" : ""}`}>
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => setMode("choose")} aria-label="Voltar para escolha">
             <ArrowLeft className="w-4 h-4" />

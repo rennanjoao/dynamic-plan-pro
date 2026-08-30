@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Pill, Info, UtensilsCrossed, Calendar, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,20 +12,24 @@ import { slug } from "@/lib/slug";
 import { ABBR } from "@/lib/weekCycle";
 import { useAuthUserId } from "@/hooks/useAuthUserId";
 import { PageLoader } from "@/components/ui/PageLoader";
+import PreviewModeBar from "@/components/student/PreviewModeBar";
 
 export default function Supplements() {
   const navigate = useNavigate();
   const userId = useAuthUserId();
+  const [searchParams] = useSearchParams();
+  const previewAs = searchParams.get("previewAs");
+  const draftPreview = searchParams.get("draftPreview") === "1";
   useHighlightTarget();
 
   const { data: planData, isLoading } = useQuery({
-    queryKey: ["student-supps-json", userId],
+    queryKey: ["student-supps-json", userId, draftPreview],
     enabled: !!userId,
     queryFn: async () => {
       // 1) Try active protocol first (most recent data structure)
       const { data: protocol } = await supabase
         .from("protocols")
-        .select("payload, updated_at")
+        .select("payload, draft_payload, updated_at")
         .eq("student_id", userId)
         .eq("is_template", false)
         .eq("active", true)
@@ -33,7 +37,11 @@ export default function Supplements() {
         .limit(1)
         .maybeSingle();
 
-      const pPayload = (protocol?.payload as Record<string, unknown> | null) ?? null;
+      const draft = protocol?.draft_payload as Record<string, unknown> | null | undefined;
+      const pPayload =
+        (draftPreview && draft && Object.keys(draft).length > 0
+          ? draft
+          : (protocol?.payload as Record<string, unknown> | null)) ?? null;
       const hasProtocolData =
         pPayload &&
         ((pPayload.guidelines && Object.keys(pPayload.guidelines as object).length > 0) ||
@@ -74,7 +82,8 @@ export default function Supplements() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 bg-background border-b px-4 py-3 flex items-center gap-3 shadow-sm">
+      <PreviewModeBar />
+      <header className={`bg-background border-b px-4 py-3 flex items-center gap-3 shadow-sm ${!previewAs ? "sticky top-0 z-40" : ""}`}>
         <Button variant="ghost" size="icon" onClick={() => navigate("/student-area")}>
           <ArrowLeft className="w-5 h-5" />
         </Button>

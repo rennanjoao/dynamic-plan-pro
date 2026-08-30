@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useStudentData } from "@/hooks/useStudentData";
@@ -18,12 +18,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowLeft, Plus, MessageCircle, ChevronRight } from "lucide-react";
 import { formatRelativePtBR } from "@/lib/formatDate";
+import PreviewModeBar from "@/components/student/PreviewModeBar";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = supabase;
 
 export default function Evolution() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const previewAs = searchParams.get("previewAs");
   const { anamnesis, checkIns, loading, studentId } = useStudentData();
   const qc = useQueryClient();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -64,7 +67,8 @@ export default function Evolution() {
 
   return (
     <div className="min-h-screen bg-background pb-10">
-      <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border">
+      <PreviewModeBar />
+      <header className={`bg-background/95 backdrop-blur border-b border-border ${!previewAs ? "sticky top-0 z-20" : ""}`}>
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="w-4 h-4" />

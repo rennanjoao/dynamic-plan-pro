@@ -8,7 +8,7 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,23 +20,27 @@ import { useWakeLock } from "@/hooks/useWakeLock";
 import { useHighlightTarget } from "@/hooks/useHighlightTarget";
 import { useAuthUserId } from "@/hooks/useAuthUserId";
 import { PageLoader } from "@/components/ui/PageLoader";
+import PreviewModeBar from "@/components/student/PreviewModeBar";
 
 export default function DynamicRoutine() {
   const navigate = useNavigate();
   const userId = useAuthUserId({ redirectTo: "/auth" });
+  const [searchParams] = useSearchParams();
+  const previewAs = searchParams.get("previewAs");
+  const draftPreview = searchParams.get("draftPreview") === "1";
   const queryClient = useQueryClient();
   useWakeLock();
   useHighlightTarget();
 
   const { data: planData, isLoading } = useQuery({
-    queryKey: ["student-routine-json", userId],
+    queryKey: ["student-routine-json", userId, draftPreview],
     enabled: !!userId,
     queryFn: async () => {
       // 1) Fonte primária: protocols (gravação que o coach sempre garante que
       //    aconteceu — a réplica em coach_plans é "best effort" e pode falhar).
       const { data: protocol } = await supabase
         .from("protocols")
-        .select("payload")
+        .select("payload, draft_payload")
         .eq("student_id", userId)
         .eq("is_template", false)
         .eq("active", true)
@@ -44,10 +48,14 @@ export default function DynamicRoutine() {
         .limit(1)
         .maybeSingle();
 
-      if (protocol?.payload && Object.keys(protocol.payload as object).length > 0) {
+      const effective =
+        draftPreview && protocol?.draft_payload && Object.keys(protocol.draft_payload as object).length > 0
+          ? protocol.draft_payload
+          : protocol?.payload;
+      if (effective && Object.keys(effective as object).length > 0) {
         return {
-          diet_strategy_json: protocol.payload,
-          workout_periodization_json: protocol.payload,
+          diet_strategy_json: effective,
+          workout_periodization_json: effective,
         };
       }
 
@@ -108,7 +116,8 @@ export default function DynamicRoutine() {
   if (!planData || (!planData.diet_strategy_json && !planData.workout_periodization_json)) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <header className="sticky top-0 z-10 bg-background/80 backdrop-blur border-b px-4 py-3 flex items-center gap-3">
+        <PreviewModeBar />
+        <header className={`bg-background/80 backdrop-blur border-b px-4 py-3 flex items-center gap-3 ${!previewAs ? "sticky top-0 z-10" : ""}`}>
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
@@ -145,7 +154,8 @@ export default function DynamicRoutine() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header Fixo */}
-      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur border-b px-4 py-3 flex items-center gap-3">
+      <PreviewModeBar />
+      <header className={`bg-background/80 backdrop-blur border-b px-4 py-3 flex items-center gap-3 ${!previewAs ? "sticky top-0 z-10" : ""}`}>
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="w-5 h-5" />
         </Button>
