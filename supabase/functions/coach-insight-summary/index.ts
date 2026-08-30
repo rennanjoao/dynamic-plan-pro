@@ -89,6 +89,18 @@ serve(async (req) => {
       checkinInsight = ci ?? null;
     }
 
+    // Anamnese — usada para acender o radar já no 1º envio do aluno, antes de
+    // existir qualquer check-in ou alerta de treino.
+    const { data: anamnesis } = await admin
+      .from("anamnesis")
+      .select("payload, submitted_at, updated_at")
+      .eq("student_id", studentId)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const anamnesisAt = anamnesis?.submitted_at ?? anamnesis?.updated_at ?? null;
+
+
     // ── 2. Situação e confiança — decididas em código, nunca pela IA ─────────
     const hasCritical = openAlerts.some((a) => a.severity === "critical");
     const hasWarning = openAlerts.some((a) => a.severity === "warning");
