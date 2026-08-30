@@ -227,13 +227,18 @@ export function useCoachStudentsPaged(
         }
       });
 
-      // Data do 1º protocolo real (não-template) salvo pra cada aluno —
-      // ordenado ascendente acima, então o primeiro que aparece por
-      // student_id já é o mais antigo.
-      const firstProtocolByStudent = new Map<string, string>();
+      // Data em que o ALUNO abriu um protocolo pela primeira vez. É esse
+      // momento — e não o "coach salvou" — que liga o radar de feedback.
+      const firstViewByStudent = new Map<string, string>();
       protoRows?.forEach((p) => {
-        if (!firstProtocolByStudent.has(p.student_id)) firstProtocolByStudent.set(p.student_id, p.created_at);
+        const viewed = (p as { student_first_viewed_at?: string | null }).student_first_viewed_at;
+        if (!viewed) return;
+        const prev = firstViewByStudent.get(p.student_id);
+        if (!prev || new Date(viewed).getTime() < new Date(prev).getTime()) {
+          firstViewByStudent.set(p.student_id, viewed);
+        }
       });
+
 
       const rows: StudentStatus[] = ids.map((sid) => {
         const sp = sProfiles?.find((p) => p.user_id === sid);
