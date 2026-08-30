@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, useLocation, useSearchParams } from "react-router-dom";
 import { Loader2, Ban } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -8,11 +8,19 @@ export const AnamnesisGuard = ({ children }: { children: React.ReactNode }) => {
   const [checkingCoach, setCheckingCoach] = useState(true);
   const [hasAnamnesis, setHasAnamnesis] = useState<boolean | null>(null);
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const previewAs = searchParams.get("previewAs");
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
+        if (previewAs) {
+          // Modo Espelho: a anamnese/bloqueio aqui seriam do usuário LOGADO
+          // (o coach), não do aluno-alvo do previewAs — nunca barrar o coach.
+          if (!cancelled) { setHasAnamnesis(true); setCoachBlocked(false); }
+          return;
+        }
         const { data: auth } = await supabase.auth.getUser();
         const userId = auth.user?.id;
         if (!userId) {
@@ -56,7 +64,7 @@ export const AnamnesisGuard = ({ children }: { children: React.ReactNode }) => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [previewAs]);
 
   if (checkingCoach) {
     return (

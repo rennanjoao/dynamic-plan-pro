@@ -875,7 +875,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                   size="sm"
                   variant="outline"
                   className="h-9 text-xs"
-                  onClick={() => setPreviewOpen(true)}
+                  onClick={() => window.open(`/student-area?previewAs=${studentId}&draftPreview=1`, "_blank")}
                   title="Ver como aluno"
                 >
                   <Eye className="w-3.5 h-3.5 sm:mr-1.5" />
