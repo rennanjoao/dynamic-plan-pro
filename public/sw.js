@@ -3,7 +3,7 @@
 // Importante: nunca cachear módulos de desenvolvimento do Vite, pois isso pode
 // misturar chunks antigos/novos e causar "Invalid hook call" no React.
 
-const CACHE_NAME = "elite-lab-v3-20260622";
+const CACHE_NAME = "elite-lab-v4-20260830";
 const STATIC_ASSETS = [
   "/",
   "/index.html",
@@ -59,9 +59,16 @@ self.addEventListener("fetch", (event) => {
   // Para navegação (HTML): Network-first, fallback para index.html (SPA)
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request).catch(() =>
-        caches.match("/index.html")
-      )
+      fetch(request)
+        .then((response) => {
+          // Mantém o shell offline sempre atualizado com a última versão vista.
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put("/index.html", clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match("/index.html"))
     );
     return;
   }
