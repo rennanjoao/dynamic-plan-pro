@@ -45,12 +45,58 @@ const CRAVING_OPTIONS = [
     icon: "🏺",
   },
   {
+    title: "Banana Assada com Canela",
+    description: "1 banana cortada ao meio, polvilhada com canela, assada na Airfryer por 8 min até caramelizar.",
+    macros: "~105 kcal",
+    icon: "🍌",
+  },
+  {
     title: "1 Barra de Snickers",
     description: "1 barra tradicional (45g). Se a vontade for muito específica de chocolate, coma sem culpa!",
     macros: "~215 kcal",
     icon: "🍫",
   },
-  
+
+  // --- CHOCOLATE E CACAU ---
+  {
+    title: "Chocolate 70% Cacau",
+    description: "2 quadradinhos (aprox. 20g) de chocolate amargo 70% ou mais. Derrete na boca e satisfaz rápido.",
+    macros: "~110 kcal",
+    icon: "🍫",
+  },
+  {
+    title: "Mousse Rápida de Cacau e Banana",
+    description: "1 banana amassada + 1 colher de chá de cacau 100% em pó + canela. Misture até virar um creme.",
+    macros: "~110 kcal",
+    icon: "🍫",
+  },
+  {
+    title: "Whey Chocolate Gelado",
+    description: "1 dose de whey sabor chocolate batido no liquidificador com água e bastante gelo até ficar cremoso.",
+    macros: "~120 kcal",
+    icon: "🥤",
+  },
+
+  // --- GELADOS E REFRESCANTES ---
+  {
+    title: "Picolé de Fruta Caseiro",
+    description: "Bata 1 fruta (manga, abacaxi ou morango) com um pouco de água ou água de coco e congele em forminha.",
+    macros: "~70 kcal",
+    icon: "🍧",
+  },
+  {
+    title: "Gelatina Diet com Fruta",
+    description: "1 taça de gelatina diet (qualquer sabor) já pronta, com pedaços de fruta picada por cima.",
+    macros: "~40 kcal",
+    icon: "🍮",
+  },
+  {
+    title: "Iogurte Gelado com Granola",
+    description: "1 iogurte natural (zero/light) bem gelado + 1 colher de sopa de granola sem açúcar por cima.",
+    macros: "~130 kcal",
+    icon: "🍨",
+  },
+
   // --- SNACKS E CROCANTES ---
   {
     title: "Biscoito de Arroz com Cobertura",
@@ -75,7 +121,53 @@ const CRAVING_OPTIONS = [
     description: "30g de milho de pipoca estourado na panela sem óleo ou no micro-ondas.",
     macros: "~105 kcal",
     icon: "🍿",
-  }
+  },
+  {
+    title: "Pipoca com Parmesão",
+    description: "30g de milho estourado sem óleo + 1 colher de chá de queijo parmesão ralado por cima, ainda quente.",
+    macros: "~130 kcal",
+    icon: "🧀",
+  },
+  {
+    title: "Torrada Crocante com Requeijão Light",
+    description: "2 fatias de pão integral bem torradas + 15g de requeijão light. Crocante e sacia bem.",
+    macros: "~130 kcal",
+    icon: "🍞",
+  },
+  {
+    title: "Castanhas Variadas",
+    description: "Um punhado pequeno (15g, aprox. 8 a 10 unidades) de castanha-do-pará, amêndoas ou castanha de caju.",
+    macros: "~95 kcal",
+    icon: "🌰",
+  },
+
+  // --- SALGADOS QUENTES ---
+  {
+    title: "Ovo Cozido com Sal e Limão",
+    description: "2 ovos cozidos temperados com sal, limão e pimenta a gosto. Sacia rápido e é praticamente zero carbo.",
+    macros: "~140 kcal",
+    icon: "🥚",
+  },
+  {
+    title: "Queijo Coalho na Airfryer",
+    description: "50g de queijo coalho em cubos, grelhado na Airfryer até dourar. Textura de fritura sem óleo.",
+    macros: "~150 kcal",
+    icon: "🧈",
+  },
+
+  // --- BEBIDAS E QUENTINHOS ---
+  {
+    title: "Café com Leite e Mel",
+    description: "1 xícara de café + leite (integral ou vegetal) + 1 colher de chá de mel. Conforto rápido e quentinho.",
+    macros: "~90 kcal",
+    icon: "☕",
+  },
+  {
+    title: "Chá Quente Adoçado",
+    description: "1 xícara de chá (camomila, erva-doce ou de sua preferência) com 1 colher de chá de mel. Ótimo à noite.",
+    macros: "~30 kcal",
+    icon: "🍵",
+  },
 ];
 
 export default function TpmCravingsDialog({ trigger }: Props) {
