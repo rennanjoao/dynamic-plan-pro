@@ -121,6 +121,7 @@ serve(async (req) => {
     const fontes = {
       alertIds: openAlerts.map((a) => a.id).sort(),
       checkinInsightAt: checkinInsight?.generated_at ?? null,
+      anamnesisAt,
     };
     const { data: existing } = await admin
       .from("coach_insights")
@@ -133,8 +134,80 @@ serve(async (req) => {
       });
     }
 
-    // ── 4. Caso trivial: nada em aberto e nenhum check-in — sem custo de IA ──
+    // ── 3.5. Aluno novo: sem alertas e sem check-in, mas COM anamnese ────────
+    // A IA lê a anamnese e devolve só os SINAIS (com severidade). A cor
+    // continua sendo decidida em código, a partir da pior severidade.
+    if (openAlerts.length === 0 && !checkinInsight && anamnesis?.payload) {
+      const ANAMNESE_PROMPT = `Você triaga a anamnese inicial de um aluno para um coach de fitness.
+Leia os dados e liste APENAS sinais que merecem atenção do coach (lesões, dores, doenças, medicamentos/hormônios, distúrbios do sono, questões gastrointestinais, transtorno alimentar, restrições severas, cargas de trabalho extremas, sintomas clínicos).
+Não invente nada que não esteja nos dados. Se estiver tudo dentro do esperado, devolva a lista vazia.
+Responda SOMENTE com JSON válido, sem markdown:
+{"resumo":"...","sinais":[{"texto":"...","severidade":"atencao"|"risco"}],"interpretacao":"...","sugestao":"..."}
+- "resumo": uma frase (máx. ~140 caracteres) sobre o estado inicial do aluno.
+- "severidade": "risco" só para sinais clínicos que pedem cautela imediata; o resto é "atencao".
+- "sugestao": em tom de sugestão ("vale avaliar", "considerar"), nunca ordem. Use "" se não houver.`;
+
+      const anaRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "qwen/qwen3.6-27b",
+          messages: [
+            { role: "system", content: ANAMNESE_PROMPT },
+            { role: "user", content: JSON.stringify(anamnesis.payload).slice(0, 12000) },
+          ],
+          stream: false,
+          temperature: 0.2,
+          reasoning_effort: "none",
+        }),
+      });
+      let ana: { resumo?: string; sinais?: { texto?: string; severidade?: string }[]; interpretacao?: string; sugestao?: string } = {};
+      if (anaRes.ok) {
+        const j = await anaRes.json();
+        try {
+          ana = JSON.parse((j.choices?.[0]?.message?.content ?? "{}").replace(/```json|```/g, "").trim());
+        } catch {
+          console.error("[coach-insight-summary] anamnese: resposta não-JSON");
+        }
+      } else {
+        console.error("[coach-insight-summary] anamnese: groq", anaRes.status);
+      }
+
+      const sinais = (ana.sinais ?? []).filter((s) => s && typeof s.texto === "string" && s.texto.trim());
+      const anaSituacao: Situacao = sinais.some((s) => s.severidade === "risco")
+        ? "risco"
+        : sinais.length > 0
+        ? "atencao"
+        : "boa";
+
+      const { error: anaUpsertErr } = await admin.from("coach_insights").upsert(
+        {
+          coach_id: coachId,
+          student_id: studentId,
+          situacao: anaSituacao,
+          confianca: "baixa", // só anamnese, sem histórico de acompanhamento ainda
+          resumo:
+            ana.resumo ||
+            (sinais.length === 0
+              ? "Anamnese inicial sem pontos de atenção relevantes."
+              : "Anamnese inicial com pontos de atenção."),
+          observacoes: sinais.map((s) => s.texto!.trim()),
+          interpretacao: ana.interpretacao ?? "",
+          sugestao: ana.sugestao || null,
+          fontes,
+          generated_at: new Date().toISOString(),
+        },
+        { onConflict: "student_id" }
+      );
+      if (anaUpsertErr) throw anaUpsertErr;
+      return new Response(JSON.stringify({ ok: true, situacao: anaSituacao, fonte: "anamnese" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── 4. Caso trivial: nada em aberto, nenhum check-in e nenhuma anamnese ──
     if (openAlerts.length === 0 && !checkinInsight) {
+
       const { error: upsertErr } = await admin.from("coach_insights").upsert(
         {
           coach_id: coachId,
