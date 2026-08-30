@@ -51,6 +51,7 @@ import {
   type LibraryEntry,
 } from "@/lib/exerciseLibrary";
 import { classifyExerciseByName, MUSCLE_GROUP_LABELS, type MuscleGroup } from "@/lib/muscleGroupClassifier";
+import { parseRestTime } from "@/lib/timeParser";
 
 /* ── Constantes ─────────────────────────────────────────────────────────────── */
 const GOLD = "#C9A84C";
@@ -69,13 +70,6 @@ function parseSetsMax(s?: string): number {
 function parseSetsMin(s?: string): number {
   const nums = String(s || "3").match(/\d+/g);
   return nums ? Math.max(1, Math.min(...nums.map(Number))) : 3;
-}
-function parseRestRange(rest?: string) {
-  const nums = String(rest || "60-90").match(/\d+/g);
-  if (!nums) return { min: 60, max: 90 };
-  const toSec = (n: number) => (n < 60 && !/seg|s/.test(rest || "") ? n * 60 : n);
-  const vals = nums.map(n => toSec(parseInt(n, 10)));
-  return { min: Math.min(...vals), max: Math.max(...vals) };
 }
 function fmtMMSS(s: number) {
   const m = Math.floor(s / 60), sec = s % 60;
@@ -131,9 +125,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
 
   const dayKeyForStorage = initialDay ?? workouts[0]?.key ?? "A";
 
-  // A memória de carga é separada por TIPO de periodização (peso/tecnica/
-  // resistencia/deload) — inclusive no localStorage, para o fluxo offline usar
-  // exatamente a mesma separação do servidor.
   const periodizationKeyOf = (weekIdx: number): string | null =>
     buildPeriodizationKey({
       enabled: isPeriodizationOn,
@@ -153,11 +144,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const [currentExIdx, setCurrentExIdx] = useState(0);
   const [phase, setPhase] = useState<"training" | "conclusion">("training");
   const [setDataMap, setSetDataMap] = useState<Record<string, any[]>>(_saved?.setDataMap ?? {});
-  // Derivado de setDataMap — antes era um segundo useState (completed) atualizado
-  // "em paralelo" a cada série, o que abria uma janela de corrida entre os dois
-  // estados (um podia refletir uma série que o outro ainda não tinha). Como todo
-  // o conteúdo de `completed` (índices das séries com done=true) já existe dentro
-  // de setDataMap, não há motivo para guardá-lo separadamente.
+  
   const completed = useMemo(() => {
     const map: Record<string, number[]> = {};
     for (const key of Object.keys(setDataMap)) {
@@ -167,8 +154,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     }
     return map;
   }, [setDataMap]);
-  // Volume total (kg) da sessão atual — soma peso×reps das séries com
-  // done=true e skipped=false. Alimenta a 4ª métrica do WorkoutShareCard.
+  
   const totalVolumeKg = useMemo(() => {
     let total = 0;
     for (const key of Object.keys(setDataMap)) {
@@ -182,24 +168,21 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     }
     return Math.round(total);
   }, [setDataMap]);
+
   const [startedAt, setStartedAt] = useState<number>(_saved?.startedAt ?? Date.now());
   const [now, setNow] = useState(Date.now());
   const [showShare, setShowShare] = useState(false);
   const [showGifDialog, setShowGifDialog] = useState(false);
   const [showVideoSheet, setShowVideoSheet] = useState(false);
   const [showExList, setShowExList] = useState(false);
-  // Troca de exercício (aparelho ocupado): mantém o estímulo prescrito trocando
-  // apenas o movimento por outro do mesmo grupo muscular. Escopo: sessão atual.
+  
   const [swapMap, setSwapMap] = useState<Record<string, { name: string; gifKey?: string }>>(_saved?.swapMap ?? {});
   const [showSwap, setShowSwap] = useState(false);
   const [swapLoading, setSwapLoading] = useState(false);
   const [swapGroup, setSwapGroup] = useState<MuscleGroup | null>(null);
   const [swapOptions, setSwapOptions] = useState<LibraryEntry[]>([]);
-  // true quando a lista veio da curadoria do coach (allowed_substitutes),
-  // e não da varredura livre por grupo muscular.
   const [swapCurated, setSwapCurated] = useState(false);
 
-  // ── Retenção comportamental: histórico p/ detecção de PR, streak real e overlay ──
   const [historyMap, setHistoryMap] = useState<Record<string, ExerciseHistory[]>>({});
   const [sessionPRs, setSessionPRs] = useState<{ exerciseName: string; weightKg: number; reps: number }[]>([]);
   const [prPulse, setPrPulse] = useState(false);
@@ -212,8 +195,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
 
   const elapsedSec = Math.floor((now - startedAt) / 1000);
   const day = workouts.find((d: any) => d.key === (initialDay ?? workouts[0]?.key)) ?? workouts[0];
-  // Mobilidade/alongamento não entra no fluxo de séries do Modo Treino —
-  // é consultada no bloco separado da tela de plano.
   const dayExercises = ((day?.exercises ?? []) as any[]).filter((ex: any) => !isMobilityExercise(ex));
   const exercises = dayExercises.map((ex: any, idx: number) => {
     if (!isPeriodizationOn) return ex;
@@ -229,13 +210,18 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const currentExKey = `${day?.key}::${currentExIdx}`;
   const gifUrl = useExerciseGif(currentEx?.name, currentEx?.gifKey);
   const setsMax = parseSetsMax(currentEx?.sets);
-  const restRange = parseRestRange(currentEx?.rest);
+  
+  // PARSER DE TEMPO INTELIGENTE (Substitui o antigo parseRestRange)
+  const restMilestones = useMemo(() => {
+    const parsed = parseRestTime(currentEx?.rest);
+    return parsed.length > 0 ? parsed : [60, 90];
+  }, [currentEx?.rest]);
+  
+  const minRest = restMilestones[0];
+  const maxRest = restMilestones[restMilestones.length - 1];
+
   const parsedNotes = useMemo(() => parseExerciseNotes(currentEx?.notes), [currentEx?.notes]);
 
-  // Fecha o player de vídeo se o exercício mudar por baixo dele (ex.: avanço
-  // automático quando o descanso máximo é atingido após a última série) —
-  // evita mostrar o vídeo de um exercício sobre o contexto de outro sem o
-  // aluno perceber a troca.
   useEffect(() => {
     setShowVideoSheet(false);
   }, [currentExKey]);
@@ -246,29 +232,33 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const restElapsed = restBaseSec + (restSegStartedAt ? Math.floor((now - restSegStartedAt) / 1000) : 0);
   const restRunning = restSegStartedAt !== null;
 
-  const lastAlertRef = useRef<number>(-1);
+  const triggeredAlertsRef = useRef<Set<number>>(new Set());
+  
   useEffect(() => {
-    if (!restRunning) { lastAlertRef.current = -1; return; }
+    if (!restRunning) { 
+      triggeredAlertsRef.current.clear(); 
+      return; 
+    }
     
-    // Alerta no Limite Inferior (Min)
-    if (restElapsed === restRange.min && lastAlertRef.current !== restRange.min) {
-      playBeep("warn");
-      lastAlertRef.current = restRange.min;
-      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(25);
-      toast.success("Janela de descanso aberta! Pode iniciar.", { icon: "🔥", duration: 2000 });
+    // Alertas intermediários (Janela Aberta) - acionado em todos os milestones, exceto o último
+    for (let i = 0; i < restMilestones.length - 1; i++) {
+      const ms = restMilestones[i];
+      if (restElapsed >= ms && !triggeredAlertsRef.current.has(ms)) {
+        playBeep("warn");
+        triggeredAlertsRef.current.add(ms);
+        if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(25);
+        toast.success("Janela de descanso aberta! Pode iniciar.", { icon: "🔥", duration: 2000 });
+      }
     }
     
     // Alerta no Limite Superior (Max) e Parada
-    if (restElapsed >= restRange.max && lastAlertRef.current !== restRange.max) {
+    if (restElapsed >= maxRest && !triggeredAlertsRef.current.has(maxRest)) {
       playBeep("end");
-      lastAlertRef.current = restRange.max;
+      triggeredAlertsRef.current.add(maxRest);
       if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate([50, 40, 50]);
       setRestSegStartedAt(null);
-      setRestBaseSec(restRange.max);
+      setRestBaseSec(maxRest);
 
-      // Se a última série do exercício já foi feita, o descanso máximo agora
-      // funciona como o sinal de "hora de trocar" — avança sozinho para o
-      // próximo exercício em vez de só travar o timer esperando um toque manual.
       const doneCountThisEx = (setDataMap[currentExKey] ?? []).filter((s: any) => s.done).length;
       const exerciseFullyDone = doneCountThisEx >= setsMax;
       const hasNextExercise = currentExIdx < exercises.length - 1;
@@ -280,26 +270,16 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         toast.error("Limite de descanso atingido! Inicie agora.", { icon: "💀", duration: 3000 });
       }
     }
-  }, [restElapsed, restRunning, restRange, setDataMap, currentExKey, setsMax, currentExIdx, exercises]);
+  }, [restElapsed, restRunning, restMilestones, maxRest, setDataMap, currentExKey, setsMax, currentExIdx, exercises]);
 
   // ── Ciclo de vida da sessão de treino ───────────────────────────────────────
-  // Sem isto, session.sessionId nunca é preenchido e registerSet/finishSession
-  // não têm o que persistir (ambos saem em silêncio quando sessionId é nulo).
-  // Tenta retomar (rascunho local ou sessão aberta no banco) antes de criar uma
-  // nova, para não duplicar linha em workout_sessions nem "zerar" o progresso.
   const [isFinishing, setIsFinishing] = useState(false);
-  // Modal de métricas pós-treino: qualidade de sono + sensação. Só depois do
-  // "Confirmar e Finalizar" (com persistência ok) é que a tela de conclusão
-  // aparece — evita perder o contexto fisiológico que o coach precisa ver.
   const [showPostWorkoutMetrics, setShowPostWorkoutMetrics] = useState(false);
   const [pwSleep, setPwSleep] = useState<1 | 2 | 3 | 4 | null>(null);
   const [pwFeeling, setPwFeeling] = useState<1 | 2 | 3 | 4 | null>(null);
-  // Declarado aqui (não junto de handleFinishWorkout) porque handleFizASerie,
-  // definido mais acima na árvore de closures do componente, também precisa
-  // checar essa ref para não registrar uma série exatamente durante a janela
-  // de encerramento do treino.
   const isFinishingRef = useRef(false);
   const sessionBootstrapped = useRef(false);
+
   useEffect(() => {
     if (sessionBootstrapped.current || !userId || !day?.key) return;
     sessionBootstrapped.current = true;
@@ -316,9 +296,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
       });
     };
 
-    // Pergunta antes de retomar uma sessão fora da janela de validade. Sem
-    // isto, um treino abandonado semanas atrás voltava como "em andamento"
-    // (cronômetro e progresso antigos) sem o aluno ter escolhido isso.
     const askResume = async (startedAt: number) => {
       const hours = Math.floor((Date.now() - startedAt) / 3_600_000);
       const quando = hours >= 24 ? `${Math.floor(hours / 24)} dia(s)` : `${Math.max(hours, 1)} hora(s)`;
@@ -336,10 +313,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     };
 
     const rebuildFromServer = (activeSessionId: string) => {
-      // Sem rascunho local (localStorage limpo, outro dispositivo, aba
-      // anônima etc.) mas com sessão ativa no servidor: reconstrói
-      // setDataMap a partir das séries já registradas, senão o treino
-      // aparece "zerado" na tela mesmo com progresso salvo no banco.
       session
         .getSessionSets(activeSessionId)
         .then((sets) => {
@@ -353,18 +326,15 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
             arr[s.set_number - 1] = { weight: s.weight_kg ?? 0, reps: s.reps ?? 0, done: s.completed, skipped: s.skipped };
             rebuilt[key] = arr;
           });
-          // `prev` por cima do reconstruído: preserva qualquer série que
-          // o aluno já tenha marcado localmente enquanto a busca corria.
           setSetDataMap((prev) => ({ ...rebuilt, ...prev }));
         })
         .catch((err) => {
-          console.warn("[WorkoutMode] Falha ao reconstruir progresso da sessão recuperada:", err);
+          console.warn("[WorkoutMode] Falha ao reconstruir progresso:", err);
         });
     };
 
     (async () => {
       try {
-        // 1) Rascunho local desta mesma sessão
         if (_saved?.sessionId && !String(_saved.sessionId).startsWith("local_")) {
           const startedAt = _saved.startedAt ?? Date.now();
           if (isSessionStale(startedAt)) {
@@ -382,7 +352,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
           return;
         }
 
-        // 2) Sessão aberta no servidor
         const active = await session.findActiveSession(userId, day.key);
         if (cancelled) return;
         if (!active) { beginNew(); return; }
@@ -409,7 +378,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         const hasLocalProgress = _saved?.setDataMap && Object.keys(_saved.setDataMap).length > 0;
         if (!hasLocalProgress) rebuildFromServer(active.sessionId);
       } catch (err) {
-        console.warn("[WorkoutMode] Falha ao localizar sessão ativa, iniciando uma nova:", err);
+        console.warn("[WorkoutMode] Falha ao localizar sessão:", err);
         if (!cancelled) beginNew();
       }
     })();
@@ -422,13 +391,10 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     localStorage.setItem(storageKey, JSON.stringify({ activeWeek, completed, setDataMap, swapMap, sessionId: session.sessionId, startedAt, restBaseSec, restSegStartedAt }));
   }, [activeWeek, completed, setDataMap, swapMap, session.sessionId, startedAt, restBaseSec, restSegStartedAt]);
 
-  /** Abre o seletor de troca, resolvendo o grupo muscular do exercício atual. */
   const openSwapDialog = useCallback(async () => {
     setShowSwap(true);
     setSwapLoading(true);
     try {
-      // Curadoria do coach tem precedência: se ele definiu substitutos
-      // permitidos, o aluno só escolhe dentro dessa lista.
       const allowed: string[] = (currentEx as any)?.allowed_substitutes ?? [];
       if (allowed.length > 0) {
         const entries = (await Promise.all(allowed.map((k) => getLibraryEntry(null, k))))
@@ -455,25 +421,17 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentEx?.name, currentEx?.gifKey, (currentEx as any)?.allowed_substitutes]);
 
-  // Pré-carrega o melhor histórico de cada exercício do dia — 1 query só,
-  // usada para saber em tempo real se a série atual é um Recorde Pessoal.
-  // Protegido com try/catch: se falhar (sessão ainda não pronta, rede etc.)
-  // o Modo Treino não pode quebrar por causa de uma feature de bônus (PR).
   useEffect(() => {
     if (!exercises.length) return;
     let cancelled = false;
     session
       .getExerciseHistoryBatch(exercises.map((e: any) => e.name), periodizationKey)
       .then((map) => { if (!cancelled) setHistoryMap(map ?? {}); })
-      .catch((err) => { console.warn("getExerciseHistoryBatch falhou (PR tracking desativado nesta sessão):", err); });
+      .catch((err) => { console.warn("getExerciseHistoryBatch falhou:", err); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [day?.key, exercises.length, periodizationKey]);
 
-  // Guarda contra clique duplo: `isRegisteringSetRef` é checado de forma
-  // síncrona (não depende de re-render), então mesmo dois cliques disparados
-  // antes do estado `isRegisteringSet` propagar (e o botão desabilitar de
-  // fato) não conseguem entrar na função ao mesmo tempo.
   const isRegisteringSetRef = useRef(false);
   const [isRegisteringSet, setIsRegisteringSet] = useState(false);
 
@@ -490,15 +448,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     newSets[setIdx] = { weight: activeWeight, reps: activeReps, effort, done: true, skipped: false };
     setSetDataMap(prev => ({ ...prev, [currentExKey]: newSets }));
 
-    // ── Detecção de PR: compara a carga contra o melhor histórico do exercício ──
-    // Recompensa variável real (não cosmética) — só dispara quando há motivo de fato.
-    // BUG CORRIGIDO: "bestPrevWeight" antes só olhava o histórico de sessões
-    // anteriores (buscado 1x ao entrar no exercício) e nunca era atualizado com
-    // as séries já feitas NESTA sessão. Resultado: a 2ª, 3ª... série do mesmo
-    // exercício com a MESMA carga continuava batendo o número "congelado" do
-    // histórico antigo e disparava "Novo Record" de novo a cada clique.
-    // Agora o teto de comparação é o maior entre o histórico e as séries já
-    // registradas aqui, no exercício atual, durante este treino.
     const history = historyMap[currentEx?.name] ?? [];
     const historyBestWeight = history.length ? Math.max(...history.map(h => h.weightKg)) : 0;
     const sessionBestWeightThisEx = currentSets.length ? Math.max(...currentSets.map(s => s.weight || 0)) : 0;
@@ -512,10 +461,9 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
       });
       setPrPulse(true);
       setTimeout(() => setPrPulse(false), 1400);
-      if (navigator.vibrate) navigator.vibrate([40, 60, 40, 60, 120]); // padrão distinto de "conquista"
+      if (navigator.vibrate) navigator.vibrate([40, 60, 40, 60, 120]);
       toast.success(`🏆 NOVO RECORD! ${activeWeight}kg em ${currentEx?.name}`, { duration: 3500, icon: "🏆" });
     } else if (navigator.vibrate) {
-      // Vibração tiered por esforço — reforça a escala em vez de feedback genérico
       navigator.vibrate(effort === 3 ? [20, 40, 20] : effort === 2 ? [30] : [15]);
     }
 
@@ -535,15 +483,11 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         swappedFromName: currentEx?.swappedFrom ?? null,
         periodizationKey,
       });
-      // Toast com ação "Desfazer" — reduz o custo de um clique errado
       if (!isPR) {
-        // Toast enxuto: sem ação "Desfazer" — a edição/remoção fica disponível
-        // clicando no círculo da série. Durante o treino, um botão "Desfazer"
-        // sobre o toast poluía a interface e atrapalhava o fluxo rápido.
         toast.success(`Série ${setIdx + 1} registrada`, { duration: 2200 });
       }
     } catch (err) {
-      console.warn("[WorkoutMode] Falha ao registrar série no servidor (mantida localmente):", err);
+      console.warn("[WorkoutMode] Falha ao registrar série:", err);
       toast.error("Sem conexão — série salva localmente e será sincronizada depois.", { duration: 2500 });
     } finally {
       isRegisteringSetRef.current = false;
@@ -553,7 +497,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
 
   const [activeWeight, setActiveWeight] = useState(0);
   const [activeReps, setActiveReps] = useState(0);
-  // Hook de incremento adaptativo (hold-to-step 1 → 2.5 → 5 → 10 kg)
   const weightDec = useAdaptiveWeightStep(setActiveWeight);
   const weightInc = useAdaptiveWeightStep(setActiveWeight);
   const [editingSetIdx, setEditingSetIdx] = useState<number | null>(null);
@@ -562,16 +505,8 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const doneSets = (setDataMap[currentExKey] ?? []).filter(s => s.done);
   const todasFeitas = doneSets.length >= setsMax;
 
-  // Pré-preencher carga/reps do histórico ao trocar de exercício.
-  // Ao MUDAR de exercício (manual, avanço automático do descanso ou Mapa do
-  // Treino), os campos são zerados ANTES do pré-preenchimento — sem isso o
-  // valor do exercício anterior "vazava" para o próximo, já que a condição
-  // `!activeWeight` nunca voltava a valer depois do primeiro exercício.
   const lastPrefillKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    // A identidade do prefill inclui a periodização: ao trocar de semana
-    // (ex.: Força → Deload) os campos zeram antes de buscar o histórico
-    // daquela periodização — nunca herdam a carga da anterior.
     const prefillIdentity = `${currentExKey}@@${periodizationKey ?? "legacy"}`;
     const keyChanged = lastPrefillKeyRef.current !== prefillIdentity;
     lastPrefillKeyRef.current = prefillIdentity;
@@ -579,7 +514,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     const currentSets = setDataMap[currentExKey] ?? [];
     const hasDoneSets = currentSets.some((s: any) => s.done);
 
-    // Reset silencioso ao trocar de exercício.
     const weight = keyChanged ? 0 : activeWeight;
     const reps = keyChanged ? 0 : activeReps;
     if (keyChanged) { setActiveWeight(0); setActiveReps(0); }
@@ -594,8 +528,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentExKey, historyMap, periodizationKey]);
 
-  /** Desfaz a última série marcada: remove localmente, restaura inputs,
-   * zera o timer de descanso e deleta no backend. */
   const handleUndoLastSet = useCallback(async () => {
     const currentSets = setDataMap[currentExKey] ?? [];
     let lastIdx = -1;
@@ -613,11 +545,10 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     try {
       await session.deleteSet(lastIdx + 1, currentEx?.name ?? "—");
     } catch (err) {
-      console.warn("[WorkoutMode] deleteSet falhou no undo:", err);
+      console.warn("[WorkoutMode] deleteSet falhou:", err);
     }
   }, [setDataMap, currentExKey, session, currentEx]);
 
-  /** Marca a série atual como pulada e persiste no backend. */
   const handlePularSerie = useCallback(async () => {
     if (isRegisteringSetRef.current || isFinishingRef.current) return;
     const currentSets = setDataMap[currentExKey] ?? [];
@@ -647,7 +578,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     toast("Série pulada", { icon: "⏭️", duration: 1800 });
   }, [setDataMap, currentExKey, setsMax, session, currentEx]);
 
-  /** Salva a edição de uma série já registrada (do Dialog de edição). */
   const handleSaveEditSet = useCallback(async () => {
     if (editingSetIdx == null) return;
     const currentSets = setDataMap[currentExKey] ?? [];
@@ -675,7 +605,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     setEditingSetIdx(null);
   }, [editingSetIdx, editWeight, editReps, setDataMap, currentExKey, session, currentEx]);
 
-  /** Remove uma série do Dialog. */
   const handleRemoveSet = useCallback(async () => {
     if (editingSetIdx == null) return;
     const currentSets = setDataMap[currentExKey] ?? [];
@@ -685,7 +614,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     try {
       await session.deleteSet(editingSetIdx + 1, currentEx?.name ?? "—");
     } catch (err) {
-      console.warn("[WorkoutMode] deleteSet falhou no remove:", err);
+      console.warn("[WorkoutMode] deleteSet falhou:", err);
     }
     if (typeof target?.weight === "number") setActiveWeight(target.weight);
     if (typeof target?.reps === "number") setActiveReps(target.reps);
@@ -694,9 +623,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
 
   const progressPct = Math.round((Object.values(completed).flat().length / (exercises.reduce((acc: number, ex: any) => acc + parseSetsMin(ex.sets), 0))) * 100);
 
-  // Status de cada exercício para o "Mapa do Treino" (drawer) — estava sendo
-  // chamada na linha do map() mas nunca foi declarada, o que derrubava a tela
-  // inteira com "ReferenceError: getExStatus is not defined" ao abrir o mapa.
   const getExStatus = (i: number): "done" | "partial" | "pending" => {
     const ex = exercises[i];
     const key = `${day?.key}::${i}`;
@@ -706,15 +632,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     return "partial";
   };
 
-  // ── Encerramento do treino ──────────────────────────────────────────────────
-  // Persiste ended_at/workout_progress ANTES de trocar para a tela de conclusão
-  // (em vez de só trocar o estado visual). Isso elimina a janela de corrida em
-  // que o aluno podia fechar o modal antes do encerramento ser salvo — quando
-  // chegamos à tela de conclusão, o encerramento já foi tentado.
-  // Abre o modal de métricas — só finaliza de verdade depois que o aluno
-  // responde sono + sensação. Fica separado de `confirmFinishWorkout` para
-  // que qualquer botão "Finalizar" (barra inferior, Mapa do Treino, etc.)
-  // caia no mesmo funil sem duplicar lógica.
   const handleFinishWorkout = () => {
     if (isFinishingRef.current) return;
     setPwSleep(null);
@@ -738,7 +655,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     } catch (err) {
       console.warn("[WorkoutMode] Falha ao finalizar sessão:", err);
       toast.error("Não foi possível confirmar o encerramento no servidor. Seu progresso foi mantido localmente.");
-      // Mesmo com falha no server, libera a tela de resumo — dados estão salvos localmente.
       setShowPostWorkoutMetrics(false);
       setPhase("conclusion");
     } finally {
@@ -747,15 +663,12 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     }
   };
 
-  // Ao concluir: busca o streak real (substitui o `streak={0}` hardcoded) e
-  // auto-revela o card de compartilhamento — reduzir a fricção do clique é o
-  // maior ganho de conversão do efeito rede.
   useEffect(() => {
     if (phase !== "conclusion") return;
     session.getStreak(userId).then(setRealStreak).catch((err) => {
-      console.warn("getStreak falhou (streak ficará 0 nesta tela):", err);
+      console.warn("getStreak falhou:", err);
     });
-    const t = setTimeout(() => setShowShare(true), 900); // deixa o troféu "aterrissar" antes
+    const t = setTimeout(() => setShowShare(true), 900);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
@@ -779,10 +692,15 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     );
   }
 
+  // Prepara o display UI de tempo, resolvendo array de milestones
+  const isWindowOpen = restMilestones.length > 1 && restElapsed >= minRest;
+  const restDisplay = restMilestones.length > 1 
+      ? `${restMilestones[0]}-${restMilestones[restMilestones.length - 1]}s` 
+      : `${restMilestones[0]}s`;
+
   return (
     <div className="fixed inset-0 z-50 bg-background overflow-y-auto pb-40 flex flex-col">
       <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-white/5 px-4 py-2 flex items-center gap-3">
-        {/* Antes: onClose disparava direto, sem aviso — 1 toque acidental e o aluno saía sem entender que o progresso fica salvo. Reaproveita o useConfirm já importado (estava sem uso). */}
         <button
           onClick={async () => {
             const ok = await confirm({
@@ -799,7 +717,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
           <h1 className="font-black text-sm truncate uppercase tracking-tight">Treino {day?.key} {day?.focus && `· ${day.focus}`}</h1>
           <p className="text-xs text-primary font-bold flex items-center gap-1"><Flame className="w-3 h-3" /> {fmtMMSS(elapsedSec)}</p>
         </div>
-        {/* Barra de progresso ampliada + fração numérica — reforça senso de avanço em vista periférica */}
         <div className="flex flex-col items-end gap-1 shrink-0">
           <span className="text-[10px] font-black text-white/70 tabular-nums">{Object.values(completed).flat().length}/{exercises.reduce((acc: number, ex: any) => acc + parseSetsMin(ex.sets), 0)} séries</span>
           <div className="h-2 w-20 bg-white/10 rounded-full overflow-hidden">
@@ -814,26 +731,22 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         {currentEx && (
           <motion.div key={currentExKey} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
             
-            {/* Cronômetro Dinâmico */}
-            <div className={`bg-neutral-900 rounded-3xl p-6 border-2 transition-all duration-500 ${restRunning ? (restElapsed >= restRange.min ? "border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]" : "border-primary shadow-[0_0_15px_rgba(201,168,76,0.2)]") : "border-white/5"} relative overflow-hidden`}>
+            {/* Cronômetro Dinâmico Integrado com timeParser */}
+            <div className={`bg-neutral-900 rounded-3xl p-6 border-2 transition-all duration-500 ${restRunning ? (isWindowOpen ? "border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]" : "border-primary shadow-[0_0_15px_rgba(201,168,76,0.2)]") : "border-white/5"} relative overflow-hidden`}>
               <div className="text-center space-y-1 relative z-10">
                 <div className="flex items-center justify-center gap-2 mb-2">
-                  <Badge variant="outline" className={`text-[9px] uppercase font-black ${restElapsed >= restRange.min ? "bg-green-500/10 text-green-500 border-green-500/20" : "bg-primary/10 text-primary border-primary/20"}`}>
-                    {restRunning ? (restElapsed >= restRange.min ? "Janela Aberta" : "Recuperando") : "Aguardando Série"}
+                  <Badge variant="outline" className={`text-[9px] uppercase font-black ${isWindowOpen ? "bg-green-500/10 text-green-500 border-green-500/20" : "bg-primary/10 text-primary border-primary/20"}`}>
+                    {restRunning ? (isWindowOpen ? "Janela Aberta" : "Recuperando") : "Aguardando Série"}
                   </Badge>
-                  <span className="text-[10px] text-white/60 font-bold uppercase tracking-widest">{restRange.min}-{restRange.max}s</span>
+                  <span className="text-[10px] text-white/60 font-bold uppercase tracking-widest">{restDisplay}</span>
                 </div>
-                <h3 className={`text-7xl font-black tabular-nums tracking-tighter transition-colors ${restRunning && (restRange.max - restElapsed <= 5) ? "text-red-500 animate-pulse" : "text-white"}`}>{fmtMMSS(restElapsed)}</h3>
+                <h3 className={`text-7xl font-black tabular-nums tracking-tighter transition-colors ${restRunning && (maxRest - restElapsed <= 5) ? "text-red-500 animate-pulse" : "text-white"}`}>{fmtMMSS(restElapsed)}</h3>
                 {restRunning && (
-                  /* Botões com altura mínima de 44px (h-11) — antes h-9/36px, insuficiente para toque em movimento */
                   <div className="flex justify-center gap-3 mt-4">
                     <Button onClick={() => setRestSegStartedAt(null)} variant="secondary" size="sm" className="rounded-full h-11 px-7 text-xs font-black uppercase active:scale-95">Pausar</Button>
                     <Button onClick={() => { setRestBaseSec(0); setRestSegStartedAt(null); }} size="sm" className="rounded-full h-11 px-7 text-xs font-black uppercase active:scale-95">Zerar</Button>
                   </div>
                 )}
-                {/* Aparece assim que a última série do exercício é marcada — avisa o próximo
-                    exercício com antecedência para o aluno já ir se posicionando durante o
-                    descanso. A troca automática só ocorre quando o descanso máximo terminar. */}
                 {todasFeitas && currentExIdx < exercises.length - 1 && (
                   <motion.p
                     initial={{ opacity: 0, y: 4 }}
@@ -868,8 +781,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                 </div>
               </div>
               <div className="flex gap-2">
-                {/* Círculos interativos: clique numa série feita abre o Dialog de edição/remoção.
-                    Séries puladas ficam com borda tracejada; séries feitas em verde. */}
                 {Array.from({ length: setsMax }).map((_, i) => {
                   const s = doneSets[i];
                   const isCurrent = i === doneSets.length;
@@ -947,11 +858,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
             {/* Inputs */}
             {!todasFeitas && (
               <div className="bg-neutral-900 rounded-3xl p-5 border border-white/5 space-y-4">
-                {/*
-                  Carga/Reps: teclado numérico exige precisão de toque + visão de perto — ruim com mãos
-                  suadas/em movimento. Adicionados botões +/- (48px) como via alternativa de ajuste rápido
-                  sem precisar digitar; o input de texto continua disponível para valores exatos/atípicos.
-                */}
               <div className="flex gap-3">
                   <div className="flex-1 space-y-1">
                     <label className="text-[10px] uppercase font-black text-white/60 ml-1">Carga (kg)</label>
@@ -984,13 +890,11 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                     </div>
                   </div>
                 </div>
-                {/* Botões de esforço maiores (min-h-20, antes py-3/~52px) — alvo de toque confortável em movimento */}
                 <div className="grid grid-cols-3 gap-2">
                   {EFFORT_OPTIONS.map(opt => (
                     <button key={opt.value} onClick={() => handleFizASerie(opt.value)} disabled={isRegisteringSet || isFinishing} className="flex flex-col items-center justify-center min-h-20 rounded-2xl border-2 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none" style={{ borderColor: opt.color, backgroundColor: opt.bg, color: opt.color }}><span className="text-2xl">{opt.emoji}</span><span className="text-[10px] font-black uppercase mt-1">{opt.label}</span></button>
                   ))}
                 </div>
-                {/* Pular série — mesma altura visual dos botões primários, mas visual secundário */}
                 <button
                   type="button"
                   onClick={handlePularSerie}
@@ -999,7 +903,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                 >
                   <SkipForward className="w-4 h-4" /> Pular série
                 </button>
-                {/* Microcopy apenas na primeiríssima série do treino — orienta o iniciante sem infantilizar a UI nas séries seguintes */}
                 {currentExIdx === 0 && doneSets.length === 0 && (
                   <p className="text-center text-[10px] text-white/40 font-medium -mt-1">Ajuste carga e reps, depois toque em como foi a série</p>
                 )}
@@ -1009,7 +912,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         )}
       </main>
 
-      {/* Dialog de edição/remoção de série já registrada */}
       <Dialog open={editingSetIdx !== null} onOpenChange={(o) => { if (!o) setEditingSetIdx(null); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -1051,17 +953,14 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         </DialogContent>
       </Dialog>
 
-      {/* Navegação Inferior Fixa */}
       <div className="fixed bottom-0 left-0 right-0 z-30 bg-background/95 backdrop-blur border-t border-white/10 p-4 pb-8">
         <div className="flex gap-3 max-w-2xl mx-auto">
-          {/* Contraste condicional: esmaecido só quando de fato desabilitado (1º exercício); antes era sempre white/40, parecendo inativo mesmo quando clicável */}
           <Button variant="ghost" onClick={() => setCurrentExIdx(i => Math.max(0, i - 1))} disabled={currentExIdx === 0} className={`flex-1 h-12 rounded-2xl font-bold ${currentExIdx === 0 ? "text-white/25" : "text-white/70"}`}>Anterior</Button>
           <Button onClick={() => setShowExList(true)} variant="secondary" className="flex-1 h-12 rounded-2xl font-black uppercase italic tracking-tighter gap-2"><ListTodo className="w-4 h-4" /> Mapa</Button>
           <Button onClick={() => currentExIdx === exercises.length - 1 ? handleFinishWorkout() : setCurrentExIdx(i => i + 1)} disabled={isFinishing} className="flex-[1.5] h-12 rounded-2xl font-black uppercase italic tracking-tighter bg-primary text-black hover:bg-primary/90 gap-2">{currentExIdx === exercises.length - 1 ? (isFinishing ? "Salvando..." : "Finalizar") : "Próximo"} <ChevronRight className="w-4 h-4" /></Button>
         </div>
       </div>
 
-      {/* Drawer de Exercícios */}
       <Dialog open={showSwap} onOpenChange={setShowSwap}>
         <DialogContent className="max-w-md bg-neutral-950 border-white/10 text-white">
           <DialogHeader>
@@ -1089,7 +988,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                     setSwapMap((prev) => ({ ...prev, [currentExKey]: { name: opt.displayName, gifKey: opt.key } }));
                     setShowSwap(false);
                     toast.success(`Exercício trocado por ${opt.displayName}`);
-                    // Alerta o coach (best-effort — nunca bloqueia o treino).
                     if (coachId) {
                       supabase.from("coach_notifications").insert({
                         coach_id: coachId,
@@ -1140,9 +1038,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
               );
             })}
           </div>
-          {/* Antes só era possível finalizar chegando na última série do último exercício.
-              Agora, a qualquer momento do treino, o aluno pode abrir o Mapa e finalizar
-              direto — útil quando decide encurtar o treino ou já fez o suficiente. */}
           <div className="p-4 bg-white/5 border-t border-white/5 space-y-2">
             <Button
               onClick={async () => {
@@ -1164,7 +1059,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         </DialogContent>
       </Dialog>
 
-      {/* Modal pós-treino: métricas obrigatórias antes do resumo/compartilhamento */}
       <Dialog open={showPostWorkoutMetrics} onOpenChange={(o) => { if (!o && !isFinishing) setShowPostWorkoutMetrics(false); }}>
         <DialogContent className="max-w-md bg-black/90 backdrop-blur-md border border-white/10 rounded-3xl">
           <DialogHeader>
@@ -1178,10 +1072,10 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
               <p className="text-[10px] uppercase tracking-widest font-black text-white/50">Qualidade do sono</p>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { v: 1, emoji: "🔴", label: "Ruim",       color: "#ef4444", bg: "rgba(239,68,68,0.10)" },
-                  { v: 2, emoji: "🟡", label: "Regular",    color: "#eab308", bg: "rgba(234,179,8,0.10)" },
-                  { v: 3, emoji: "🟢", label: "Boa",        color: "#3b82f6", bg: "rgba(59,130,246,0.10)" },
-                  { v: 4, emoji: "✨", label: "Excelente",  color: "#10b981", bg: "rgba(16,185,129,0.12)" },
+                  { v: 1, emoji: "🔴", label: "Ruim",      color: "#ef4444", bg: "rgba(239,68,68,0.10)" },
+                  { v: 2, emoji: "🟡", label: "Regular",   color: "#eab308", bg: "rgba(234,179,8,0.10)" },
+                  { v: 3, emoji: "🟢", label: "Boa",       color: "#3b82f6", bg: "rgba(59,130,246,0.10)" },
+                  { v: 4, emoji: "✨", label: "Excelente", color: "#10b981", bg: "rgba(16,185,129,0.12)" },
                 ].map((opt) => {
                   const active = pwSleep === opt.v;
                   return (
@@ -1243,7 +1137,6 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         </DialogContent>
       </Dialog>
 
-      {/* Modal GIF */}
       <Dialog open={showGifDialog} onOpenChange={setShowGifDialog}>
         <DialogContent className="max-w-sm p-2 bg-black border-white/10 rounded-3xl overflow-hidden">
           {gifUrl && <img src={gifUrl} className="w-full h-auto rounded-2xl shadow-2xl" />}
