@@ -40,6 +40,7 @@ serve(async (req) => {
     }
     if (coach?.coach_id) {
       return new Response(JSON.stringify({
+        valid: true,
         coach_id: coach.coach_id,
         coach_name: coach.coach_name,
         notification_email: coach.notification_email,
@@ -59,20 +60,20 @@ serve(async (req) => {
 
     const expired = access?.expires_at ? new Date(access.expires_at).getTime() < Date.now() : false;
     if (!access?.coach_id) {
-      return new Response(JSON.stringify({ error: "Código inválido ou inexistente." }), {
-        status: 404,
+      return new Response(JSON.stringify({ valid: false, error: "Código inválido ou inexistente." }), {
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     if (expired) {
-      return new Response(JSON.stringify({ error: "Este código expirou. Peça um novo ao seu treinador." }), {
-        status: 410,
+      return new Response(JSON.stringify({ valid: false, error: "Este código expirou. Peça um novo ao seu treinador." }), {
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     if (access.status !== "unused") {
-      return new Response(JSON.stringify({ error: "Este código já foi utilizado. Peça um novo ao seu treinador." }), {
-        status: 409,
+      return new Response(JSON.stringify({ valid: false, error: "Este código já foi utilizado. Peça um novo ao seu treinador." }), {
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -84,6 +85,7 @@ serve(async (req) => {
       .maybeSingle();
 
     return new Response(JSON.stringify({
+      valid: true,
       coach_id: access.coach_id,
       coach_name: coachProfile?.full_name ?? "Seu Treinador",
       notification_email: coachProfile?.notification_email ?? null,
