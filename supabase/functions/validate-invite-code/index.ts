@@ -41,9 +41,21 @@ serve(async (req) => {
     const access = Array.isArray(acRows) ? acRows[0] : null;
 
     const expired = access?.expires_at ? new Date(access.expires_at).getTime() < Date.now() : false;
-    if (!access?.coach_id || access.status !== "unused" || expired) {
+    if (!access?.coach_id) {
       return new Response(JSON.stringify({ error: "Código inválido ou inexistente." }), {
         status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (expired) {
+      return new Response(JSON.stringify({ error: "Este código expirou. Peça um novo ao seu treinador." }), {
+        status: 410,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (access.status !== "unused") {
+      return new Response(JSON.stringify({ error: "Este código já foi utilizado. Peça um novo ao seu treinador." }), {
+        status: 409,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
