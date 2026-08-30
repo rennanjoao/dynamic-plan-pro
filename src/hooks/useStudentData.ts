@@ -147,11 +147,18 @@ export function useStudentData(explicitStudentId?: string) {
 
   const isExplicit = !!explicitStudentId;
 
+  const protocol = protocolQ.data ?? null;
+  const effectiveProtocolPayload =
+    draftPreview && protocol?.draft_payload && Object.keys(protocol.draft_payload as object).length > 0
+      ? protocol.draft_payload
+      : protocol?.payload ?? null;
+
   return {
     studentId,
     anamnesis: anamnesisQ.data ?? null,
     checkIns: checkInsQ.data ?? [],
-    protocol: protocolQ.data ?? null,
+    protocol,
+    effectiveProtocolPayload,
     loading:
       (!isExplicit && sessionLoading) ||
       (!!studentId && (anamnesisQ.isLoading || checkInsQ.isLoading || protocolQ.isLoading)),
