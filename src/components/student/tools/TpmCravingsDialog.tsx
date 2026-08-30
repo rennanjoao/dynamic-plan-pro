@@ -1,12 +1,10 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Heart, Flame, AlertTriangle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-interface Props {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
+interface Props { trigger?: React.ReactNode }
 
 const CRAVING_OPTIONS = [
   // --- DOCES CLÁSSICOS E FRUTAS ---
@@ -80,9 +78,20 @@ const CRAVING_OPTIONS = [
   }
 ];
 
-export function TpmCravingsDialog({ open, onOpenChange }: Props) {
+export default function TpmCravingsDialog({ trigger }: Props) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog>
+      <DialogTrigger asChild>
+        {trigger ?? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 border-pink-500/30 text-pink-500 hover:text-pink-400 hover:border-pink-500/50 hover:bg-pink-500/10"
+          >
+            <Heart className="w-3.5 h-3.5 fill-pink-500" /> S.O.S TPM
+          </Button>
+        )}
+      </DialogTrigger>
       <DialogContent className="max-w-md bg-zinc-950 border-white/10 rounded-2xl p-0 overflow-hidden flex flex-col max-h-[85vh]">
         
         <DialogHeader className="p-6 pb-4 border-b border-white/5 bg-pink-500/10 shrink-0">
