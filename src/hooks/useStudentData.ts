@@ -115,6 +115,25 @@ export function useStudentData(explicitStudentId?: string) {
     },
   });
 
+  // Marca a PRIMEIRA abertura do protocolo pelo próprio aluno. É esse momento
+  // que liga o radar de atraso de feedback no painel do coach — antes disso o
+  // aluno não pode aparecer como crítico. Nunca marca em modo espelho/preview
+  // (coach visualizando) nem quando o id vem explícito de outra tela.
+  const protocolId = protocolQ.data?.id ?? null;
+  const alreadyViewed = !!(protocolQ.data as { student_first_viewed_at?: string | null } | null)
+    ?.student_first_viewed_at;
+  useEffect(() => {
+    if (!protocolId || alreadyViewed) return;
+    if (previewAs || explicitStudentId) return;
+    if (!sessionUserId || sessionUserId !== studentId) return;
+    sb.rpc("mark_protocol_viewed", { p_protocol_id: protocolId }).then(
+      ({ error }: { error: unknown }) => {
+        if (error) console.warn("[useStudentData] mark_protocol_viewed falhou", error);
+      },
+    );
+  }, [protocolId, alreadyViewed, previewAs, explicitStudentId, sessionUserId, studentId]);
+
+
   useEffect(() => {
     if (!studentId) return;
     const ch = sb
