@@ -4,13 +4,12 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Calendar, Loader2,
-  Eye, Copy, RefreshCcw, AlertCircle, ChevronDown, Minimize2, Wand2, Library,
+  Eye, Copy, RefreshCcw, AlertCircle, ChevronDown, Minimize2, Wand2, Library, ArrowRightLeft
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -22,7 +21,6 @@ import WeekPreviewDialog from "./WeekPreviewDialog";
 import { checkMuscleRecovery } from "@/lib/muscleRecovery";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/ConfirmProvider";
-
 
 interface Props {
   payload: ProtocolPayload;
@@ -39,14 +37,23 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
   const p = payload.periodization;
   const confirm = useConfirm();
   const [previewWeek, setPreviewWeek] = useState<number | null>(null);
+  
+  // Estado para controlar a expansão das substituições de cada semana individualmente
+  const [expandedWeeks, setExpandedWeeks] = useState<Record<number, boolean>>({});
+  
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("perio_collapsed") === "true";
   });
+  
   const toggleCollapsed = () => {
     const next = !collapsed;
     setCollapsed(next);
     try { localStorage.setItem("perio_collapsed", String(next)); } catch { /* noop */ }
+  };
+
+  const toggleWeekExpansion = (i: number) => {
+    setExpandedWeeks(prev => ({ ...prev, [i]: !prev[i] }));
   };
 
   const validation = useMemo(() => validatePeriodization(payload), [payload]);
@@ -221,8 +228,8 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
             ) : null;
           })()}
 
-          {/* Editor de metadados das 4 semanas */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+          {/* Editor de metadados das 4 semanas - Adicionado items-start para as colunas não esticarem se uma abrir as substituições */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4 items-start">
             {p.weeks.map((w, i) => (
               <div key={i} className="rounded-lg border border-border bg-background/40 p-3 space-y-2">
                 <div className="flex items-center gap-2">
@@ -278,60 +285,69 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
                     </div>
                   ))}
                 </div>
+
+                {/* Botão de Toggle das Substituições */}
+                <div className="pt-2">
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    className="w-full flex items-center justify-between h-8 text-xs bg-muted/30 hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                    onClick={() => toggleWeekExpansion(i)}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <ArrowRightLeft className="w-3 h-3" /> 
+                      Substituições Específicas
+                    </span>
+                    <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", expandedWeeks[i] && "rotate-180")} />
+                  </Button>
+                </div>
+
+                {/* Área Expansível de Substituições (Substitui o antigo Accordion do final) */}
+                {expandedWeeks[i] && (
+                  <div className="pt-3 space-y-3 border-t border-border/40 animate-in slide-in-from-top-2 fade-in duration-200">
+                    <div className="flex items-center justify-between -mt-1 mb-1">
+                      <span className="text-[10px] text-muted-foreground italic">Preencha apenas o que muda nesta semana.</span>
+                      <BulkApplyPopover
+                        onApply={(field, value) => bulkApplyWeek(i, field, value)}
+                        weekLabel={w.label || `Semana ${i + 1}`}
+                      />
+                    </div>
+                    {payload.workouts.length === 0 && (
+                      <p className="text-[11px] text-muted-foreground italic">Nenhum exercício na aba Treino ainda.</p>
+                    )}
+                    {payload.workouts.map((day) => (
+                      <div key={day.key} className="rounded-md border border-border/40 bg-background/40 p-2">
+                        <p className="text-[11px] font-bold uppercase text-primary mb-2">Treino {day.key}</p>
+                        <div className="space-y-3">
+                          {(day.exercises || []).map((ex, ei) => {
+                            const id = exId(day.key, ei);
+                            const ov = (p.overrides?.[String(i)]?.[id]) || {};
+                            const ovErr = (f: string) => overrideErrSet.has(`${i}|${id}|${f}`);
+                            return (
+                              <div key={ei} className="flex flex-col gap-1.5 pb-3 border-b border-border/20 last:border-0 last:pb-0">
+                                <Input
+                                  value={ov.name ?? ""}
+                                  onChange={(e) => setOverride(i, id, { name: e.target.value })}
+                                  placeholder={`= ${ex.name || "(exercício base)"}`}
+                                  className="h-7 text-xs font-medium bg-muted/20"
+                                />
+                                <div className="grid grid-cols-4 gap-1.5">
+                                  <Input value={ov.sets ?? ""}    onChange={(e) => setOverride(i, id, { sets: e.target.value })}    placeholder="séries"   className={cn("h-7 text-xs", ovErr("sets") && "border-destructive")} />
+                                  <Input value={ov.reps ?? ""}    onChange={(e) => setOverride(i, id, { reps: e.target.value })}    placeholder="reps"     className={cn("h-7 text-xs", ovErr("reps") && "border-destructive")} />
+                                  <Input value={ov.cadence ?? ""} onChange={(e) => setOverride(i, id, { cadence: e.target.value })} placeholder="cadência" className={cn("h-7 text-xs", ovErr("cadence") && "border-destructive")} />
+                                  <Input value={ov.rest ?? ""}    onChange={(e) => setOverride(i, id, { rest: e.target.value })}    placeholder="descanso" className={cn("h-7 text-xs", ovErr("rest") && "border-destructive")} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
-
-          {/* Overrides por semana (semanas 2..4 substituem a base, mas a 1 também pode ser editada) */}
-          <Accordion type="multiple" className="space-y-2">
-            {p.weeks.map((w, weekIdx) => (
-              <AccordionItem key={weekIdx} value={`w-${weekIdx}`} className="border border-border rounded-lg overflow-hidden">
-                <AccordionTrigger className="px-3 py-2 text-xs font-semibold hover:no-underline hover:bg-muted/30">
-                  Substituições — {w.label || `Semana ${weekIdx + 1}`}
-                </AccordionTrigger>
-                <AccordionContent className="px-3 pb-3 space-y-3 pt-2 border-t border-border/40">
-                  <div className="flex items-center justify-end -mt-1 mb-1">
-                    <BulkApplyPopover
-                      onApply={(field, value) => bulkApplyWeek(weekIdx, field, value)}
-                      weekLabel={w.label || `Semana ${weekIdx + 1}`}
-                    />
-                  </div>
-                  {payload.workouts.length === 0 && (
-                    <p className="text-[11px] text-muted-foreground italic">Nenhum exercício na aba Treino ainda.</p>
-                  )}
-                  {payload.workouts.map((day) => (
-                    <div key={day.key} className="rounded-md border border-border/40 bg-background/40 p-2">
-                      <p className="text-[11px] font-bold uppercase text-primary mb-2">Treino {day.key}</p>
-                      <div className="space-y-2">
-                        {(day.exercises || []).map((ex, ei) => {
-                          const id = exId(day.key, ei);
-                          const ov = (p.overrides?.[String(weekIdx)]?.[id]) || {};
-                          const ovErr = (f: string) => overrideErrSet.has(`${weekIdx}|${id}|${f}`);
-                          return (
-                            <div key={ei} className="grid grid-cols-1 md:grid-cols-[1.4fr_repeat(4,0.7fr)] gap-2 items-center">
-                              <Input
-                                value={ov.name ?? ""}
-                                onChange={(e) => setOverride(weekIdx, id, { name: e.target.value })}
-                                placeholder={`= ${ex.name || "(base)"}`}
-                                className="h-7 text-base md:text-sm"
-                              />
-                              <Input value={ov.sets ?? ""}    onChange={(e) => setOverride(weekIdx, id, { sets: e.target.value })}    placeholder="séries"   className={cn("h-7 text-base md:text-sm", ovErr("sets") && "border-destructive")} />
-                              <Input value={ov.reps ?? ""}    onChange={(e) => setOverride(weekIdx, id, { reps: e.target.value })}    placeholder="reps"     className={cn("h-7 text-base md:text-sm", ovErr("reps") && "border-destructive")} />
-                              <Input value={ov.cadence ?? ""} onChange={(e) => setOverride(weekIdx, id, { cadence: e.target.value })} placeholder="cadência" className={cn("h-7 text-base md:text-sm", ovErr("cadence") && "border-destructive")} />
-                              <Input value={ov.rest ?? ""}    onChange={(e) => setOverride(weekIdx, id, { rest: e.target.value })}    placeholder="descanso" className={cn("h-7 text-base md:text-sm", ovErr("rest") && "border-destructive")} />
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                  <p className="text-[10px] text-muted-foreground italic">
-                    Deixe em branco para manter o exercício base. Preencha apenas o que muda nesta semana.
-                  </p>
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
         </>
       )}
 
@@ -372,7 +388,7 @@ function BulkApplyPopover({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button size="sm" variant="ghost" className="h-6 text-[10px] px-2 text-primary">
+        <Button size="sm" variant="ghost" className="h-6 text-[10px] px-2 text-primary bg-primary/5 hover:bg-primary/15">
           <Wand2 className="w-3 h-3 mr-1" /> Aplicar em massa
         </Button>
       </PopoverTrigger>
