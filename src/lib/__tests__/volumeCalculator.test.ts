@@ -104,7 +104,27 @@ describe("extractHardSetsCount — peso fracionado para força pura/neural", () 
   });
 });
 
-describe("extractHardSetsCount — notação warmup+hardsets ('+')", () => {
+describe("extractHardSetsCount — peso fracionado para resistência muscular (reps acima do teto de hipertrofia)", () => {
+  it("aplica HIGH_REP_ENDURANCE_HSE_WEIGHT (0.5) quando reps ultrapassa o teto (ex.: '3x100')", () => {
+    expect(extractHardSetsCount("3", "100")).toBeCloseTo(3 * 0.5);
+    expect(extractHardSetsCount("4", "80-100")).toBeCloseTo(4 * 0.5); // pega o maior número do range
+  });
+
+  it("NÃO penaliza reps dentro da faixa normal de hipertrofia, mesmo perto do teto", () => {
+    expect(extractHardSetsCount("3", "8-12")).toBe(3);
+    expect(extractHardSetsCount("4", "20-25")).toBe(4);
+    expect(extractHardSetsCount("3", "30")).toBe(3); // exatamente no teto ainda conta cheio
+  });
+
+  it("não pune quando reps não tem nenhum número (ex.: 'AMRAP', 'até a falha') — não há como inferir a faixa", () => {
+    expect(extractHardSetsCount("3", "AMRAP")).toBe(3);
+    expect(extractHardSetsCount("3", "até a falha")).toBe(3);
+  });
+
+  it("força pura tem prioridade sobre a checagem de reps altas (são mutuamente exclusivas)", () => {
+    expect(extractHardSetsCount("3", "3RM")).toBeCloseTo(3 * 0.3);
+  });
+});
   it("descarta os segmentos anteriores e usa apenas o último número (ex.: '1+3' -> 3)", () => {
     expect(extractHardSetsCount("1+3")).toBe(3);
     expect(extractHardSetsCount("2+2+3")).toBe(3);
