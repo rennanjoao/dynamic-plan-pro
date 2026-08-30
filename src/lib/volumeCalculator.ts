@@ -35,6 +35,35 @@ const STRENGTH_WORK_PATTERN = /\b(\d+\s*rm|for[çc]a)\b/i;
 // hipertrofia. Ajustável conforme a filosofia do app (0 = zera como antes).
 export const STRENGTH_WORK_HSE_WEIGHT = 0.3;
 
+// Teto superior da faixa de reps com equivalência de estímulo hipertrófico
+// por série (~5–30 reps até a falha, segundo o corpo de evidência sobre
+// "reps efetivas"). Acima disso, a série desloca para resistência muscular
+// localizada: o custo de fadiga sistêmica/cardiovascular por série tende a
+// ser MAIOR, mas o estímulo hipertrófico marginal por série é MENOR — por
+// isso a resposta certa é reduzir o peso, nunca multiplicar por reps.
+export const HYPERTROPHY_REP_CEILING = 30;
+
+// Peso fracionado para séries que ultrapassam o teto de hipertrofia (ex.:
+// "3x100"). Ajustável — 0.5 reflete que ainda há algum estímulo (a série é
+// levada perto da falha), mas fora da faixa calibrada pela literatura.
+export const HIGH_REP_ENDURANCE_HSE_WEIGHT = 0.5;
+
+/**
+ * Varre o campo `reps` e retorna o MAIOR número encontrado (cobre ranges
+ * como "80-100" ou notações "12+5+5"), ou null se não houver nenhum dígito
+ * (ex.: "AMRAP", "até a falha" — nesses casos não dá para inferir a faixa
+ * de reps com segurança, então o motor não pune nem pressupõe nada).
+ */
+function extractRepsCeiling(reps: string): number | null {
+  const numbers = reps.match(/\d+(?:[.,]\d+)?/g);
+  if (!numbers) return null;
+
+  const parsed = numbers.map((n) => parseFloat(n.replace(",", "."))).filter(Number.isFinite);
+  if (parsed.length === 0) return null;
+
+  return Math.max(...parsed);
+}
+
 /**
  * Núcleo "nullable" da extração: distingue explicitamente "não havia número
  * nenhum" (null) de "havia um número e ele era 0" (0) — essa diferença
@@ -75,6 +104,11 @@ function extractLeadingSetsNumber(value: string): number {
  *  2. Força pura / neural (XRM, "força") → conta, mas com peso fracionado
  *     (STRENGTH_WORK_HSE_WEIGHT), pois há tensão mecânica real, ainda que
  *     subótima para hipertrofia.
+ *  2b. Resistência muscular localizada (reps acima de HYPERTROPHY_REP_CEILING,
+ *      ex.: "3x100") → conta, mas com peso fracionado
+ *      (HIGH_REP_ENDURANCE_HSE_WEIGHT): a série sai da faixa de equivalência
+ *      de estímulo por série, então NÃO multiplicamos por reps (isso
+ *      superestimaria hipertrofia), reduzimos o peso.
  *  3. Notação "aquecimento + hard sets" no campo `sets` (ex.: "1+3",
  *     "1+1+3") → descarta todos os segmentos exceto o ÚLTIMO, que é
  *     sempre o hard set de verdade nessa convenção.
@@ -90,8 +124,18 @@ export function extractHardSetsCount(
   const reps = (rawReps ?? "").toLowerCase();
   if (ZERO_HSE_PATTERN.test(reps)) return 0;
 
-  // 2) Peso fracionado para força pura/neural (não é zero, não é hard set cheio).
-  const strengthWeight = STRENGTH_WORK_PATTERN.test(reps) ? STRENGTH_WORK_HSE_WEIGHT : 1;
+  // 2) Peso fracionado nas duas pontas da faixa de hipertrofia. Mutuamente
+  //    exclusivos: uma série não é simultaneamente "força pura" (poucas
+  //    reps) e "resistência muscular" (reps acima do teto).
+  let weight = 1;
+  if (STRENGTH_WORK_PATTERN.test(reps)) {
+    weight = STRENGTH_WORK_HSE_WEIGHT;
+  } else {
+    const repsCeiling = extractRepsCeiling(reps);
+    if (repsCeiling !== null && repsCeiling > HYPERTROPHY_REP_CEILING) {
+      weight = HIGH_REP_ENDURANCE_HSE_WEIGHT;
+    }
+  }
 
   const cleanSets = String(rawSets).trim();
   if (!cleanSets) return 0;
@@ -108,12 +152,12 @@ export function extractHardSetsCount(
     const lastSegment = segments[segments.length - 1];
     const lastSegmentSets = tryExtractLeadingSetsNumber(lastSegment);
     const hardSets = lastSegmentSets !== null ? lastSegmentSets : extractLeadingSetsNumber(cleanSets);
-    return hardSets * strengthWeight;
+    return hardSets * weight;
   }
 
   // 4) Caminho padrão: número líder, com postura conservadora em ranges/decimais.
   const hardSets = extractLeadingSetsNumber(cleanSets);
-  return hardSets * strengthWeight;
+  return hardSets * weight;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
