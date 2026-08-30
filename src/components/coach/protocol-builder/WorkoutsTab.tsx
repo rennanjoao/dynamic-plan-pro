@@ -1,6 +1,5 @@
 /**
  * WorkoutsTab.tsx — aba "Treinos" do ProtocolBuilder.
- * Extraído de ProtocolBuilder.tsx sem alteração de comportamento.
  */
 import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
@@ -13,13 +12,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import {
   Plus, Trash2, ArrowUp, ArrowDown, ChevronDown, CheckCircle2, GripVertical, Activity,
-  StretchHorizontal, Dumbbell, Library, CopyPlus,
+  StretchHorizontal, Dumbbell, Library, CopyPlus, Flame,
 } from "lucide-react";
 import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
 import { ExerciseSubstitutesPopover } from "@/components/coach/ExerciseSubstitutesPopover";
 import { CoachExerciseLibraryDialog, type LibraryPickItem } from "@/components/coach/CoachExerciseLibraryDialog";
 import WorkoutPeriodizationEditor from "../WorkoutPeriodizationEditor";
 import { WeeklyVolumeDashboard } from "./WeeklyVolumeDashboard";
+import { extractHardSetsCount } from "@/lib/volumeCalculator";
 import { ProtocolPayload, makeEmptyExercise, isMobilityExercise, isLegacyMobilityExercise } from "@/lib/protocolSchema";
 import { applyDayExercisesChange, buildExercisesWithLibraryAdditions } from "@/lib/workoutExerciseOps";
 import { normalizeCarb, cycleCarb, CARB_LABEL, DAY_KEYS } from "@/lib/weekCycle";
@@ -34,11 +34,6 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-// ─── WorkoutsTab ─────────────────────────────────────────────────────────────
-
-// Linha sortable para drag-and-drop de exercícios. Aplica transform no
-// próprio grid-row (mantém o layout original) e delega os listeners a um
-// handle dedicado (ícone GripVertical) para não interferir nos inputs.
 function SortableExerciseRow({
   id, className, children,
 }: { id: string; className?: string; children: (handle: { attributes: any; listeners: any; isDragging: boolean }) => React.ReactNode }) {
@@ -58,9 +53,6 @@ function SortableExerciseRow({
 }
 
 export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrary }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void; coachId: string | null; onOpenTemplateLibrary?: () => void }) {
-  // [FIX Tarefa 10] Backfill de __id em exercícios carregados de protocolos
-  // antigos (que não tinham esse campo). Roda uma única vez por payload,
-  // apenas se algum exercício estiver sem __id — evita loop de setPayload.
   useEffect(() => {
     const needs = payload.workouts.some((d) => d.exercises.some((e: any) => !e.__id));
     if (!needs) return;
@@ -73,23 +65,15 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
       exercises: d.exercises.map((e: any) => (e.__id ? e : { ...e, __id: gen() })),
     }));
     setPayload({ ...payload, workouts: nextWorkouts });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const confirm = useConfirm();
   const updDay = (idx: number, patch: Partial<ProtocolPayload["workouts"][number]>) => { const n = [...payload.workouts]; n[idx] = { ...n[idx], ...patch }; setPayload({ ...payload, workouts: n }); };
   const updEx = (di: number, ei: number, patch: any) => { const n = [...payload.workouts]; const exs = [...n[di].exercises]; exs[ei] = { ...exs[ei], ...patch }; n[di] = { ...n[di], exercises: exs }; setPayload({ ...payload, workouts: n }); };
-  // Remove um exercício (força ou mobilidade) de um dia. Passa pelo helper
-  // de remapeamento de periodização — a posição de TODOS os itens seguintes
-  // no array muda, então overrides antigos precisam ser realinhados ou
-  // descartados junto com o item removido.
   const removeExerciseAt = (di: number, ei: number) => {
     const nextExercises = payload.workouts[di].exercises.filter((_, i) => i !== ei);
     setPayload(applyDayExercisesChange(payload, di, nextExercises));
   };
-  // Move um item de força para a posição do vizinho de FORÇA (ignorando itens
-  // de mobilidade que possam estar entre eles no array completo). Passa pelo
-  // helper de periodização pois troca os índices dos dois itens no array.
   const swapStrength = (
     di: number,
     strengthList: Array<{ ex: any; ei: number }>,
@@ -104,11 +88,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
     [exs[a], exs[b]] = [exs[b], exs[a]];
     setPayload(applyDayExercisesChange(payload, di, exs));
   };
-  // Insere em massa os itens escolhidos na CoachExerciseLibraryDialog: gera
-  // __id novo para cada item (nunca reaproveita o key da biblioteca — o
-  // mesmo exercício pode ser adicionado 2x no bloco), reconstrói o array
-  // como força + novos + mobilidade e faz UMA única mutação imutável,
-  // já remapeando periodização.
+
   const [libraryDayIndex, setLibraryDayIndex] = useState<number | null>(null);
   const insertFromLibrary = (di: number, items: LibraryPickItem[]) => {
     const additions = items.map((item) => ({
@@ -119,10 +99,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
     const nextExercises = buildExercisesWithLibraryAdditions(payload.workouts[di].exercises as any, additions);
     setPayload(applyDayExercisesChange(payload, di, nextExercises));
   };
-  // Replica sets/reps/rest/cadence do primeiro exercício de FORÇA do bloco
-  // para os exercícios de força subsequentes (nunca mobilidade). Copia só
-  // esses 4 campos — nome, gif, notas, substitutos e __id nunca são tocados.
-  // Campo vazio na origem limpa o campo correspondente no destino.
+
   const replicateBaseConfig = async (di: number, strengthList: Array<{ ex: any; ei: number }>) => {
     if (strengthList.length < 2) return;
     const [{ ex: source, ei: sourceEi }, ...rest] = strengthList;
@@ -141,18 +118,14 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
     const nextExercises = payload.workouts[di].exercises.map((exercise, i) =>
       i === sourceEi || !targetEis.has(i) ? exercise : { ...exercise, ...fields }
     );
-    // Não muda índices (só valores de campos) — remap é no-op aqui, mas
-    // mantemos o mesmo caminho de mutação por consistência e segurança.
     setPayload(applyDayExercisesChange(payload, di, nextExercises));
   };
-  // Sensors: só inicia drag após 5px de movimento p/ não interferir em cliques
-  // nos botões (mover, deletar, picker de exercício, etc.).
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
-  // Separa força (lista principal) de mobilidade/alongamento, preservando o
-  // índice original de cada item no array `exercises` (usado por updEx).
+
   const splitExercises = (day: ProtocolPayload["workouts"][number]) => {
     const strength: Array<{ ex: any; ei: number }> = [];
     const mobility: Array<{ ex: any; ei: number }> = [];
@@ -161,6 +134,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
     });
     return { strength, mobility };
   };
+
   const handleDragEnd = (di: number, event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -170,14 +144,12 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
     const oldIndex = ids.indexOf(String(active.id));
     const newIndex = ids.indexOf(String(over.id));
     if (oldIndex < 0 || newIndex < 0) return;
-    // Reordena apenas os itens de força, mantendo as posições ocupadas por
-    // mobilidade intactas dentro do array completo.
     const reordered = arrayMove(strength.map((s) => s.ex), oldIndex, newIndex);
     const nextExs = [...exs];
     strength.forEach(({ ei }, k) => { nextExs[ei] = reordered[k]; });
     setPayload(applyDayExercisesChange(payload, di, nextExs));
   };
-  // Reordena o CARD do dia inteiro (ex: mover "Perna" para cima de "Peito")
+
   const moveDay = (di: number, direction: "up" | "down") => {
     const n = [...payload.workouts];
     const targetIdx = direction === "up" ? di - 1 : di + 1;
@@ -185,13 +157,10 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
     [n[di], n[targetIdx]] = [n[targetIdx], n[di]];
     setPayload({ ...payload, workouts: n });
   };
+
   const periodOn = !!payload.periodization?.enabled;
-  const [overrideOpen, setOverrideOpen] = useState<Record<number, boolean>>({});
-  // Colapso independente do bloco de mobilidade por dia (default: aberto).
   const [mobOpen, setMobOpen] = useState<Record<number, boolean>>({});
 
-
-  // ── Map auxiliar e helpers de week strip ───────────────────────────────────
   const weekDays: Record<string, string> = (payload as any).weekDays ?? {};
   const ABBR: Record<string, string> = { seg: "Seg", ter: "Ter", qua: "Qua", qui: "Qui", sex: "Sex", sab: "Sáb", dom: "Dom" };
   const today = (["dom","seg","ter","qua","qui","sex","sab"] as const)[new Date().getDay()];
@@ -216,11 +185,6 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
     return linked.length === 0 ? "Sem dia" : linked.map((k) => ABBR[k]).join(", ");
   };
 
-  // [FIX Tarefa 9] A LETRA EXIBIDA do treino é derivada da POSIÇÃO no array
-  // (A = primeiro, B = segundo, ...). O identificador estável `day.key`
-  // continua sendo o valor gravado em workout_sessions.workout_key,
-  // periodização, cardio associations, etc. — apenas o rótulo visual
-  // é recalculado a cada render.
   const positionLetter = (i: number) => String.fromCharCode(65 + i);
   const workoutKeyToLetter: Record<string, string> = {};
   payload.workouts.forEach((w, i) => { workoutKeyToLetter[w.key] = positionLetter(i); });
@@ -270,7 +234,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
         </div>
       </Card>
 
-      <WeeklyVolumeDashboard workouts={payload.workouts} weekDays={weekDays} />
+      <WeeklyVolumeDashboard workouts={payload.workouts} weekDays={weekDays} periodization={payload.periodization} />
 
       {payload.workouts.map((day, di) => {
       const { strength: strengthList, mobility: mobilityList } = splitExercises(day);
@@ -339,24 +303,17 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
               </PopoverContent>
             </Popover>
           </div>
+
           {periodOn && (
-            <div className="mb-2 flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+            <div className="mb-2 flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
               <p className="text-[11px] text-foreground/80">
-                Periodização ativa: séries, reps, cadência e descanso são geridos por semana.
+                Periodização ativa: os campos de séries, reps, cadência e descanso exibirão os valores preenchidos na sua Semana 1.
               </p>
-              <Button
-                size="sm"
-                variant={overrideOpen[di] ? "default" : "outline"}
-                className="h-7 text-[11px]"
-                onClick={() => setOverrideOpen((s) => ({ ...s, [di]: !s[di] }))}
-              >
-                {overrideOpen[di] ? "Ocultar campos base" : "Editar valores base"}
-              </Button>
             </div>
           )}
+          
           <div className="space-y-2">
-            {/* ── Mobilidade / Alongamento — sempre ACIMA dos exercícios de força,
-                 com toggle próprio para minimizar só este bloco. ── */}
+            {/* ── Mobilidade / Alongamento ── */}
             {mobilityList.length > 0 && (
               <div className="mb-3 rounded-lg border border-dashed border-sky-500/40 bg-sky-500/5 p-2 space-y-2">
                 <button
@@ -412,24 +369,14 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
               </div>
             )}
 
+            {/* ── Força ── */}
             {strengthList.length > 0 && (
-              <div className={cn(
-                "hidden md:grid gap-2 px-1 pb-1",
-                periodOn && !overrideOpen[di]
-                  ? "grid-cols-[1.8fr_1fr_auto]"
-                  : "grid-cols-[1.8fr_0.6fr_0.6fr_0.6fr_0.6fr_1fr_auto]"
-              )}>
+              <div className="hidden md:grid gap-2 px-1 pb-1 grid-cols-[1.8fr_0.7fr_0.6fr_0.6fr_0.6fr_1fr_auto]">
                 <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Exercício</span>
-                {(!periodOn || overrideOpen[di]) && (
-                  <>
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Séries</span>
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Reps</span>
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground cursor-help flex items-center gap-1" title="3010 = Excêntrico / Pausa / Concêntrico / Pausa">
-                      Cadência ⓘ
-                    </span>
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Descanso</span>
-                  </>
-                )}
+                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Séries</span>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Reps</span>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground cursor-help flex items-center gap-1" title="3010 = Excêntrico / Pausa / Concêntrico / Pausa">Cadência ⓘ</span>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Descanso</span>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Obs</span>
                 <span className="w-6"></span>
               </div>
@@ -446,27 +393,23 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
               >
             {strengthList.map(({ ex, ei }, si) => {
               const w1 = payload.periodization?.weeks?.[0];
-              // Quando periodização ativa, pré-preenche campos vazios com valores da Semana 1
+              // Preenche campos visualmente baseados na periodização
               const effSets    = ex.sets    || (periodOn && w1?.sets    ? w1.sets    : "");
               const effReps    = ex.reps    || (periodOn && w1?.reps    ? w1.reps    : "");
               const effCadence = ex.cadence || (periodOn && w1?.cadence ? w1.cadence : "");
               const effRest    = ex.rest    || (periodOn && w1?.rest    ? w1.rest    : "");
-              const phSets    = periodOn && w1?.sets    ? `S1: ${w1.sets}`    : "Séries (Ex: 4)";
-              const phReps    = periodOn && w1?.reps    ? `S1: ${w1.reps}`    : "Reps (Ex: 8-12)";
-              const phCadence = periodOn && w1?.cadence ? `S1: ${w1.cadence}` : "Ex: 3010";
-              const phRest    = periodOn && w1?.rest    ? `S1: ${w1.rest}`    : "Descanso (Ex: 60s)";
-              const collapsed = periodOn && !overrideOpen[di];
+              
+              // Lógica de Hard Sets (Ajuste Manual Genial)
+              const computedValidSets = extractHardSetsCount(effSets, effReps);
+              const override = (ex as any).validSetsOverride;
+              const activeValidSets = override !== undefined && override !== null ? override : computedValidSets;
+
               const rowId = (ex as any).__id ?? `${day.key}-${ei}`;
               return (
               <SortableExerciseRow
                 key={rowId}
                 id={rowId}
-                className={cn(
-                  "grid grid-cols-2 gap-2 items-center",
-                  collapsed
-                    ? "md:grid-cols-[1.8fr_1fr_auto]"
-                    : "md:grid-cols-[1.8fr_0.6fr_0.6fr_0.6fr_0.6fr_1fr_auto]"
-                )}
+                className="grid grid-cols-2 gap-2 items-center md:grid-cols-[1.8fr_0.7fr_0.6fr_0.6fr_0.6fr_1fr_auto]"
               >
               {({ attributes, listeners }) => (<>
                 <div className="min-w-0">
@@ -487,15 +430,67 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                     </button>
                   )}
                 </div>
-                {!collapsed && (
-                  <>
-                    <Input value={effSets} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder={phSets} className={cn("h-8 text-base md:text-sm", periodOn && !ex.sets && effSets ? "text-muted-foreground italic" : "")} title={periodOn && !ex.sets ? "Valor da Semana 1 — edite para personalizar" : ""} />
-                    <Input value={effReps} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder={phReps} className={cn("h-8 text-base md:text-sm", periodOn && !ex.reps && effReps ? "text-muted-foreground italic" : "")} title={periodOn && !ex.reps ? "Valor da Semana 1 — edite para personalizar" : ""} />
-                    <Input value={effCadence} onChange={(e) => updEx(di, ei, { cadence: e.target.value })} placeholder={phCadence} className={cn("h-8 text-base md:text-sm", periodOn && !ex.cadence && effCadence ? "text-muted-foreground italic" : "")} title="3010 = Excêntrico / Pausa / Concêntrico / Pausa" />
-                    <Input value={effRest} onChange={(e) => updEx(di, ei, { rest: e.target.value })} placeholder={phRest} className={cn("h-8 text-base md:text-sm", periodOn && !ex.rest && effRest ? "text-muted-foreground italic" : "")} title={periodOn && !ex.rest ? "Valor da Semana 1 — edite para personalizar" : ""} />
-                  </>
-                )}
+                
+                <div className="relative flex items-center min-w-0">
+                  <Input 
+                    value={effSets} 
+                    onChange={(e) => updEx(di, ei, { sets: e.target.value })} 
+                    placeholder={periodOn && w1?.sets ? `S1: ${w1.sets}` : "Séries (Ex: 4)"} 
+                    className="h-8 text-base md:text-sm pr-[42px]" 
+                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        title={activeValidSets !== computedValidSets ? "Ajuste manual aplicado" : "Séries válidas calculadas pela IA"}
+                        className={cn(
+                          "absolute right-1 flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold transition-colors",
+                          activeValidSets !== computedValidSets
+                            ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/30"
+                            : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25"
+                        )}
+                      >
+                        <Flame className="w-2.5 h-2.5" />
+                        {activeValidSets}
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-56 p-3" align="center">
+                      <p className="text-xs font-semibold mb-1">Forçar Séries Válidas</p>
+                      <p className="text-[10px] text-muted-foreground mb-3 leading-tight">
+                        A IA calculou <strong>{computedValidSets} HSE</strong> baseada na sua notação. Se discordar, force o valor de séries válidas abaixo:
+                      </p>
+                      <div className="flex gap-2">
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          placeholder="Ex: 2"
+                          value={override ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value !== "" ? Number(e.target.value) : null;
+                            updEx(di, ei, { validSetsOverride: val } as any);
+                          }}
+                          className="h-8 text-xs flex-1"
+                        />
+                        <Button
+                          variant={override !== null && override !== undefined ? "outline" : "default"}
+                          size="sm"
+                          className="h-8 px-3 text-xs"
+                          onClick={() => updEx(di, ei, { validSetsOverride: null } as any)}
+                        >
+                          Auto
+                        </Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <Input value={effReps} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder={periodOn && w1?.reps ? `S1: ${w1.reps}` : "Reps (Ex: 8-12)"} className="h-8 text-base md:text-sm" />
+                <Input value={effCadence} onChange={(e) => updEx(di, ei, { cadence: e.target.value })} placeholder="Ex: 3010" className="h-8 text-base md:text-sm" />
+                <Input value={effRest} onChange={(e) => updEx(di, ei, { rest: e.target.value })} placeholder={periodOn && w1?.rest ? `S1: ${w1.rest}` : "Descanso (Ex: 60s)"} className="h-8 text-base md:text-sm" />
+                
                 <Input value={ex.notes} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-base md:text-sm min-w-0" />
+                
                 <div className="flex items-center gap-0.5 flex-wrap justify-end shrink-0">
                   <ExerciseSubstitutesPopover
                     exerciseName={ex.name}
@@ -547,8 +542,6 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
             })}
               </SortableContext>
             </DndContext>
-
-
 
             <div className="flex flex-wrap gap-2 mt-1">
               <Button size="sm" variant="outline" onClick={() => setLibraryDayIndex(di)} className="h-7 text-xs border-primary/40 text-primary hover:bg-primary/10"><Library className="w-3 h-3 mr-1" /> Abrir Biblioteca</Button>
@@ -669,6 +662,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
           </div>
         </Card>
       ); })}
+
       {/* ── Card especial: Descanso (key reservada "REST") ── */}
       <Card className="bg-card/40 border-dashed border-border/60 p-4">
         <div className="flex items-center gap-3 mb-2">
