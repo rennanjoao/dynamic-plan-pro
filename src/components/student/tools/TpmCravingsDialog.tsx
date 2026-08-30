@@ -195,7 +195,7 @@ export default function TpmCravingsDialog({ trigger }: Props) {
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 p-4">
+        <ScrollArea className="flex-1 min-h-0 p-4">
           <div className="space-y-3">
             {CRAVING_OPTIONS.map((opt, i) => (
               <Card key={i} className="bg-white/5 border-white/10 p-3 hover:border-pink-500/30 transition-colors">
