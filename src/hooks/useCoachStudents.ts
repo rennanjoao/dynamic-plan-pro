@@ -197,11 +197,12 @@ export function useCoachStudentsPaged(
           .limit(ids.length * 3), // teto explícito, evita full-scan se aluno tiver muitos check-ins
         supabase
           .from("protocols")
-          .select("student_id, created_at")
+          .select("student_id, created_at, student_first_viewed_at")
           .in("student_id", ids)
           .eq("is_template", false)
           .order("created_at", { ascending: true }), // o primeiro da lista por aluno = 1º protocolo salvo
       ]);
+
 
       // O "último check-in" mede o atraso DO ALUNO, então usa somente
       // submitted_at. Usar updated_at aqui fazia um check-in antigo virar o
