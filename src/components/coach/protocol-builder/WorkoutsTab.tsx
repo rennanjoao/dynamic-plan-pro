@@ -12,14 +12,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import {
   Plus, Trash2, ArrowUp, ArrowDown, ChevronDown, CheckCircle2, GripVertical, Activity,
-  StretchHorizontal, Dumbbell, Library, CopyPlus, Flame,
+  StretchHorizontal, Dumbbell, Library, CopyPlus,
 } from "lucide-react";
 import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
 import { ExerciseSubstitutesPopover } from "@/components/coach/ExerciseSubstitutesPopover";
 import { CoachExerciseLibraryDialog, type LibraryPickItem } from "@/components/coach/CoachExerciseLibraryDialog";
 import WorkoutPeriodizationEditor from "../WorkoutPeriodizationEditor";
 import { WeeklyVolumeDashboard } from "./WeeklyVolumeDashboard";
-import { extractHardSetsCount } from "@/lib/volumeCalculator";
 import { ProtocolPayload, makeEmptyExercise, isMobilityExercise, isLegacyMobilityExercise } from "@/lib/protocolSchema";
 import { applyDayExercisesChange, buildExercisesWithLibraryAdditions } from "@/lib/workoutExerciseOps";
 import { normalizeCarb, cycleCarb, CARB_LABEL, DAY_KEYS } from "@/lib/weekCycle";
@@ -399,11 +398,6 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
               const effCadence = ex.cadence || (periodOn && w1?.cadence ? w1.cadence : "");
               const effRest    = ex.rest    || (periodOn && w1?.rest    ? w1.rest    : "");
               
-              // Lógica de Hard Sets (Ajuste Manual Genial)
-              const computedValidSets = extractHardSetsCount(effSets, effReps);
-              const override = (ex as any).validSetsOverride;
-              const activeValidSets = override !== undefined && override !== null ? override : computedValidSets;
-
               const rowId = (ex as any).__id ?? `${day.key}-${ei}`;
               return (
               <SortableExerciseRow
@@ -431,60 +425,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                   )}
                 </div>
                 
-                <div className="relative flex items-center min-w-0">
-                  <Input 
-                    value={effSets} 
-                    onChange={(e) => updEx(di, ei, { sets: e.target.value })} 
-                    placeholder={periodOn && w1?.sets ? `S1: ${w1.sets}` : "Séries (Ex: 4)"} 
-                    className="h-8 text-base md:text-sm pr-[42px]" 
-                  />
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <button
-                        type="button"
-                        title={activeValidSets !== computedValidSets ? "Ajuste manual aplicado" : "Séries válidas calculadas pela IA"}
-                        className={cn(
-                          "absolute right-1 flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold transition-colors",
-                          activeValidSets !== computedValidSets
-                            ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/30"
-                            : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25"
-                        )}
-                      >
-                        <Flame className="w-2.5 h-2.5" />
-                        {activeValidSets}
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-56 p-3" align="center">
-                      <p className="text-xs font-semibold mb-1">Forçar Séries Válidas</p>
-                      <p className="text-[10px] text-muted-foreground mb-3 leading-tight">
-                        A IA calculou <strong>{computedValidSets} HSE</strong> baseada na sua notação. Se discordar, force o valor de séries válidas abaixo:
-                      </p>
-                      <div className="flex gap-2">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.5"
-                          placeholder="Ex: 2"
-                          value={override ?? ""}
-                          onChange={(e) => {
-                            const val = e.target.value !== "" ? Number(e.target.value) : null;
-                            updEx(di, ei, { validSetsOverride: val } as any);
-                          }}
-                          className="h-8 text-xs flex-1"
-                        />
-                        <Button
-                          variant={override !== null && override !== undefined ? "outline" : "default"}
-                          size="sm"
-                          className="h-8 px-3 text-xs"
-                          onClick={() => updEx(di, ei, { validSetsOverride: null } as any)}
-                        >
-                          Auto
-                        </Button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
+                <Input value={effSets} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder={periodOn && w1?.sets ? `S1: ${w1.sets}` : "Séries (Ex: 4)"} className="h-8 text-base md:text-sm" />
                 <Input value={effReps} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder={periodOn && w1?.reps ? `S1: ${w1.reps}` : "Reps (Ex: 8-12)"} className="h-8 text-base md:text-sm" />
                 <Input value={effCadence} onChange={(e) => updEx(di, ei, { cadence: e.target.value })} placeholder="Ex: 3010" className="h-8 text-base md:text-sm" />
                 <Input value={effRest} onChange={(e) => updEx(di, ei, { rest: e.target.value })} placeholder={periodOn && w1?.rest ? `S1: ${w1.rest}` : "Descanso (Ex: 60s)"} className="h-8 text-base md:text-sm" />
