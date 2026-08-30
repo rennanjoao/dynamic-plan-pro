@@ -54,7 +54,7 @@ export default function FeedbackCountdownAlert({ userId, dismissed, onDismiss, w
     queryKey: ["student-feedback-countdown", userId],
     enabled: !!userId,
     queryFn: async () => {
-      const [{ data: ci }, { data: an }] = await Promise.all([
+      const [{ data: ci }, { data: proto }] = await Promise.all([
         supabase
           .from("check_ins")
           .select("submitted_at")
@@ -62,28 +62,32 @@ export default function FeedbackCountdownAlert({ userId, dismissed, onDismiss, w
           .order("submitted_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
-        supabase
-          .from("anamnesis")
-          .select("submitted_at, updated_at")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("protocols")
+          .select("student_first_viewed_at")
           .eq("student_id", userId)
-          .order("updated_at", { ascending: false })
+          .not("student_first_viewed_at", "is", null)
+          .order("student_first_viewed_at", { ascending: true })
           .limit(1)
           .maybeSingle(),
       ]);
       const lastCheckin = ci?.submitted_at ?? null;
-      const lastAna = an?.submitted_at ?? an?.updated_at ?? null;
-      return { lastCheckin, lastAna };
+      const firstOpened = (proto as { student_first_viewed_at?: string | null } | null)?.student_first_viewed_at ?? null;
+      return { lastCheckin, firstOpened };
     },
   });
 
   if (!data) return null;
 
-  // Sem anamnese ainda → aluno está no onboarding, não atrapalhamos.
-  const daysAna = daysSince(data.lastAna);
-  if (daysAna == null) return null;
+  // A contagem só começa quando o aluno abriu o protocolo pela primeira vez —
+  // mesma regra do radar do coach. Antes disso, nenhum aviso de atraso.
+  const daysOpened = daysSince(data.firstOpened);
+  if (daysOpened == null) return null;
 
-  // Conta a partir do último feedback OU da anamnese se ainda não houver feedback.
-  const days = daysSince(data.lastCheckin) ?? daysAna;
+  // Conta a partir do último feedback OU da 1ª abertura do protocolo.
+  const days = daysSince(data.lastCheckin) ?? daysOpened;
+
 
   // Renderização positiva: se ainda não é dia de feedback (days < preDay) mas
   // o aluno tem sequência (streak >= 2) e já está na reta final, reforça o
