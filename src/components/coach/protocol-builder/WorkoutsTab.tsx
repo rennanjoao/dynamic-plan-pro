@@ -157,8 +157,65 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
     setPayload({ ...payload, workouts: n });
   };
 
+  /** Gera uma key nova sem colidir com as existentes (nem com "REST"). */
+  const nextWorkoutKey = () => {
+    const used = new Set(payload.workouts.map((w) => w.key));
+    for (let i = 0; i < 26; i++) {
+      const k = String.fromCharCode(65 + i);
+      if (!used.has(k) && k !== "REST") return k;
+    }
+    return `W${Date.now().toString(36)}`;
+  };
+
+  /** Acrescenta um bloco de treino no fim, preservando todo o resto do rascunho. */
+  const addDay = () => {
+    setPayload({
+      ...payload,
+      workouts: [...payload.workouts, { key: nextWorkoutKey(), focus: "", exercises: [makeEmptyExercise()] }],
+    } as ProtocolPayload);
+  };
+
+  /** Remove um bloco de treino + vínculos de dia da semana + overrides da periodização. */
+  const removeDay = async (di: number) => {
+    const day = payload.workouts[di];
+    if (!(await confirm({
+      title: `Excluir Treino ${positionLetter(di)}?`,
+      description: `Os exercícios deste bloco serão removidos. Os demais treinos permanecem intactos.`,
+      confirmLabel: "Excluir",
+      destructive: true,
+    }))) return;
+
+    const nextWeekDays: Record<string, string> = {};
+    for (const [wd, wk] of Object.entries(weekDays)) if (wk !== day.key) nextWeekDays[wd] = wk;
+
+    const per: any = payload.periodization;
+    let nextPer = per;
+    if (per?.overrides) {
+      const ov: Record<string, any> = {};
+      for (const [weekIdx, byEx] of Object.entries(per.overrides as Record<string, Record<string, any>>)) {
+        const kept: Record<string, any> = {};
+        for (const [exKey, val] of Object.entries(byEx ?? {})) {
+          if (!exKey.startsWith(`${day.key}_`)) kept[exKey] = val;
+        }
+        ov[weekIdx] = kept;
+      }
+      nextPer = { ...per, overrides: ov };
+    }
+
+    setPayload({
+      ...payload,
+      workouts: payload.workouts.filter((_, i) => i !== di),
+      weekDays: nextWeekDays,
+      ...(nextPer ? { periodization: nextPer } : {}),
+    } as any);
+  };
+
   const periodOn = !!payload.periodization?.enabled;
   const [mobOpen, setMobOpen] = useState<Record<number, boolean>>({});
+  const [collapsedDays, setCollapsedDays] = useState<Record<string, boolean>>({});
+  const toggleCollapsed = (key: string) =>
+    setCollapsedDays((s) => ({ ...s, [key]: !s[key] }));
+
 
   const weekDays: Record<string, string> = (payload as any).weekDays ?? {};
   const ABBR: Record<string, string> = { seg: "Seg", ter: "Ter", qua: "Qua", qui: "Qui", sex: "Sex", sab: "Sáb", dom: "Dom" };
@@ -237,8 +294,10 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
 
       {payload.workouts.map((day, di) => {
       const { strength: strengthList, mobility: mobilityList } = splitExercises(day);
+      const isCollapsed = !!collapsedDays[day.key];
       return (
         <Card key={day.key} className="bg-card/60 border-border p-4">
+
           <div className="flex items-center gap-3 mb-3 flex-wrap">
             <div className="flex flex-col -my-1 shrink-0">
               <button
@@ -301,8 +360,33 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                 </div>
               </PopoverContent>
             </Popover>
+            <div className="flex items-center gap-0.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => toggleCollapsed(day.key)}
+                className="text-muted-foreground hover:text-primary p-1.5"
+                title={isCollapsed ? "Expandir treino" : "Minimizar treino"}
+              >
+                <ChevronDown className={cn("w-4 h-4 transition-transform", isCollapsed && "-rotate-90")} />
+              </button>
+              <button
+                type="button"
+                onClick={() => removeDay(di)}
+                className="text-muted-foreground hover:text-destructive p-1.5"
+                title="Excluir este treino"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
+          {isCollapsed && (
+            <p className="text-[11px] text-muted-foreground -mt-1">
+              {strengthList.length} exercício(s) · {mobilityList.length} mobilidade — minimizado
+            </p>
+          )}
+
+          {!isCollapsed && (<>
           {periodOn && (
             <div className="mb-2 flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
               <p className="text-[11px] text-foreground/80">
@@ -310,6 +394,8 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
               </p>
             </div>
           )}
+          
+
           
           <div className="space-y-2">
             {/* ── Mobilidade / Alongamento ── */}
@@ -601,8 +687,20 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
               </div>
             )}
           </div>
+          </>)}
         </Card>
       ); })}
+
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={addDay}
+        className="w-full h-9 text-xs border-dashed"
+      >
+        <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar bloco de treino ({positionLetter(payload.workouts.length)})
+      </Button>
+
+
 
       {/* ── Card especial: Descanso (key reservada "REST") ── */}
       <Card className="bg-card/40 border-dashed border-border/60 p-4">
