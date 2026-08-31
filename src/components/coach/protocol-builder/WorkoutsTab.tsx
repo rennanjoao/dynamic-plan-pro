@@ -157,8 +157,65 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
     setPayload({ ...payload, workouts: n });
   };
 
+  /** Gera uma key nova sem colidir com as existentes (nem com "REST"). */
+  const nextWorkoutKey = () => {
+    const used = new Set(payload.workouts.map((w) => w.key));
+    for (let i = 0; i < 26; i++) {
+      const k = String.fromCharCode(65 + i);
+      if (!used.has(k) && k !== "REST") return k;
+    }
+    return `W${Date.now().toString(36)}`;
+  };
+
+  /** Acrescenta um bloco de treino no fim, preservando todo o resto do rascunho. */
+  const addDay = () => {
+    setPayload({
+      ...payload,
+      workouts: [...payload.workouts, { key: nextWorkoutKey(), focus: "", exercises: [makeEmptyExercise()] }],
+    } as ProtocolPayload);
+  };
+
+  /** Remove um bloco de treino + vínculos de dia da semana + overrides da periodização. */
+  const removeDay = async (di: number) => {
+    const day = payload.workouts[di];
+    if (!(await confirm({
+      title: `Excluir Treino ${positionLetter(di)}?`,
+      description: `Os exercícios deste bloco serão removidos. Os demais treinos permanecem intactos.`,
+      confirmLabel: "Excluir",
+      destructive: true,
+    }))) return;
+
+    const nextWeekDays: Record<string, string> = {};
+    for (const [wd, wk] of Object.entries(weekDays)) if (wk !== day.key) nextWeekDays[wd] = wk;
+
+    const per: any = payload.periodization;
+    let nextPer = per;
+    if (per?.overrides) {
+      const ov: Record<string, any> = {};
+      for (const [weekIdx, byEx] of Object.entries(per.overrides as Record<string, Record<string, any>>)) {
+        const kept: Record<string, any> = {};
+        for (const [exKey, val] of Object.entries(byEx ?? {})) {
+          if (!exKey.startsWith(`${day.key}_`)) kept[exKey] = val;
+        }
+        ov[weekIdx] = kept;
+      }
+      nextPer = { ...per, overrides: ov };
+    }
+
+    setPayload({
+      ...payload,
+      workouts: payload.workouts.filter((_, i) => i !== di),
+      weekDays: nextWeekDays,
+      ...(nextPer ? { periodization: nextPer } : {}),
+    } as any);
+  };
+
   const periodOn = !!payload.periodization?.enabled;
   const [mobOpen, setMobOpen] = useState<Record<number, boolean>>({});
+  const [collapsedDays, setCollapsedDays] = useState<Record<string, boolean>>({});
+  const toggleCollapsed = (key: string) =>
+    setCollapsedDays((s) => ({ ...s, [key]: !s[key] }));
+
 
   const weekDays: Record<string, string> = (payload as any).weekDays ?? {};
   const ABBR: Record<string, string> = { seg: "Seg", ter: "Ter", qua: "Qua", qui: "Qui", sex: "Sex", sab: "Sáb", dom: "Dom" };
