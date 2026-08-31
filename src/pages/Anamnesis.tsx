@@ -75,8 +75,8 @@ const Anamnesis = () => {
   const [tpm, setTpm] = useState<string[]>([]);
   const [quedaF, setQuedaF] = useState<string[]>([]);
   const [groups, setGroups] = useState<ChoiceGroup>({});
-  const [fotoFiles, setFotoFiles] = useState<Record<string, File | null>>({ frente: null, lateral_dir: null, lateral_esq: null, costas: null });
-  const [fotoPreviews, setFotoPreviews] = useState<Record<string, string | null>>({ frente: null, lateral_dir: null, lateral_esq: null, costas: null });
+  const [fotoFiles, setFotoFiles] = useState<Record<string, File | null>>({ frente: null, lateral_dir: null, lateral_esq: null, costas: null, shape_inspiracao: null });
+  const [fotoPreviews, setFotoPreviews] = useState<Record<string, string | null>>({ frente: null, lateral_dir: null, lateral_esq: null, costas: null, shape_inspiracao: null });
 
   const [d, setD] = useState<Record<string, string>>({});
   const set = (k: string) => (v: string) => setD(p => ({ ...p, [k]: v }));
@@ -191,9 +191,9 @@ const Anamnesis = () => {
             if (typeof p[key] === "string") grp[key] = p[key];
           }
           setGroups(grp);
-          const previews: Record<string, string | null> = { frente: null, lateral_dir: null, lateral_esq: null, costas: null };
+          const previews: Record<string, string | null> = { frente: null, lateral_dir: null, lateral_esq: null, costas: null, shape_inspiracao: null };
           const fotos = (p.fotos as Record<string, string>) || {};
-          for (const k of ["frente","lateral_dir","lateral_esq","costas"]) {
+          for (const k of ["frente","lateral_dir","lateral_esq","costas","shape_inspiracao"]) {
             if (fotos[k]) previews[k] = fotos[k];
           }
           setFotoPreviews(previews);
@@ -291,20 +291,7 @@ const Anamnesis = () => {
     setValidating(true);
     try {
       const { data, error } = await supabase.functions.invoke('validate-invite-code', { body: { code } });
-      if (error) {
-        // Respostas não-2xx vêm em error.context; extrai a mensagem real do backend
-        let msg = "Código inválido ou inexistente.";
-        try {
-          const ctx = (error as unknown as { context?: Response }).context;
-          if (ctx && typeof ctx.json === "function") {
-            const body = await ctx.clone().json();
-            if (body?.error) msg = String(body.error);
-          }
-        } catch { /* mantém mensagem padrão */ }
-        throw new Error(msg);
-      }
-      if (!data?.coach_id) throw new Error(data?.error || "Código inválido ou inexistente.");
-
+      if (error || !data?.coach_id) throw new Error(data?.error || "Código inválido ou inexistente.");
       
       setCoach({ id: data.coach_id, name: data.coach_name, email: data.notification_email });
       if (data.access_code) setResolvedAccessCode(String(data.access_code).toUpperCase());
@@ -370,7 +357,7 @@ const Anamnesis = () => {
       const fotos: Record<string, string> = {};
       // Preserva fotos já enviadas em modo edição quando o aluno não carrega arquivo novo
       if (isEditMode) {
-        for (const k of ["frente","lateral_dir","lateral_esq","costas"]) {
+        for (const k of ["frente","lateral_dir","lateral_esq","costas","shape_inspiracao"]) {
           const url = fotoPreviews[k];
           if (url && (url.startsWith("http") || isStoragePath(url))) fotos[k] = url;
         }
@@ -754,6 +741,18 @@ const Anamnesis = () => {
               <Choices cols={3} group="meta_prioridade" state={groups} setState={setGroups} options={["Hipertrofia","Perda de gordura","Recomposição","Performance","Saúde"].map(v => ({ value: v }))} />
             </Field>
             <Field label="Objetivos detalhados"><FiTextarea name="objetivos" placeholder="Descreva seus objetivos..." value={g("objetivos")} onChange={set("objetivos")} /></Field>
+            <Field label="Músculo que quer dar mais ênfase"><FiInput name="musculo_enfase" placeholder="Ex: Peitoral e ombros (ou glúteos e pernas)" value={g("musculo_enfase")} onChange={set("musculo_enfase")} /></Field>
+            <Field label="Foto de inspiração (opcional)">
+              <p className="text-[11px] text-muted-foreground -mt-1 mb-1">Um shape ou físico que você admira — ajuda o coach a entender sua referência estética.</p>
+              <div className="grid grid-cols-4 gap-2">
+                <FotoSlot
+                  label="Shape"
+                  preview={fotoPreviews.shape_inspiracao}
+                  onFile={f => setFoto("shape_inspiracao", f)}
+                  onRemove={() => { setFotoFiles(p => ({ ...p, shape_inspiracao: null })); setFotoPreviews(p => ({ ...p, shape_inspiracao: null })); }}
+                />
+              </div>
+            </Field>
           </Card>
         </section>
         </>)}
@@ -783,6 +782,7 @@ const Anamnesis = () => {
               </Field>
             </div>
             <Field label="Atividades atuais"><FiTextarea name="atividades" placeholder="Ex: Musculação 4x/semana" value={g("atividades")} onChange={set("atividades")} /></Field>
+            <Field label="Descreva como é o seu treino atual"><FiTextarea name="descricao_treino" placeholder="Ex: Faço um ABC 2x (Costas, Peito, Pernas). 4 séries de 10 a 12 repetições." value={g("descricao_treino")} onChange={set("descricao_treino")} /></Field>
           </Card>
           
           <Card label="Disponibilidade">
@@ -807,6 +807,8 @@ const Anamnesis = () => {
             <Field label="Pump no treino">
               <Choices cols={2} group="pump" state={groups} setState={setGroups} options={[{ value: "Inexistente", theme: "red" }, { value: "Fraco", theme: "amber" }, { value: "Bom", theme: "green" }, { value: "Ótimo", theme: "green" }]} />
             </Field>
+            <Field label="Maior dificuldade nos treinos hoje"><FiTextarea name="dificuldade_treino" placeholder="Ex: Dor na lombar, não consigo aumentar a carga no supino, canso muito rápido..." value={g("dificuldade_treino")} onChange={set("dificuldade_treino")} /></Field>
+            <Field label="Músculo que desenvolve com mais facilidade"><FiInput name="musculo_facilidade" placeholder="Ex: Costas e braços crescem muito rápido" value={g("musculo_facilidade")} onChange={set("musculo_facilidade")} /></Field>
             <Field label="Lesões / histórico ortopédico"><FiTextarea name="lesoes" placeholder="Ex: Lesão no ombro. Ou Nenhuma." value={g("lesoes")} onChange={set("lesoes")} /></Field>
           </Card>
         </section>
@@ -832,6 +834,7 @@ const Anamnesis = () => {
         <section>
           <SecHead num="07" title="Alimentação & digestão" />
           <Card>
+            <Field label="Maior dificuldade na dieta"><FiTextarea name="dificuldade_alimentacao" placeholder="Ex: Muita vontade de doce à noite, ou não consigo comer muito no café da manhã." value={g("dificuldade_alimentacao")} onChange={set("dificuldade_alimentacao")} /></Field>
             <Field label="Água/dia">
               <Choices cols={3} group="hidratacao" state={groups} setState={setGroups} options={[{ value: "≤1L", theme: "red" }, { value: "2L", theme: "amber" }, { value: "3L" }, { value: "4L", theme: "green" }, { value: "5L+", theme: "green" }]} />
             </Field>
