@@ -45,6 +45,7 @@ import { toast } from "sonner";
 import { Private } from "@/components/coach/PrivacyMode";
 import { classifyExerciseByName, MUSCLE_GROUP_LABELS, type MuscleGroup } from "@/lib/muscleGroupClassifier";
 import { VOLUME_LANDMARKS, VOLUME_STATUS_META, classifyWeeklyVolume } from "@/lib/volumeLandmarks";
+import { isMobilityExercise } from "@/lib/protocolSchema";
 import { INSIGHT_META, type CoachInsightSituacao } from "@/lib/coachInsights";
 
 /* ── Constantes ─────────────────────────────────────────────────────────────── */
@@ -458,7 +459,23 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
 
   /* ── CÁLCULOS ────────────────────────────────────────────────────────────── */
 
-  const completedSets = useMemo(() => allSets.filter((s) => !s.skipped), [allSets]);
+  // Fonte única de "séries reais de treino" para todo o resto do arquivo
+  // (volume por grupamento, volume total/séries do card de resumo, volume por
+  // exercício, execução×prescrição, drop-set, recordes). Filtra tanto séries
+  // puladas quanto séries de mobilidade/alongamento — estas últimas não têm
+  // is_mobility persistido em workout_sets (a tabela não guarda essa coluna;
+  // ver useWorkoutSession.ts:buildSetRow), então caem no mesmo fallback por
+  // nome de isMobilityExercise/protocolSchema.ts. Na prática, o fluxo atual
+  // do Modo Treino já impede o aluno de logar séries de exercícios com
+  // is_mobility=true (WorkoutMode.tsx filtra `exercises` antes de qualquer
+  // registerSet), então este filtro é uma rede de segurança para dado
+  // histórico/legado — não deve remover nada em uso normal do app hoje.
+  // exerciseSwaps (mais abaixo) usa `allSets` direto, sem este filtro, de
+  // propósito: queremos ver ali qualquer troca, mobilidade incluída.
+  const completedSets = useMemo(
+    () => allSets.filter((s) => !s.skipped && !isMobilityExercise({ name: s.exercise_name })),
+    [allSets]
+  );
 
   // Exercícios únicos com pelo menos 1 série com peso
   const uniqueExercises = useMemo(() => {
@@ -573,6 +590,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
     let unclassified = 0;
     for (const s of completedSets) {
       if (new Date(s.executed_at).getTime() < since) continue;
+      // completedSets já exclui mobilidade (ver definição acima).
       const cls = classifyExerciseByName(s.exercise_name);
       if (!cls.primary) { unclassified++; continue; }
       tally.set(cls.primary, (tally.get(cls.primary) ?? 0) + 1);
