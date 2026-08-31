@@ -26,6 +26,8 @@ import { DEFAULT_WEEKS } from "@/lib/periodizationDefaults";
 import { useAuthUserId } from "@/hooks/useAuthUserId";
 import { PageLoader } from "@/components/ui/PageLoader";
 import PreviewModeBar from "@/components/student/PreviewModeBar";
+import PreviousProtocolButton from "@/components/student/PreviousProtocolButton";
+
 import { isSessionStale } from "@/hooks/useWorkoutSession";
 
 
