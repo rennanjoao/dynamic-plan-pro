@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ProtocolPayloadSchema, MealOptionSchema, MealFoodItemSchema } from "../protocolSchema";
+import { ProtocolPayloadSchema, MealOptionSchema, MealFoodItemSchema, isMobilityExercise } from "../protocolSchema";
 
 describe("MealFoodItemSchema — campos premium (importação JSON)", () => {
   it("aceita item com baseName, rawWeight, cookFactor, isTaco, manualMacros", () => {
@@ -45,6 +45,55 @@ describe("MealOptionSchema — items legacy", () => {
   it("kind default = carb", () => {
     const r = MealOptionSchema.parse({ title: "Op1", items: [] });
     expect(r.kind).toBe("carb");
+  });
+});
+
+describe("isMobilityExercise", () => {
+  it("flag explícita true vence, com ou sem nome batendo em hint", () => {
+    expect(isMobilityExercise({ name: "Supino Reto", is_mobility: true })).toBe(true);
+  });
+
+  it("flag explícita false é respeitada mesmo se o nome bater em hint (decisão do coach)", () => {
+    expect(isMobilityExercise({ name: "Rotação Externa de Ombro com Halteres", is_mobility: false })).toBe(false);
+  });
+
+  // Sem a chave is_mobility presente no objeto — é exatamente a forma que
+  // StudentWorkoutAnalytics.tsx passa (workout_sets não persiste is_mobility,
+  // só exercise_name), então este é o caminho que decide o filtro de volume
+  // dos gráficos do coach. Cobrir aqui documenta o contrato real.
+  describe("fallback por nome (sem chave is_mobility no objeto)", () => {
+    it.each([
+      "Mobilidade de Quadril",
+      "Alongamento de Panturrilha",
+      "Trabalho de Flexibilidade Ativa",
+      "Liberação Miofascial Lombar",
+      "Foam Roller Peitoral",
+      "Rotação Externa de Ombro",
+      "Rotação Interna de Quadril",
+    ])("reconhece '%s' como mobilidade", (name) => {
+      expect(isMobilityExercise({ name })).toBe(true);
+    });
+
+    it("é case-insensitive", () => {
+      expect(isMobilityExercise({ name: "ALONGAMENTO DE ISQUIOTIBIAIS" })).toBe(true);
+    });
+
+    it("não reconhece exercícios de força comuns", () => {
+      expect(isMobilityExercise({ name: "Supino Reto com Barra" })).toBe(false);
+      expect(isMobilityExercise({ name: "Agachamento Livre" })).toBe(false);
+      expect(isMobilityExercise({ name: "Rosca Direta" })).toBe(false);
+    });
+
+    // Limitação conhecida e aceita: como o fallback é só por substring, um
+    // exercício de FORÇA real (rotação externa/interna com carga, prescrito
+    // como acessório, não como mobilidade) cai no mesmo hint e é tratado
+    // como mobilidade quando não há flag explícita persistida — é o caso do
+    // workout_sets, que não guarda is_mobility. Contra isso, só persistir a
+    // flag na própria linha de série no momento do registro (fora do escopo
+    // deste fix). Teste documenta o trade-off, não um bug a corrigir aqui.
+    it("[limitação conhecida] nome com 'rotação externa/interna' é tratado como mobilidade mesmo sendo um acessório de força real, quando não há flag persistida", () => {
+      expect(isMobilityExercise({ name: "Rotação Externa de Ombro com Halteres 2kg" })).toBe(true);
+    });
   });
 });
 
