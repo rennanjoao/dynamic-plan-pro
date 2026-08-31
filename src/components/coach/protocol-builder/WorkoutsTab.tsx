@@ -687,8 +687,20 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
               </div>
             )}
           </div>
+          </>)}
         </Card>
       ); })}
+
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={addDay}
+        className="w-full h-9 text-xs border-dashed"
+      >
+        <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar bloco de treino ({positionLetter(payload.workouts.length)})
+      </Button>
+
+
 
       {/* ── Card especial: Descanso (key reservada "REST") ── */}
       <Card className="bg-card/40 border-dashed border-border/60 p-4">
