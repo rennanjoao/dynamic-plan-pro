@@ -159,11 +159,13 @@ export default function DynamicRoutine() {
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="w-5 h-5" />
         </Button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-lg font-bold text-foreground">Plano Alimentar</h1>
           <p className="text-xs text-muted-foreground">Estratégia Nutricional</p>
         </div>
+        <PreviousProtocolButton studentId={userId} kind="dieta" />
       </header>
+
 
       {/* Conteúdo Principal (100% de largura no mobile, restrito no PC) */}
       <main className="max-w-3xl mx-auto px-4 py-5 space-y-6">
