@@ -17,6 +17,8 @@ import {
 import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
 import { ExerciseSubstitutesPopover } from "@/components/coach/ExerciseSubstitutesPopover";
 import { CoachExerciseLibraryDialog, type LibraryPickItem } from "@/components/coach/CoachExerciseLibraryDialog";
+import { MobilityTemplateBar } from "@/components/coach/MobilityTemplateBar";
+
 import WorkoutPeriodizationEditor from "../WorkoutPeriodizationEditor";
 import { WeeklyVolumeDashboard } from "./WeeklyVolumeDashboard";
 import { ProtocolPayload, makeEmptyExercise, isMobilityExercise, isLegacyMobilityExercise } from "@/lib/protocolSchema";
