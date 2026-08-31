@@ -401,15 +401,28 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
             {/* ── Mobilidade / Alongamento ── */}
             {mobilityList.length > 0 && (
               <div className="mb-3 rounded-lg border border-dashed border-sky-500/40 bg-sky-500/5 p-2 space-y-2">
-                <button
-                  type="button"
-                  onClick={() => setMobOpen((s) => ({ ...s, [di]: s[di] === false ? true : false }))}
-                  className="w-full flex items-center gap-1.5 text-xs font-bold text-sky-500"
-                >
-                  <StretchHorizontal className="w-3.5 h-3.5" /> Mobilidade pré-treino
-                  <span className="text-[10px] font-normal text-muted-foreground">({mobilityList.length})</span>
-                  <ChevronDown className={cn("w-3.5 h-3.5 ml-auto transition-transform", mobOpen[di] === false && "-rotate-90")} />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setMobOpen((s) => ({ ...s, [di]: s[di] === false ? true : false }))}
+                    className="flex items-center gap-1.5 text-xs font-bold text-sky-500"
+                  >
+                    <StretchHorizontal className="w-3.5 h-3.5" /> Mobilidade pré-treino
+                    <span className="text-[10px] font-normal text-muted-foreground">({mobilityList.length})</span>
+                    <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", mobOpen[di] === false && "-rotate-90")} />
+                  </button>
+                  <div className="ml-auto">
+                    <MobilityTemplateBar
+                      coachId={coachId}
+                      currentMobility={mobilityList.map(({ ex }) => ex)}
+                      onApply={(exercises) => {
+                        updDay(di, { exercises: [...day.exercises, ...exercises] });
+                        setMobOpen((s) => ({ ...s, [di]: true }));
+                      }}
+                    />
+                  </div>
+                </div>
+
                 {mobOpen[di] !== false && mobilityList.map(({ ex, ei }) => (
                   <div key={(ex as any).__id ?? `mob-${ei}`} className="grid grid-cols-1 md:grid-cols-[1.8fr_0.8fr_0.8fr_1.4fr_auto] gap-2 items-center rounded-lg border border-sky-500/20 bg-background/40 p-2">
                     <ExercisePickerInput
