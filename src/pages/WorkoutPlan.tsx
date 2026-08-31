@@ -26,6 +26,8 @@ import { DEFAULT_WEEKS } from "@/lib/periodizationDefaults";
 import { useAuthUserId } from "@/hooks/useAuthUserId";
 import { PageLoader } from "@/components/ui/PageLoader";
 import PreviewModeBar from "@/components/student/PreviewModeBar";
+import PreviousProtocolButton from "@/components/student/PreviousProtocolButton";
+
 import { isSessionStale } from "@/hooks/useWorkoutSession";
 
 
@@ -448,9 +450,11 @@ export default function WorkoutPlan() {
           <h1 className="text-lg font-bold text-foreground">Plano de Treino</h1>
           <p className="text-xs text-muted-foreground">Biomecânica e Periodização</p>
         </div>
+        <PreviousProtocolButton studentId={userId} kind="treino" />
         <Button variant="ghost" size="sm" onClick={() => setShowHistory(true)} className="gap-1.5">
           <History className="w-4 h-4" /> Histórico
         </Button>
+
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
