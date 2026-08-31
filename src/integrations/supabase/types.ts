@@ -1173,6 +1173,33 @@ export type Database = {
         }
         Relationships: []
       }
+      mobility_templates: {
+        Row: {
+          coach_id: string
+          created_at: string
+          exercises: Json
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          exercises?: Json
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          exercises?: Json
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       partner_attributions: {
         Row: {
           access_code: string | null
