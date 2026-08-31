@@ -21,6 +21,8 @@ import { useHighlightTarget } from "@/hooks/useHighlightTarget";
 import { useAuthUserId } from "@/hooks/useAuthUserId";
 import { PageLoader } from "@/components/ui/PageLoader";
 import PreviewModeBar from "@/components/student/PreviewModeBar";
+import PreviousProtocolButton from "@/components/student/PreviousProtocolButton";
+
 
 export default function DynamicRoutine() {
   const navigate = useNavigate();
