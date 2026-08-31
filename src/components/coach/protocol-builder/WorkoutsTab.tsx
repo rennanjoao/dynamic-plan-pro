@@ -596,6 +596,17 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
               >
                 <StretchHorizontal className="w-3 h-3 mr-1" /> Adicionar Mobilidade
               </Button>
+              {mobilityList.length === 0 && (
+                <MobilityTemplateBar
+                  coachId={coachId}
+                  currentMobility={[]}
+                  onApply={(exercises) => {
+                    updDay(di, { exercises: [...day.exercises, ...exercises] });
+                    setMobOpen((s) => ({ ...s, [di]: true }));
+                  }}
+                />
+              )}
+
               <Button
                 size="sm"
                 variant="outline"
