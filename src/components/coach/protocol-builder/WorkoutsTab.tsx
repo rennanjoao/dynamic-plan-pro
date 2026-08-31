@@ -360,8 +360,33 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                 </div>
               </PopoverContent>
             </Popover>
+            <div className="flex items-center gap-0.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => toggleCollapsed(day.key)}
+                className="text-muted-foreground hover:text-primary p-1.5"
+                title={isCollapsed ? "Expandir treino" : "Minimizar treino"}
+              >
+                <ChevronDown className={cn("w-4 h-4 transition-transform", isCollapsed && "-rotate-90")} />
+              </button>
+              <button
+                type="button"
+                onClick={() => removeDay(di)}
+                className="text-muted-foreground hover:text-destructive p-1.5"
+                title="Excluir este treino"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
+          {isCollapsed && (
+            <p className="text-[11px] text-muted-foreground -mt-1">
+              {strengthList.length} exercício(s) · {mobilityList.length} mobilidade — minimizado
+            </p>
+          )}
+
+          {!isCollapsed && (<>
           {periodOn && (
             <div className="mb-2 flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
               <p className="text-[11px] text-foreground/80">
@@ -369,6 +394,8 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
               </p>
             </div>
           )}
+          
+
           
           <div className="space-y-2">
             {/* ── Mobilidade / Alongamento ── */}
