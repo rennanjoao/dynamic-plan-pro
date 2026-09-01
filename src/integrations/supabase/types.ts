@@ -1736,6 +1736,7 @@ export type Database = {
           student_first_viewed_at: string | null
           student_id: string | null
           template_division: string | null
+          template_kind: string
           template_profile: string | null
           template_source: string | null
           updated_at: string
@@ -1752,6 +1753,7 @@ export type Database = {
           student_first_viewed_at?: string | null
           student_id?: string | null
           template_division?: string | null
+          template_kind?: string
           template_profile?: string | null
           template_source?: string | null
           updated_at?: string
@@ -1768,6 +1770,7 @@ export type Database = {
           student_first_viewed_at?: string | null
           student_id?: string | null
           template_division?: string | null
+          template_kind?: string
           template_profile?: string | null
           template_source?: string | null
           updated_at?: string
@@ -2140,6 +2143,41 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      workout_block_versions: {
+        Row: {
+          coach_id: string
+          created_at: string
+          id: string
+          payload: Json
+          template_id: string
+          version: number
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          id?: string
+          payload: Json
+          template_id: string
+          version: number
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          template_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workout_block_versions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "protocols"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       workout_progress: {
         Row: {
@@ -2526,6 +2564,15 @@ export type Database = {
           p_protocol_id: string
           p_student_id: string
           p_water: number
+        }
+        Returns: string
+      }
+      save_workout_block_template: {
+        Args: {
+          p_coach_id: string
+          p_name: string
+          p_payload: Json
+          p_template_id: string
         }
         Returns: string
       }

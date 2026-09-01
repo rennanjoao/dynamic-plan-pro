@@ -17,11 +17,13 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Loader2, BookmarkPlus, Trash2, Dumbbell, Utensils, FileText, ClipboardList, Eye, History, Pencil } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmProvider";
-import { ProtocolPayloadSchema, type ProtocolPayload, genItemId } from "@/lib/protocolSchema";
+import { ProtocolPayloadSchema, WorkoutBlockPayloadSchema, type ProtocolPayload, genItemId } from "@/lib/protocolSchema";
 import { checkMuscleRecovery } from "@/lib/muscleRecovery";
 import TemplateHistoryDialog from "./TemplateHistoryDialog";
+import { WorkoutBlockHistoryDialog } from "./WorkoutBlockHistoryDialog";
 import { cn } from "@/lib/utils";
 import { saveProtocolAsTemplate } from "@/lib/protocolTemplates";
+import { listWorkoutBlockTemplates, deleteWorkoutBlockTemplate, injectWorkoutBlock } from "@/lib/workoutTemplates";
 
 type TplType = "workout" | "meal" | "protocol";
 type TplItem = {
@@ -81,6 +83,7 @@ export default function TemplateLibraryDialog({
   const [saving, setSaving] = useState(false);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [historyItem, setHistoryItem] = useState<{ id: string; name: string } | null>(null);
+  const [blockHistoryItem, setBlockHistoryItem] = useState<{ id: string; name: string } | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<{ id: string; name: string } | null>(null);
 
 
@@ -88,7 +91,8 @@ export default function TemplateLibraryDialog({
     if (!coachId) return;
     setLoading(true);
     try {
-      const [workoutRes, mealRes, protoRes, systemRes] = await Promise.all([
+      const [legacyWorkoutRes, mealRes, protoRes, workoutBlocks] = await Promise.all([
+        // Legado somente-leitura: RLS bloqueia novos inserts aqui.
         supabase.from("workout_templates")
           .select("id, name, treinos, created_at")
           .eq("created_by", coachId)
@@ -99,36 +103,33 @@ export default function TemplateLibraryDialog({
           .eq("coach_id", coachId)
           .order("created_at", { ascending: false })
           .limit(50),
-        supabase.from("protocols")
+        (supabase.from("protocols") as any)
           .select("id, name, payload, created_at")
           .eq("coach_id", coachId)
           .eq("is_template", true)
+          .eq("template_kind", "protocol")
           .order("created_at", { ascending: false })
           .limit(50),
-        // Templates de sistema migrados para protocols (conteúdo de referência).
-        (supabase.from("protocols") as any)
-          .select("id, name, payload, created_at, template_profile, template_division")
-          .eq("is_template", true)
-          .eq("template_source", "system_reference")
-          .order("name", { ascending: true })
-          .limit(100),
+        // Fonte única (nova) de templates de treino: os do coach + os de sistema.
+        listWorkoutBlockTemplates(coachId),
       ]);
 
       const merged: TplItem[] = [
-        ...(workoutRes.data ?? []).map((r) => ({ id: r.id, type: "workout" as const, name: r.name, createdAt: r.created_at, raw: r, isSystem: false, isLegacy: true })),
+        ...(legacyWorkoutRes.data ?? []).map((r) => ({ id: r.id, type: "workout" as const, name: r.name, createdAt: r.created_at, raw: r, isSystem: false, isLegacy: true })),
         ...(mealRes.data ?? []).map((r) => ({ id: r.id, type: "meal" as const, name: r.name, createdAt: r.created_at, raw: r })),
-        ...(protoRes.data ?? []).map((r) => ({ id: r.id, type: "protocol" as const, name: r.name, createdAt: r.created_at, raw: r })),
-        ...((systemRes.data ?? []) as any[]).map((r): TplItem => ({
-          id: r.id,
+        ...((protoRes.data ?? []) as any[]).map((r) => ({ id: r.id, type: "protocol" as const, name: r.name, createdAt: r.created_at, raw: r })),
+        ...workoutBlocks.map((tpl): TplItem => ({
+          id: tpl.id,
           type: "workout",
-          name: r.name,
-          createdAt: "",
-          raw: { treinos: { scope: "full", workouts: r.payload?.workouts ?? [] } },
-          isSystem: true,
-          division: r.template_division ?? undefined,
-          profile: r.template_profile ?? undefined,
+          name: tpl.name,
+          createdAt: tpl.createdAt,
+          raw: { treinos: { scope: "full", workouts: tpl.payload.workouts, periodization: tpl.payload.periodization } },
+          isSystem: tpl.isSystem,
+          division: tpl.division,
+          profile: tpl.profile,
         })),
       ].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
 
       setItems(merged);
     } finally { setLoading(false); }
@@ -151,14 +152,16 @@ export default function TemplateLibraryDialog({
     if (!payload) return;
     if (item.type === "workout") {
       const treinos = item.raw.treinos || {};
-      const baseWorkouts = Array.isArray(treinos.workouts) ? treinos.workouts : [];
-      const finalWorkouts = mode === "filled"
-        ? baseWorkouts
-        : baseWorkouts.map((d: any) => ({ key: d.key, focus: d.focus, exercises: [] }));
-      const next = { ...payload };
-      if (baseWorkouts.length) next.workouts = finalWorkouts;
-      if (treinos.periodization) next.periodization = treinos.periodization;
-      setPayload(next);
+      const parsedBlock = WorkoutBlockPayloadSchema.safeParse({
+        scope: "workouts",
+        workouts: treinos.workouts ?? [],
+        periodization: treinos.periodization,
+      });
+      if (!parsedBlock.success || parsedBlock.data.workouts.length === 0) {
+        toast.error("Template sem dias de treino salvos");
+        return;
+      }
+      setPayload(injectWorkoutBlock(payload, parsedBlock.data, mode));
       toast.success(mode === "filled" ? "Treino aplicado com exercícios" : "Estrutura aplicada — adicione seus exercícios");
     } else if (item.type === "meal") {
       const meal = item.raw.meal_data;
@@ -187,13 +190,22 @@ export default function TemplateLibraryDialog({
       destructive: true,
       confirmLabel: "Excluir",
     }))) return;
-    const table = item.type === "workout" ? "workout_templates"
-                : item.type === "meal"    ? "meal_templates"
-                :                            "protocols";
-    const { error } = await supabase.from(table).delete().eq("id", item.id);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Template excluído");
-    reload();
+    try {
+      if (item.type === "workout" && !item.isLegacy) {
+        if (!coachId) return;
+        await deleteWorkoutBlockTemplate(item.id, coachId);
+      } else {
+        const table = item.type === "workout" ? "workout_templates"
+                    : item.type === "meal"    ? "meal_templates"
+                    :                            "protocols";
+        const { error } = await supabase.from(table).delete().eq("id", item.id);
+        if (error) throw error;
+      }
+      toast.success("Template excluído");
+      reload();
+    } catch (e: any) {
+      toast.error(e?.message || "Falha ao excluir");
+    }
   }
 
   /** Carrega o template no builder e entra em modo edição (próximo salvar = UPDATE). */
@@ -440,9 +452,18 @@ export default function TemplateLibraryDialog({
                             Aplicar
                           </Button>
                         )}
-                        {item.type === "workout" && !item.isSystem && (
+                        {item.type === "workout" && !item.isSystem && item.isLegacy && (
                           <button
                             onClick={() => setHistoryItem({ id: item.id, name: item.name })}
+                            className="text-muted-foreground hover:text-foreground p-1"
+                            title="Histórico de versões"
+                          >
+                            <History className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {item.type === "workout" && !item.isSystem && !item.isLegacy && (
+                          <button
+                            onClick={() => setBlockHistoryItem({ id: item.id, name: item.name })}
                             className="text-muted-foreground hover:text-foreground p-1"
                             title="Histórico de versões"
                           >
@@ -515,6 +536,16 @@ export default function TemplateLibraryDialog({
         templateName={historyItem?.name ?? ""}
         onRestore={restoreFromVersion}
       />
+      {blockHistoryItem && coachId && (
+        <WorkoutBlockHistoryDialog
+          open={!!blockHistoryItem}
+          onOpenChange={(v) => !v && setBlockHistoryItem(null)}
+          templateId={blockHistoryItem.id}
+          templateName={blockHistoryItem.name}
+          coachId={coachId}
+          onRestored={reload}
+        />
+      )}
     </>
   );
 }
