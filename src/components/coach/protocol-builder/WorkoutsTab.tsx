@@ -250,7 +250,20 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
 
   return (
     <div className="space-y-3">
-      <WorkoutPeriodizationEditor payload={payload} setPayload={setPayload} coachId={coachId} onOpenTemplateLibrary={onOpenTemplateLibrary} />
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <WorkoutTemplateQuickPicker payload={payload} setPayload={setPayload} coachId={coachId} />
+        {onOpenTemplateLibrary && (
+          <button
+            type="button"
+            onClick={onOpenTemplateLibrary}
+            className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+          >
+            biblioteca completa (refeições e protocolos)
+          </button>
+        )}
+      </div>
+      <WorkoutPeriodizationEditor payload={payload} setPayload={setPayload} coachId={coachId} onOpenTemplateLibrary={undefined} />
+
 
       {/* ── Week strip: pílulas Seg→Dom ── */}
       <Card className="bg-card/40 border-border p-2.5">
