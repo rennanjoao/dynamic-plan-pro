@@ -440,9 +440,18 @@ export default function TemplateLibraryDialog({
                             Aplicar
                           </Button>
                         )}
-                        {item.type === "workout" && !item.isSystem && (
+                        {item.type === "workout" && !item.isSystem && item.isLegacy && (
                           <button
                             onClick={() => setHistoryItem({ id: item.id, name: item.name })}
+                            className="text-muted-foreground hover:text-foreground p-1"
+                            title="Histórico de versões"
+                          >
+                            <History className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {item.type === "workout" && !item.isSystem && !item.isLegacy && (
+                          <button
+                            onClick={() => setBlockHistoryItem({ id: item.id, name: item.name })}
                             className="text-muted-foreground hover:text-foreground p-1"
                             title="Histórico de versões"
                           >
