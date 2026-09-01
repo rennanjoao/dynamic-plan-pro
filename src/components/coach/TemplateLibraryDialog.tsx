@@ -151,14 +151,16 @@ export default function TemplateLibraryDialog({
     if (!payload) return;
     if (item.type === "workout") {
       const treinos = item.raw.treinos || {};
-      const baseWorkouts = Array.isArray(treinos.workouts) ? treinos.workouts : [];
-      const finalWorkouts = mode === "filled"
-        ? baseWorkouts
-        : baseWorkouts.map((d: any) => ({ key: d.key, focus: d.focus, exercises: [] }));
-      const next = { ...payload };
-      if (baseWorkouts.length) next.workouts = finalWorkouts;
-      if (treinos.periodization) next.periodization = treinos.periodization;
-      setPayload(next);
+      const parsedBlock = WorkoutBlockPayloadSchema.safeParse({
+        scope: "workouts",
+        workouts: treinos.workouts ?? [],
+        periodization: treinos.periodization,
+      });
+      if (!parsedBlock.success || parsedBlock.data.workouts.length === 0) {
+        toast.error("Template sem dias de treino salvos");
+        return;
+      }
+      setPayload(injectWorkoutBlock(payload, parsedBlock.data, mode));
       toast.success(mode === "filled" ? "Treino aplicado com exercícios" : "Estrutura aplicada — adicione seus exercícios");
     } else if (item.type === "meal") {
       const meal = item.raw.meal_data;
@@ -187,13 +189,22 @@ export default function TemplateLibraryDialog({
       destructive: true,
       confirmLabel: "Excluir",
     }))) return;
-    const table = item.type === "workout" ? "workout_templates"
-                : item.type === "meal"    ? "meal_templates"
-                :                            "protocols";
-    const { error } = await supabase.from(table).delete().eq("id", item.id);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Template excluído");
-    reload();
+    try {
+      if (item.type === "workout" && !item.isLegacy) {
+        if (!coachId) return;
+        await deleteWorkoutBlockTemplate(item.id, coachId);
+      } else {
+        const table = item.type === "workout" ? "workout_templates"
+                    : item.type === "meal"    ? "meal_templates"
+                    :                            "protocols";
+        const { error } = await supabase.from(table).delete().eq("id", item.id);
+        if (error) throw error;
+      }
+      toast.success("Template excluído");
+      reload();
+    } catch (e: any) {
+      toast.error(e?.message || "Falha ao excluir");
+    }
   }
 
   /** Carrega o template no builder e entra em modo edição (próximo salvar = UPDATE). */
