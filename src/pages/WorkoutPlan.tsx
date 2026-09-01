@@ -21,6 +21,7 @@ import { slug } from "@/lib/slug";
 import WorkoutStrategyHeader from "@/components/student/WorkoutStrategyHeader";
 import { MobilityExerciseRow } from "@/components/student/MobilityExerciseRow";
 import { MobilitySuggestedDrawer } from "@/components/student/MobilitySuggestedDrawer";
+import { WorkoutGuideDrawer } from "@/components/student/WorkoutGuideDrawer";
 import { useCurrentPeriodizationWeek } from "@/hooks/useCurrentPeriodizationWeek";
 import { DEFAULT_WEEKS } from "@/lib/periodizationDefaults";
 import { useAuthUserId } from "@/hooks/useAuthUserId";
@@ -458,6 +459,10 @@ export default function WorkoutPlan() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+
+        <div className="flex justify-end -mb-2">
+          <WorkoutGuideDrawer />
+        </div>
 
         <WorkoutStrategyHeader
           payload={safePayload}
