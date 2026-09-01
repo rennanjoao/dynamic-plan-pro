@@ -88,7 +88,8 @@ export default function TemplateLibraryDialog({
     if (!coachId) return;
     setLoading(true);
     try {
-      const [workoutRes, mealRes, protoRes, systemRes] = await Promise.all([
+      const [legacyWorkoutRes, mealRes, protoRes, workoutBlocks] = await Promise.all([
+        // Legado somente-leitura: RLS bloqueia novos inserts aqui.
         supabase.from("workout_templates")
           .select("id, name, treinos, created_at")
           .eq("created_by", coachId)
@@ -99,36 +100,33 @@ export default function TemplateLibraryDialog({
           .eq("coach_id", coachId)
           .order("created_at", { ascending: false })
           .limit(50),
-        supabase.from("protocols")
+        (supabase.from("protocols") as any)
           .select("id, name, payload, created_at")
           .eq("coach_id", coachId)
           .eq("is_template", true)
+          .eq("template_kind", "protocol")
           .order("created_at", { ascending: false })
           .limit(50),
-        // Templates de sistema migrados para protocols (conteúdo de referência).
-        (supabase.from("protocols") as any)
-          .select("id, name, payload, created_at, template_profile, template_division")
-          .eq("is_template", true)
-          .eq("template_source", "system_reference")
-          .order("name", { ascending: true })
-          .limit(100),
+        // Fonte única (nova) de templates de treino: os do coach + os de sistema.
+        listWorkoutBlockTemplates(coachId),
       ]);
 
       const merged: TplItem[] = [
-        ...(workoutRes.data ?? []).map((r) => ({ id: r.id, type: "workout" as const, name: r.name, createdAt: r.created_at, raw: r, isSystem: false, isLegacy: true })),
+        ...(legacyWorkoutRes.data ?? []).map((r) => ({ id: r.id, type: "workout" as const, name: r.name, createdAt: r.created_at, raw: r, isSystem: false, isLegacy: true })),
         ...(mealRes.data ?? []).map((r) => ({ id: r.id, type: "meal" as const, name: r.name, createdAt: r.created_at, raw: r })),
-        ...(protoRes.data ?? []).map((r) => ({ id: r.id, type: "protocol" as const, name: r.name, createdAt: r.created_at, raw: r })),
-        ...((systemRes.data ?? []) as any[]).map((r): TplItem => ({
-          id: r.id,
+        ...((protoRes.data ?? []) as any[]).map((r) => ({ id: r.id, type: "protocol" as const, name: r.name, createdAt: r.created_at, raw: r })),
+        ...workoutBlocks.map((tpl): TplItem => ({
+          id: tpl.id,
           type: "workout",
-          name: r.name,
-          createdAt: "",
-          raw: { treinos: { scope: "full", workouts: r.payload?.workouts ?? [] } },
-          isSystem: true,
-          division: r.template_division ?? undefined,
-          profile: r.template_profile ?? undefined,
+          name: tpl.name,
+          createdAt: tpl.createdAt,
+          raw: { treinos: { scope: "full", workouts: tpl.payload.workouts, periodization: tpl.payload.periodization } },
+          isSystem: tpl.isSystem,
+          division: tpl.division,
+          profile: tpl.profile,
         })),
       ].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
 
       setItems(merged);
     } finally { setLoading(false); }
