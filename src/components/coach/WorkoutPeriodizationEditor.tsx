@@ -324,22 +324,19 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
                             const ov = (p.overrides?.[String(i)]?.[id]) || {};
                             const ovErr = (f: string) => overrideErrSet.has(`${i}|${id}|${f}`);
                             return (
-                              <div key={ei} className="flex flex-col gap-1.5 pb-3 border-b border-border/20 last:border-0 last:pb-0">
-                                <Input
-                                  value={ov.name ?? ""}
-                                  onChange={(e) => setOverride(i, id, { name: e.target.value })}
-                                  placeholder={`= ${ex.name || "(exercício base)"}`}
-                                  className="h-7 text-xs font-medium bg-muted/20"
-                                />
-                                <div className="grid grid-cols-4 gap-1.5">
-                                  <Input value={ov.sets ?? ""}    onChange={(e) => setOverride(i, id, { sets: e.target.value })}    placeholder="séries"   className={cn("h-7 text-xs", ovErr("sets") && "border-destructive")} />
-                                  <Input value={ov.reps ?? ""}    onChange={(e) => setOverride(i, id, { reps: e.target.value })}    placeholder="reps"     className={cn("h-7 text-xs", ovErr("reps") && "border-destructive")} />
-                                  <Input value={ov.cadence ?? ""} onChange={(e) => setOverride(i, id, { cadence: e.target.value })} placeholder="cadência" className={cn("h-7 text-xs", ovErr("cadence") && "border-destructive")} />
-                                  <Input value={ov.rest ?? ""}    onChange={(e) => setOverride(i, id, { rest: e.target.value })}    placeholder="descanso" className={cn("h-7 text-xs", ovErr("rest") && "border-destructive")} />
-                                </div>
-                              </div>
+                              <OverrideRow
+                                key={`${id}-${JSON.stringify(ov)}`}
+                                baseName={ex.name}
+                                override={ov}
+                                hasError={ovErr}
+                                onApply={(patch) => {
+                                  setOverride(i, id, patch);
+                                  toast.success(`Alterações aplicadas na Semana ${i + 1}`);
+                                }}
+                              />
                             );
                           })}
+
                         </div>
                       </div>
                     ))}
