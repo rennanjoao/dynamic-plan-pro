@@ -431,7 +431,19 @@ export const ProtocolPayloadSchema = z.object({
   restNotes: z.string().default(""),
 });
 
+// ── Template de treino isolado ──────────────────────────────────────────
+// Payload MÍNIMO para a biblioteca de "Templates de Treino": só os dias de
+// treino (e, opcionalmente, a periodização deles). Deliberadamente NÃO
+// inclui setup/macros/guidelines/meals/supplements.
+export const WorkoutBlockPayloadSchema = z.object({
+  scope: z.literal("workouts").default("workouts"),
+  workouts: z.array(WorkoutDaySchema).default([]),
+  periodization: PeriodizationSchema.optional(),
+});
+export type WorkoutBlockPayload = z.infer<typeof WorkoutBlockPayloadSchema>;
+
 export type ProtocolPayload = z.infer<typeof ProtocolPayloadSchema>;
+
 export type MealRow = z.infer<typeof MealSchema>;
 export type MealOption = z.infer<typeof MealOptionSchema>;
 export type MealFoodItem = z.infer<typeof MealFoodItemSchema>;
