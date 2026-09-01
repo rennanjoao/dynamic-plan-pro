@@ -8,9 +8,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-  Calendar, Loader2,
+  Calendar, Loader2, Check,
   Eye, Copy, RefreshCcw, AlertCircle, ChevronDown, Minimize2, Wand2, Library, ArrowRightLeft
 } from "lucide-react";
+
 import { toast } from "sonner";
 import {
   PeriodizationSchema,
