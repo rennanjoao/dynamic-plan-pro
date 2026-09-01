@@ -25,6 +25,8 @@ import { ProtocolPayload, makeEmptyExercise, isMobilityExercise, isLegacyMobilit
 import { applyDayExercisesChange, buildExercisesWithLibraryAdditions } from "@/lib/workoutExerciseOps";
 import { normalizeCarb, cycleCarb, CARB_LABEL, DAY_KEYS } from "@/lib/weekCycle";
 import { useConfirm } from "@/components/ConfirmProvider";
+import { WorkoutTemplateQuickPicker } from "@/components/coach/WorkoutTemplateQuickPicker";
+
 import {
   DndContext, closestCenter, PointerSensor, KeyboardSensor,
   useSensor, useSensors, type DragEndEvent,
