@@ -515,6 +515,16 @@ export default function TemplateLibraryDialog({
         templateName={historyItem?.name ?? ""}
         onRestore={restoreFromVersion}
       />
+      {blockHistoryItem && coachId && (
+        <WorkoutBlockHistoryDialog
+          open={!!blockHistoryItem}
+          onOpenChange={(v) => !v && setBlockHistoryItem(null)}
+          templateId={blockHistoryItem.id}
+          templateName={blockHistoryItem.name}
+          coachId={coachId}
+          onRestored={reload}
+        />
+      )}
     </>
   );
 }
