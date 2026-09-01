@@ -115,10 +115,20 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
     if (from === to) return;
     const weeks = p.weeks.map((w, idx) => (idx === to ? { ...p.weeks[from], label: w.label } : w));
     const overrides = { ...(p.overrides || {}) };
-    overrides[String(to)] = JSON.parse(JSON.stringify(overrides[String(from)] || {}));
+    // Copia também todas as substituições específicas (item a item) da semana de origem.
+    const src = overrides[String(from)];
+    if (src && Object.keys(src).length > 0) {
+      overrides[String(to)] = JSON.parse(JSON.stringify(src));
+    } else {
+      delete overrides[String(to)];
+    }
     setPayload({ ...payload, periodization: { ...p, weeks, overrides } });
-    toast.success(`Semana ${from + 1} copiada para Semana ${to + 1}`);
+    const n = src ? Object.keys(src).length : 0;
+    toast.success(
+      `Semana ${from + 1} copiada para Semana ${to + 1}${n ? ` (${n} substituição(ões) incluída(s))` : ""}`,
+    );
   }
+
 
   function resetWeekToDefault(i: number) {
     const defaults = PeriodizationSchema.parse({}).weeks;
