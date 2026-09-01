@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -34,19 +34,42 @@ function exId(dayKey: string, idx: number) {
   return `${dayKey}_${idx}`;
 }
 
+// ─── Tipos do rascunho local de substituições (espelham o shape de payload.periodization.overrides) ───
+type OverridesMap = NonNullable<ProtocolPayload["periodization"]["overrides"]>;
+type WeekOverrides = OverridesMap[string];
+type OverridePatch = WeekOverrides[string];
+
+/**
+ * Remove campos em branco de um patch e exercícios cujo patch resultante
+ * ficou vazio. Usado tanto para decidir "há algo pra salvar" quanto para
+ * montar o objeto final que vai pro payload — mesma semântica de sempre
+ * (campo em branco = herda o valor da semana).
+ */
+function cleanWeekOverrides(week?: WeekOverrides): WeekOverrides {
+  const out: WeekOverrides = {};
+  Object.entries(week || {}).forEach(([id, patch]) => {
+    const cleanPatch: OverridePatch = {};
+    Object.entries(patch || {}).forEach(([k, v]) => {
+      if (v) (cleanPatch as Record<string, string>)[k] = v as string;
+    });
+    if (Object.keys(cleanPatch).length > 0) out[id] = cleanPatch;
+  });
+  return out;
+}
+
 export default function WorkoutPeriodizationEditor({ payload, setPayload, coachId, onOpenTemplateLibrary }: Props) {
   const p = payload.periodization;
   const confirm = useConfirm();
   const [previewWeek, setPreviewWeek] = useState<number | null>(null);
-  
+
   // Estado para controlar a expansão das substituições de cada semana individualmente
   const [expandedWeeks, setExpandedWeeks] = useState<Record<number, boolean>>({});
-  
+
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("perio_collapsed") === "true";
   });
-  
+
   const toggleCollapsed = () => {
     const next = !collapsed;
     setCollapsed(next);
@@ -57,7 +80,85 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
     setExpandedWeeks(prev => ({ ...prev, [i]: !prev[i] }));
   };
 
-  const validation = useMemo(() => validatePeriodization(payload), [payload]);
+  // ─── Rascunho local único das substituições (MISSÃO 1) ───
+  // Espelha p.overrides. Edições de texto livre (nome/séries/reps/cadência/
+  // descanso por exercício) só ficam aqui até o coach clicar em "Salvar
+  // Alterações da Semana" — nesse momento vira UMA gravação em payload.overrides,
+  // eliminando a corrida de estado que existia com N botões "Aplicar" (cada
+  // um fechando sobre o payload do seu próprio render).
+  const [draftOverrides, setDraftOverrides] = useState<OverridesMap>(() => p.overrides || {});
+
+  // Rastreia, por semana, a última referência de p.overrides[semana] que já
+  // foi incorporada ao rascunho. Quando algo MUDA o payload por fora do
+  // rascunho desta tela (copiar semana, resetar padrão, resetar tudo, ou o
+  // próprio "Salvar" desta tela), a referência daquela semana muda e o
+  // rascunho é resincronizado — sem tocar em semanas que ninguém alterou
+  // externamente, então rascunho não salvo de uma semana nunca é apagado
+  // por uma ação em outra semana.
+  const syncedRef = useRef<OverridesMap>(p.overrides || {});
+  {
+    const weekKeys = p.weeks.map((_w, i) => String(i));
+    let nextDraft: OverridesMap | null = null;
+    let nextSynced: OverridesMap | null = null;
+    for (const wk of weekKeys) {
+      const committed = p.overrides?.[wk];
+      if (syncedRef.current[wk] !== committed) {
+        if (!nextDraft) nextDraft = { ...draftOverrides };
+        if (!nextSynced) nextSynced = { ...syncedRef.current };
+        if (committed) { nextDraft[wk] = committed; nextSynced[wk] = committed; }
+        else { delete nextDraft[wk]; delete nextSynced[wk]; }
+      }
+    }
+    if (nextDraft) {
+      syncedRef.current = nextSynced!;
+      setDraftOverrides(nextDraft);
+    }
+  }
+
+  const updateDraftField = (
+    weekIdx: number,
+    id: string,
+    field: "name" | "sets" | "reps" | "cadence" | "rest",
+    value: string,
+  ) => {
+    const wk = String(weekIdx);
+    setDraftOverrides((prev) => {
+      const week = { ...(prev[wk] || {}) };
+      week[id] = { ...(week[id] || {}), [field]: value };
+      return { ...prev, [wk]: week };
+    });
+  };
+
+  const isWeekDirty = (weekIdx: number) => {
+    const wk = String(weekIdx);
+    return JSON.stringify(cleanWeekOverrides(draftOverrides[wk])) !== JSON.stringify(cleanWeekOverrides(p.overrides?.[wk]));
+  };
+
+  const saveWeekOverrides = (weekIdx: number) => {
+    const wk = String(weekIdx);
+    const cleaned = cleanWeekOverrides(draftOverrides[wk]);
+    const nextOverrides = { ...(p.overrides || {}) };
+    if (Object.keys(cleaned).length > 0) nextOverrides[wk] = cleaned;
+    else delete nextOverrides[wk];
+    setPayload({ ...payload, periodization: { ...p, overrides: nextOverrides } });
+    toast.success(`Alterações da Semana ${weekIdx + 1} salvas`);
+  };
+
+  // Validação roda sobre o rascunho ainda não salvo (não só sobre o payload
+  // já persistido), pra erro de digitação aparecer em tempo real e não só
+  // depois de clicar em Salvar.
+  const previewPayload = useMemo(() => {
+    const mergedOverrides: OverridesMap = { ...(p.overrides || {}) };
+    Object.keys(draftOverrides).forEach((wk) => {
+      const cleaned = cleanWeekOverrides(draftOverrides[wk]);
+      if (Object.keys(cleaned).length > 0) mergedOverrides[wk] = cleaned;
+      else delete mergedOverrides[wk];
+    });
+    return { ...payload, periodization: { ...p, overrides: mergedOverrides } };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payload, draftOverrides]);
+
+  const validation = useMemo(() => validatePeriodization(previewPayload), [previewPayload]);
   const errorByWeek = useMemo(() => {
     const map: Record<number, Record<string, string>> = {};
     validation.weekErrors.forEach((e) => {
@@ -76,21 +177,14 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
     setPayload({ ...payload, periodization: { ...p, weeks } });
   };
 
-  const setOverride = (weekIdx: number, id: string, patch: Record<string, string>) => {
-    const key = String(weekIdx);
-    const next = { ...(p.overrides || {}) } as Record<string, Record<string, any>>;
-    next[key] = { ...(next[key] || {}), [id]: { ...(next[key]?.[id] || {}), ...patch } };
-    // limpa entradas vazias
-    Object.keys(next[key][id]).forEach((k) => {
-      if (!next[key][id][k]) delete next[key][id][k];
-    });
-    if (Object.keys(next[key][id]).length === 0) delete next[key][id];
-    setPayload({ ...payload, periodization: { ...p, overrides: next } });
-  };
-
   /**
    * Aplica em massa um valor (sets/reps/cadence/rest) para todos os
    * exercícios da semana informada, sobrescrevendo apenas o campo escolhido.
+   * Grava no RASCUNHO (não direto no payload) — o coach ainda precisa
+   * clicar em "Salvar Alterações da Semana" pra confirmar, junto com
+   * qualquer edição item a item que já esteja pendente na mesma semana.
+   * Isso evita que o bulk apague, sem querer, edições de campo ainda não
+   * salvas dessa mesma semana.
    */
   const bulkApplyWeek = (
     weekIdx: number,
@@ -98,21 +192,31 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
     value: string,
   ) => {
     if (!value.trim()) return;
-    const key = String(weekIdx);
-    const next = { ...(p.overrides || {}) } as Record<string, Record<string, any>>;
-    next[key] = { ...(next[key] || {}) };
-    (payload.workouts || []).forEach((day) => {
-      (day.exercises || []).forEach((_ex, ei) => {
-        const id = exId(day.key, ei);
-        next[key][id] = { ...(next[key][id] || {}), [field]: value };
+    const wk = String(weekIdx);
+    setDraftOverrides((prev) => {
+      const week = { ...(prev[wk] || {}) };
+      (payload.workouts || []).forEach((day) => {
+        (day.exercises || []).forEach((_ex, ei) => {
+          const id = exId(day.key, ei);
+          week[id] = { ...(week[id] || {}), [field]: value };
+        });
       });
+      return { ...prev, [wk]: week };
     });
-    setPayload({ ...payload, periodization: { ...p, overrides: next } });
-    toast.success(`${field} aplicado em massa na semana ${weekIdx + 1}`);
+    toast.success(`${field} preenchido em todos os exercícios da Semana ${weekIdx + 1} — clique em "Salvar Alterações da Semana" para confirmar`);
   };
 
-  function duplicateWeek(from: number, to: number) {
+  async function duplicateWeek(from: number, to: number) {
     if (from === to) return;
+    if (isWeekDirty(to)) {
+      const ok = await confirm({
+        title: "Descartar alterações não salvas?",
+        description: `A Semana ${to + 1} tem alterações não salvas nas substituições específicas. Copiar a Semana ${from + 1} por cima vai descartá-las.`,
+        confirmLabel: "Copiar mesmo assim",
+        destructive: true,
+      });
+      if (!ok) return;
+    }
     const weeks = p.weeks.map((w, idx) => (idx === to ? { ...p.weeks[from], label: w.label } : w));
     const overrides = { ...(p.overrides || {}) };
     // Copia também todas as substituições específicas (item a item) da semana de origem.
@@ -129,8 +233,16 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
     );
   }
 
-
-  function resetWeekToDefault(i: number) {
+  async function resetWeekToDefault(i: number) {
+    if (isWeekDirty(i)) {
+      const ok = await confirm({
+        title: "Descartar alterações não salvas?",
+        description: `A Semana ${i + 1} tem alterações não salvas nas substituições específicas. Resetar para o padrão vai descartá-las.`,
+        confirmLabel: "Resetar mesmo assim",
+        destructive: true,
+      });
+      if (!ok) return;
+    }
     const defaults = PeriodizationSchema.parse({}).weeks;
     const weeks = p.weeks.map((w, idx) => (idx === i ? defaults[i] : w));
     const overrides = { ...(p.overrides || {}) };
@@ -308,6 +420,9 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
                     <span className="flex items-center gap-1.5">
                       <ArrowRightLeft className="w-3 h-3" /> 
                       Substituições Específicas
+                      {isWeekDirty(i) && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary" title="Há alterações não salvas" />
+                      )}
                     </span>
                     <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", expandedWeeks[i] && "rotate-180")} />
                   </Button>
@@ -332,18 +447,15 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
                         <div className="space-y-3">
                           {(day.exercises || []).map((ex, ei) => {
                             const id = exId(day.key, ei);
-                            const ov = (p.overrides?.[String(i)]?.[id]) || {};
+                            const value = draftOverrides[String(i)]?.[id] || {};
                             const ovErr = (f: string) => overrideErrSet.has(`${i}|${id}|${f}`);
                             return (
                               <OverrideRow
-                                key={`${id}-${JSON.stringify(ov)}`}
+                                key={id}
                                 baseName={ex.name}
-                                override={ov}
+                                value={value}
                                 hasError={ovErr}
-                                onApply={(patch) => {
-                                  setOverride(i, id, patch);
-                                  toast.success(`Alterações aplicadas na Semana ${i + 1}`);
-                                }}
+                                onChange={(field, v) => updateDraftField(i, id, field, v)}
                               />
                             );
                           })}
@@ -351,6 +463,20 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
                         </div>
                       </div>
                     ))}
+
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40">
+                      <span className="text-[10px] text-muted-foreground italic">
+                        {isWeekDirty(i) ? "Alterações não salvas nesta semana" : "Tudo salvo nesta semana"}
+                      </span>
+                      <Button
+                        size="sm"
+                        className="h-7 px-3 text-xs"
+                        disabled={!isWeekDirty(i)}
+                        onClick={() => saveWeekOverrides(i)}
+                      >
+                        <Check className="w-3.5 h-3.5 mr-1.5" /> Salvar Alterações da Semana
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -446,67 +572,40 @@ function BulkApplyPopover({
 
 /**
  * Linha de substituição específica (item a item) da periodização.
- * Edita em rascunho local; nada é gravado no payload até o coach clicar
- * em "Aplicar". Campo em branco = herda o valor da semana (sem override).
+ * Componente 100% controlado: lê e escreve direto no rascunho da semana
+ * (WorkoutPeriodizationEditor). Nada é gravado no payload aqui — isso só
+ * acontece quando o coach clica em "Salvar Alterações da Semana" (uma vez
+ * para a semana inteira). Campo em branco = herda o valor da semana.
  */
 function OverrideRow({
   baseName,
-  override,
+  value,
   hasError,
-  onApply,
+  onChange,
 }: {
   baseName?: string;
-  override: Record<string, string | undefined>;
+  value: Record<string, string | undefined>;
   hasError: (f: string) => boolean;
-  onApply: (patch: Record<string, string>) => void;
+  onChange: (field: "name" | "sets" | "reps" | "cadence" | "rest", v: string) => void;
 }) {
-  const initial = {
-    name: override.name ?? "",
-    sets: override.sets ?? "",
-    reps: override.reps ?? "",
-    cadence: override.cadence ?? "",
-    rest: override.rest ?? "",
-  };
-  const [draft, setDraft] = useState(initial);
-  const dirty = (Object.keys(initial) as Array<keyof typeof initial>).some(
-    (k) => (draft[k] || "") !== (initial[k] || ""),
-  );
-  const set = (k: keyof typeof initial, v: string) => setDraft((d) => ({ ...d, [k]: v }));
-
+  const hasOverride = Object.values(value).some((v) => !!v);
   return (
     <div className="flex flex-col gap-1.5 pb-3 border-b border-border/20 last:border-0 last:pb-0">
       <Input
-        value={draft.name}
-        onChange={(e) => set("name", e.target.value)}
+        value={value.name ?? ""}
+        onChange={(e) => onChange("name", e.target.value)}
         placeholder={`= ${baseName || "(exercício base)"}`}
         className="h-7 text-xs font-medium bg-muted/20"
       />
       <div className="grid grid-cols-4 gap-1.5">
-        <Input value={draft.sets}    onChange={(e) => set("sets", e.target.value)}    placeholder="séries"   className={cn("h-7 text-xs", hasError("sets") && "border-destructive")} />
-        <Input value={draft.reps}    onChange={(e) => set("reps", e.target.value)}    placeholder="reps"     className={cn("h-7 text-xs", hasError("reps") && "border-destructive")} />
-        <Input value={draft.cadence} onChange={(e) => set("cadence", e.target.value)} placeholder="cadência" className={cn("h-7 text-xs", hasError("cadence") && "border-destructive")} />
-        <Input value={draft.rest}    onChange={(e) => set("rest", e.target.value)}    placeholder="descanso" className={cn("h-7 text-xs", hasError("rest") && "border-destructive")} />
+        <Input value={value.sets ?? ""}    onChange={(e) => onChange("sets", e.target.value)}    placeholder="séries"   className={cn("h-7 text-xs", hasError("sets") && "border-destructive")} />
+        <Input value={value.reps ?? ""}    onChange={(e) => onChange("reps", e.target.value)}    placeholder="reps"     className={cn("h-7 text-xs", hasError("reps") && "border-destructive")} />
+        <Input value={value.cadence ?? ""} onChange={(e) => onChange("cadence", e.target.value)} placeholder="cadência" className={cn("h-7 text-xs", hasError("cadence") && "border-destructive")} />
+        <Input value={value.rest ?? ""}    onChange={(e) => onChange("rest", e.target.value)}    placeholder="descanso" className={cn("h-7 text-xs", hasError("rest") && "border-destructive")} />
       </div>
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] text-muted-foreground italic">
-          {dirty ? "Alterações não aplicadas" : "Campos em branco seguem a semana"}
-        </span>
-        <div className="flex items-center gap-1">
-          {dirty && (
-            <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => setDraft(initial)}>
-              Cancelar
-            </Button>
-          )}
-          <Button
-            size="sm"
-            className="h-6 px-2 text-[10px]"
-            disabled={!dirty}
-            onClick={() => onApply({ ...draft })}
-          >
-            <Check className="w-3 h-3 mr-1" /> Aplicar
-          </Button>
-        </div>
-      </div>
+      <span className="text-[10px] text-muted-foreground italic">
+        {hasOverride ? "Substitui a semana neste exercício" : "Campos em branco seguem a semana"}
+      </span>
     </div>
   );
 }
