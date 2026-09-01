@@ -432,3 +432,70 @@ function BulkApplyPopover({
     </Popover>
   );
 }
+
+/**
+ * Linha de substituição específica (item a item) da periodização.
+ * Edita em rascunho local; nada é gravado no payload até o coach clicar
+ * em "Aplicar". Campo em branco = herda o valor da semana (sem override).
+ */
+function OverrideRow({
+  baseName,
+  override,
+  hasError,
+  onApply,
+}: {
+  baseName?: string;
+  override: Record<string, string | undefined>;
+  hasError: (f: string) => boolean;
+  onApply: (patch: Record<string, string>) => void;
+}) {
+  const initial = {
+    name: override.name ?? "",
+    sets: override.sets ?? "",
+    reps: override.reps ?? "",
+    cadence: override.cadence ?? "",
+    rest: override.rest ?? "",
+  };
+  const [draft, setDraft] = useState(initial);
+  const dirty = (Object.keys(initial) as Array<keyof typeof initial>).some(
+    (k) => (draft[k] || "") !== (initial[k] || ""),
+  );
+  const set = (k: keyof typeof initial, v: string) => setDraft((d) => ({ ...d, [k]: v }));
+
+  return (
+    <div className="flex flex-col gap-1.5 pb-3 border-b border-border/20 last:border-0 last:pb-0">
+      <Input
+        value={draft.name}
+        onChange={(e) => set("name", e.target.value)}
+        placeholder={`= ${baseName || "(exercício base)"}`}
+        className="h-7 text-xs font-medium bg-muted/20"
+      />
+      <div className="grid grid-cols-4 gap-1.5">
+        <Input value={draft.sets}    onChange={(e) => set("sets", e.target.value)}    placeholder="séries"   className={cn("h-7 text-xs", hasError("sets") && "border-destructive")} />
+        <Input value={draft.reps}    onChange={(e) => set("reps", e.target.value)}    placeholder="reps"     className={cn("h-7 text-xs", hasError("reps") && "border-destructive")} />
+        <Input value={draft.cadence} onChange={(e) => set("cadence", e.target.value)} placeholder="cadência" className={cn("h-7 text-xs", hasError("cadence") && "border-destructive")} />
+        <Input value={draft.rest}    onChange={(e) => set("rest", e.target.value)}    placeholder="descanso" className={cn("h-7 text-xs", hasError("rest") && "border-destructive")} />
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] text-muted-foreground italic">
+          {dirty ? "Alterações não aplicadas" : "Campos em branco seguem a semana"}
+        </span>
+        <div className="flex items-center gap-1">
+          {dirty && (
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => setDraft(initial)}>
+              Cancelar
+            </Button>
+          )}
+          <Button
+            size="sm"
+            className="h-6 px-2 text-[10px]"
+            disabled={!dirty}
+            onClick={() => onApply({ ...draft })}
+          >
+            <Check className="w-3 h-3 mr-1" /> Aplicar
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
