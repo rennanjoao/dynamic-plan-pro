@@ -17,11 +17,13 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Loader2, BookmarkPlus, Trash2, Dumbbell, Utensils, FileText, ClipboardList, Eye, History, Pencil } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmProvider";
-import { ProtocolPayloadSchema, type ProtocolPayload, genItemId } from "@/lib/protocolSchema";
+import { ProtocolPayloadSchema, WorkoutBlockPayloadSchema, type ProtocolPayload, genItemId } from "@/lib/protocolSchema";
 import { checkMuscleRecovery } from "@/lib/muscleRecovery";
 import TemplateHistoryDialog from "./TemplateHistoryDialog";
+import { WorkoutBlockHistoryDialog } from "./WorkoutBlockHistoryDialog";
 import { cn } from "@/lib/utils";
 import { saveProtocolAsTemplate } from "@/lib/protocolTemplates";
+import { listWorkoutBlockTemplates, deleteWorkoutBlockTemplate, injectWorkoutBlock } from "@/lib/workoutTemplates";
 
 type TplType = "workout" | "meal" | "protocol";
 type TplItem = {
@@ -81,6 +83,7 @@ export default function TemplateLibraryDialog({
   const [saving, setSaving] = useState(false);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [historyItem, setHistoryItem] = useState<{ id: string; name: string } | null>(null);
+  const [blockHistoryItem, setBlockHistoryItem] = useState<{ id: string; name: string } | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<{ id: string; name: string } | null>(null);
 
 
