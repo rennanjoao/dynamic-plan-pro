@@ -1,4 +1,3 @@
-```sql
 -- Biblioteca de templates: "Dieta" e "Periodização" isolados, no mesmo
 -- padrão já usado para "Treino" (migration 20260901002438): tabela
 -- `protocols` (is_template=true) discriminada por `template_kind`, com
