@@ -260,11 +260,11 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
             onClick={onOpenTemplateLibrary}
             className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
           >
-            biblioteca completa (refeições e protocolos)
+            biblioteca completa (dietas, periodizações e protocolos)
           </button>
         )}
       </div>
-      <WorkoutPeriodizationEditor payload={payload} setPayload={setPayload} coachId={coachId} onOpenTemplateLibrary={undefined} />
+      <WorkoutPeriodizationEditor payload={payload} setPayload={setPayload} coachId={coachId} onOpenTemplateLibrary={onOpenTemplateLibrary} />
 
 
       {/* ── Week strip: pílulas Seg→Dom ── */}

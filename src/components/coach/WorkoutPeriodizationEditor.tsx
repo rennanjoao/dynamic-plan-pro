@@ -22,6 +22,7 @@ import WeekPreviewDialog from "./WeekPreviewDialog";
 import { checkMuscleRecovery } from "@/lib/muscleRecovery";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/ConfirmProvider";
+import { PeriodizationTemplateQuickPicker } from "@/components/coach/PeriodizationTemplateQuickPicker";
 
 interface Props {
   payload: ProtocolPayload;
@@ -485,14 +486,15 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
         </>
       )}
 
-      {/* Templates de treino (sistema + salvos) vivem no diálogo compartilhado do Protocolo */}
-      {onOpenTemplateLibrary && (
-        <div className="flex justify-end mt-3 pt-3 border-t border-border/40">
+      {/* Templates de periodização: aplicar/salvar rápido aqui; biblioteca completa (treinos, dietas e protocolos) vive no diálogo compartilhado do Protocolo */}
+      <div className="flex items-center justify-between gap-2 flex-wrap mt-3 pt-3 border-t border-border/40">
+        <PeriodizationTemplateQuickPicker payload={payload} setPayload={setPayload} coachId={coachId} />
+        {onOpenTemplateLibrary && (
           <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onOpenTemplateLibrary}>
-            <Library className="w-3.5 h-3.5 mr-1.5" /> Templates de treino
+            <Library className="w-3.5 h-3.5 mr-1.5" /> Biblioteca completa
           </Button>
-        </div>
-      )}
+        )}
+      </div>
 
       <WeekPreviewDialog
         open={previewWeek !== null}

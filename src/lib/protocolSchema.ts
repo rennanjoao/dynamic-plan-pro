@@ -442,6 +442,35 @@ export const WorkoutBlockPayloadSchema = z.object({
 });
 export type WorkoutBlockPayload = z.infer<typeof WorkoutBlockPayloadSchema>;
 
+// ── Template de dieta isolado ───────────────────────────────────────────
+// Payload MÍNIMO para a biblioteca de "Templates de Dieta": só as refeições
+// (o que a aba Dieta de fato edita — DietTab.tsx só lê/escreve
+// `payload.meals`). Deliberadamente NÃO inclui ciclo de carboidratos por dia
+// da semana (isso é editado em WorkoutsTab/MacrosTab, não na aba Dieta) nem
+// suplementos (editados em GuidelinesTab) — mesmo critério de "só o que a
+// aba edita" usado em WorkoutBlockPayloadSchema.
+export const DietBlockPayloadSchema = z.object({
+  scope: z.literal("diet").default("diet"),
+  meals: z.array(MealSchema).default([]),
+});
+export type DietBlockPayload = z.infer<typeof DietBlockPayloadSchema>;
+
+// ── Template de periodização isolado ────────────────────────────────────
+// Payload MÍNIMO para a biblioteca de "Templates de Periodização": reusa
+// PeriodizationSchema inteiro (semanas + overrides por exercício). Os
+// overrides são indexados por "<dayKey>_<índice do exercício>" — ao aplicar
+// este template num protocolo com uma estrutura de treino diferente da que
+// gerou o template, um override pode não corresponder a nenhum exercício
+// real (dia inexistente ou índice fora do range) ou, pior, cair sobre um
+// exercício diferente do que foi pensado. `injectPeriodizationBlock` (em
+// periodizationTemplates.ts) valida cada override contra os treinos ATUAIS
+// do payload de destino antes de aplicá-lo — nunca aplica cegamente.
+export const PeriodizationBlockPayloadSchema = z.object({
+  scope: z.literal("periodization").default("periodization"),
+  periodization: PeriodizationSchema.default({} as any),
+});
+export type PeriodizationBlockPayload = z.infer<typeof PeriodizationBlockPayloadSchema>;
+
 export type ProtocolPayload = z.infer<typeof ProtocolPayloadSchema>;
 
 export type MealRow = z.infer<typeof MealSchema>;
