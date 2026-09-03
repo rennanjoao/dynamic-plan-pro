@@ -1050,6 +1050,41 @@ export type Database = {
         }
         Relationships: []
       }
+      diet_block_versions: {
+        Row: {
+          coach_id: string
+          created_at: string
+          id: string
+          payload: Json
+          template_id: string
+          version: number
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          id?: string
+          payload: Json
+          template_id: string
+          version: number
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          template_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diet_block_versions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "protocols"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       diet_progress: {
         Row: {
           completed: boolean
@@ -1409,6 +1444,41 @@ export type Database = {
           workouts_completed?: number
         }
         Relationships: []
+      }
+      periodization_block_versions: {
+        Row: {
+          coach_id: string
+          created_at: string
+          id: string
+          payload: Json
+          template_id: string
+          version: number
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          id?: string
+          payload: Json
+          template_id: string
+          version: number
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          template_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "periodization_block_versions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "protocols"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       platform_billing_charges: {
         Row: {
@@ -2549,6 +2619,24 @@ export type Database = {
         Returns: undefined
       }
       revoke_access_code: { Args: { p_code_id: string }; Returns: undefined }
+      save_diet_block_template: {
+        Args: {
+          p_coach_id: string
+          p_name: string
+          p_payload: Json
+          p_template_id: string
+        }
+        Returns: string
+      }
+      save_periodization_block_template: {
+        Args: {
+          p_coach_id: string
+          p_name: string
+          p_payload: Json
+          p_template_id: string
+        }
+        Returns: string
+      }
       save_protocol_with_plan: {
         Args: {
           p_active: boolean
