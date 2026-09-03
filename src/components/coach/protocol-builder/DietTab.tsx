@@ -23,6 +23,7 @@ import {
   Wand2, GripVertical,
 } from "lucide-react";
 import { loadCoachProfile } from "@/lib/prescriptionMemory";
+import { DietTemplateQuickPicker } from "@/components/coach/DietTemplateQuickPicker";
 import {
   ProtocolPayload, makeEmptyMeal, MEAL_NAME_PRESETS, SUPPLEMENT_OBJECTIVES, genItemId,
 } from "@/lib/protocolSchema";
@@ -87,7 +88,7 @@ function SortableMealCard({
   );
 }
 
-export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void }) {
+export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void; onOpenTemplateLibrary?: () => void }) {
   const [coachId, setCoachId] = useState<string | null>(null);
   useEffect(() => { supabase.auth.getSession().then(({ data }) => {   const id = data.session?.user?.id ?? null;   setCoachId(id);   loadCoachProfile(id); }); }, []);
 
@@ -355,11 +356,24 @@ export function DietTab({ payload, setPayload }: { payload: ProtocolPayload; set
 
   return (
     <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <DietTemplateQuickPicker payload={payload} setPayload={setPayload} coachId={coachId} />
+        {onOpenTemplateLibrary && (
+          <button
+            type="button"
+            onClick={onOpenTemplateLibrary}
+            className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+          >
+            biblioteca completa (treinos, periodizações e protocolos)
+          </button>
+        )}
+      </div>
+
       <div className="sticky top-0 z-10 -mx-2 px-2 pb-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <Card className="bg-card/80 border-border p-3">
           <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
             <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Macros do dia (auto) vs meta</p>
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setLoadTplOpen(true)}>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setLoadTplOpen(true)} title="Anexa UMA refeição de um modelo salvo — pra aplicar a dieta inteira, use 'Aplicar dieta' acima">
               <Library className="w-3 h-3 mr-1" /> Carregar modelo
             </Button>
           </div>

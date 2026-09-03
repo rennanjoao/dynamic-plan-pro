@@ -15,17 +15,21 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Loader2, BookmarkPlus, Trash2, Dumbbell, Utensils, FileText, ClipboardList, Eye, History, Pencil } from "lucide-react";
+import { Loader2, BookmarkPlus, Trash2, Dumbbell, Utensils, FileText, ClipboardList, Eye, History, Pencil, Salad, CalendarRange } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmProvider";
-import { ProtocolPayloadSchema, WorkoutBlockPayloadSchema, type ProtocolPayload, genItemId } from "@/lib/protocolSchema";
+import { ProtocolPayloadSchema, WorkoutBlockPayloadSchema, DietBlockPayloadSchema, PeriodizationBlockPayloadSchema, type ProtocolPayload, genItemId } from "@/lib/protocolSchema";
 import { checkMuscleRecovery } from "@/lib/muscleRecovery";
 import TemplateHistoryDialog from "./TemplateHistoryDialog";
 import { WorkoutBlockHistoryDialog } from "./WorkoutBlockHistoryDialog";
+import { DietBlockHistoryDialog } from "./DietBlockHistoryDialog";
+import { PeriodizationBlockHistoryDialog } from "./PeriodizationBlockHistoryDialog";
 import { cn } from "@/lib/utils";
 import { saveProtocolAsTemplate } from "@/lib/protocolTemplates";
 import { listWorkoutBlockTemplates, deleteWorkoutBlockTemplate, injectWorkoutBlock } from "@/lib/workoutTemplates";
+import { listDietBlockTemplates, deleteDietBlockTemplate, injectDietBlock } from "@/lib/dietTemplates";
+import { listPeriodizationBlockTemplates, deletePeriodizationBlockTemplate, injectPeriodizationBlock } from "@/lib/periodizationTemplates";
 
-type TplType = "workout" | "meal" | "protocol";
+type TplType = "workout" | "meal" | "protocol" | "diet" | "periodization";
 type TplItem = {
   id: string;
   type: TplType;
@@ -39,9 +43,11 @@ type TplItem = {
 };
 
 const TYPE_META: Record<TplType, { label: string; icon: any; badge: string }> = {
-  workout:  { label: "Treino",              icon: Dumbbell,      badge: "bg-emerald-500/15 text-emerald-500 border-emerald-500/40" },
-  meal:     { label: "Refeição",            icon: Utensils,      badge: "bg-amber-500/15 text-amber-500 border-amber-500/40" },
-  protocol: { label: "Protocolo completo",  icon: ClipboardList, badge: "bg-primary/15 text-primary border-primary/40" },
+  workout:       { label: "Treino",              icon: Dumbbell,      badge: "bg-emerald-500/15 text-emerald-500 border-emerald-500/40" },
+  meal:          { label: "Refeição",            icon: Utensils,      badge: "bg-amber-500/15 text-amber-500 border-amber-500/40" },
+  diet:          { label: "Dieta completa",      icon: Salad,         badge: "bg-lime-500/15 text-lime-600 border-lime-500/40" },
+  periodization: { label: "Periodização",        icon: CalendarRange, badge: "bg-sky-500/15 text-sky-500 border-sky-500/40" },
+  protocol:      { label: "Protocolo completo",  icon: ClipboardList, badge: "bg-primary/15 text-primary border-primary/40" },
 };
 
 const DIVISIONS = ["todos", "AB", "ABC", "ABCD", "ABCDE"] as const;
@@ -83,7 +89,7 @@ export default function TemplateLibraryDialog({
   const [saving, setSaving] = useState(false);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [historyItem, setHistoryItem] = useState<{ id: string; name: string } | null>(null);
-  const [blockHistoryItem, setBlockHistoryItem] = useState<{ id: string; name: string } | null>(null);
+  const [blockHistoryItem, setBlockHistoryItem] = useState<{ kind: "workout" | "diet" | "periodization"; id: string; name: string } | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<{ id: string; name: string } | null>(null);
 
 
@@ -91,7 +97,7 @@ export default function TemplateLibraryDialog({
     if (!coachId) return;
     setLoading(true);
     try {
-      const [legacyWorkoutRes, mealRes, protoRes, workoutBlocks] = await Promise.all([
+      const [legacyWorkoutRes, mealRes, protoRes, workoutBlocks, dietBlocks, periodizationBlocks] = await Promise.all([
         // Legado somente-leitura: RLS bloqueia novos inserts aqui.
         supabase.from("workout_templates")
           .select("id, name, treinos, created_at")
@@ -112,6 +118,8 @@ export default function TemplateLibraryDialog({
           .limit(50),
         // Fonte única (nova) de templates de treino: os do coach + os de sistema.
         listWorkoutBlockTemplates(coachId),
+        listDietBlockTemplates(coachId),
+        listPeriodizationBlockTemplates(coachId),
       ]);
 
       const merged: TplItem[] = [
@@ -127,6 +135,22 @@ export default function TemplateLibraryDialog({
           isSystem: tpl.isSystem,
           division: tpl.division,
           profile: tpl.profile,
+        })),
+        ...dietBlocks.map((tpl): TplItem => ({
+          id: tpl.id,
+          type: "diet",
+          name: tpl.name,
+          createdAt: tpl.createdAt,
+          raw: { dieta: tpl.payload },
+          isSystem: tpl.isSystem,
+        })),
+        ...periodizationBlocks.map((tpl): TplItem => ({
+          id: tpl.id,
+          type: "periodization",
+          name: tpl.name,
+          createdAt: tpl.createdAt,
+          raw: { periodizacao: tpl.payload },
+          isSystem: tpl.isSystem,
         })),
       ].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
@@ -167,6 +191,27 @@ export default function TemplateLibraryDialog({
       const meal = item.raw.meal_data;
       setPayload({ ...payload, meals: [...payload.meals, { ...meal, name: meal?.name || item.name, __id: genItemId("meal") }] });
       toast.success("Refeição adicionada");
+    } else if (item.type === "diet") {
+      const parsed = DietBlockPayloadSchema.safeParse(item.raw.dieta);
+      if (!parsed.success || parsed.data.meals.length === 0) {
+        toast.error("Template sem refeições salvas");
+        return;
+      }
+      setPayload(injectDietBlock(payload, parsed.data));
+      toast.success("Dieta aplicada");
+    } else if (item.type === "periodization") {
+      const parsed = PeriodizationBlockPayloadSchema.safeParse(item.raw.periodizacao);
+      if (!parsed.success) {
+        toast.error("Template de periodização inválido");
+        return;
+      }
+      const { payload: next, applied, skipped } = injectPeriodizationBlock(payload, parsed.data);
+      setPayload(next);
+      toast.success(
+        skipped > 0
+          ? `Periodização aplicada — ${applied} ajuste(s) mantido(s), ${skipped} ignorado(s) por não corresponder a um exercício deste treino`
+          : "Periodização aplicada",
+      );
     } else {
       if (!(await confirm({
         title: "Aplicar protocolo completo",
@@ -194,6 +239,12 @@ export default function TemplateLibraryDialog({
       if (item.type === "workout" && !item.isLegacy) {
         if (!coachId) return;
         await deleteWorkoutBlockTemplate(item.id, coachId);
+      } else if (item.type === "diet") {
+        if (!coachId) return;
+        await deleteDietBlockTemplate(item.id, coachId);
+      } else if (item.type === "periodization") {
+        if (!coachId) return;
+        await deletePeriodizationBlockTemplate(item.id, coachId);
       } else {
         const table = item.type === "workout" ? "workout_templates"
                     : item.type === "meal"    ? "meal_templates"
@@ -300,6 +351,30 @@ export default function TemplateLibraryDialog({
         </div>
       );
     }
+    if (item.type === "diet") {
+      const meals = item.raw.dieta?.meals ?? [];
+      if (meals.length === 0) return <p className="text-[11px] text-muted-foreground">Sem refeições salvas.</p>;
+      return (
+        <div className="text-[11px] text-muted-foreground space-y-1">
+          {meals.map((m: any, i: number) => (
+            <p key={i}><span className="font-medium text-foreground">{m.name || `Refeição ${i + 1}`}:</span> {(m.options?.length ?? 0)} opção(ões){m.notes ? ` — ${m.notes}` : ""}</p>
+          ))}
+        </div>
+      );
+    }
+    if (item.type === "periodization") {
+      const periodization = item.raw.periodizacao?.periodization;
+      const weeks = periodization?.weeks ?? [];
+      const overrideCount = Object.values(periodization?.overrides ?? {}).reduce(
+        (acc: number, weekMap: any) => acc + Object.keys(weekMap || {}).length, 0,
+      );
+      return (
+        <div className="text-[11px] text-muted-foreground space-y-1">
+          <p>{weeks.length} semana(s) configurada(s)</p>
+          <p>{overrideCount} ajuste(s) individual(is) por exercício</p>
+        </div>
+      );
+    }
     const p = item.raw.payload || {};
     const macros = p.macros || {};
     return (
@@ -317,7 +392,7 @@ export default function TemplateLibraryDialog({
           <DialogHeader>
             <DialogTitle>Biblioteca de Templates</DialogTitle>
             <DialogDescription className="text-xs">
-              Treinos, refeições e protocolos salvos por você — e uma biblioteca de treinos prontos do sistema.
+              Treinos, dietas, refeições, periodizações e protocolos salvos por você — e uma biblioteca de treinos prontos do sistema.
             </DialogDescription>
           </DialogHeader>
 
@@ -326,7 +401,9 @@ export default function TemplateLibraryDialog({
               <TabsList className="h-8">
                 <TabsTrigger value="all" className="text-xs h-6">Todos</TabsTrigger>
                 <TabsTrigger value="workout" className="text-xs h-6">Treino</TabsTrigger>
+                <TabsTrigger value="diet" className="text-xs h-6">Dieta</TabsTrigger>
                 <TabsTrigger value="meal" className="text-xs h-6">Refeição</TabsTrigger>
+                <TabsTrigger value="periodization" className="text-xs h-6">Periodização</TabsTrigger>
                 <TabsTrigger value="protocol" className="text-xs h-6">Protocolo</TabsTrigger>
               </TabsList>
             </Tabs>
@@ -461,9 +538,9 @@ export default function TemplateLibraryDialog({
                             <History className="w-3.5 h-3.5" />
                           </button>
                         )}
-                        {item.type === "workout" && !item.isSystem && !item.isLegacy && (
+                        {(item.type === "workout" || item.type === "diet" || item.type === "periodization") && !item.isSystem && !item.isLegacy && (
                           <button
-                            onClick={() => setBlockHistoryItem({ id: item.id, name: item.name })}
+                            onClick={() => setBlockHistoryItem({ kind: item.type as "workout" | "diet" | "periodization", id: item.id, name: item.name })}
                             className="text-muted-foreground hover:text-foreground p-1"
                             title="Histórico de versões"
                           >
@@ -536,8 +613,28 @@ export default function TemplateLibraryDialog({
         templateName={historyItem?.name ?? ""}
         onRestore={restoreFromVersion}
       />
-      {blockHistoryItem && coachId && (
+      {blockHistoryItem && coachId && blockHistoryItem.kind === "workout" && (
         <WorkoutBlockHistoryDialog
+          open={!!blockHistoryItem}
+          onOpenChange={(v) => !v && setBlockHistoryItem(null)}
+          templateId={blockHistoryItem.id}
+          templateName={blockHistoryItem.name}
+          coachId={coachId}
+          onRestored={reload}
+        />
+      )}
+      {blockHistoryItem && coachId && blockHistoryItem.kind === "diet" && (
+        <DietBlockHistoryDialog
+          open={!!blockHistoryItem}
+          onOpenChange={(v) => !v && setBlockHistoryItem(null)}
+          templateId={blockHistoryItem.id}
+          templateName={blockHistoryItem.name}
+          coachId={coachId}
+          onRestored={reload}
+        />
+      )}
+      {blockHistoryItem && coachId && blockHistoryItem.kind === "periodization" && (
+        <PeriodizationBlockHistoryDialog
           open={!!blockHistoryItem}
           onOpenChange={(v) => !v && setBlockHistoryItem(null)}
           templateId={blockHistoryItem.id}
