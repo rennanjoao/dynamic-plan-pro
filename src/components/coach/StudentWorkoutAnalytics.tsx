@@ -25,7 +25,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import {
   LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -55,9 +55,6 @@ const RED   = "#CC0000";
 const GREEN = "#22c55e";
 const BLUE  = "#60a5fa";
 const MUTED = "rgba(255,255,255,0.08)";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb = supabase as any;
 
 /* ── Tipos ──────────────────────────────────────────────────────────────────── */
 
@@ -97,7 +94,6 @@ interface AlertRow {
   created_at: string;
   context:    Record<string, unknown>;
 }
-
 
 interface CoachInsightRow {
   situacao:      CoachInsightSituacao;
@@ -167,7 +163,6 @@ const ALERT_META: Record<string, { label: string; icon: string }> = {
   volume_mrv:        { label: "Volume acima do limite", icon: "📊" },
   insufficient_data: { label: "Dados insuficientes",    icon: "❓" },
 };
-
 
 const CONFIANCA_LABEL: Record<string, string> = {
   alta:  "Confiança alta",

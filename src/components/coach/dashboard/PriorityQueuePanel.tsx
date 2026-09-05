@@ -9,14 +9,11 @@
 
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import { AlertTriangle, ChevronDown, ChevronUp, LifeBuoy, ListChecks, RotateCcw, Wallet, X } from "lucide-react";
 import { Private } from "@/components/coach/PrivacyMode";
 import { sortPriorityQueue, formatMrvGroups } from "@/lib/coachPriorityQueue";
 import type { StudentLite } from "@/hooks/useCoachStudents";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
 
 type QueueSeverity = "critical" | "warning" | "info";
 export type QueueSource = "fatigue" | "checkin_urgent" | "payment_overdue";

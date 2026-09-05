@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 
 // A lista de colunas é montada dinamicamente por quem chama o hook (cada
 // diálogo pede um subconjunto diferente de `profiles`), então o supabase-js
 // não consegue inferir o tipo de retorno a partir da string em tempo de
 // compilação. Confinamos o "any" só a esta linha — quem usa o hook recebe
 // de volta um `T` já tipado (ver `select<T>()` abaixo).
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
 
 export interface UseProfileRecordResult<T> {
   /** Dados da linha carregada, ou null enquanto carrega / se a busca falhou. */

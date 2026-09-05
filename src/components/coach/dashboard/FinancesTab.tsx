@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import { toast } from "sonner";
 import { Loader2, Plus, Trash2, DollarSign, Calendar, AlertTriangle, CheckCircle2, Users, Wallet, ShieldOff, ShieldCheck, Eye, Copy } from "lucide-react";
 import { useCoachFinances } from "@/hooks/useCoachFinances";
@@ -26,9 +27,6 @@ import { PARTNER_PLAN_PRICING, previewFinalPrice, type PartnerPlanSlug } from "@
 function isPartnerPlan(slug: unknown): slug is PartnerPlanSlug {
   return typeof slug === "string" && slug in PARTNER_PLAN_PRICING;
 }
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
 
 const PAYMENT_METHODS: { value: string; label: string }[] = [
   { value: "pix_plataforma", label: "PIX (pela plataforma)" },
@@ -81,7 +79,6 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
     }
   };
 
-
   const { data: planCatalog = [] } = useStudentPlanCatalog(coachId);
   const { data: subscriptions = [] } = useCoachSubscriptions(coachId);
 
@@ -116,7 +113,7 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
         payment_method: currentlyPaid ? null : (method ?? null),
       }).eq("id", id);
       if (error) throw error;
-      qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
+      qc.invalidateQueries({ queryKey: queryKeys.coachFinances(coachId) });
       qc.invalidateQueries({ queryKey: ["coach-priority-queue", coachId] });
       toast.success(currentlyPaid ? "Marcado como pendente" : "Marcado como pago");
     } catch (e) {
@@ -144,8 +141,8 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
       } else {
         const created = (data as { commissionCreated?: boolean } | null)?.commissionCreated;
         if (created) toast.success("Comissão da influenciadora gerada.");
-        qc.invalidateQueries({ queryKey: ["coach-subscriptions", coachId] });
-        qc.invalidateQueries({ queryKey: ["partner-commissions", coachId, null, false] });
+        qc.invalidateQueries({ queryKey: queryKeys.coachStudentSubscriptions(coachId) });
+        qc.invalidateQueries({ queryKey: queryKeys.partnerCommissions(coachId, null, false) });
       }
     }
 
@@ -160,8 +157,8 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
         .update({ is_exempt: nextExempt })
         .eq("coach_id", coachId).eq("student_id", studentId);
       if (error) throw error;
-      qc.invalidateQueries({ queryKey: ["coach-students-lite", coachId] });
-      qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
+      qc.invalidateQueries({ queryKey: queryKeys.coachStudentsLite(coachId) });
+      qc.invalidateQueries({ queryKey: queryKeys.coachFinances(coachId) });
       qc.invalidateQueries({ queryKey: ["coach-priority-queue", coachId] });
       toast.success(nextExempt ? "Aluno isento de cobranças" : "Isenção removida");
     } catch (e) {
@@ -207,7 +204,7 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
       if (error) throw error;
       if (!data?.url) throw new Error(data?.error || "Não foi possível gerar o link");
       await navigator.clipboard.writeText(data.url).catch(() => undefined);
-      qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
+      qc.invalidateQueries({ queryKey: queryKeys.coachFinances(coachId) });
       toast.success("Cobrança criada e link copiado — envie pro aluno.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao gerar link");
@@ -246,8 +243,8 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
         }
       }
 
-      qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
-      qc.invalidateQueries({ queryKey: ["coach-student-subscriptions"] });
+      qc.invalidateQueries({ queryKey: queryKeys.coachFinances(coachId) });
+      qc.invalidateQueries({ queryKey: queryKeys.coachStudentSubscriptions() });
     } catch (e) {
       toast.error("Erro ao remover: " + (e instanceof Error ? e.message : "erro desconhecido"));
     }
@@ -261,7 +258,7 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
         .update({ due_date: editingFinance.due_date || null })
         .eq("id", editingFinance.id);
       if (error) throw error;
-      qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
+      qc.invalidateQueries({ queryKey: queryKeys.coachFinances(coachId) });
       setEditingFinance(null);
       toast.success("Data de vencimento atualizada!");
     } catch (e) {
@@ -357,8 +354,8 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
         await sb.from("student_subscriptions").update({ current_charge_id: charge.id }).eq("id", subscriptionId);
       }
 
-      qc.invalidateQueries({ queryKey: queryKeys.coachFinances() });
-      qc.invalidateQueries({ queryKey: ["coach-student-subscriptions", coachId] });
+      qc.invalidateQueries({ queryKey: queryKeys.coachFinances(coachId) });
+      qc.invalidateQueries({ queryKey: queryKeys.coachStudentSubscriptions(coachId) });
       toast.success(`Cobrança criada para ${quickBilling.student_name}. O aluno receberá o alerta.`);
       setQuickBilling(null);
       setQuickForm({ description: "Mensalidade", amount: "", due_date: "", plan_slug: "" });

@@ -10,6 +10,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
+import { queryKeys } from "@/lib/queryKeys";
 import { CHECKIN_SECTIONS, CHECKIN_METRICS } from "@/lib/checkInSchema";
 import { notifyCoach } from "@/lib/notifyCoach";
 import { isFieldVisible } from "@/lib/anamnesisSchema";
@@ -27,9 +29,6 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatDatePtBR } from "@/lib/formatDate";
 import PreviewModeBar from "@/components/student/PreviewModeBar";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
 
 const FOTO_KEYS = ["frente", "lateral_dir", "lateral_esq", "costas"] as const;
 const FOTO_LABELS: Record<string, string> = {
@@ -440,7 +439,7 @@ export default function CheckIn() {
           ? "Check-in atualizado com sucesso."
           : "Check-in enviado com sucesso."
       );
-      qc.invalidateQueries({ queryKey: ["check-ins", studentId] });
+      qc.invalidateQueries({ queryKey: queryKeys.studentCheckIns(studentId) });
       setTimeout(() => navigate("/evolution"), 1000);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Erro ao enviar";

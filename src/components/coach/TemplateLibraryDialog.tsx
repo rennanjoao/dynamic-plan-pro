@@ -28,6 +28,7 @@ import { saveProtocolAsTemplate } from "@/lib/protocolTemplates";
 import { listWorkoutBlockTemplates, deleteWorkoutBlockTemplate, injectWorkoutBlock } from "@/lib/workoutTemplates";
 import { listDietBlockTemplates, deleteDietBlockTemplate, injectDietBlock } from "@/lib/dietTemplates";
 import { listPeriodizationBlockTemplates, deletePeriodizationBlockTemplate, injectPeriodizationBlock } from "@/lib/periodizationTemplates";
+import { formatDatePtBR } from "@/lib/formatDate";
 
 type TplType = "workout" | "meal" | "protocol" | "diet" | "periodization";
 type TplItem = {
@@ -367,7 +368,7 @@ export default function TemplateLibraryDialog({
       const weeks = periodization?.weeks ?? [];
       const overrideCount = Object.values(periodization?.overrides ?? {}).reduce(
         (acc: number, weekMap: any) => acc + Object.keys(weekMap || {}).length, 0,
-      );
+      ) as number;
       return (
         <div className="text-[11px] text-muted-foreground space-y-1">
           <p>{weeks.length} semana(s) configurada(s)</p>
@@ -504,7 +505,7 @@ export default function TemplateLibraryDialog({
                           </div>
                           {item.createdAt && (
                             <p className="text-[10px] text-muted-foreground">
-                              {new Date(item.createdAt).toLocaleDateString("pt-BR")}
+                              {formatDatePtBR(item.createdAt)}
                             </p>
                           )}
                         </div>

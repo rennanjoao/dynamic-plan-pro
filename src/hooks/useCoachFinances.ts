@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
+import { sb } from "@/integrations/supabase/untyped";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface FinanceRecord {
   id: string;
@@ -21,7 +21,7 @@ export interface FinanceRecord {
 
 export function useCoachFinances(coachId: string | null) {
   return useQuery({
-    queryKey: ["coach-finances", coachId],
+    queryKey: queryKeys.coachFinances(coachId),
     queryFn: async (): Promise<FinanceRecord[]> => {
       if (!coachId) return [];
       const [{ data }, { data: exempt }] = await Promise.all([

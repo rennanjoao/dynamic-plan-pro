@@ -4,6 +4,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,8 +46,6 @@ import { searchFoods, type FoodHit } from "@/lib/foodSearch";
 import { TACO_FOODS } from "@/data/tacoFoods";
 
 const TACO_DATA = TACO_FOODS.map((t, i) => ({ ...t, id: String(i), cookFactor: t.cookFactor ?? 1 }));
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
 
 /**
  * Regra de três: quantos gramas do alimento `hit` batem as mesmas kcal do
@@ -61,8 +60,6 @@ function equivalentGramsForKcal(mainItem: any, hit: FoodHit): number {
   const grams = Math.round((mainKcal / per100) * 100);
   return isFinite(grams) && grams > 0 ? grams : 0;
 }
-
-
 
 // ─── DietTab ─────────────────────────────────────────────────────────────────
 
@@ -132,7 +129,6 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
     // continuar visualmente no mesmo estado após o swap.
     setCollapsedMeals((prev) => ({ ...prev, [index]: !!prev[target], [target]: !!prev[index] }));
   }
-
 
   const [saveTplFor, setSaveTplFor] = useState<{ idx: number; name: string; kind: string } | null>(null);
   const [loadTplOpen, setLoadTplOpen] = useState(false);
@@ -333,7 +329,6 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
     items[itemIdx] = { ...items[itemIdx], substitution: { ...cur, ...patch } };
     updOption(mealIdx, kind, optIdx, { items });
   }
-
 
   function addItem(mealIdx: number, kind: "carb" | "protein" | "fat", optIdx: number) {
     const opts = getOptsForKind(payload.meals[mealIdx], kind);

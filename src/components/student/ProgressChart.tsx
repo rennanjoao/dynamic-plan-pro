@@ -2,10 +2,10 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { useStudentData } from "@/hooks/useStudentData";
 import { TrendingUp, Loader2 } from "lucide-react";
 import { estimateBF } from "@/lib/bfEstimate";
-import { colorForDelta } from "@/lib/checkInSchema";
+import { colorForDelta, weightPolarityForGoal } from "@/lib/checkInSchema";
 
 export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
-  const { anamnesis, checkIns, loading } = useStudentData(studentId);
+  const { anamnesis, checkIns, goal, loading } = useStudentData(studentId);
 
   if (loading) {
     return (
@@ -167,7 +167,7 @@ export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
       <div className="mt-6 grid grid-cols-2 gap-4">
         <div className="glass rounded-xl p-4">
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Mudança de Peso</p>
-          <p className={`text-2xl font-bold mt-1 ${colorForDelta(Number(mudancaPeso))}`}>
+          <p className={`text-2xl font-bold mt-1 ${colorForDelta(Number(mudancaPeso), weightPolarityForGoal(goal))}`}>
             {Number(mudancaPeso) > 0 ? '+' : ''}{mudancaPeso} kg
           </p>
         </div>

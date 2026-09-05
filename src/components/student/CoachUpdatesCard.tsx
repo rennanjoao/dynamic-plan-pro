@@ -21,7 +21,8 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
-import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
+import { queryKeys } from "@/lib/queryKeys";
 import { useStudentData } from "@/hooks/useStudentData";
 import {
   Sheet,
@@ -39,9 +40,7 @@ import {
   ChevronDown,
   ArrowRight,
 } from "lucide-react";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
+import { formatDatePtBR } from "@/lib/formatDate";
 
 export interface CoachChangeItem {
   category: "treino" | "dieta" | "suplemento" | "diretriz" | "geral";
@@ -100,7 +99,7 @@ function formatRelativeDateTime(iso: string): string {
   const diffDays = Math.round((startOfDay(now).getTime() - startOfDay(d).getTime()) / 86_400_000);
   if (diffDays === 0) return `Hoje às ${time}`;
   if (diffDays === 1) return `Ontem às ${time}`;
-  return `${d.toLocaleDateString("pt-BR")} às ${time}`;
+  return `${formatDatePtBR(d)} às ${time}`;
 }
 
 export default function CoachUpdatesCard() {
@@ -112,7 +111,7 @@ export default function CoachUpdatesCard() {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
   const { data: event } = useQuery({
-    queryKey: ["coach-updates", studentId],
+    queryKey: queryKeys.coachUpdates(studentId),
     enabled: !!studentId,
     staleTime: 30_000,
     queryFn: async () => {
@@ -175,7 +174,7 @@ export default function CoachUpdatesCard() {
       console.error("[coach-updates] falha ao marcar item como visto", error);
       return;
     }
-    qc.invalidateQueries({ queryKey: ["coach-updates", studentId] });
+    qc.invalidateQueries({ queryKey: queryKeys.coachUpdates(studentId) });
   }
 
   async function markAllSeen() {
@@ -191,7 +190,7 @@ export default function CoachUpdatesCard() {
       return;
     }
     handleSheetOpenChange(false);
-    qc.invalidateQueries({ queryKey: ["coach-updates", studentId] });
+    qc.invalidateQueries({ queryKey: queryKeys.coachUpdates(studentId) });
   }
 
   function handleItemToggle(item: CoachChangeItem, originalIndex: number) {

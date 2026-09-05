@@ -9,21 +9,18 @@ import { lazyWithRetry } from "@/lib/lazyWithRetry";
  * - Botão para abrir Anamnese exclusiva (com export PDF).
  */
 import { useEffect, useMemo, useState, lazy, Suspense } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Loader2, TrendingDown, TrendingUp, Minus, FileText, ArrowLeft, ZoomIn } from "lucide-react";
-import { CHECKIN_METRICS, colorForDelta } from "@/lib/checkInSchema";
+import { CHECKIN_METRICS, colorForDelta, weightPolarityForGoal } from "@/lib/checkInSchema";
 import { estimateBF } from "@/lib/bfEstimate";
 import CheckinPayloadAnswers from "@/components/coach/CheckinPayloadAnswers";
 import { PrivateImg } from "@/components/coach/PrivacyMode";
 import { formatDatePtBR } from "@/lib/formatDate";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
 
 const POSE_KEYS = ["frente", "lateral_dir", "lateral_esq", "costas"] as const;
 const POSE_LABEL: Record<string, string> = {
@@ -53,8 +50,8 @@ function fmt(iso: string) {
 const AnamnesisViewerLazy = lazyWithRetry(() => import("@/components/anamnesis/AnamnesisViewer"));
 
 export default function EvolutionComparison({
-  studentId, studentName,
-}: { studentId: string; studentName: string }) {
+  studentId, studentName, goal,
+}: { studentId: string; studentName: string; goal?: string | null }) {
   const [loading, setLoading] = useState(true);
   const [points, setPoints] = useState<Timepoint[]>([]);
   const [leftId, setLeftId] = useState<string>("");
@@ -412,7 +409,7 @@ export default function EvolutionComparison({
             const hasBoth = a != null && b != null;
             const d = hasBoth ? (b as number) - (a as number) : null;
             const Icon = d == null ? Minus : Math.abs(d) < 0.05 ? Minus : d < 0 ? TrendingDown : TrendingUp;
-            const color = colorForDelta(d);
+            const color = colorForDelta(d, m.key === "peso" ? weightPolarityForGoal(goal) : undefined);
             return (
               <div key={m.key} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 py-1.5 border-b border-border/40 last:border-0">
                 <span className="text-xs text-muted-foreground">{m.label}</span>

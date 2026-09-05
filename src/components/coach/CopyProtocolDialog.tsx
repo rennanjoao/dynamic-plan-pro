@@ -6,7 +6,7 @@
  * `active: false` — o coach precisa revisar e publicar manualmente.
  */
 import { useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import { toast } from "sonner";
 import { Loader2, Copy, Search } from "lucide-react";
 import {
@@ -17,9 +17,6 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useCoachStudentsLite } from "@/hooks/useCoachStudents";
 import type { ProtocolPayload } from "@/lib/protocolSchema";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
 
 type Section = "workout" | "diet" | "supplements";
 
@@ -140,7 +137,6 @@ export default function CopyProtocolDialog({
       setCopying(false);
     }
   }
-
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

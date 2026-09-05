@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, Check, Copy, Heart, Loader2, Percent, Plus, Ticket, Users, Wallet } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +15,7 @@ import {
   useCoachAccessCodes,
   usePartnerCommissions,
 } from "@/hooks/usePartnerships";
+import { formatDatePtBR } from "@/lib/formatDate";
 
 const STATUS_BADGE: Record<string, string> = {
   pending: "bg-amber-500/10 text-amber-500 border-amber-500/30",
@@ -93,7 +95,7 @@ export function PartnersTab({ coachId }: { coachId: string | null }) {
       return;
     }
     setNote("");
-    qc.invalidateQueries({ queryKey: ["coach-access-codes", coachId] });
+    qc.invalidateQueries({ queryKey: queryKeys.coachAccessCodes(coachId) });
     const code = (data as { accessCode?: { code?: string } })?.accessCode?.code;
     if (code) {
       navigator.clipboard?.writeText(code).catch(() => undefined);
@@ -124,7 +126,7 @@ export function PartnersTab({ coachId }: { coachId: string | null }) {
       delete next[userId];
       return next;
     });
-    qc.invalidateQueries({ queryKey: ["coach-partners", coachId] });
+    qc.invalidateQueries({ queryKey: queryKeys.coachPartners(coachId) });
     toast({ title: "Comissão atualizada" });
   };
 
@@ -148,7 +150,7 @@ export function PartnersTab({ coachId }: { coachId: string | null }) {
       toast({ title: "Não foi possível revogar", description: error.message, variant: "destructive" });
       return;
     }
-    qc.invalidateQueries({ queryKey: ["coach-access-codes", coachId] });
+    qc.invalidateQueries({ queryKey: queryKeys.coachAccessCodes(coachId) });
     toast({ title: "Código revogado" });
   };
 
@@ -318,7 +320,7 @@ export function PartnersTab({ coachId }: { coachId: string | null }) {
                 <p className="text-sm font-semibold truncate">{partnerName.get(c.partner_id) ?? "Influenciadora"}</p>
                 <p className="text-[11px] text-muted-foreground">
                   {formatCents(c.gross_amount_cents)} · {formatRateBp(c.commission_rate_bp)} ·{" "}
-                  {new Date(c.created_at).toLocaleDateString("pt-BR")}
+                  {formatDatePtBR(c.created_at)}
                   {!c.eligible && " · não elegível"}
                 </p>
               </div>

@@ -13,15 +13,13 @@ import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Loader2, History } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import { MUSCLE_GROUP_LABELS, type MuscleGroup } from "@/lib/muscleGroupClassifier";
 import {
   DOMINANCE_LABELS, PRIORITY_LEVEL_LABELS, SOURCE_LABELS,
   type Dominance, type PriorityLevel, type SourceKind,
 } from "@/lib/prescriptionProfileSchema";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
+import { formatDateTimePtBR } from "@/lib/formatDate";
 
 interface VersionRow {
   id: string;
@@ -102,7 +100,7 @@ export default function PrescriptionProfileHistoryDialog({ open, onOpenChange, s
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-sm">v{v.version}</span>
                   <span className="text-[11px] text-muted-foreground">
-                    {new Date(v.snapshot_at).toLocaleString("pt-BR")}
+                    {formatDateTimePtBR(v.snapshot_at)}
                   </span>
                 </div>
 

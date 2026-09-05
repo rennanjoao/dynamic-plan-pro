@@ -6,7 +6,7 @@ import { MediaImg } from "@/components/shared/MediaImg";
  */
 
 import { Card } from "@/components/ui/card";
-import { CHECKIN_METRICS, colorForDelta } from "@/lib/checkInSchema";
+import { CHECKIN_METRICS, colorForDelta, weightPolarityForGoal } from "@/lib/checkInSchema";
 import { cn } from "@/lib/utils";
 import { TrendingDown, TrendingUp, Minus } from "lucide-react";
 import type { Anamnesis, CheckIn } from "@/hooks/useStudentData";
@@ -16,13 +16,15 @@ import { estimateBF } from "@/lib/bfEstimate";
 interface Props {
   anamnesis: Anamnesis | null;
   latestCheckIn: CheckIn | null;
+  goal?: string | null;
 }
 
-// A decisão de cor foi centralizada em colorForDelta (checkInSchema.ts) —
-// mantemos "menor_melhor" como polaridade padrão para este board, que era o
-// comportamento anterior (delta negativo = verde; positivo = âmbar).
+// A decisão de cor foi centralizada em colorForDelta (checkInSchema.ts).
+// Peso usa a polaridade da meta do aluno (weightPolarityForGoal); as demais
+// medidas mantêm "menor_melhor" — ver o comentário em weightPolarityForGoal
+// sobre por que isso não se estende a cintura/quadril/braço/coxa.
 
-export default function ComparisonBoard({ anamnesis, latestCheckIn }: Props) {
+export default function ComparisonBoard({ anamnesis, latestCheckIn, goal }: Props) {
   if (!anamnesis?.baseline_metrics || Object.keys(anamnesis.baseline_metrics).length === 0) {
     return (
       <Card className="bg-card/60 border-border p-6 text-center">
@@ -115,7 +117,7 @@ export default function ComparisonBoard({ anamnesis, latestCheckIn }: Props) {
           const hasBoth = typeof ini === "number" && typeof cur === "number";
           const d = hasBoth ? cur - ini : null;
           const Icon = d == null ? Minus : Math.abs(d) < 0.05 ? Minus : d < 0 ? TrendingDown : TrendingUp;
-          const color = colorForDelta(d);
+          const color = colorForDelta(d, m.key === "peso" ? weightPolarityForGoal(goal) : undefined);
           return (
             <div key={m.key} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 py-2 border-b border-border/50 last:border-0">
               <span className="text-xs text-muted-foreground">{m.label}</span>

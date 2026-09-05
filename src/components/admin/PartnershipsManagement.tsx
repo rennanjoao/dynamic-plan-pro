@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Save, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -78,7 +79,7 @@ export function PartnershipsManagement() {
       toast({ title: "Falha ao salvar parceria", description: fnError ?? error?.message, variant: "destructive" });
       return;
     }
-    qc.invalidateQueries({ queryKey: ["all-partners"] });
+    qc.invalidateQueries({ queryKey: queryKeys.allPartners() });
     qc.invalidateQueries({ queryKey: ["admin-eligible-users"] });
     setForm(EMPTY_FORM);
     toast({ title: "Parceria salva" });

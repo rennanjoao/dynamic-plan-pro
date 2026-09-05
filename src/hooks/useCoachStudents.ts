@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Goal } from "@/utils/macros";
 import { getClinicalSignal, type ClinicalSignal } from "@/lib/checkInSchema";
 import type { CoachInsightSituacao } from "@/lib/coachInsights";
+import { queryKeys } from "@/lib/queryKeys";
 
 export type AlertLevel = "critical" | "warning" | "ok";
 
@@ -92,7 +93,7 @@ export interface StudentLite {
 
 export function useCoachStudentsLite(coachId: string | null) {
   return useQuery({
-    queryKey: ["coach-students-lite", coachId],
+    queryKey: queryKeys.coachStudentsLite(coachId),
     enabled: !!coachId,
     queryFn: async (): Promise<StudentLite[]> => {
       if (!coachId) return [];
@@ -171,7 +172,7 @@ export function useCoachStudentsPaged(
   // barato), calcula alertLevel para cada um, aplica search + filter sobre
   // o conjunto completo, e só então pagina o resultado já filtrado.
   const summaryQuery = useQuery({
-    queryKey: ["coach-students-summary", coachId, feedbackIntervalDays],
+    queryKey: queryKeys.coachStudentsSummary(coachId, feedbackIntervalDays),
     enabled: !!coachId,
     queryFn: async () => {
       if (!coachId) return { rows: [] as StudentStatus[] };
@@ -329,7 +330,7 @@ export function useCoachStudentsPaged(
 
   // PHASE B — enriquecimento pesado, só dos alunos filtrados na página atual.
   const detailQuery = useQuery({
-    queryKey: ["coach-students-detail", coachId, page, pageIds.join(",")],
+    queryKey: queryKeys.coachStudentsDetail(coachId, page, pageIds),
     enabled: !!coachId && pageIds.length > 0,
     queryFn: async () => {
       const [{ data: ana }, { data: ci }, { data: plans }, { data: insights }] = await Promise.all([

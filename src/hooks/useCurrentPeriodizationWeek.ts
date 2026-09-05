@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 
 /**
  * Deriva a semana ATUAL de periodização a partir de workout_sessions —
@@ -19,7 +20,7 @@ export function useCurrentPeriodizationWeek(
   workoutKeys: string[]
 ) {
   return useQuery({
-    queryKey: ["current-periodization-week", userId, workoutKeys.join(",")],
+    queryKey: queryKeys.currentPeriodizationWeek(userId, workoutKeys),
     enabled: enabled && !!userId && workoutKeys.length > 0,
     queryFn: async (): Promise<number> => {
       const { data, error } = await (supabase as any)

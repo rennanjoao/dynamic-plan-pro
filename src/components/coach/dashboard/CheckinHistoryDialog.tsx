@@ -5,7 +5,7 @@ import type { StudentStatus } from "@/hooks/useCoachStudents";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import CheckinPayloadAnswers from "@/components/coach/CheckinPayloadAnswers";
-import { sb } from "./dashboardUtils";
+import { sb } from "@/integrations/supabase/untyped";
 import { Private, usePrivacyMode } from "@/components/coach/PrivacyMode";
 import { resolveMediaUrl } from "@/lib/studentMedia";
 

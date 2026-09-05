@@ -6,16 +6,13 @@
 //    atual em 1 clique (sem tocar nos exercícios de força).
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "@/hooks/use-toast";
 import { Save, FolderOpen, Trash2, Loader2 } from "lucide-react";
 import { makeEmptyExercise } from "@/lib/protocolSchema";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
 
 interface MobilityTemplateRow {
   id: string;

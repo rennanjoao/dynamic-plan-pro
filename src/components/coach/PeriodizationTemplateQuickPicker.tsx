@@ -13,6 +13,7 @@ import {
   type PeriodizationBlockTemplate,
 } from "@/lib/periodizationTemplates";
 import { SectionTemplateQuickPicker } from "./SectionTemplateQuickPicker";
+import { formatDatePtBR } from "@/lib/formatDate";
 
 export function PeriodizationTemplateQuickPicker({
   payload,
@@ -56,7 +57,7 @@ export function PeriodizationTemplateQuickPicker({
       canSave={canSave}
       saveLabel="Salvar periodização"
       savingHint={canSave ? "Salvar periodização atual como template" : "Ative a periodização antes de salvar"}
-      defaultSaveName={() => `Periodização ${new Date().toLocaleDateString("pt-BR")}`}
+      defaultSaveName={() => `Periodização ${formatDatePtBR(new Date())}`}
       onSave={({ name, existingId }) =>
         savePeriodizationBlockAsTemplate({
           coachId: coachId as string,
@@ -68,4 +69,3 @@ export function PeriodizationTemplateQuickPicker({
     />
   );
 }
-

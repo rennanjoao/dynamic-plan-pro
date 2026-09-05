@@ -2,6 +2,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface Anamnesis {
   id: string;
@@ -34,9 +36,6 @@ export interface Protocol {
   updated_at: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
-
 export function useStudentData(explicitStudentId?: string) {
   const qc = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -44,7 +43,7 @@ export function useStudentData(explicitStudentId?: string) {
   const draftPreview = searchParams.get("draftPreview") === "1";
 
   const { data: sessionUserId, isLoading: sessionLoading } = useQuery({
-    queryKey: ["session-user-id"],
+    queryKey: queryKeys.sessionUserId(),
     queryFn: async () => {
       const { data } = await supabase.auth.getSession();
       return data.session?.user?.id ?? null;
@@ -55,7 +54,7 @@ export function useStudentData(explicitStudentId?: string) {
   const studentId = explicitStudentId ?? previewAs ?? sessionUserId ?? null;
 
   const anamnesisQ = useQuery({
-    queryKey: ["anamnesis", studentId],
+    queryKey: queryKeys.studentAnamnesis(studentId),
     enabled: !!studentId,
     // Realtime (abaixo) já invalida esta query quando a linha muda no banco —
     // não precisamos forçar refetch a cada montagem/foco de janela.
@@ -72,7 +71,7 @@ export function useStudentData(explicitStudentId?: string) {
   });
 
   const checkInsQ = useQuery({
-    queryKey: ["check-ins", studentId],
+    queryKey: queryKeys.studentCheckIns(studentId),
     enabled: !!studentId,
     staleTime: 60_000,
     queryFn: async () => {
@@ -98,7 +97,7 @@ export function useStudentData(explicitStudentId?: string) {
   });
 
   const protocolQ = useQuery({
-    queryKey: ["protocol", studentId],
+    queryKey: queryKeys.studentProtocol(studentId),
     enabled: !!studentId,
     staleTime: 60_000,
     queryFn: async () => {
@@ -112,6 +111,24 @@ export function useStudentData(explicitStudentId?: string) {
         .maybeSingle();
       if (error) throw error;
       return (data as unknown as Protocol) ?? null;
+    },
+  });
+
+  // Objetivo do aluno (coach_plans.goal) — usado só para colorir deltas
+  // (peso) de acordo com a meta; nunca bloqueia loading/error do resto do
+  // hook, porque é dado auxiliar, não essencial pra tela funcionar.
+  const goalQ = useQuery({
+    queryKey: queryKeys.studentGoal(studentId),
+    enabled: !!studentId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from("coach_plans")
+        .select("goal")
+        .eq("student_id", studentId!)
+        .maybeSingle();
+      if (error) throw error;
+      return (data as { goal?: string } | null)?.goal ?? null;
     },
   });
 
@@ -133,30 +150,24 @@ export function useStudentData(explicitStudentId?: string) {
     );
   }, [protocolId, alreadyViewed, previewAs, explicitStudentId, sessionUserId, studentId]);
 
-
   useEffect(() => {
     if (!studentId) return;
     const ch = sb
       .channel(`student-data-${studentId}`)
       .on("postgres_changes" as never, { event: "*", schema: "public", table: "anamnesis", filter: `student_id=eq.${studentId}` }, () => {
-        qc.invalidateQueries({ queryKey: ["anamnesis", studentId] });
+        qc.invalidateQueries({ queryKey: queryKeys.studentAnamnesis(studentId) });
       })
       .on("postgres_changes" as never, { event: "*", schema: "public", table: "check_ins", filter: `student_id=eq.${studentId}` }, () => {
-        qc.invalidateQueries({ queryKey: ["check-ins", studentId] });
+        qc.invalidateQueries({ queryKey: queryKeys.studentCheckIns(studentId) });
       })
       .on("postgres_changes" as never, { event: "*", schema: "public", table: "protocols", filter: `student_id=eq.${studentId}` }, () => {
-        qc.invalidateQueries({ queryKey: ["protocol", studentId] });
-        qc.invalidateQueries({ queryKey: ["diet-strategy", studentId] });
-        qc.invalidateQueries({ queryKey: ["workout-plan", studentId] });
-        qc.invalidateQueries({ queryKey: ["plan-macros", studentId] });
+        qc.invalidateQueries({ queryKey: queryKeys.studentProtocol(studentId) });
       })
       .on("postgres_changes" as never, { event: "*", schema: "public", table: "coach_plans", filter: `student_id=eq.${studentId}` }, () => {
-        qc.invalidateQueries({ queryKey: ["diet-strategy", studentId] });
-        qc.invalidateQueries({ queryKey: ["workout-plan", studentId] });
-        qc.invalidateQueries({ queryKey: ["plan-macros", studentId] });
+        qc.invalidateQueries({ queryKey: queryKeys.studentGoal(studentId) });
       })
       .on("postgres_changes" as never, { event: "*", schema: "public", table: "protocol_change_events", filter: `student_id=eq.${studentId}` }, () => {
-        qc.invalidateQueries({ queryKey: ["coach-updates", studentId] });
+        qc.invalidateQueries({ queryKey: queryKeys.coachUpdates(studentId) });
       })
       .subscribe();
     return () => {
@@ -178,6 +189,7 @@ export function useStudentData(explicitStudentId?: string) {
     checkIns: checkInsQ.data ?? [],
     protocol,
     effectiveProtocolPayload,
+    goal: goalQ.data ?? null,
     loading:
       (!isExplicit && sessionLoading) ||
       (!!studentId && (anamnesisQ.isLoading || checkInsQ.isLoading || protocolQ.isLoading)),
