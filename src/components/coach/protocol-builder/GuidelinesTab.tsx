@@ -64,7 +64,7 @@ export function GuidelinesTab({ payload, setPayload, coachId = null }: { payload
               className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-muted/30 hover:bg-muted/50 text-left"
             >
               <div className="min-w-0">
-                <p className="text-xs font-semibold">{b.label}</p>
+                <p className="text-xs font-semibold"><span className="mr-1">{b.emoji}</span>{b.label}</p>
                 {!isOpen && preview && (
                   <p className="text-[10px] text-muted-foreground truncate">{preview}{val.length > 80 ? "…" : ""}</p>
                 )}
