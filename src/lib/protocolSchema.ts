@@ -164,6 +164,15 @@ export const SupplementSchema = z.object({
   category: z.enum(["suplemento", "hormonio_manipulado"]).optional().default("suplemento"),
   // Só usado quando category === "hormonio_manipulado" (ex.: ["seg","qui"]).
   weeklyFrequency: z.array(z.string()).optional().default([]),
+  // Marca se o item entra nos botões de cópia para cotação/compra do aluno
+  // (Supplements.tsx). Default true: por padrão TODOS os itens entram; o
+  // coach desmarca apenas os que não precisam ser comprados agora. Itens
+  // antigos (sem o campo) também caem no default true.
+  needsPurchase: z.boolean().optional().default(true),
+  // Tipo de estabelecimento onde o item deve ser adquirido — só relevante
+  // quando needsPurchase é true; usado para agrupar os botões de cópia do
+  // aluno por categoria. Itens antigos caem no default "outros".
+  purchaseType: z.enum(["farmacia", "manipulacao", "produtos_naturais", "outros"]).optional().default("outros"),
 });
 
 // Combo de suplementos — agrupa múltiplos itens com um nome + horário/momento único.
@@ -183,6 +192,16 @@ export const SUPPLEMENT_OBJECTIVES = [
   { value: "performance",    label: "Performance" },
   { value: "saude_geral",    label: "Saúde geral" },
   { value: "outro",          label: "Outro" },
+] as const;
+
+// Tipo de estabelecimento onde um suplemento marcado para compra/cotação
+// deve ser adquirido. Usado tanto no builder do coach (GuidelinesTab.tsx)
+// quanto nos botões de cópia agrupados do aluno (Supplements.tsx).
+export const SUPPLEMENT_PURCHASE_TYPES = [
+  { value: "farmacia",          label: "Farmácia" },
+  { value: "manipulacao",       label: "Manipulação" },
+  { value: "produtos_naturais", label: "Produtos Naturais" },
+  { value: "outros",            label: "Outros" },
 ] as const;
 
 export const MealMacrosSchema = z.object({
