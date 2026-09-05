@@ -50,6 +50,20 @@ export function PartnersTab({ coachId }: { coachId: string | null }) {
     enabled: partners.length > 0,
   });
 
+  // Nome de quem usou cada código — o coach reconhece a pessoa, não o hash.
+  const codeStudentIds = codes.map((c) => c.student_id).filter(Boolean) as string[];
+  const { data: codeStudentNames = {} } = useQuery({
+    queryKey: ["coach-code-student-names", codeStudentIds.join(",")],
+    queryFn: async (): Promise<Record<string, string>> => {
+      if (codeStudentIds.length === 0) return {};
+      const { data } = await supabase.from("student_profiles").select("user_id, full_name").in("user_id", codeStudentIds);
+      const map: Record<string, string> = {};
+      (data ?? []).forEach((r) => { if (r.full_name) map[r.user_id] = r.full_name; });
+      return map;
+    },
+    enabled: codeStudentIds.length > 0,
+  });
+
   const partnerName = useMemo(() => {
     const m = new Map<string, string>();
     partners.forEach((p) =>
@@ -258,7 +272,7 @@ export function PartnersTab({ coachId }: { coachId: string | null }) {
               <span className="text-xs text-muted-foreground">% comissão</span>
             </div>
           )}
-          <Input placeholder="Observação (opcional)" value={note} onChange={(e) => setNote(e.target.value)} />
+          <Input placeholder="Nome da aluna / parceira" value={note} onChange={(e) => setNote(e.target.value)} />
           <Button onClick={generateCode} disabled={busy} className="gap-1.5 md:col-start-3">
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Gerar código
           </Button>
@@ -273,14 +287,20 @@ export function PartnersTab({ coachId }: { coachId: string | null }) {
           {codes.map((c) => (
             <div key={c.id} className="flex items-center justify-between gap-2 rounded-lg border border-border/60 px-3 py-2">
               <div className="min-w-0">
-                <p className="font-mono text-sm font-bold">{c.code}</p>
+                <p className="text-sm font-bold truncate">
+                  {(c.student_id ? codeStudentNames[c.student_id] : null)
+                    ?? (c.note?.trim() || null)
+                    ?? (c.partner_id ? partnerName.get(c.partner_id) : null)
+                    ?? "Sem nome informado"}
+                </p>
                 <p className="text-[11px] text-muted-foreground truncate">
+                  <span className="font-mono">{c.code}</span>
+                  {" · "}
                   {c.kind === "partner"
                     ? `Convite de parceria · ${formatRateBp(c.partner_commission_bp ?? 1000)}`
                     : c.partner_id
                       ? partnerName.get(c.partner_id) ?? "Influenciadora"
                       : "Sem influenciadora"}
-                  {c.note ? ` · ${c.note}` : ""}
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
