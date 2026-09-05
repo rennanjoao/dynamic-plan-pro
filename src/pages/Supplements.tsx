@@ -241,26 +241,37 @@ export default function Supplements() {
             </li>
           );
 
-          // Texto puro da prescrição — para o aluno copiar e cotar.
+          // Texto puro da prescrição — para o aluno copiar e cotar/comprar.
           const itemLine = (s: any) =>
             `• ${s.name ?? ""}${s.dose ? ` — ${s.dose}` : ""}${s.notes ? ` (${s.notes})` : ""}`;
-          const fullText = [
-            ...supplementCombos.map((c: any) => {
-              const items = (Array.isArray(c?.supplementIndexes) ? c.supplementIndexes : [])
-                .map((i: number) => supplements[i])
-                .filter(Boolean);
-              if (items.length === 0) return "";
-              return `${c.name || "Combo"}${c.timing ? ` (${c.timing})` : ""}\n${items.map(itemLine).join("\n")}`;
-            }),
-            ...keys.map((t) => `${t}\n${groups[t].map(itemLine).join("\n")}`),
-          ]
-            .filter(Boolean)
-            .join("\n\n");
 
-          const copyAll = async () => {
+          // Botões de cópia por categoria de compra — consideram TODOS os
+          // suplementos (soltos e dentro de combos), filtrados apenas pelos
+          // marcados pelo coach como "Incluir na cotação/compra"
+          // (needsPurchase !== false — default true, inclusive itens antigos
+          // sem o campo). A lista principal do aluno acima não é afetada:
+          // os itens desmarcados continuam visíveis normalmente, só não
+          // entram em nenhum botão de cópia.
+          const PURCHASE_META: Record<string, { label: string; button: string }> = {
+            manipulacao:       { label: "Manipulação",       button: "Copiar Manipulação para Cotação" },
+            farmacia:          { label: "Farmácia",          button: "Copiar Farmácia para Compra" },
+            produtos_naturais: { label: "Produtos Naturais", button: "Copiar Produtos Naturais para Compra" },
+            outros:            { label: "Outros",            button: "Copiar Outros" },
+          };
+          const PURCHASE_ORDER = ["manipulacao", "farmacia", "produtos_naturais", "outros"];
+          const purchaseGroups: Record<string, any[]> = {};
+          supplements.forEach((s: any) => {
+            if (s.needsPurchase === false) return;
+            const type = s.purchaseType || "outros";
+            (purchaseGroups[type] = purchaseGroups[type] || []).push(s);
+          });
+          const purchaseTypesWithItems = PURCHASE_ORDER.filter((t) => (purchaseGroups[t] || []).length > 0);
+
+          const copyPurchaseGroup = async (type: string) => {
+            const text = (purchaseGroups[type] || []).map(itemLine).join("\n");
             try {
-              await navigator.clipboard.writeText(fullText);
-              toast.success("Lista de suplementos copiada");
+              await navigator.clipboard.writeText(text);
+              toast.success(`Lista de ${PURCHASE_META[type].label} copiada`);
             } catch {
               toast.error("Não foi possível copiar");
             }
@@ -272,13 +283,24 @@ export default function Supplements() {
               onToggle={() => toggleSection("suplementacao")}
               icon={<Pill className="w-4 h-4 text-primary" />}
               title="Suplementos prescritos"
-              headerExtra={
-                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={copyAll}>
-                  <Copy className="w-3.5 h-3.5 mr-1" /> Copiar para cotação
-                </Button>
-              }
             >
               <div className="space-y-3">
+                {purchaseTypesWithItems.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pb-1">
+                    {purchaseTypesWithItems.map((t) => (
+                      <Button
+                        key={t}
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs"
+                        onClick={() => copyPurchaseGroup(t)}
+                      >
+                        <Copy className="w-3.5 h-3.5 mr-1" /> {PURCHASE_META[t].button}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+
                 {/* Combos primeiro (nome do combo como cabeçalho) */}
                 {supplementCombos.map((c: any, ci: number) => {
                   const indexes: number[] = Array.isArray(c?.supplementIndexes) ? c.supplementIndexes : [];
