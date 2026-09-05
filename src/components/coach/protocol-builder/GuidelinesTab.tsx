@@ -21,30 +21,37 @@ import { ProtocolPayload, SUPPLEMENT_OBJECTIVES } from "@/lib/protocolSchema";
  * sem qualquer mudança de comportamento. Mantidos juntos por acoplamento direto
  * (SupplementsSection é renderizado dentro do GuidelinesTab).
  */
-export function GuidelinesTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void }) {
+export function GuidelinesTab({ payload, setPayload, coachId = null }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void; coachId?: string | null }) {
   const upd = (k: keyof ProtocolPayload["guidelines"], v: string) => setPayload({ ...payload, guidelines: { ...payload.guidelines, [k]: v } });
   const [openMap, setOpenMap] = useState<Record<string, boolean>>({
     training: false, diet: false, weekOrganization: false, supplementation: false,
   });
   const toggle = (k: string) => setOpenMap((m) => ({ ...m, [k]: !m[k] }));
-  const blocks: Array<{ k: keyof ProtocolPayload["guidelines"]; label: string; hint?: string; minH: string }> = [
-    { k: "training",         label: "Diretrizes de treino", hint: "Regras gerais (foco, intensidade, falha, descanso)", minH: "min-h-[100px]" },
-    { k: "diet",             label: "Diretrizes da dieta",  hint: "Hidratação, sal, fibras, suplementos com refeições",  minH: "min-h-[100px]" },
-    { k: "weekOrganization", label: "Organização da semana", hint: "Ex.: Seg/Qua/Sex carbo alto · Ter/Qui/Sab/Dom carbo baixo", minH: "min-h-[80px]" },
-    { k: "supplementation",  label: "Sono", hint: "Rotina, duração, qualidade e higiene do sono", minH: "min-h-[100px]" },
+  const blocks: Array<{ k: keyof ProtocolPayload["guidelines"]; label: string; emoji: string; hint?: string; minH: string }> = [
+    { k: "training",         label: "Diretrizes de treino", emoji: "🏋️", hint: "Regras gerais (foco, intensidade, falha, descanso)", minH: "min-h-[100px]" },
+    { k: "diet",             label: "Diretrizes da dieta",  emoji: "🍽️", hint: "Hidratação, sal, fibras, suplementos com refeições",  minH: "min-h-[100px]" },
+    { k: "weekOrganization", label: "Organização da semana", emoji: "📅", hint: "Ex.: Seg/Qua/Sex carbo alto · Ter/Qui/Sab/Dom carbo baixo", minH: "min-h-[80px]" },
+    { k: "supplementation",  label: "Sono", emoji: "🌙", hint: "Rotina, duração, qualidade e higiene do sono", minH: "min-h-[100px]" },
   ];
   const showToStudent: boolean = (payload as any).showGuidelines ?? false;
   const setShowToStudent = (v: boolean) => setPayload({ ...payload, showGuidelines: v } as any);
   return (
     <Card className="bg-card/60 border-border p-4 space-y-4">
+      {/* Templates de diretrizes: salvar as atuais / aplicar em qualquer aluno */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <p className="text-xs font-semibold text-muted-foreground">Biblioteca de diretrizes</p>
+        <GuidelinesTemplateQuickPicker payload={payload} setPayload={setPayload} coachId={coachId} />
+      </div>
+
       {/* Controle de visibilidade para o aluno */}
       <div className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/20 px-3 py-2.5">
         <div>
           <p className="text-xs font-semibold">Exibir Diretrizes para o aluno</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">Quando ativo, o aluno verá as diretrizes e a Regra de Ouro no Plano de Treino.</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Quando ativo, o aluno verá as diretrizes e a Regra de Ouro no Plano de Treino, com o card "Diretrizes" piscando em verde.</p>
         </div>
         <Switch checked={showToStudent} onCheckedChange={setShowToStudent} />
       </div>
+
       {blocks.map((b) => {
         const isOpen = openMap[b.k as string] ?? true;
         const val = (payload.guidelines[b.k] ?? "") as string;
