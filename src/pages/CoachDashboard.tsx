@@ -32,7 +32,8 @@ import { toast } from "sonner";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 // Subcomponentes extraídos
-import { StatCard, useCoachId, sb } from "@/components/coach/dashboard/dashboardUtils";
+import { StatCard, useCoachId } from "@/components/coach/dashboard/dashboardUtils";
+import { sb } from "@/integrations/supabase/untyped";
 import { StudentRow } from "@/components/coach/dashboard/StudentRow";
 import { PriorityQueuePanel } from "@/components/coach/dashboard/PriorityQueuePanel";
 import { EvolutionDialog } from "@/components/coach/dashboard/EvolutionDialog";

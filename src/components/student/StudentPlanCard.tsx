@@ -11,15 +11,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
+import { queryKeys } from "@/lib/queryKeys";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CreditCard, ChevronDown, Loader2, RefreshCw, Repeat, Clock, X } from "lucide-react";
 import { formatCents, toCents } from "@/lib/studentPlans";
 import { formatDatePtBR } from "@/lib/formatDate";
 import { useMyStudentSubscription, useStudentPlanCatalog } from "@/hooks/useStudentPlans";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
 
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   active:   { label: "Em dia",    cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
@@ -89,8 +88,6 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
     try { setDismissedId(localStorage.getItem(dismissKey)); } catch { /* noop */ }
   }, [dismissKey]);
 
-
-
   // Retorno do checkout: apenas mensagem informativa (o webhook é quem libera).
   useEffect(() => {
     const state = params.get("checkout");
@@ -98,7 +95,7 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
     const message = RETURN_MESSAGE[state];
     if (message) toast.info(message);
     qc.invalidateQueries({ queryKey: ["my-plan-charges", userId] });
-    qc.invalidateQueries({ queryKey: ["my-student-subscription", userId] });
+    qc.invalidateQueries({ queryKey: queryKeys.myStudentSubscription(userId) });
     params.delete("checkout");
     setParams(params, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -138,7 +135,7 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
         { event: "*", schema: "public", table: "coach_finances", filter: `student_id=eq.${userId}` },
         () => {
           qc.invalidateQueries({ queryKey: ["my-plan-charges", userId] });
-          qc.invalidateQueries({ queryKey: ["my-student-subscription", userId] });
+          qc.invalidateQueries({ queryKey: queryKeys.myStudentSubscription(userId) });
           qc.invalidateQueries({ queryKey: ["student-billing-alert", userId] });
         },
       )
@@ -152,7 +149,6 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
   // O aluno pode fechar o aviso da cobrança pendente; ele volta a aparecer
   // quando surgir uma nova cobrança (a chave é o id da cobrança).
   if (dismissedId === pendingPlanCharge.id) return null;
-
 
   const openCheckout = async (body: Record<string, unknown>, key: string) => {
     setBusy(key);

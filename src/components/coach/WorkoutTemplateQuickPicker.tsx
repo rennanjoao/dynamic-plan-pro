@@ -12,6 +12,7 @@ import {
   type WorkoutBlockTemplate,
 } from "@/lib/workoutTemplates";
 import { SectionTemplateQuickPicker } from "./SectionTemplateQuickPicker";
+import { formatDatePtBR } from "@/lib/formatDate";
 
 export function WorkoutTemplateQuickPicker({
   payload,
@@ -55,7 +56,7 @@ export function WorkoutTemplateQuickPicker({
       canSave={canSave}
       saveLabel="Salvar treino"
       savingHint="Salvar dias de treino atuais como template"
-      defaultSaveName={() => `Treino ${new Date().toLocaleDateString("pt-BR")}`}
+      defaultSaveName={() => `Treino ${formatDatePtBR(new Date())}`}
       onSave={({ name, existingId }) =>
         saveWorkoutBlockAsTemplate({
           coachId: coachId as string,
@@ -68,4 +69,3 @@ export function WorkoutTemplateQuickPicker({
     />
   );
 }
-

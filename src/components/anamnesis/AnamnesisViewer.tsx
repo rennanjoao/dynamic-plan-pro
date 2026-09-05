@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import { ANAMNESIS_SECTIONS, BASELINE_KEYS, NEURO_SLIDERS, type AnamnesisField } from "@/lib/anamnesisSchema";
 import { uploadStudentPhoto } from "@/lib/studentMedia";
 import { Button } from "@/components/ui/button";
@@ -23,9 +23,7 @@ import CheckinFullEditor from "@/components/coach/CheckinFullEditor";
 import PrescriptionProfileSection from "@/components/coach/PrescriptionProfileSection";
 import { exportAnamnesisPDF } from "@/lib/coachPdfExport";
 import { Private, PrivateImg, usePrivacyMode } from "@/components/coach/PrivacyMode";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
+import { formatDatePtBR } from "@/lib/formatDate";
 
 interface Props {
   studentId: string;
@@ -246,7 +244,7 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
           <Private as="p" className="text-xl font-bold">{(data.nome as string) || studentName || "Aluno"}</Private>
           {updatedAt && (
             <p className="text-sm text-muted-foreground">
-              Atualizado em {new Date(updatedAt).toLocaleDateString("pt-BR")}
+              Atualizado em {formatDatePtBR(updatedAt)}
             </p>
           )}
         </div>
@@ -419,7 +417,7 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
                 📸 Fotos Iniciais (Anamnese)
                 {updatedAt && (
                   <span className="text-xs text-muted-foreground font-normal ml-2">
-                    · {new Date(updatedAt).toLocaleDateString("pt-BR")}
+                    · {formatDatePtBR(updatedAt)}
                   </span>
                 )}
               </h4>
@@ -453,7 +451,7 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
                 📸 Check-in mais recente
                 {lastCheckin?.submitted_at && (
                   <span className="text-xs text-muted-foreground font-normal ml-2">
-                    · {new Date(lastCheckin.submitted_at).toLocaleDateString("pt-BR")}
+                    · {formatDatePtBR(lastCheckin.submitted_at)}
                   </span>
                 )}
               </h4>

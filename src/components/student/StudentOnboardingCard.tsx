@@ -5,13 +5,10 @@
  * que o aluno saia da tela sem tocar em nada.
  */
 import { useEffect, useRef, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { CalendarClock, MessageCircle, HelpCircle } from "lucide-react";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
 
 export function StudentOnboardingCard({ userId }: { userId: string | null }) {
   const [open, setOpen] = useState(false);

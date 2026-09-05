@@ -12,6 +12,7 @@ import {
   type DietBlockTemplate,
 } from "@/lib/dietTemplates";
 import { SectionTemplateQuickPicker } from "./SectionTemplateQuickPicker";
+import { formatDatePtBR } from "@/lib/formatDate";
 
 export function DietTemplateQuickPicker({
   payload,
@@ -49,7 +50,7 @@ export function DietTemplateQuickPicker({
       canSave={canSave}
       saveLabel="Salvar dieta"
       savingHint="Salvar refeições atuais como template"
-      defaultSaveName={() => `Dieta ${new Date().toLocaleDateString("pt-BR")}`}
+      defaultSaveName={() => `Dieta ${formatDatePtBR(new Date())}`}
       onSave={({ name, existingId }) =>
         saveDietBlockAsTemplate({
           coachId: coachId as string,
@@ -61,4 +62,3 @@ export function DietTemplateQuickPicker({
     />
   );
 }
-

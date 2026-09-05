@@ -11,6 +11,7 @@ import {
   DietBlockPayloadSchema,
   type DietBlockPayload,
   type MealRow,
+  type ProtocolPayload,
   genItemId,
 } from "@/lib/protocolSchema";
 
@@ -142,12 +143,11 @@ export async function restoreDietBlockVersion(
  * refeição — mesmo cuidado já tomado no anexo de refeição individual
  * (DietTab.tsx), pra não colidir com ids de refeições já existentes.
  */
-export function injectDietBlock<T extends { meals: MealRow[] }>(
-  payload: T,
+export function injectDietBlock(
+  payload: ProtocolPayload,
   tpl: DietBlockPayload,
-): T {
+): ProtocolPayload {
   if (tpl.meals.length === 0) return payload;
   const meals = tpl.meals.map((m) => ({ ...m, __id: genItemId("meal") }));
   return { ...payload, meals };
 }
-

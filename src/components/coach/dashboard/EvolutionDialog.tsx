@@ -27,7 +27,7 @@ export function EvolutionDialog({ student, open, onClose }: { student: StudentSt
             </TabsList>
             <TabsContent value="evolucao" className="mt-4">
               <Suspense fallback={<div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>}>
-                <EvolutionComparisonLazy studentId={student.id} studentName={student.name} />
+                <EvolutionComparisonLazy studentId={student.id} studentName={student.name} goal={student.goal} />
               </Suspense>
             </TabsContent>
             <TabsContent value="anamnese" className="mt-4">

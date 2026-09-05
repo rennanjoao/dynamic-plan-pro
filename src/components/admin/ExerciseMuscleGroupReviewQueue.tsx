@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
@@ -7,9 +7,6 @@ import {
   MUSCLE_GROUP_OPTIONS,
   type MuscleGroup,
 } from "@/lib/muscleGroupClassifier";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb = supabase as any;
 
 interface Row {
   exercise_key: string;

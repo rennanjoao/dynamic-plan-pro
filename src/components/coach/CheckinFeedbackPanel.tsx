@@ -13,6 +13,7 @@ import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
 import { useEffect, useState, lazy, Suspense, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -26,10 +27,9 @@ import { toast } from "sonner";
 import { exportCheckinPDF, exportCheckinsBatchPDF } from "@/lib/coachPdfExport";
 import {
   CHECKIN_SECTIONS, CHECKIN_METRICS, CHECKIN_HIGHLIGHT_KEYS,
-  colorForDelta, getMetricPolarity,
+  colorForDelta, weightPolarityForGoal,
 } from "@/lib/checkInSchema";
 import type { StudentStatus } from "@/hooks/useCoachStudents";
-import type { Goal } from "@/utils/macros";
 import CheckinPayloadAnswers from "@/components/coach/CheckinPayloadAnswers";
 import CheckinFullEditor from "@/components/coach/CheckinFullEditor";
 import { CheckinHistoryDialog } from "@/components/coach/dashboard/CheckinHistoryDialog";
@@ -54,8 +54,6 @@ interface CheckinRow {
   photo_url: string | null;
   feedback_read_at: string | null;
 }
-
-const sb: any = supabase;
 
 interface Props {
   /** Objeto completo do aluno (novo). Se ausente, cai no par studentId/studentName por compatibilidade. */
@@ -214,10 +212,6 @@ export default function CheckinFeedbackPanel(props: Props) {
     }).filter((x) => x.value !== null);
   }, [ci, previous]);
 
-  const goal = (student?.goal as Goal) || "manter";
-  const polarity = ["emagrecer", "manter", "hipertrofia", "recomposicao"].includes(goal)
-    ? getMetricPolarity(goal)
-    : "menor_melhor";
 
   const highlightChips = useMemo(() => {
     const p = (ci?.payload || {}) as Record<string, unknown>;
@@ -502,7 +496,7 @@ export default function CheckinFeedbackPanel(props: Props) {
                 {metricDeltas.length > 0 && (
                   <div className="space-y-1 border-t border-border pt-3">
                     {metricDeltas.map((m) => {
-                      const cls = colorForDelta(m.delta, polarity);
+                      const cls = colorForDelta(m.delta, m.key === "peso" ? weightPolarityForGoal(student?.goal) : undefined);
                       return (
                         <div key={m.key} className="flex justify-between items-center text-xs py-0.5">
                           <span className="text-muted-foreground">{m.label}</span>

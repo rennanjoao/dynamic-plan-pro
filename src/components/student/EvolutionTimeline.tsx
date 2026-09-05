@@ -8,13 +8,14 @@ import { useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { CHECKIN_METRICS, colorForDelta } from "@/lib/checkInSchema";
+import { CHECKIN_METRICS, colorForDelta, weightPolarityForGoal } from "@/lib/checkInSchema";
 import type { CheckIn } from "@/hooks/useStudentData";
 import { MessageSquare, TrendingDown } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 
 interface Props {
   checkIns: CheckIn[];
+  goal?: string | null;
 }
 
 function fmtDate(iso: string) {
@@ -23,7 +24,7 @@ function fmtDate(iso: string) {
   });
 }
 
-export default function EvolutionTimeline({ checkIns }: Props) {
+export default function EvolutionTimeline({ checkIns, goal }: Props) {
   const [selected, setSelected] = useState<CheckIn | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
 
@@ -125,7 +126,7 @@ return [...checkIns].sort((a, b) => new Date(a.submitted_at).getTime() - new Dat
                               {typeof v === "number" ? `${v}${m.unit}` : "—"}
                             </div>
                             {d != null && Math.abs(d) >= 0.05 && (
-                              <div className={`text-[10px] tabular-nums ${colorForDelta(d)}`}>
+                              <div className={`text-[10px] tabular-nums ${colorForDelta(d, m.key === "peso" ? weightPolarityForGoal(goal) : undefined)}`}>
                                 {d > 0 ? "+" : ""}{d.toFixed(1)}
                               </div>
                             )}

@@ -42,6 +42,7 @@ import {
   BUY_BOTH,
   type AggItem,
 } from "@/lib/shoppingListAgg";
+import { formatDatePtBR } from "@/lib/formatDate";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -962,7 +963,7 @@ export default function ShoppingList() {
     doc.text(`Lista de Compras — ${days === 1 ? "1 dia" : `${days} dias`}${persons > 1 ? ` · ${persons}p` : ""}`, 14, 8.5);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    doc.text(`${new Date().toLocaleDateString("pt-BR")} · ${protocol?.name || "Protocolo ativo"}`, pageW - 14, 8.5, { align: "right" });
+    doc.text(`${formatDatePtBR(new Date())} · ${protocol?.name || "Protocolo ativo"}`, pageW - 14, 8.5, { align: "right" });
     y = 22;
 
     const colorMap: Record<MacroKind, [number, number, number]> = {

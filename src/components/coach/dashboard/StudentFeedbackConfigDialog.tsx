@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { sb } from "./dashboardUtils";
+import { sb } from "@/integrations/supabase/untyped";
 import { Private } from "@/components/coach/PrivacyMode";
 
 export function StudentFeedbackConfigDialog({

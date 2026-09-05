@@ -1,16 +1,13 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import type { AlertLevel, StudentStatus } from "@/hooks/useCoachStudents";
-import { getMetricPolarity, colorForDelta } from "@/lib/checkInSchema";
+import { colorForDelta, weightPolarityForGoal } from "@/lib/checkInSchema";
 import type { ClinicalSignal } from "@/lib/checkInSchema";
 import { INSIGHT_META, type CoachInsightSituacao } from "@/lib/coachInsights";
-import type { Goal } from "@/utils/macros";
 import { formatDatePtBR } from "@/lib/formatDate";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const sb: any = supabase;
 
 // Fonte única de verdade pras 3 cores de status usadas nos selos do coach
 // (crítico/atenção/ok). Usa os tokens semânticos em opacidade — funciona em
@@ -201,10 +198,7 @@ export function InsightBadge({ situacao }: { situacao: CoachInsightSituacao | nu
 export function WeightTrendBadge({ student }: { student: StudentStatus }) {
   const trend = student.weightTrend;
   if (!trend || trend.deltaKg == null) return null;
-  const goal = student.goal as Goal;
-  const polarity = ["emagrecer", "manter", "hipertrofia", "recomposicao"].includes(goal)
-    ? getMetricPolarity(goal)
-    : "menor_melhor";
+  const polarity = weightPolarityForGoal(student.goal);
   const cls = trend.isStagnant
     ? "text-amber-500"
     : colorForDelta(trend.deltaKg, polarity);

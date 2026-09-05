@@ -6,11 +6,9 @@
  * planos, mais os planos padrão/legado (coach_id null) como fallback.
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
+import { queryKeys } from "@/lib/queryKeys";
 import { DEFAULT_STUDENT_PLANS, type StudentPlan } from "@/lib/studentPlans";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
 
 export interface StudentSubscription {
   id: string;
@@ -37,7 +35,7 @@ export interface StudentSubscription {
  */
 export function useStudentPlanCatalog(coachId?: string | null) {
   return useQuery({
-    queryKey: ["student-plan-catalog", coachId ?? null],
+    queryKey: queryKeys.studentPlanCatalog(coachId ?? null),
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<StudentPlan[]> => {
       let query = sb.from("student_plan_catalog").select("*").eq("is_active", true);
@@ -87,7 +85,7 @@ export function useSavePlan(coachId: string) {
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["student-plan-catalog"] });
+      qc.invalidateQueries({ queryKey: queryKeys.studentPlanCatalog() });
     },
   });
 }
@@ -105,7 +103,7 @@ export function useDeactivatePlan(coachId: string) {
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["student-plan-catalog"] });
+      qc.invalidateQueries({ queryKey: queryKeys.studentPlanCatalog() });
     },
   });
 }
@@ -113,7 +111,7 @@ export function useDeactivatePlan(coachId: string) {
 /** Contratos vigentes dos alunos de um coach. */
 export function useCoachSubscriptions(coachId: string | null) {
   return useQuery({
-    queryKey: ["coach-student-subscriptions", coachId],
+    queryKey: queryKeys.coachStudentSubscriptions(coachId),
     enabled: !!coachId,
     queryFn: async (): Promise<StudentSubscription[]> => {
       if (!coachId) return [];
@@ -130,7 +128,7 @@ export function useCoachSubscriptions(coachId: string | null) {
 /** Contrato do próprio aluno (ou null quando ele ainda não tem plano). */
 export function useMyStudentSubscription(studentId: string | null | undefined) {
   return useQuery({
-    queryKey: ["my-student-subscription", studentId],
+    queryKey: queryKeys.myStudentSubscription(studentId),
     enabled: !!studentId,
     queryFn: async (): Promise<StudentSubscription | null> => {
       if (!studentId) return null;

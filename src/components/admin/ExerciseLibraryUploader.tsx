@@ -1,14 +1,12 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { EXERCISE_GIFS_BUCKET, invalidateExerciseLibraryCache } from "@/lib/exerciseLibrary";
 import { toExerciseKey } from "@/lib/workoutTypes";
 import { classifyExerciseByName } from "@/lib/muscleGroupClassifier";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb = supabase as any;
 
 /**
  * O Supabase Storage rejeita chaves de objeto com acentos, parênteses e

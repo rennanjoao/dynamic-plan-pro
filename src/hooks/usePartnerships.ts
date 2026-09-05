@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 
 export interface PartnerProfile {
   user_id: string;
@@ -55,7 +56,7 @@ export interface PartnerReferral {
 /** Parceria da pessoa logada (existe só se ela for influenciadora). */
 export function usePartnerProfile(userId: string | null) {
   return useQuery({
-    queryKey: ["partner-profile", userId],
+    queryKey: queryKeys.partnerProfile(userId),
     queryFn: async (): Promise<PartnerProfile | null> => {
       if (!userId) return null;
       const { data } = await supabase
@@ -72,7 +73,7 @@ export function usePartnerProfile(userId: string | null) {
 /** Influenciadoras de um coach (RLS já limita a coach_id = auth.uid()). */
 export function useCoachPartners(coachId: string | null) {
   return useQuery({
-    queryKey: ["coach-partners", coachId],
+    queryKey: queryKeys.coachPartners(coachId),
     queryFn: async (): Promise<PartnerProfile[]> => {
       if (!coachId) return [];
       const { data } = await supabase
@@ -89,7 +90,7 @@ export function useCoachPartners(coachId: string | null) {
 /** Todas as parcerias (admin — RLS libera só para has_role admin). */
 export function useAllPartners(enabled: boolean) {
   return useQuery({
-    queryKey: ["all-partners"],
+    queryKey: queryKeys.allPartners(),
     queryFn: async (): Promise<PartnerProfile[]> => {
       const { data } = await supabase
         .from("partner_profiles")
@@ -104,7 +105,7 @@ export function useAllPartners(enabled: boolean) {
 export function usePartnerCommissions(filter: { coachId?: string | null; partnerId?: string | null; all?: boolean }) {
   const { coachId, partnerId, all } = filter;
   return useQuery({
-    queryKey: ["partner-commissions", coachId ?? null, partnerId ?? null, !!all],
+    queryKey: queryKeys.partnerCommissions(coachId ?? null, partnerId ?? null, !!all),
     queryFn: async (): Promise<PartnerCommission[]> => {
       let query = supabase.from("partner_commissions").select("*").order("created_at", { ascending: false });
       if (coachId) query = query.eq("coach_id", coachId);
@@ -118,7 +119,7 @@ export function usePartnerCommissions(filter: { coachId?: string | null; partner
 
 export function useCoachAccessCodes(coachId: string | null) {
   return useQuery({
-    queryKey: ["coach-access-codes", coachId],
+    queryKey: queryKeys.coachAccessCodes(coachId),
     queryFn: async (): Promise<AccessCode[]> => {
       if (!coachId) return [];
       const { data } = await supabase
@@ -139,7 +140,7 @@ export function useCoachAccessCodes(coachId: string | null) {
  */
 export function usePartnerReferrals(partnerId: string | null) {
   return useQuery({
-    queryKey: ["partner-referrals", partnerId],
+    queryKey: queryKeys.partnerReferrals(partnerId),
     queryFn: async (): Promise<PartnerReferral[]> => {
       if (!partnerId) return [];
       const { data, error } = await supabase.rpc("get_partner_referrals", { p_partner_id: partnerId });
@@ -153,7 +154,7 @@ export function usePartnerReferrals(partnerId: string | null) {
 /** Atribuição de origem de um aluno (usada pelo coach na confirmação de pagamento). */
 export function useStudentAttribution(studentId: string | null) {
   return useQuery({
-    queryKey: ["student-attribution", studentId],
+    queryKey: queryKeys.studentAttribution(studentId),
     queryFn: async () => {
       if (!studentId) return null;
       const { data } = await supabase

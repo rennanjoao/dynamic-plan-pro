@@ -57,6 +57,23 @@ export function colorForDelta(delta: number | null, polarity: MetricPolarity = "
   return positive ? "text-emerald-500" : "text-amber-500";
 }
 
+const GOAL_VALUES: readonly string[] = ["emagrecer", "manter", "hipertrofia", "recomposicao"];
+
+/**
+ * Polaridade do PESO especificamente, com fallback seguro para valores de
+ * `goal` fora do enum `Goal` (dado que vem de coach_plans/anamnese pode
+ * chegar como "—", vazio, ou algum valor legado).
+ *
+ * Hoje o PESO é a única métrica cuja polaridade depende do objetivo do
+ * aluno (ver getMetricPolarity) — cintura/quadril/braço/coxa/gordura
+ * continuam com a polaridade padrão (`menor_melhor`) em todo o app,
+ * incluindo aqui. Centralizado para não repetir esse fallback em cada
+ * tela que precisar colorir o delta de peso.
+ */
+export function weightPolarityForGoal(goal: string | null | undefined): MetricPolarity {
+  return goal && GOAL_VALUES.includes(goal) ? getMetricPolarity(goal as Goal) : "menor_melhor";
+}
+
 /**
  * Determina se o aluno tem protocolo ativo (hormônios, manipulados,
  * estimulantes ou suplementação) a partir da Anamnese.

@@ -1,4 +1,5 @@
 import jsPDF from "jspdf";
+import { formatDateTimePtBR } from "@/lib/formatDate";
 
 function addWrappedText(doc: jsPDF, text: string, x: number, y: number, maxWidth: number, lineHeight = 5): number {
   const lines = doc.splitTextToSize(text, maxWidth);
@@ -29,7 +30,7 @@ function header(doc: jsPDF, title: string, subtitle: string): number {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   doc.setTextColor(110);
-  doc.text(`Emitido em ${new Date().toLocaleString("pt-BR")}`, 14, 24);
+  doc.text(`Emitido em ${formatDateTimePtBR(new Date())}`, 14, 24);
 
   doc.setDrawColor(225, 29, 72);
   doc.setLineWidth(0.6);

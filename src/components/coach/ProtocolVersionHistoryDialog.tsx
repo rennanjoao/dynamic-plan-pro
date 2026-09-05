@@ -3,12 +3,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Loader2, RotateCcw, History } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import { useConfirm } from "@/components/ConfirmProvider";
 import type { ProtocolPayload } from "@/lib/protocolSchema";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
+import { formatDateTimePtBR } from "@/lib/formatDate";
 
 interface Version {
   id: string;
@@ -95,7 +93,7 @@ export default function ProtocolVersionHistoryDialog({
                   <span className="font-semibold text-sm">v{v.version}</span>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  {new Date(v.created_at).toLocaleString("pt-BR")}
+                  {formatDateTimePtBR(v.created_at)}
                 </p>
               </div>
               <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleRestore(v)}>

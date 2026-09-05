@@ -24,6 +24,8 @@ import { loadCoachProfile } from "@/lib/prescriptionMemory";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
+import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -101,9 +103,6 @@ import { searchFoods, type FoodHit } from "@/lib/foodSearch";
 import { Private } from "@/components/coach/PrivacyMode";
 import { triageClasses, triageLabel } from "@/lib/protocolRenewalTriage";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
-
 interface Props {
   studentId: string;
   studentName: string;
@@ -154,7 +153,6 @@ function mergeImportedPayload(prev: ProtocolPayload | null, imported: ProtocolPa
 
   return next as ProtocolPayload;
 }
-
 
 function computeCompletion(payload: ProtocolPayload | null) {
   if (!payload) return { macros: false, guidelines: false, workouts: false, diet: false, cycle: false };
@@ -800,11 +798,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         }
       }
       if (coachId) {         void sb.rpc("refresh_coach_ai_profile", { p_coach_id: coachId }).then(({ error }) => {           if (error) console.warn("refresh_coach_ai_profile falhou (não bloqueia o save)", error);         });       }       qc.invalidateQueries({ queryKey: ["protocol-builder", studentId] });
-      qc.invalidateQueries({ queryKey: ["protocol", studentId] });
-      qc.invalidateQueries({ queryKey: ["diet-strategy", studentId] });
-      qc.invalidateQueries({ queryKey: ["workout-plan", studentId] });
-      qc.invalidateQueries({ queryKey: ["coach-plan-presence", studentId] });
-      qc.invalidateQueries({ queryKey: ["plan-macros", studentId] });
+      qc.invalidateQueries({ queryKey: queryKeys.studentProtocol(studentId) });
       setIsDirty(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao salvar");

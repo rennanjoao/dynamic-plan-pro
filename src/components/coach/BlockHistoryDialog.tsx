@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/ConfirmProvider";
+import { formatDateTimePtBR } from "@/lib/formatDate";
 
 type BaseVersion = { id: string; version: number; createdAt: string };
 
@@ -42,7 +43,7 @@ export function BlockHistoryDialog<V extends BaseVersion>({
   async function handleRestore(v: V) {
     if (!(await confirm({
       title: "Restaurar esta versão",
-      description: `A versão atual de "${templateName}" será substituída pelo conteúdo salvo em ${new Date(v.createdAt).toLocaleString("pt-BR")}. O estado atual vira uma nova versão no histórico, então nada se perde.`,
+      description: `A versão atual de "${templateName}" será substituída pelo conteúdo salvo em ${formatDateTimePtBR(v.createdAt)}. O estado atual vira uma nova versão no histórico, então nada se perde.`,
       confirmLabel: "Restaurar",
     }))) return;
     setRestoringId(v.id);
@@ -76,7 +77,7 @@ export function BlockHistoryDialog<V extends BaseVersion>({
               <div key={v.id} className="flex items-center justify-between gap-2 rounded-md border border-border/60 px-3 py-2">
                 <div className="text-xs">
                   <div className="font-medium">Versão {v.version}</div>
-                  <div className="text-muted-foreground">{new Date(v.createdAt).toLocaleString("pt-BR")}</div>
+                  <div className="text-muted-foreground">{formatDateTimePtBR(v.createdAt)}</div>
                 </div>
                 <Button
                   size="sm" variant="outline" className="h-7 text-[11px]"
@@ -95,4 +96,3 @@ export function BlockHistoryDialog<V extends BaseVersion>({
     </Dialog>
   );
 }
-

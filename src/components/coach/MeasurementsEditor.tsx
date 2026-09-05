@@ -6,7 +6,7 @@
  *   Braço D Relaxado / Braço E Relaxado / Braço D Contraído / Braço E Contraído
  */
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,9 +18,6 @@ import { uploadStudentPhoto } from "@/lib/studentMedia";
 import { estimateBF } from "@/lib/bfEstimate";
 import BFDisplay from "@/components/shared/BFDisplay";
 import { PrivateImg, PrivateField, Private } from "@/components/coach/PrivacyMode";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
 
 const FIELDS: Array<{ key: string; label: string; unit?: string }> = [
   { key: "altura",           label: "Altura",             unit: "cm" },

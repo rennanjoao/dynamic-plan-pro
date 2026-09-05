@@ -35,6 +35,7 @@ import { buildPixBrCode } from "@/lib/pixBrCode";
 import { StudentPlanCard } from "@/components/student/StudentPlanCard";
 import { usePartnerProfile } from "@/hooks/usePartnerships";
 import QRCode from "qrcode";
+import { formatDatePtBR } from "@/lib/formatDate";
 
 // ─── localStorage helpers ───────────────────────────────────────────────────
 const DISMISSED_KEY = (uid: string) => `dismissed_alerts_${uid}`;
@@ -402,7 +403,7 @@ export default function StudentArea() {
     setNotifyingCoach(true);
     try {
       const studentName = profile?.full_name || "Aluno";
-      const dueDateStr = new Date(billingAlert.dueDate).toLocaleDateString("pt-BR");
+      const dueDateStr = formatDatePtBR(billingAlert.dueDate);
       const amountStr = billingAlert.amount > 0 ? ` (R$ ${Number(billingAlert.amount).toFixed(2)})` : "";
       await supabase.from("coach_notifications").insert({
         coach_id: billingAlert.coachId, student_id: userId, student_name: studentName, context: "Financeiro",

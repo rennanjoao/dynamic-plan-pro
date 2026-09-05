@@ -9,6 +9,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import { toast } from "sonner";
 import { Loader2, Save, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,9 +30,6 @@ import {
   PrescriptionProfileSchema, SOURCES, SOURCE_LABELS,
   type Dominance, type PriorityLevel, type SourceKind,
 } from "@/lib/prescriptionProfileSchema";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
 
 const NONE = "__none__";
 

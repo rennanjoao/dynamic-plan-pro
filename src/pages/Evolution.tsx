@@ -6,7 +6,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import { useStudentData } from "@/hooks/useStudentData";
 import { useAuthUserId } from "@/hooks/useAuthUserId";
 import ComparisonBoard from "@/components/student/ComparisonBoard";
@@ -18,22 +18,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowLeft, Plus, MessageCircle, ChevronRight } from "lucide-react";
 import { formatRelativePtBR } from "@/lib/formatDate";
+import { queryKeys } from "@/lib/queryKeys";
 import PreviewModeBar from "@/components/student/PreviewModeBar";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
 
 export default function Evolution() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const previewAs = searchParams.get("previewAs");
-  const { anamnesis, checkIns, loading, studentId } = useStudentData();
+  const { anamnesis, checkIns, goal, loading, studentId } = useStudentData();
   const qc = useQueryClient();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   useAuthUserId({ redirectTo: "/auth" });
 
   const { data: latestFeedback } = useQuery({
-    queryKey: ["latest-coach-feedback", studentId],
+    queryKey: queryKeys.latestCoachFeedback(studentId),
     enabled: !!studentId,
     queryFn: async () => {
       const { data } = await sb
@@ -59,7 +57,7 @@ export default function Evolution() {
         .update({ feedback_read_at: new Date().toISOString() })
         .eq("id", latestFeedback.id);
       if (!cancelled) {
-        qc.invalidateQueries({ queryKey: ["latest-coach-feedback", studentId] });
+        qc.invalidateQueries({ queryKey: queryKeys.latestCoachFeedback(studentId) });
       }
     })();
     return () => { cancelled = true; };
@@ -136,6 +134,7 @@ export default function Evolution() {
               <ComparisonBoard
                 anamnesis={anamnesis}
                 latestCheckIn={checkIns[0] ?? null}
+                goal={goal}
               />
               <Button className="w-full" onClick={() => navigate("/check-in")}>
                 <Plus className="w-4 h-4 mr-2" /> Novo check-in
@@ -143,7 +142,7 @@ export default function Evolution() {
             </TabsContent>
 
             <TabsContent value="historico" className="mt-0">
-              <EvolutionTimeline checkIns={checkIns} />
+              <EvolutionTimeline checkIns={checkIns} goal={goal} />
             </TabsContent>
           </Tabs>
           </>

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { formatCents } from "@/lib/studentPlans";
 import { formatRateBp } from "@/lib/partnerPricing";
 import { usePartnerProfile, usePartnerCommissions, usePartnerReferrals } from "@/hooks/usePartnerships";
+import { formatDatePtBR } from "@/lib/formatDate";
 
 /**
  * Área da influenciadora — visão mínima e segura:
@@ -78,7 +79,7 @@ export default function PartnerArea() {
             <div key={`${r.student_name}-${i}`} className="flex items-center justify-between gap-2 rounded-lg border border-border/60 px-3 py-2">
               <div className="min-w-0">
                 <p className="text-sm font-semibold truncate">{r.student_name}</p>
-                <p className="text-[11px] text-muted-foreground">{new Date(r.attributed_at).toLocaleDateString("pt-BR")}</p>
+                <p className="text-[11px] text-muted-foreground">{formatDatePtBR(r.attributed_at)}</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {r.commission_amount_cents != null && (

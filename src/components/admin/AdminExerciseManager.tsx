@@ -6,6 +6,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -50,9 +51,6 @@ import {
   MOVEMENT_PATTERN_LABELS,
   type MovementPattern,
 } from "@/lib/movementPatterns";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb = supabase as any;
 
 const PAGE_SIZE = 24;
 const ALL_GROUPS = "__all__";

@@ -5,14 +5,12 @@
 // que guarda o payload publicado antes da atualização).
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { History } from "lucide-react";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
+import { formatDatePtBR } from "@/lib/formatDate";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -82,7 +80,7 @@ export default function PreviousProtocolButton({
           </SheetHeader>
           <p className="text-xs text-muted-foreground mt-1">
             Versão usada antes da atualização de{" "}
-            {new Date(data.updatedAt).toLocaleDateString("pt-BR")}. Somente leitura.
+            {formatDatePtBR(data.updatedAt)}. Somente leitura.
           </p>
 
           <div className="mt-4 space-y-4">

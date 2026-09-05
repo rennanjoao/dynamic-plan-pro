@@ -6,7 +6,7 @@
  * student_id atual), independentemente de `seen_at`. Sem ações — só leitura.
  */
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import { useStudentData } from "@/hooks/useStudentData";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -14,9 +14,7 @@ import {
 import {
   Sparkles, Dumbbell, Apple, Pill, ClipboardList, Loader2,
 } from "lucide-react";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
+import { formatDateTimePtBR } from "@/lib/formatDate";
 
 interface ChangeItem {
   category: "treino" | "dieta" | "suplemento" | "diretriz" | "geral";
@@ -46,7 +44,7 @@ function iconForCategory(cat: ChangeItem["category"]) {
 
 function fmt(iso: string | null): string {
   if (!iso) return "";
-  return new Date(iso).toLocaleString("pt-BR");
+  return formatDateTimePtBR(iso);
 }
 
 export default function CoachUpdatesHistoryDialog({

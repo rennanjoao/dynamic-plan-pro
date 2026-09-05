@@ -10,7 +10,7 @@
  * via CoachUpdatesCard.tsx.
  */
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -19,9 +19,7 @@ import {
   Sparkles, Dumbbell, Apple, Pill, ClipboardList, Loader2,
 } from "lucide-react";
 import { Private } from "@/components/coach/PrivacyMode";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
+import { formatDateTimePtBR } from "@/lib/formatDate";
 
 interface ChangeItem {
   category: "treino" | "dieta" | "suplemento" | "diretriz" | "geral";
@@ -51,7 +49,7 @@ function iconForCategory(cat: ChangeItem["category"]) {
 
 function fmt(iso: string | null): string {
   if (!iso) return "";
-  return new Date(iso).toLocaleString("pt-BR");
+  return formatDateTimePtBR(iso);
 }
 
 export default function ProtocolChangeHistoryDialog({

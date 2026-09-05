@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { History } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { formatDateTimePtBR } from "@/lib/formatDate";
 
 interface ImportLogRow {
   id: string;
@@ -83,7 +84,7 @@ export default function ProtocolImportHistory() {
                   <TableCell><StatusBadge status={r.status} /></TableCell>
                   <TableCell className="text-right">{r.anomalies_count}</TableCell>
                   <TableCell className="text-right text-xs text-muted-foreground">
-                    {new Date(r.created_at).toLocaleString("pt-BR")}
+                    {formatDateTimePtBR(r.created_at)}
                   </TableCell>
                 </TableRow>
               ))}

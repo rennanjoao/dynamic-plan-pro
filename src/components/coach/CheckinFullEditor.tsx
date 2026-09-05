@@ -4,7 +4,7 @@
  * fotos e o feedback do coach.
  */
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import { PrivateImg } from "@/components/coach/PrivacyMode";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -19,9 +19,6 @@ import { uploadStudentPhoto, openMedia } from "@/lib/studentMedia";
 import type { FieldRenderContext } from "@/lib/anamnesisSchema";
 import { toast } from "sonner";
 import { Loader2, Save, Upload, FileText, Trash2 } from "lucide-react";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = supabase;
 
 const PHOTO_SLOTS: Array<{ key: string; label: string }> = [
   { key: "frente", label: "Frente" },

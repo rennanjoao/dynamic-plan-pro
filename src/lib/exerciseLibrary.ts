@@ -1,9 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import { toExerciseKey } from "@/lib/workoutTypes";
 import type { MuscleGroup } from "@/lib/muscleGroupClassifier";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb = supabase as any;
 
 export const EXERCISE_GIFS_BUCKET = "exercicios-gifs";
 
