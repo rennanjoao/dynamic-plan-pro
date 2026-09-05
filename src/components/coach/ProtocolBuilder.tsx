@@ -984,7 +984,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
               })()}
             </TabsList>
             <TabsContent value="macros" className="mt-4"><MacrosTab payload={payload} setPayload={updatePayload} /></TabsContent>
-            <TabsContent value="guidelines" className="mt-4"><GuidelinesTab payload={payload} setPayload={updatePayload} /></TabsContent>
+            <TabsContent value="guidelines" className="mt-4"><GuidelinesTab payload={payload} setPayload={updatePayload} coachId={coachId} /></TabsContent>
             <TabsContent value="workouts" className="mt-4"><WorkoutsTab payload={payload} setPayload={updatePayload} coachId={coachId} onOpenTemplateLibrary={() => setLibraryOpen(true)} /></TabsContent>
             <TabsContent value="diet" className="mt-4"><DietTab payload={payload} setPayload={updatePayload} onOpenTemplateLibrary={() => setLibraryOpen(true)} /></TabsContent>
           </Tabs>

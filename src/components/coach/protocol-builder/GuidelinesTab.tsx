@@ -15,6 +15,7 @@ import { ChevronDown, Trash2, Plus, Sparkles, Pill } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ProtocolPayload, SUPPLEMENT_OBJECTIVES } from "@/lib/protocolSchema";
+import { GuidelinesTemplateQuickPicker } from "@/components/coach/GuidelinesTemplateQuickPicker";
 
 /**
  * GuidelinesTab + SupplementsSection — extraídos de ProtocolBuilder.tsx
