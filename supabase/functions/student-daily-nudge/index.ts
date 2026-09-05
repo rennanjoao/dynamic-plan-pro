@@ -120,12 +120,19 @@ Regras:
         ],
         stream: false,
         temperature: 0.6,
+        // A frase final é curta (cortada em 300 caracteres). Um teto baixo evita
+        // estourar o limite de tokens de saída por minuto do provedor (429).
+        max_tokens: 160,
         reasoning_effort: "none",
       }),
     });
     if (!aiRes.ok) {
       const t = await aiRes.text().catch(() => "");
-      throw new Error(`Groq error ${aiRes.status}: ${t}`);
+      console.error("[student-daily-nudge] IA indisponível", aiRes.status, t);
+      // Mensagem motivacional é opcional: nunca derruba a tela do aluno.
+      return new Response(JSON.stringify({ ok: true, message: null, cached: false, skipped: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
     const aiJson = await aiRes.json();
     const message = String(aiJson?.choices?.[0]?.message?.content ?? "").trim().slice(0, 300);
