@@ -68,19 +68,19 @@ export function StudentRow({
         <p className="text-xs text-muted-foreground truncate">{student.goal || "Objetivo não definido"}</p>
         <button
           type="button"
-          onClick={() => student.lastFeedback && onLatestFeedback(student)}
-          disabled={!student.lastFeedback}
+          onClick={() => (student.lastFeedback ? onLatestFeedback(student) : onAnamnesis(student))}
           className={`text-xs flex items-center gap-1 mt-0.5 rounded px-1 -mx-1 transition-colors ${
-            !student.lastFeedback ? "text-muted-foreground cursor-default" :
+            !student.lastFeedback ? "text-emerald-500 font-medium hover:bg-emerald-500/10" :
             student.daysSinceLastFeedback >= student.criticalDays ? "text-red-500 font-medium hover:bg-red-500/10" :
             student.daysSinceLastFeedback >= student.warningDays ? "text-orange-500 hover:bg-orange-500/10" :
             "text-emerald-500 hover:bg-emerald-500/10"
           }`}
-          title={student.lastFeedback ? "Ver feedback atual" : undefined}
+          title={student.lastFeedback ? "Ver feedback atual" : "Ver anamnese"}
         >
-          <MessageSquare className="w-3 h-3" />
-          {feedbackLabel}
+          {student.lastFeedback ? <MessageSquare className="w-3 h-3" /> : <ClipboardList className="w-3 h-3" />}
+          {student.lastFeedback ? feedbackLabel : "Sem check-in — ver anamnese"}
         </button>
+
       </div>
 
       {displayWeight !== undefined && displayWeight !== null && (

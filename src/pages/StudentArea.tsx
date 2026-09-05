@@ -293,6 +293,18 @@ export default function StudentArea() {
     },
   });
 
+  // Diretrizes liberadas pelo coach → card "Sono & Diretrizes" pisca em verde.
+  const { data: guidelinesHighlight } = useQuery({
+    queryKey: ["student-guidelines-flag", userId],
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 5,
+    queryFn: async () => {
+      const { data } = await supabase.from("protocols").select("payload").eq("student_id", userId).eq("is_template", false).eq("active", true).limit(1).maybeSingle();
+      const payload = (data?.payload as Record<string, unknown>) || null;
+      return !!payload?.showGuidelines;
+    },
+  });
+
   const queryClientSA = useQueryClient();
   const todayKeyStr = new Date().toISOString().slice(0, 10);
   const { data: todayConfirmed } = useQuery({
@@ -700,7 +712,7 @@ export default function StudentArea() {
 
         <div className="grid grid-cols-2 gap-3">
           {secondaryModules.map((mod) => (
-            <Card key={mod.title} className={`card-hover bg-card/60 border ${mod.border} cursor-pointer ${mod.title === "Evolução" && hasUnreadFeedback ? "animate-pulse ring-2 ring-emerald-500/40" : ""}`} onClick={() => navigate(mod.route)}>
+            <Card key={mod.title} className={`card-hover bg-card/60 border ${mod.border} cursor-pointer ${(mod.title === "Evolução" && hasUnreadFeedback) || (mod.title === "Sono & Diretrizes" && guidelinesHighlight) ? "animate-pulse ring-2 ring-emerald-500/40" : ""}`} onClick={() => navigate(mod.route)}>
               <CardContent className="p-4">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${mod.bg}`}>
                   <mod.icon className={`w-5 h-5 ${mod.color}`} />
