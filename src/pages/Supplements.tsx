@@ -1,10 +1,12 @@
+import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Pill, Info, UtensilsCrossed, Calendar, Copy } from "lucide-react";
+import { ArrowLeft, Pill, Info, UtensilsCrossed, Calendar, Copy, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { ProtocolPayloadSchema } from "@/lib/protocolSchema";
 import ProtocolQuestionButton from "@/components/student/ProtocolQuestionButton";
 import { useHighlightTarget } from "@/hooks/useHighlightTarget";
@@ -14,6 +16,58 @@ import { useAuthUserId } from "@/hooks/useAuthUserId";
 import { PageLoader } from "@/components/ui/PageLoader";
 import PreviewModeBar from "@/components/student/PreviewModeBar";
 
+// ─── Card interno recolhível ─────────────────────────────────────────────────
+// Cada diretriz vive dentro de um card que inicia minimizado; o aluno clica
+// no cabeçalho (ou no chevron) para expandir/recolher. `headerExtra` permite
+// um controle adicional no cabeçalho (ex.: botão "Copiar para cotação") sem
+// que ele dispare o toggle de abrir/fechar.
+function GuidelineAccordionItem({
+  isOpen,
+  onToggle,
+  icon,
+  title,
+  headerExtra,
+  children,
+}: {
+  isOpen: boolean;
+  onToggle: () => void;
+  icon: ReactNode;
+  title: string;
+  headerExtra?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="glass rounded-2xl border border-white/[0.06] overflow-hidden">
+      <div className="flex items-center gap-2 p-4">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex-1 min-w-0 flex items-center gap-2 text-left"
+        >
+          <h2 className="text-sm font-bold text-foreground flex items-center gap-2 min-w-0">
+            {icon} <span className="truncate">{title}</span>
+          </h2>
+        </button>
+        {headerExtra}
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={isOpen}
+          aria-label={isOpen ? "Recolher" : "Expandir"}
+          className="shrink-0 p-1 -m-1"
+        >
+          <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", isOpen && "rotate-180")} />
+        </button>
+      </div>
+      {isOpen && (
+        <div className="px-4 pb-4 pt-3 border-t border-white/[0.06]">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Supplements() {
   const navigate = useNavigate();
   const userId = useAuthUserId();
@@ -21,6 +75,11 @@ export default function Supplements() {
   const previewAs = searchParams.get("previewAs");
   const draftPreview = searchParams.get("draftPreview") === "1";
   useHighlightTarget();
+
+  // Todos os cards internos iniciam minimizados/recolhidos.
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const toggleSection = (key: string) =>
+    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
 
   const { data: planData, isLoading } = useQuery({
     queryKey: ["student-supps-json", userId, draftPreview],
@@ -88,7 +147,7 @@ export default function Supplements() {
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-lg font-bold text-foreground">Diretrizes & Sono</h1>
+          <h1 className="text-lg font-bold text-foreground">Diretrizes & Suplementação</h1>
           <p className="text-xs text-muted-foreground">Orientações do seu coach</p>
         </div>
         
@@ -96,27 +155,43 @@ export default function Supplements() {
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-5">
 
-        {/* Diretrizes da Dieta */}
-        {dietGuideline.trim() && (
-          <div className="glass rounded-2xl p-4 border border-white/[0.06]">
-            <h2 className="text-sm font-bold text-foreground flex items-center gap-2 mb-3">
-              <UtensilsCrossed className="w-4 h-4 text-primary" /> Diretrizes da Dieta
-            </h2>
-            <p className="text-sm whitespace-pre-wrap text-foreground/85 leading-relaxed">{dietGuideline}</p>
-          </div>
+        {/* 1. Sono */}
+        {supplementationGuideline.trim() && (
+          <GuidelineAccordionItem
+            isOpen={!!openSections.sono}
+            onToggle={() => toggleSection("sono")}
+            icon={<Info className="w-4 h-4 text-primary" />}
+            title="Sono"
+          >
+            <p className="text-sm whitespace-pre-wrap text-foreground/85 leading-relaxed">{supplementationGuideline}</p>
+          </GuidelineAccordionItem>
         )}
 
-        {/* Organização da Semana */}
+        {/* 2. Organização da Semana */}
         {weekOrganization.trim() && (
-          <div className="glass rounded-2xl p-4 border border-white/[0.06]">
-            <h2 className="text-sm font-bold text-foreground flex items-center gap-2 mb-3">
-              <Calendar className="w-4 h-4 text-primary" /> Organização da Semana
-            </h2>
+          <GuidelineAccordionItem
+            isOpen={!!openSections.semana}
+            onToggle={() => toggleSection("semana")}
+            icon={<Calendar className="w-4 h-4 text-primary" />}
+            title="Organização da Semana"
+          >
             <p className="text-sm whitespace-pre-wrap text-foreground/85 leading-relaxed">{weekOrganization}</p>
-          </div>
+          </GuidelineAccordionItem>
         )}
 
-        {/* Suplementos agrupados por horário */}
+        {/* 3. Diretrizes da Dieta */}
+        {dietGuideline.trim() && (
+          <GuidelineAccordionItem
+            isOpen={!!openSections.dieta}
+            onToggle={() => toggleSection("dieta")}
+            icon={<UtensilsCrossed className="w-4 h-4 text-primary" />}
+            title="Diretrizes da Dieta"
+          >
+            <p className="text-sm whitespace-pre-wrap text-foreground/85 leading-relaxed">{dietGuideline}</p>
+          </GuidelineAccordionItem>
+        )}
+
+        {/* 4. Suplementos agrupados por horário */}
         {supplements.length > 0 && (() => {
           // Índices consumidos por combos → não aparecem soltos.
           const boundSet = new Set<number>();
@@ -192,74 +267,67 @@ export default function Supplements() {
           };
 
           return (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="font-bold text-sm text-foreground flex items-center gap-2">
-                  <Pill className="w-4 h-4 text-primary" /> Suplementos prescritos
-                </h2>
+            <GuidelineAccordionItem
+              isOpen={!!openSections.suplementacao}
+              onToggle={() => toggleSection("suplementacao")}
+              icon={<Pill className="w-4 h-4 text-primary" />}
+              title="Suplementos prescritos"
+              headerExtra={
                 <Button size="sm" variant="outline" className="h-8 text-xs" onClick={copyAll}>
                   <Copy className="w-3.5 h-3.5 mr-1" /> Copiar para cotação
                 </Button>
-              </div>
-
-              {/* Combos primeiro (nome do combo como cabeçalho) */}
-              {supplementCombos.map((c: any, ci: number) => {
-                const indexes: number[] = Array.isArray(c?.supplementIndexes) ? c.supplementIndexes : [];
-                const items = indexes
-                  .map((i) => supplements[i])
-                  .filter(Boolean);
-                if (items.length === 0) return null;
-                return (
-                  <div key={`combo-${ci}`} className="glass rounded-2xl p-4 border border-primary/20 space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-2 flex-wrap min-w-0">
-                        <Badge
-                          variant="outline"
-                          className="text-xs border-primary/60 text-primary bg-primary/10 font-bold max-w-full whitespace-normal break-words text-left h-auto"
-                        >
-                          {c.name || "Combo"}
-                        </Badge>
-                        {c.timing && (
-                          <span className="text-[10px] text-muted-foreground mt-1">{c.timing}</span>
-                        )}
+              }
+            >
+              <div className="space-y-3">
+                {/* Combos primeiro (nome do combo como cabeçalho) */}
+                {supplementCombos.map((c: any, ci: number) => {
+                  const indexes: number[] = Array.isArray(c?.supplementIndexes) ? c.supplementIndexes : [];
+                  const items = indexes
+                    .map((i) => supplements[i])
+                    .filter(Boolean);
+                  if (items.length === 0) return null;
+                  return (
+                    <div key={`combo-${ci}`} className="glass rounded-2xl p-4 border border-primary/20 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2 flex-wrap min-w-0">
+                          <Badge
+                            variant="outline"
+                            className="text-xs border-primary/60 text-primary bg-primary/10 font-bold max-w-full whitespace-normal break-words text-left h-auto"
+                          >
+                            {c.name || "Combo"}
+                          </Badge>
+                          {c.timing && (
+                            <span className="text-[10px] text-muted-foreground mt-1">{c.timing}</span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground shrink-0">{items.length} item(ns)</span>
                       </div>
-                      <span className="text-[10px] text-muted-foreground shrink-0">{items.length} item(ns)</span>
-                    </div>
 
+                      <ul className="space-y-2 pt-1">
+                        {items.map((s: any, i: number) => renderItem(s, i))}
+                      </ul>
+                    </div>
+                  );
+                })}
+
+                {/* Depois, os suplementos soltos agrupados por horário */}
+                {keys.map((timing) => (
+                  <div key={timing} className="glass rounded-2xl p-4 border border-white/[0.06] space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Badge variant="outline" className="text-xs border-primary/40 text-primary bg-primary/5">
+                        {timing}
+                      </Badge>
+                      <span className="text-[10px] text-muted-foreground">{groups[timing].length} item(ns)</span>
+                    </div>
                     <ul className="space-y-2 pt-1">
-                      {items.map((s: any, i: number) => renderItem(s, i))}
+                      {groups[timing].map((s: any, i: number) => renderItem(s, i))}
                     </ul>
                   </div>
-                );
-              })}
-
-              {/* Depois, os suplementos soltos agrupados por horário */}
-              {keys.map((timing) => (
-                <div key={timing} className="glass rounded-2xl p-4 border border-white/[0.06] space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Badge variant="outline" className="text-xs border-primary/40 text-primary bg-primary/5">
-                      {timing}
-                    </Badge>
-                    <span className="text-[10px] text-muted-foreground">{groups[timing].length} item(ns)</span>
-                  </div>
-                  <ul className="space-y-2 pt-1">
-                    {groups[timing].map((s: any, i: number) => renderItem(s, i))}
-                  </ul>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </GuidelineAccordionItem>
           );
         })()}
-
-        {/* Diretriz geral de sono */}
-        {supplementationGuideline.trim() && (
-          <div className="glass rounded-2xl p-4 border border-white/[0.06]">
-            <h3 className="text-sm font-bold mb-2 text-foreground flex items-center gap-2">
-              <Info className="w-4 h-4 text-primary" /> Sono
-            </h3>
-            <p className="text-sm whitespace-pre-wrap text-foreground/85 leading-relaxed">{supplementationGuideline}</p>
-          </div>
-        )}
 
         {!hasAnything && (
           <p className="text-center text-muted-foreground italic py-10">
