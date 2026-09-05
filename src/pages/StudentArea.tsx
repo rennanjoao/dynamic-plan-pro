@@ -293,7 +293,7 @@ export default function StudentArea() {
     },
   });
 
-  // Diretrizes liberadas pelo coach → card "Sono & Diretrizes" pisca em verde.
+  // Diretrizes liberadas pelo coach → card "Diretrizes & Suplementação" pisca em verde.
   const { data: guidelinesHighlight } = useQuery({
     queryKey: ["student-guidelines-flag", userId],
     enabled: !!userId,
@@ -474,7 +474,7 @@ export default function StudentArea() {
   }
 
   const secondaryModules = [
-    { title: "Sono & Diretrizes", description: "Qualidade do sono e orientações do coach.",   icon: Pill,          color: "text-purple-500",  bg: "bg-purple-500/10",  border: "border-purple-500/20",  route: `/supplements${previewAs ? `?${previewQS}` : ''}`  },
+    { title: "Diretrizes & Suplementação", description: "Qualidade do sono e orientações do coach.",   icon: Pill,          color: "text-purple-500",  bg: "bg-purple-500/10",  border: "border-purple-500/20",  route: `/supplements${previewAs ? `?${previewQS}` : ''}`  },
     { title: "Evolução",       description: "Fotos, gráficos e progresso.",      icon: TrendingUp,    color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", route: `/evolution${previewAs ? `?${previewQS}` : ''}`, showAnamnesisEdit: true },
     { title: "Check-in",       description: "Feedback periódico ao treinador.",  icon: CheckCircle2,  color: "text-rose-500",    bg: "bg-rose-500/10",    border: "border-rose-500/20",    route: `/check-in${previewAs ? `?${previewQS}` : ''}`     },
     { title: "Lista de Compras", description: "Compras agregadas e PDF.",        icon: ShoppingCart,  color: "text-orange-500",  bg: "bg-orange-500/10",  border: "border-orange-500/20",  route: `/shopping-list${previewAs ? `?${previewQS}` : ''}`},
@@ -712,7 +712,7 @@ export default function StudentArea() {
 
         <div className="grid grid-cols-2 gap-3">
           {secondaryModules.map((mod) => (
-            <Card key={mod.title} className={`card-hover bg-card/60 border ${mod.border} cursor-pointer ${(mod.title === "Evolução" && hasUnreadFeedback) || (mod.title === "Sono & Diretrizes" && guidelinesHighlight) ? "animate-pulse ring-2 ring-emerald-500/40" : ""}`} onClick={() => navigate(mod.route)}>
+            <Card key={mod.title} className={`card-hover bg-card/60 border ${mod.border} cursor-pointer ${(mod.title === "Evolução" && hasUnreadFeedback) || (mod.title === "Diretrizes & Suplementação" && guidelinesHighlight) ? "animate-pulse ring-2 ring-emerald-500/40" : ""}`} onClick={() => navigate(mod.route)}>
               <CardContent className="p-4">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${mod.bg}`}>
                   <mod.icon className={`w-5 h-5 ${mod.color}`} />
