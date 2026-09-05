@@ -14,7 +14,7 @@ import {
 import { ChevronDown, Trash2, Plus, Sparkles, Pill } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { ProtocolPayload, SUPPLEMENT_OBJECTIVES } from "@/lib/protocolSchema";
+import { ProtocolPayload, SUPPLEMENT_OBJECTIVES, SUPPLEMENT_PURCHASE_TYPES } from "@/lib/protocolSchema";
 import { GuidelinesTemplateQuickPicker } from "@/components/coach/GuidelinesTemplateQuickPicker";
 
 /**
@@ -132,7 +132,7 @@ function SupplementsSection({
   const addSupplement = () =>
     setSupplements([
       ...supplements,
-      { name: "", dose: "", timing: "", notes: "", mealRef: "", objective: "outro" },
+      { name: "", dose: "", timing: "", notes: "", mealRef: "", objective: "outro", needsPurchase: true, purchaseType: "outros" },
     ]);
 
   const removeSupplement = (si: number) => {
@@ -219,6 +219,9 @@ function SupplementsSection({
     const category = ((s as any).category as string) || "suplemento";
     const isHormone = category === "hormonio_manipulado";
     const weekly: string[] = ((s as any).weeklyFrequency as string[]) || [];
+    // Default true: itens antigos (sem o campo) também entram na cotação/compra.
+    const needsPurchase = (s as any).needsPurchase !== false;
+    const purchaseType = ((s as any).purchaseType as string) || "outros";
     const toggleDay = (d: string) =>
       updSupp(si, {
         weeklyFrequency: weekly.includes(d) ? weekly.filter((x) => x !== d) : [...weekly, d],
@@ -328,6 +331,30 @@ function SupplementsSection({
             </SelectContent>
           </Select>
         </div>
+        <div className="mt-2 pt-2 border-t border-border/40 flex items-center justify-between gap-2 flex-wrap">
+          <label className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={needsPurchase}
+              onChange={(e) => updSupp(si, { needsPurchase: e.target.checked } as any)}
+              className="accent-primary w-3.5 h-3.5"
+            />
+            Incluir na cotação/compra
+          </label>
+          <Select
+            value={purchaseType}
+            onValueChange={(v) => updSupp(si, { purchaseType: v } as any)}
+          >
+            <SelectTrigger className={cn("h-7 text-xs w-[170px]", !needsPurchase && "opacity-50")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SUPPLEMENT_PURCHASE_TYPES.map((o) => (
+                <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </Card>
     );
   };
@@ -354,6 +381,12 @@ function SupplementsSection({
           </Button>
         </div>
       </div>
+
+      {supplements.length > 0 && (
+        <p className="text-[10px] text-muted-foreground">
+          Por padrão, todos os itens entram nos botões de cópia do aluno — desmarque "Incluir na cotação/compra" nos que não precisam ser comprados agora.
+        </p>
+      )}
 
       {supplements.length === 0 && (
         <p className="text-xs text-muted-foreground italic text-center py-3 border border-dashed border-border/40 rounded-lg">
