@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { buildCorsHeaders } from "../_shared/cors.ts";
 const SYSTEM_PROMPT = `Você é o assistente oficial da plataforma Elite Hub.
@@ -21,14 +22,38 @@ serve(async (req: Request) => {
       });
     }
 
+    // Este chat é público de propósito (visitante ainda sem conta), mas
+    // ficava sem NENHUM limite — corpo de tamanho livre e sem controle de
+    // quantas vezes a mesma origem chama a function. Isso permitia consumir
+    // a GROQ_API_KEY sem limite. Aplica limite por IP + tamanho de payload.
+    const ip = (req.headers.get("x-forwarded-for") ?? "unknown").split(",")[0].trim();
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+    const { data: allowed, error: rateErr } = await admin.rpc("check_rate_limit", {
+      _bucket: `info-chat:${ip}`,
+      _max_hits: 20,
+      _window_seconds: 60,
+    });
+    if (!rateErr && allowed === false) {
+      return new Response(
+        JSON.stringify({ error: "Muitas mensagens em pouco tempo. Tente novamente em instantes." }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
-    const messages = Array.isArray(body?.messages) ? body.messages : null;
-    if (!messages) {
+    const rawMessages = Array.isArray(body?.messages) ? body.messages : null;
+    if (!rawMessages) {
       return new Response(JSON.stringify({ error: "payload inválido" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    // Só as últimas trocas, com tamanho limitado por mensagem — sem isso o
+    // corpo podia ser arbitrariamente grande (nem sequer havia truncamento).
+    const messages = rawMessages.slice(-8);
 
     let systemContent = SYSTEM_PROMPT;
     if (body.userContext) {
@@ -39,7 +64,7 @@ serve(async (req: Request) => {
       { role: "system", content: systemContent },
       ...messages.map((m: { role: string; content: string }) => ({
         role: m.role === "assistant" ? "assistant" : "user",
-        content: String(m.content ?? ""),
+        content: String(m.content ?? "").slice(0, 1500),
       })),
     ];
 
