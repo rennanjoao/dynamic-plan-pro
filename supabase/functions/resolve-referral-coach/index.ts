@@ -29,6 +29,21 @@ Deno.serve(async (req: Request) => {
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
+    // Function pública por design (chamada antes do login), mas sem limite
+    // nenhum ela virava um oráculo pra varrer códigos de indicação válidos
+    // por tentativa e erro. Limite por IP: 15 tentativas/minuto.
+    const ip = (req.headers.get("x-forwarded-for") ?? "unknown").split(",")[0].trim();
+    const { data: allowed, error: rateErr } = await admin.rpc("check_rate_limit", {
+      _bucket: `resolve-referral-coach:${ip}`,
+      _max_hits: 15,
+      _window_seconds: 60,
+    });
+    if (!rateErr && allowed === false) {
+      return new Response(JSON.stringify({ error: "Muitas tentativas. Tente novamente em instantes." }), {
+        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // 1) Resolve o código para o aluno que indicou (nunca exposto ao client)
     const { data: referrerId, error: resolveErr } = await admin.rpc("resolve_referral_code", {
       p_code: refCode,
