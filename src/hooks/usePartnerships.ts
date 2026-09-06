@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -132,6 +133,55 @@ export function useCoachAccessCodes(coachId: string | null) {
     },
     enabled: !!coachId,
   });
+}
+
+/**
+ * Melhor nome de exibição pra cada influenciadora do coach. Um código
+ * gerado (ex.: ELT-7K4P92) pode acabar nas mãos de qualquer pessoa — não dá
+ * pra reconhecer quem é quem só pelo código, então a lista de
+ * "Minhas influenciadoras" precisa mostrar o NOME.
+ *
+ * Prioridade: (1) profiles.full_name — o nome que a própria parceira já
+ * configurou; (2) o nome que o coach digitou ao gerar o "Convite de
+ * parceria" (access_codes.note) — o código de parceria nunca carrega
+ * partner_id na criação (ele CRIA a parceira), então o único jeito de
+ * linkar de volta é por student_id, que o resgate grava com o user_id de
+ * quem virou parceira; (3) o nome do recebedor PIX; (4) por último, o ID
+ * truncado (só quando nada acima existe).
+ */
+export function usePartnerDisplayNames(coachId: string | null): Map<string, string> {
+  const { data: partners = [] } = useCoachPartners(coachId);
+  const { data: codes = [] } = useCoachAccessCodes(coachId);
+
+  const { data: profileNames = {} } = useQuery({
+    queryKey: ["coach-partner-names", partners.map((p) => p.user_id).join(",")],
+    queryFn: async (): Promise<Record<string, string>> => {
+      const ids = partners.map((p) => p.user_id);
+      if (ids.length === 0) return {};
+      const { data } = await supabase.from("profiles").select("user_id, full_name").in("user_id", ids);
+      const map: Record<string, string> = {};
+      (data ?? []).forEach((r) => { if (r.full_name) map[r.user_id] = r.full_name; });
+      return map;
+    },
+    enabled: partners.length > 0,
+  });
+
+  return useMemo(() => {
+    const noteByUserId: Record<string, string> = {};
+    codes.forEach((c) => {
+      if (c.kind === "partner" && c.student_id && c.note?.trim()) {
+        noteByUserId[c.student_id] = c.note.trim();
+      }
+    });
+    const map = new Map<string, string>();
+    partners.forEach((p) =>
+      map.set(
+        p.user_id,
+        profileNames[p.user_id] || noteByUserId[p.user_id] || p.pix_holder_name || p.user_id.slice(0, 8),
+      ),
+    );
+    return map;
+  }, [partners, codes, profileNames]);
 }
 
 /**
