@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 import { buildCorsHeaders } from "../_shared/cors.ts";
+import { getCaller } from "../_shared/partnerAuth.ts";
 const SYSTEM_PROMPT = `Você é o assistente oficial da plataforma Elite Prime Hub.
 Responsável técnico: Prof. Rennan Gonçalves — CREF 206788-G/SP.
 
@@ -67,6 +68,17 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    // O verify_jwt padrão do Supabase só exige UM jwt válido — a anon key
+    // pública (embutida no bundle do site) também passa nele. Sem esta
+    // checagem, qualquer visitante sem conta conseguia chamar esta function
+    // e consumir a GROQ_API_KEY de graça. getCaller confirma uma sessão real.
+    const caller = await getCaller(req);
+    if (!caller) {
+      return new Response(JSON.stringify({ error: "Não autenticado." }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { messages, athleteContext } = await req.json();
 
     const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
