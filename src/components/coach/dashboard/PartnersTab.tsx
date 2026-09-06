@@ -14,6 +14,7 @@ import {
   useCoachPartners,
   useCoachAccessCodes,
   usePartnerCommissions,
+  usePartnerDisplayNames,
 } from "@/hooks/usePartnerships";
 import { formatDatePtBR } from "@/lib/formatDate";
 
@@ -33,18 +34,7 @@ export function PartnersTab({ coachId }: { coachId: string | null }) {
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<Record<string, string>>({});
 
-  const { data: profileNames = {} } = useQuery({
-    queryKey: ["coach-partner-names", partners.map((p) => p.user_id).join(",")],
-    queryFn: async (): Promise<Record<string, string>> => {
-      const ids = partners.map((p) => p.user_id);
-      if (ids.length === 0) return {};
-      const { data } = await supabase.from("profiles").select("user_id, full_name").in("user_id", ids);
-      const map: Record<string, string> = {};
-      (data ?? []).forEach((r) => { if (r.full_name) map[r.user_id] = r.full_name; });
-      return map;
-    },
-    enabled: partners.length > 0,
-  });
+  const partnerName = usePartnerDisplayNames(coachId);
 
   // Nome de quem usou cada código — o coach reconhece a pessoa, não o hash.
   const codeStudentIds = codes.map((c) => c.student_id).filter(Boolean) as string[];
@@ -59,14 +49,6 @@ export function PartnersTab({ coachId }: { coachId: string | null }) {
     },
     enabled: codeStudentIds.length > 0,
   });
-
-  const partnerName = useMemo(() => {
-    const m = new Map<string, string>();
-    partners.forEach((p) =>
-      m.set(p.user_id, profileNames[p.user_id] || p.pix_holder_name || p.user_id.slice(0, 8)),
-    );
-    return m;
-  }, [partners, profileNames]);
 
   const totals = useMemo(() => {
     let pending = 0;
