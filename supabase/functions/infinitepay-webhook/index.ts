@@ -11,6 +11,7 @@
 // - falhas não apagam informação anterior.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCorsHeaders } from "../_shared/cors.ts";
+import { safeEqual } from "../_shared/mercadopago.ts";
 
 const ok = (cors: Record<string, string>, body: Record<string, unknown>) =>
   new Response(JSON.stringify({ ok: true, ...body }), {
@@ -26,7 +27,7 @@ Deno.serve(async (req) => {
     // (nunca 401/403) pra não dar pista a quem estiver tentando adivinhar o token.
     const expectedToken = Deno.env.get("INFINITEPAY_WEBHOOK_SECRET");
     const receivedToken = new URL(req.url).searchParams.get("token");
-    if (!expectedToken || !receivedToken || receivedToken !== expectedToken) {
+    if (!expectedToken || !receivedToken || !safeEqual(receivedToken, expectedToken)) {
       console.error("webhook: token inválido ou ausente");
       return ok(cors, { ignored: "unauthorized" });
     }
