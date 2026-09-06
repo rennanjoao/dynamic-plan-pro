@@ -1,15 +1,18 @@
-import { useEffect, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, Loader2, Plus, Ticket } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChangePasswordButton } from "@/components/ChangePasswordButton";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { useProfileRecord } from "@/hooks/useProfileRecord";
+import { useCoachPartners } from "@/hooks/usePartnerships";
+import { queryKeys } from "@/lib/queryKeys";
 import type { PlatformCharge } from "@/hooks/usePlatformBilling";
 
 interface CoachProfileRow {
@@ -34,11 +37,17 @@ const TEAM_NAME_MAX_LENGTH = 80;
 const NOTIFICATION_EMAIL_MAX_LENGTH = 100;
 const PIX_KEY_MAX_LENGTH = 140;
 
+// "Indicação" não é um kind novo no banco — é um código kind=student que já
+// carrega um partner_id (generate-access-code já suporta isso). O seletor de
+// parceria só faz sentido nesse modo; em "parceria" o backend cria a
+// influenciadora nova e nunca aceita partner_id junto.
+type CodeMode = "student" | "referral" | "partner";
+
 interface ProfileDialogProps {
   coachId: string;
   open: boolean;
   onClose: () => void;
-  /** Status da assinatura da plataforma (para mostrar o aviso no próprio Perfil, não só o ponto no botão). */
+  /** Status da assinatura da plataforma (para mostrar o aviso na aba Pagamentos, não só o ponto no botão). */
   platformStatus?: "blocked" | "pending" | null;
   platformCharges?: PlatformCharge[];
   /** Chamado quando o coach clica em "Ver na aba Financeiro" no aviso de cobrança. */
@@ -69,7 +78,69 @@ export function ProfileDialog({
   const [billingAlertDays, setBillingAlertDays] = useState<number>(7);
   const [feedbackIntervalDays, setFeedbackIntervalDays] = useState<number>(7);
   const [saving, setSaving] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  const [generatingInvite, setGeneratingInvite] = useState(false);
+
+  // ── Geração de código de acesso (aluno / indicação / parceria) ──
+  const { data: partners = [] } = useCoachPartners(open ? coachId : null);
+  const activePartners = useMemo(() => partners.filter((p) => p.status === "active"), [partners]);
+  const { data: partnerNames = {} } = useQuery({
+    queryKey: ["coach-partner-names", partners.map((p) => p.user_id).join(",")],
+    queryFn: async (): Promise<Record<string, string>> => {
+      const ids = partners.map((p) => p.user_id);
+      if (ids.length === 0) return {};
+      const { data: rows } = await supabase.from("profiles").select("user_id, full_name").in("user_id", ids);
+      const map: Record<string, string> = {};
+      (rows ?? []).forEach((r) => { if (r.full_name) map[r.user_id] = r.full_name; });
+      return map;
+    },
+    enabled: partners.length > 0,
+  });
+  const partnerName = (id: string) => partnerNames[id] || partners.find((p) => p.user_id === id)?.pix_holder_name || id.slice(0, 8);
+
+  const [codeMode, setCodeMode] = useState<CodeMode>("student");
+  const [codePartner, setCodePartner] = useState("");
+  const [codeCommissionPct, setCodeCommissionPct] = useState("10");
+  const [codeNote, setCodeNote] = useState("");
+  const [codeBusy, setCodeBusy] = useState(false);
+
+  const generateAccessCode = async () => {
+    if (codeMode === "referral" && !codePartner) {
+      toast.error("Escolha uma influenciadora para a indicação.");
+      return;
+    }
+    let commissionBp: number | null = null;
+    if (codeMode === "partner") {
+      const pct = Number(String(codeCommissionPct).replace(",", "."));
+      if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+        toast.error("Informe uma comissão entre 0 e 100%.");
+        return;
+      }
+      commissionBp = Math.round(pct * 100);
+    }
+
+    setCodeBusy(true);
+    const { data: result, error } = await supabase.functions.invoke("generate-access-code", {
+      body: {
+        kind: codeMode === "partner" ? "partner" : "student",
+        partnerId: codeMode === "referral" ? codePartner : null,
+        commission_bp: commissionBp,
+        note: codeNote || null,
+      },
+    });
+    setCodeBusy(false);
+    if (error) {
+      toast.error(error.message || "Não foi possível gerar o código.");
+      return;
+    }
+    setCodeNote("");
+    setCodePartner("");
+    qc.invalidateQueries({ queryKey: queryKeys.coachAccessCodes(coachId) });
+    const code = (result as { accessCode?: { code?: string } })?.accessCode?.code;
+    if (code) {
+      navigator.clipboard?.writeText(code).catch(() => undefined);
+      toast.success(`Código ${code} gerado`, { description: "Copiado para a área de transferência." });
+    }
+  };
 
   const hasLoadedRef = useRef(false);
   const snapshotRef = useRef<string>("");
@@ -134,10 +205,10 @@ export function ProfileDialog({
   };
 
   const generatingRef = useRef(false);
-  const generateCode = async () => {
+  const generateInviteCode = async () => {
     if (generatingRef.current) return;
     generatingRef.current = true;
-    setGenerating(true);
+    setGeneratingInvite(true);
     try {
       const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
       for (let attempt = 0; attempt < 6; attempt++) {
@@ -153,11 +224,11 @@ export function ProfileDialog({
       toast.error(e instanceof Error ? e.message : "Erro ao gerar código.");
     } finally {
       generatingRef.current = false;
-      setGenerating(false);
+      setGeneratingInvite(false);
     }
   };
 
-  const copyCode = async () => {
+  const copyInviteCode = async () => {
     if (!inviteCode) return;
     await navigator.clipboard.writeText(inviteCode);
     toast.success("Código copiado");
@@ -227,11 +298,11 @@ export function ProfileDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) requestClose(); }}>
-      <DialogContent className="sm:max-w-[420px]">
+      <DialogContent className="sm:max-w-[460px]">
         <DialogHeader>
           <DialogTitle>Meu Perfil</DialogTitle>
           <DialogDescription className="sr-only">
-            Edite os dados do seu perfil, PIX, código de convite e preferências de aviso.
+            Edite os dados do seu perfil, PIX, pagamentos e geração de códigos.
           </DialogDescription>
         </DialogHeader>
 
@@ -249,174 +320,247 @@ export function ProfileDialog({
           </div>
         ) : (
           <div className="space-y-3 py-2">
-            {platformStatus && (
-              <div
-                className={`rounded-xl border px-3 py-2.5 flex items-start gap-2.5 ${
-                  platformStatus === "blocked"
-                    ? "border-destructive/20 bg-destructive/10 text-destructive"
-                    : "border-warning/20 bg-warning/10 text-warning"
-                }`}
-              >
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold">
-                    {platformStatus === "blocked" ? "Assinatura da plataforma bloqueada" : "Assinatura da plataforma pendente"}
-                  </p>
-                  {platformCharges.length > 0 && (
-                    <p className="text-[11px] mt-0.5 opacity-90">
-                      {platformCharges.map((c) => `${c.period} — R$ ${Number(c.amount).toFixed(2)}`).join(" · ")}
+            <Tabs defaultValue="dados" className="space-y-3">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="dados" className="text-xs">Dados pessoais</TabsTrigger>
+                <TabsTrigger value="pagamentos" className="text-xs">Pagamentos</TabsTrigger>
+                <TabsTrigger value="codigos" className="text-xs">Geração de código</TabsTrigger>
+              </TabsList>
+
+              {/* ── Dados pessoais ── */}
+              <TabsContent value="dados" className="space-y-3">
+                <div>
+                  <Label className="text-xs">Nome completo</Label>
+                  <Input
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    maxLength={FULL_NAME_MAX_LENGTH}
+                    className="mt-1 h-9 text-sm"
+                  />
+                  {!trimmedName && (
+                    <p className="text-[10px] text-destructive mt-1">O nome não pode ficar em branco.</p>
+                  )}
+                </div>
+                <div>
+                  <Label className="text-xs">Nome da equipe / empresa</Label>
+                  <Input
+                    value={teamName}
+                    onChange={(e) => setTeamName(e.target.value)}
+                    placeholder="Ex: Equipe Performance"
+                    maxLength={TEAM_NAME_MAX_LENGTH}
+                    className="mt-1 h-9 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">E-mail de notificação</Label>
+                  <Input
+                    type="email"
+                    value={notificationEmail}
+                    onChange={(e) => setNotificationEmail(e.target.value)}
+                    placeholder="Para onde os alunos te contatam"
+                    maxLength={NOTIFICATION_EMAIL_MAX_LENGTH}
+                    className="mt-1 h-9 text-sm"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">Visível para os alunos como seu contato.</p>
+                </div>
+
+                <div>
+                  <Label className="text-xs text-success font-bold">WhatsApp para dúvidas</Label>
+                  <Input
+                    value={supportWhatsapp}
+                    onChange={(e) => setSupportWhatsapp(e.target.value)}
+                    placeholder="Ex: 13991842023 (DDD + número)"
+                    maxLength={20}
+                    className="mt-1 h-9 text-sm"
+                  />
+                  {whatsappError ? (
+                    <p className="text-[10px] text-destructive mt-1">{whatsappError}</p>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Se preenchido, o aluno vê um botão de WhatsApp que fala direto com você. Em branco, o botão não aparece.
                     </p>
                   )}
-                  {onOpenFinances && (
-                    <Button
-                      type="button"
-                      variant="link"
-                      size="sm"
-                      className="h-auto p-0 mt-1 text-[11px] underline"
-                      onClick={() => { onOpenFinances(); onClose(); }}
-                    >
-                      Ver detalhes na aba Financeiro
-                    </Button>
+                </div>
+
+                <div>
+                  <Label className="text-xs text-warning font-bold">Chave PIX</Label>
+                  <Input
+                    value={pixKey}
+                    onChange={(e) => setPixKey(e.target.value)}
+                    placeholder="Email, CPF..."
+                    maxLength={PIX_KEY_MAX_LENGTH}
+                    className="mt-1 h-9 text-sm border-amber-500/30"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Nome do recebedor (PIX)</Label>
+                    <Input
+                      value={pixHolderName}
+                      onChange={(e) => setPixHolderName(e.target.value.slice(0, 25))}
+                      placeholder="Como aparece no banco"
+                      maxLength={25}
+                      className="mt-1 h-9 text-sm"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">Até 25 caracteres. Usado no QR Code.</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Cidade (PIX)</Label>
+                    <Input
+                      value={pixCity}
+                      onChange={(e) => setPixCity(e.target.value.slice(0, 15))}
+                      placeholder="Ex: SAO PAULO"
+                      maxLength={15}
+                      className="mt-1 h-9 text-sm"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">Até 15 caracteres.</p>
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-xs text-success font-bold">Intervalo de feedback</Label>
+                  <p className="text-[11px] text-muted-foreground mb-1">A cada quantos dias você quer receber feedback dos alunos?</p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number" min={1} max={60} value={feedbackIntervalDays}
+                      onChange={(e) => setFeedbackIntervalDays(Math.min(60, Math.max(1, Number(e.target.value) || 7)))}
+                      className="h-9 text-sm w-16 text-center"
+                    />
+                    <span className="text-xs text-muted-foreground">dias</span>
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* ── Pagamentos ── */}
+              <TabsContent value="pagamentos" className="space-y-3">
+                {platformStatus && (
+                  <div
+                    className={`rounded-xl border px-3 py-2.5 flex items-start gap-2.5 ${
+                      platformStatus === "blocked"
+                        ? "border-destructive/20 bg-destructive/10 text-destructive"
+                        : "border-warning/20 bg-warning/10 text-warning"
+                    }`}
+                  >
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold">
+                        {platformStatus === "blocked" ? "Assinatura da plataforma bloqueada" : "Assinatura da plataforma pendente"}
+                      </p>
+                      {platformCharges.length > 0 && (
+                        <p className="text-[11px] mt-0.5 opacity-90">
+                          {platformCharges.map((c) => `${c.period} — R$ ${Number(c.amount).toFixed(2)}`).join(" · ")}
+                        </p>
+                      )}
+                      {onOpenFinances && (
+                        <Button
+                          type="button"
+                          variant="link"
+                          size="sm"
+                          className="h-auto p-0 mt-1 text-[11px] underline"
+                          onClick={() => { onOpenFinances(); onClose(); }}
+                        >
+                          Ver detalhes na aba Financeiro
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <Label className="text-xs text-primary font-bold">Aviso de cobrança</Label>
+                  <p className="text-[11px] text-muted-foreground mb-1">
+                    Quantos dias antes do vencimento o aluno recebe o alerta de cobrança.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number" min={1} max={30} value={billingAlertDays}
+                      onChange={(e) => setBillingAlertDays(Math.min(30, Math.max(1, Number(e.target.value) || 7)))}
+                      className="h-9 text-sm w-16 text-center"
+                    />
+                    <span className="text-xs text-muted-foreground">dias antes</span>
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* ── Geração de código ── */}
+              <TabsContent value="codigos" className="space-y-4">
+                <div className="rounded-lg border border-border bg-card/40 p-3 space-y-2">
+                  <Label className="text-xs text-primary uppercase tracking-wider">Código de convite</Label>
+                  <p className="text-[11px] text-muted-foreground">Compartilhe com seus alunos.</p>
+                  <div className="flex gap-2">
+                    <Input
+                      value={inviteCode}
+                      onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                      placeholder="EX: ELITE26"
+                      maxLength={12}
+                      className="h-9 text-sm font-mono tracking-widest uppercase"
+                    />
+                    <Button type="button" variant="outline" size="sm" onClick={generateInviteCode} disabled={generatingInvite}>{generatingInvite ? "..." : "Gerar"}</Button>
+                    <Button type="button" variant="outline" size="sm" onClick={copyInviteCode} disabled={!inviteCode}>Copiar</Button>
+                  </div>
+                  {inviteCodeHasAmbiguousChars && (
+                    <p className="text-[10px] text-warning">
+                      Contém caracteres parecidos entre si (0/O, 1/I) — pode confundir o aluno ao digitar.
+                    </p>
                   )}
                 </div>
-              </div>
-            )}
 
-            <div>
-              <Label className="text-xs">Nome completo</Label>
-              <Input
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                maxLength={FULL_NAME_MAX_LENGTH}
-                className="mt-1 h-9 text-sm"
-              />
-              {!trimmedName && (
-                <p className="text-[10px] text-destructive mt-1">O nome não pode ficar em branco.</p>
-              )}
-            </div>
-            <div>
-              <Label className="text-xs">Nome da equipe / empresa</Label>
-              <Input
-                value={teamName}
-                onChange={(e) => setTeamName(e.target.value)}
-                placeholder="Ex: Equipe Performance"
-                maxLength={TEAM_NAME_MAX_LENGTH}
-                className="mt-1 h-9 text-sm"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">E-mail de notificação</Label>
-              <Input
-                type="email"
-                value={notificationEmail}
-                onChange={(e) => setNotificationEmail(e.target.value)}
-                placeholder="Para onde os alunos te contatam"
-                maxLength={NOTIFICATION_EMAIL_MAX_LENGTH}
-                className="mt-1 h-9 text-sm"
-              />
-              <p className="text-[10px] text-muted-foreground mt-1">Visível para os alunos como seu contato.</p>
-            </div>
+                <div className="space-y-2.5">
+                  <h3 className="text-sm font-bold flex items-center gap-2"><Ticket className="w-4 h-4 text-primary" /> Gerar código de acesso</h3>
+                  <select
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 text-base md:text-sm"
+                    value={codeMode}
+                    onChange={(e) => setCodeMode(e.target.value as CodeMode)}
+                  >
+                    <option value="student">Código de aluno</option>
+                    <option value="referral">Indicação (crédito para influenciadora)</option>
+                    <option value="partner">Convite de parceria (vira influenciadora)</option>
+                  </select>
 
-            <div>
-              <Label className="text-xs text-success font-bold">WhatsApp para dúvidas</Label>
-              <Input
-                value={supportWhatsapp}
-                onChange={(e) => setSupportWhatsapp(e.target.value)}
-                placeholder="Ex: 13991842023 (DDD + número)"
-                maxLength={20}
-                className="mt-1 h-9 text-sm"
-              />
-              {whatsappError ? (
-                <p className="text-[10px] text-destructive mt-1">{whatsappError}</p>
-              ) : (
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  Se preenchido, o aluno vê um botão de WhatsApp que fala direto com você. Em branco, o botão não aparece.
-                </p>
-              )}
-            </div>
+                  {codeMode === "referral" && (
+                    <select
+                      className="w-full h-10 rounded-md border border-input bg-background px-3 text-base md:text-sm"
+                      value={codePartner}
+                      onChange={(e) => setCodePartner(e.target.value)}
+                    >
+                      <option value="">Selecione a influenciadora…</option>
+                      {activePartners.map((p) => (
+                        <option key={p.user_id} value={p.user_id}>{partnerName(p.user_id)}</option>
+                      ))}
+                    </select>
+                  )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs text-warning font-bold">Chave PIX</Label>
-                <Input
-                  value={pixKey}
-                  onChange={(e) => setPixKey(e.target.value)}
-                  placeholder="Email, CPF..."
-                  maxLength={PIX_KEY_MAX_LENGTH}
-                  className="mt-1 h-9 text-sm border-amber-500/30"
-                />
-              </div>
-              <div>
-                <Label className="text-xs text-primary font-bold">Aviso de cobrança</Label>
-                <div className="flex items-center gap-2 mt-1">
-                  <Input
-                    type="number" min={1} max={30} value={billingAlertDays}
-                    onChange={(e) => setBillingAlertDays(Math.min(30, Math.max(1, Number(e.target.value) || 7)))}
-                    className="h-9 text-sm w-16 text-center"
-                  />
-                  <span className="text-xs text-muted-foreground">dias antes</span>
+                  {codeMode === "partner" && (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number" min={0} max={100} step="0.5"
+                        placeholder="Comissão %"
+                        value={codeCommissionPct}
+                        onChange={(e) => setCodeCommissionPct(e.target.value)}
+                      />
+                      <span className="text-xs text-muted-foreground shrink-0">% comissão</span>
+                    </div>
+                  )}
+
+                  <Input placeholder="Nome da aluna / parceira (opcional)" value={codeNote} onChange={(e) => setCodeNote(e.target.value)} />
+
+                  <Button onClick={generateAccessCode} disabled={codeBusy} className="w-full gap-1.5">
+                    {codeBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Gerar código
+                  </Button>
+
+                  <p className="text-[11px] text-muted-foreground">
+                    {codeMode === "partner"
+                      ? "Ao usar este código no cadastro, a pessoa já entra como influenciadora ativa com a comissão definida acima."
+                      : codeMode === "referral"
+                        ? "Código para um novo aluno. A indicação é registrada automaticamente para a influenciadora escolhida."
+                        : "Código para um novo aluno, sem influenciadora vinculada."}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Os códigos já gerados aparecem na aba Parcerias, dentro de Minhas influenciadoras.
+                  </p>
                 </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Nome do recebedor (PIX)</Label>
-                <Input
-                  value={pixHolderName}
-                  onChange={(e) => setPixHolderName(e.target.value.slice(0, 25))}
-                  placeholder="Como aparece no banco"
-                  maxLength={25}
-                  className="mt-1 h-9 text-sm"
-                />
-                <p className="text-[10px] text-muted-foreground mt-1">Até 25 caracteres. Usado no QR Code.</p>
-              </div>
-              <div>
-                <Label className="text-xs">Cidade (PIX)</Label>
-                <Input
-                  value={pixCity}
-                  onChange={(e) => setPixCity(e.target.value.slice(0, 15))}
-                  placeholder="Ex: SAO PAULO"
-                  maxLength={15}
-                  className="mt-1 h-9 text-sm"
-                />
-                <p className="text-[10px] text-muted-foreground mt-1">Até 15 caracteres.</p>
-              </div>
-            </div>
-
-            <div>
-              <Label className="text-xs text-success font-bold">Intervalo de feedback</Label>
-              <p className="text-[11px] text-muted-foreground mb-1">A cada quantos dias você quer receber feedback dos alunos?</p>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number" min={1} max={60} value={feedbackIntervalDays}
-                  onChange={(e) => setFeedbackIntervalDays(Math.min(60, Math.max(1, Number(e.target.value) || 7)))}
-                  className="h-9 text-sm w-16 text-center"
-                />
-                <span className="text-xs text-muted-foreground">dias</span>
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-border bg-card/40 p-3 space-y-2">
-              <Label className="text-xs text-primary uppercase tracking-wider">Código de convite</Label>
-              <p className="text-[11px] text-muted-foreground">Compartilhe com seus alunos.</p>
-              <div className="flex gap-2">
-                <Input
-                  value={inviteCode}
-                  onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                  placeholder="EX: ELITE26"
-                  maxLength={12}
-                  className="h-9 text-sm font-mono tracking-widest uppercase"
-                />
-                <Button type="button" variant="outline" size="sm" onClick={generateCode} disabled={generating}>{generating ? "..." : "Gerar"}</Button>
-                <Button type="button" variant="outline" size="sm" onClick={copyCode} disabled={!inviteCode}>Copiar</Button>
-              </div>
-              {inviteCodeHasAmbiguousChars && (
-                <p className="text-[10px] text-warning">
-                  Contém caracteres parecidos entre si (0/O, 1/I) — pode confundir o aluno ao digitar.
-                </p>
-              )}
-            </div>
+              </TabsContent>
+            </Tabs>
 
             <Button onClick={save} disabled={!canSave} className="w-full">
               {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
