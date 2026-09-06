@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, Check, Copy, Heart, Loader2, Percent, Plus, Ticket, Users, Wallet } from "lucide-react";
+import { Ban, Check, Copy, Heart, Percent, Users, Wallet } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
@@ -30,10 +30,6 @@ export function PartnersTab({ coachId }: { coachId: string | null }) {
   const { data: codes = [] } = useCoachAccessCodes(coachId);
   const { data: commissions = [] } = usePartnerCommissions({ coachId });
 
-  const [kind, setKind] = useState<"student" | "partner">("student");
-  const [selectedPartner, setSelectedPartner] = useState<string>("");
-  const [commissionPct, setCommissionPct] = useState<string>("10");
-  const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<Record<string, string>>({});
 
@@ -82,40 +78,6 @@ export function PartnersTab({ coachId }: { coachId: string | null }) {
     });
     return { pending, paid };
   }, [commissions]);
-
-  const generateCode = async () => {
-    let commissionBp: number | null = null;
-    if (kind === "partner") {
-      const pct = Number(String(commissionPct).replace(",", "."));
-      if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
-        toast({ title: "Comissão inválida", description: "Informe um valor entre 0 e 100%.", variant: "destructive" });
-        return;
-      }
-      commissionBp = Math.round(pct * 100);
-    }
-
-    setBusy(true);
-    const { data, error } = await supabase.functions.invoke("generate-access-code", {
-      body: {
-        kind,
-        partnerId: kind === "student" ? selectedPartner || null : null,
-        commission_bp: commissionBp,
-        note: note || null,
-      },
-    });
-    setBusy(false);
-    if (error) {
-      toast({ title: "Não foi possível gerar o código", description: error.message, variant: "destructive" });
-      return;
-    }
-    setNote("");
-    qc.invalidateQueries({ queryKey: queryKeys.coachAccessCodes(coachId) });
-    const code = (data as { accessCode?: { code?: string } })?.accessCode?.code;
-    if (code) {
-      navigator.clipboard?.writeText(code).catch(() => undefined);
-      toast({ title: `Código ${code} gerado`, description: "Copiado para a área de transferência." });
-    }
-  };
 
   const saveCommission = async (userId: string) => {
     const pct = Number(String(editing[userId] ?? "").replace(",", "."));
@@ -192,7 +154,7 @@ export function PartnersTab({ coachId }: { coachId: string | null }) {
         {isLoading && <p className="text-xs text-muted-foreground">Carregando…</p>}
         {!isLoading && partners.length === 0 && (
           <p className="text-xs text-muted-foreground">
-            Nenhuma influenciadora ainda. Gere um “Convite de parceria” abaixo e envie o código para ela.
+            Nenhuma influenciadora ainda. Gere um “Convite de parceria” no seu Perfil e envie o código para ela.
           </p>
         )}
         <div className="space-y-1.5">
@@ -238,49 +200,12 @@ export function PartnersTab({ coachId }: { coachId: string | null }) {
         </div>
       </CardContent></Card>
 
-      {/* Geração de código */}
+      {/* Códigos gerados — a geração em si mora no Perfil (aba Geração de código) */}
       <Card><CardContent className="p-4 space-y-3">
-        <h3 className="text-sm font-bold flex items-center gap-2"><Ticket className="w-4 h-4 text-primary" /> Gerar código de acesso</h3>
-        <div className="grid md:grid-cols-3 gap-2">
-          <select
-            className="h-10 rounded-md border border-input bg-background px-3 text-base md:text-sm"
-            value={kind}
-            onChange={(e) => setKind(e.target.value as "student" | "partner")}
-          >
-            <option value="student">Código de aluno</option>
-            <option value="partner">Convite de parceria (vira influenciadora)</option>
-          </select>
-          {kind === "student" ? (
-            <select
-              className="h-10 rounded-md border border-input bg-background px-3 text-base md:text-sm"
-              value={selectedPartner}
-              onChange={(e) => setSelectedPartner(e.target.value)}
-            >
-              <option value="">Sem influenciadora (código direto)</option>
-              {partners.filter((p) => p.status === "active").map((p) => (
-                <option key={p.user_id} value={p.user_id}>{partnerName.get(p.user_id)}</option>
-              ))}
-            </select>
-          ) : (
-            <div className="flex items-center gap-2">
-              <Input
-                type="number" min={0} max={100} step="0.5"
-                placeholder="Comissão %"
-                value={commissionPct}
-                onChange={(e) => setCommissionPct(e.target.value)}
-              />
-              <span className="text-xs text-muted-foreground">% comissão</span>
-            </div>
-          )}
-          <Input placeholder="Nome da aluna / parceira" value={note} onChange={(e) => setNote(e.target.value)} />
-          <Button onClick={generateCode} disabled={busy} className="gap-1.5 md:col-start-3">
-            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Gerar código
-          </Button>
-        </div>
+        <h3 className="text-sm font-bold">Códigos gerados</h3>
         <p className="text-[11px] text-muted-foreground">
-          {kind === "partner"
-            ? "Ao usar este código no cadastro, a pessoa já entra como influenciadora ativa com a comissão definida acima."
-            : "Código para um novo aluno. Se escolher uma influenciadora, a indicação é registrada automaticamente."}
+          Para gerar um novo código (aluno, indicação ou convite de parceria), use a aba
+          “Geração de código” no seu Perfil.
         </p>
         <div className="space-y-1.5 max-h-64 overflow-y-auto">
           {codes.length === 0 && <p className="text-xs text-muted-foreground">Nenhum código gerado ainda.</p>}
