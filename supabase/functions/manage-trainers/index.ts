@@ -1,66 +1,55 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { buildCorsHeaders } from "../_shared/cors.ts";
-import { getCaller } from "../_shared/partnerAuth.ts";
-const SYSTEM_PROMPT = `Você é o assistente oficial da plataforma Elite Prime Hub.
-Responsável técnico: Prof. Rennan Gonçalves — CREF 206788-G/SP.
+type UserRoleRow = { user_id: string; role: "user" | "coach" | "admin" };
+type ListedUser = { id: string; email?: string | null; created_at?: string };
 
-REGRAS GERAIS:
-- Qualquer referência científica genérica (ACSM, NSCA, Schoenfeld e afins) é apenas literatura de consulta, NÃO a metodologia oficial do Elite Prime Hub. Nunca apresente esse conteúdo como prescrição autorizada da plataforma; a metodologia oficial é definida pelo responsável técnico.
-- Responda de forma direta e objetiva. Máximo 3 frases salvo pedido de explicação detalhada.
-- Não adicione informações extras (água, sono, dicas gerais) sem solicitação.
-- Sempre destaque termos essenciais em **negrito**.
-- Para orçamentos ou dúvidas fora do escopo: direcione para contato@eliteprimehub.com.br ou Instagram @Rennan_Eliteprime
+const errorMessage = (error: unknown) => error instanceof Error ? error.message : "Erro inesperado";
 
-━━━ MODO COACH (isCoach: true) ━━━
-Trate o coach como colega técnico de alto nível. Ele usa a plataforma para:
-1. CONSTRUIR PROTOCOLOS: aba Dieta no ProtocolBuilder — cada refeição tem seções de Carboidrato, Proteína e Gordura. Cada seção pode ter até 3 opções (Op 1 = principal, Op 2/3 = substituições). Os macros do dia somam apenas a Op 1 de cada kind.
-2. CICLO DE CARBO: ative em "Recriar Base" → o protocolo ganha dias Alto/Base/Off com percentuais configuráveis.
-3. CHECK-IN: alunos enviam métricas quinzenais + fotos (frente, costas, laterais). Coach responde com feedback textual.
-4. COMPARAÇÃO DE EVOLUÇÃO: na aba do aluno, botão "Evolução" — fotos lado a lado por pose com seletores de data.
-5. LISTA DE COMPRAS: gerada automaticamente a partir da Op 1 de cada refeição, com multiplicador de dias.
-6. SUPLEMENTOS: configuráveis por refeição na aba "Diretrizes" do protocolo.
-7. TEMPLATES: salve refeições como modelo e reutilize entre alunos.
-
-Quando o coach perguntar "como fazer X na plataforma", explique o fluxo de navegação exato.
-Quando o coach pedir análise de alunos, use os dados do coachContext fornecido.
-Quando sugerir ajustes de macros, use referências baseadas em evidências (1,8-2,2g/kg proteína para hipertrofia, déficit de 300-500kcal para cutting, etc).
-
-━━━ MODO ALUNO (isCoach: false) ━━━
-Seja objetivo, encorajador e prático.
-- Use os dados do plano ativo (calorias, macros, objetivo) para personalizar respostas.
-- Para dúvidas sobre o protocolo, explique com base nos dados fornecidos.
-- Nunca substitua orientação médica ou nutricional formal.
-- Para dúvidas sobre o plano ou ajustes: instrua a contatar o coach pela plataforma.
-- Se o aluno perguntar sobre atualizações recentes do coach (ex.: "quais foram as últimas atualizações", "o que mudou no meu treino ou dieta", "meu coach atualizou algo?"), responda com base na lista em recentCoachUpdates do contexto — resuma por data e categoria, do mais recente pro mais antigo. Se a lista estiver vazia, diga que não há atualizações recentes registradas.`;
-
-/** Reduz o contexto para caber no limite de tokens do gateway (413). */
-function compactContext(ctx: unknown): unknown {
-  if (!ctx || typeof ctx !== "object") return ctx;
-  const c = { ...(ctx as Record<string, unknown>) };
-
-  // Payloads gigantes (protocolo completo, anamnese bruta) estouram o limite.
-  if (c.activeProtocol && typeof c.activeProtocol === "object") {
-    const p = c.activeProtocol as Record<string, unknown>;
-    c.activeProtocol = { name: p.name };
+/** Registra uma ação administrativa sensível. Nunca bloqueia a operação principal. */
+async function audit(
+  adminClient: ReturnType<typeof createClient>,
+  entry: {
+    actorId?: string | null;
+    actorEmail?: string | null;
+    action: string;
+    targetUserId?: string | null;
+    targetEmail?: string | null;
+    details?: Record<string, unknown>;
+  },
+) {
+  try {
+    await adminClient.from("admin_audit_log").insert({
+      actor_id: entry.actorId ?? null,
+      actor_email: entry.actorEmail ?? null,
+      action: entry.action,
+      target_user_id: entry.targetUserId ?? null,
+      target_email: entry.targetEmail ?? null,
+      details: entry.details ?? {},
+    });
+  } catch (e) {
+    console.warn("[manage-trainers] auditoria falhou:", e instanceof Error ? e.message : e);
   }
-  delete c.anamnesis;
-  if (Array.isArray(c.recentCheckIns)) c.recentCheckIns = c.recentCheckIns.slice(0, 2);
-  if (Array.isArray(c.recentCoachUpdates)) c.recentCoachUpdates = c.recentCoachUpdates.slice(0, 5);
-  if (c.coachContext && typeof c.coachContext === "object") {
-    const cc = { ...(c.coachContext as Record<string, unknown>) };
-    if (Array.isArray(cc.students)) cc.students = cc.students.slice(0, 8);
-    if (Array.isArray(cc.recentCheckins)) cc.recentCheckins = cc.recentCheckins.slice(0, 3);
-    c.coachContext = cc;
-  }
+}
 
-  // Guarda-chuva final: nunca enviar mais que ~6k caracteres de contexto.
-  const json = JSON.stringify(c);
-  if (json.length > 6000) {
-    delete c.baselineMetrics;
-    delete c.recentCheckIns;
-  }
-  return c;
+/** Conta quantos administradores existem — usado para proteger o último admin. */
+async function countAdmins(adminClient: ReturnType<typeof createClient>): Promise<number> {
+  const { count } = await adminClient
+    .from("user_roles")
+    .select("user_id", { count: "exact", head: true })
+    .eq("role", "admin");
+  return count ?? 0;
+}
+
+function generateToken(length = 32): string {
+  // crypto.getRandomValues (não Math.random) — este token vira a credencial
+  // que autoriza registrar uma conta com role "coach" em register-via-invite.
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  let token = "";
+  for (const b of bytes) token += chars[b % chars.length];
+  return token;
 }
 
 serve(async (req) => {
@@ -68,74 +57,525 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    // O verify_jwt padrão do Supabase só exige UM jwt válido — a anon key
-    // pública (embutida no bundle do site) também passa nele. Sem esta
-    // checagem, qualquer visitante sem conta conseguia chamar esta function
-    // e consumir a GROQ_API_KEY de graça. getCaller confirma uma sessão real.
-    const caller = await getCaller(req);
-    if (!caller) {
-      return new Response(JSON.stringify({ error: "Não autenticado." }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+    const authHeader = req.headers.get("Authorization");
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader || "" } },
+    });
+    
+    // Tenta pegar o usuário, mas não bloqueia imediatamente (para permitir ações públicas)
+    const { data: { user } } = await userClient.auth.getUser();
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+    const body = await req.json();
+    const { action } = body;
+
+    // Ações públicas que não exigem token JWT
+    const publicActions = ["list-coaches", "validate-coach-invite", "register-via-invite"];
+    // "find-student-by-email" foi tirado daqui: ela usa auth.admin.listUsers()
+    // (lista a base inteira de usuários) para trocar a senha de qualquer
+    // conta (fluxo de AdminPasswordManager.tsx, que é admin-only) — não devia
+    // nunca ter sido liberada pra "coach" também, já que nenhuma tela de
+    // coach chama essa ação e ela não filtra por coach_students. Sem essa
+    // ação aqui, ela cai no ramo padrão (só isAdmin) lá embaixo.
+    const coachActions: string[] = [];
+
+    let isAdmin = false;
+    let isCoach = false;
+
+    if (user) {
+      const { data: adminData } = await adminClient.rpc("has_role", { _user_id: user.id, _role: "admin" });
+      isAdmin = adminData;
+      const { data: coachData } = await adminClient.rpc("has_role", { _user_id: user.id, _role: "coach" });
+      isCoach = coachData;
+    }
+
+    // Validação de Permissões baseada na ação
+    if (!publicActions.includes(action)) {
+      if (!user) throw new Error("Não autenticado");
+      if (coachActions.includes(action)) {
+        if (!isAdmin && !isCoach) throw new Error("Acesso negado");
+      } else {
+        if (!isAdmin) throw new Error("Acesso negado");
+      }
+    }
+
+    // ── VALIDATE COACH INVITE (public) ──
+    if (action === "validate-coach-invite") {
+      const { token } = body;
+      if (!token) throw new Error("Token é obrigatório");
+
+      const { data: invite } = await adminClient
+        .from("coach_invites")
+        .select("id, email, expires_at, used_at")
+        .eq("token", token)
+        .maybeSingle();
+
+      if (!invite) return new Response(JSON.stringify({ valid: false, reason: "Token inválido" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      if (invite.used_at) return new Response(JSON.stringify({ valid: false, reason: "Token já utilizado" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      if (new Date(invite.expires_at) < new Date()) return new Response(JSON.stringify({ valid: false, reason: "Token expirado" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+      return new Response(JSON.stringify({ valid: true, invite_id: invite.id, email: invite.email }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { messages, athleteContext } = await req.json();
+    // ── REGISTER VIA INVITE (public) ──
+    if (action === "register-via-invite") {
+      const { token, fullName, teamName, password, notificationEmail: bodyNotifEmail } = body;
+      if (!token || !fullName || !password) throw new Error("Dados incompletos");
 
-    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
-    if (!GROQ_API_KEY) throw new Error("GROQ_API_KEY is not configured");
+      const { data: invite } = await adminClient.from("coach_invites").select("*").eq("token", token).maybeSingle();
+      if (!invite || invite.used_at || new Date(invite.expires_at) < new Date()) {
+        throw new Error("Token inválido ou expirado");
+      }
+      if (!invite.email) throw new Error("Convite não possui e-mail vinculado");
 
-    let systemContent = SYSTEM_PROMPT;
-    if (athleteContext) {
-      systemContent += `\n\nDADOS E CONTEXTO DO USUÁRIO ATUAL:\n${JSON.stringify(compactContext(athleteContext))}`;
+      // 1. Cria usuário
+      const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
+        email: invite.email,
+        password: password,
+        email_confirm: true,
+        user_metadata: { full_name: fullName },
+      });
+      if (createError) throw createError;
+
+      // 2. Define Role
+      await adminClient.from("user_roles").insert({ user_id: newUser.user.id, role: "coach" });
+      
+      // 3. Define Profile com 30 dias de trial
+      const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      await adminClient.from("profiles").upsert({
+        user_id: newUser.user.id,
+        full_name: fullName,
+        team_name: teamName || null,
+        email: invite.email,
+        notification_email: bodyNotifEmail || invite.email,
+        trial_ends_at: trialEndsAt
+      });
+
+      // 4. Invalida Token
+      await adminClient.from("coach_invites").update({ used_at: new Date().toISOString() }).eq("id", invite.id);
+
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Só as últimas trocas — histórico longo também estoura o limite de tokens.
-    const recent = (Array.isArray(messages) ? messages : []).slice(-8);
+    // ── FIND STUDENT BY EMAIL (coach linking) ──
+    if (action === "find-student-by-email") {
+      const { email } = body;
+      if (!email) throw new Error("Email é obrigatório");
 
-    const chatMessages = [
-      { role: "system", content: systemContent },
-      ...recent.map((m: { role: string; content: string }) => ({
-        role: m.role === "assistant" ? "assistant" : "user",
-        content: String(m.content ?? "").slice(0, 4000),
-      })),
-    ];
+      const { data: list, error: listErr } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 200 });
+      if (listErr) throw listErr;
 
-    const response = await fetch(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${GROQ_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "qwen/qwen3.6-27b",
-          messages: chatMessages,
-          stream: true,
-          reasoning_effort: "none",
+      const match = (list.users as ListedUser[]).find(
+        (u) => (u.email || "").toLowerCase() === String(email).toLowerCase()
+      );
+      if (!match) return new Response(JSON.stringify({ student: null }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+      const { data: profile } = await adminClient.from("profiles").select("full_name").eq("user_id", match.id).maybeSingle();
+      const { data: studentProfile } = await adminClient.from("student_profiles").select("full_name").eq("user_id", match.id).maybeSingle();
+
+      return new Response(
+        JSON.stringify({ student: { id: match.id, email: match.email, full_name: studentProfile?.full_name || profile?.full_name || match.email } }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── LIST coaches/trainers ──
+    if (action === "list") {
+      const { data: roles } = await adminClient.from("user_roles").select("user_id, role").in("role", ["user", "coach"]);
+      const roleRows = (roles || []) as UserRoleRow[];
+      const userIds = roleRows.map((r) => r.user_id).filter((id: string) => id !== user?.id);
+
+      const trainers = [];
+      for (const id of userIds) {
+        const { data: { user: trainerUser } } = await adminClient.auth.admin.getUserById(id);
+        if (trainerUser) {
+          const { data: profile } = await adminClient.from("profiles").select("full_name, team_name, notification_email, invite_code, trial_ends_at, blocked_until").eq("user_id", id).maybeSingle();
+          const role = roleRows.find((r) => r.user_id === id)?.role || "user";
+          trainers.push({
+            id: trainerUser.id,
+            email: trainerUser.email,
+            full_name: profile?.full_name || null,
+            team_name: profile?.team_name || null,
+            notification_email: profile?.notification_email || null,
+            invite_code: profile?.invite_code || null,
+            trial_ends_at: profile?.trial_ends_at || null,
+            blocked_until: profile?.blocked_until || null,
+            role,
+            created_at: trainerUser.created_at,
+          });
+        }
+      }
+
+      return new Response(JSON.stringify({ trainers }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ── BLOCK USER ──
+    if (action === "block-user") {
+      const { trainerId, blockedUntil } = body;
+      if (!trainerId) throw new Error("ID do usuário é obrigatório");
+
+      const { error } = await adminClient.from("profiles").update({ blocked_until: blockedUntil || null }).eq("user_id", trainerId);
+      if (error) throw error;
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ── UNBLOCK USER ──
+    if (action === "unblock-user") {
+      const { trainerId } = body;
+      if (!trainerId) throw new Error("ID do usuário é obrigatório");
+
+      const { error } = await adminClient.from("profiles").update({ blocked_until: null }).eq("user_id", trainerId);
+      if (error) throw error;
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ── GENERATE COACH INVITE (WITH RESEND EMAIL) ──
+    if (action === "generate-coach-invite") {
+      const { email, expiresInDays = 7, note = "" } = body;
+      if (!email) throw new Error("O e-mail do coach é obrigatório");
+
+      const token = generateToken(32);
+      const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000).toISOString();
+
+      const { data, error } = await adminClient
+        .from("coach_invites")
+        .insert({ email, token, created_by: user!.id, expires_at: expiresAt, note: note || null })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Integração com Resend para envio do link
+      const resendKey = Deno.env.get("RESEND_API_KEY");
+      let emailSent = false;
+      let emailError: string | null = null;
+      const origin = req.headers.get("origin") || "https://app.eliteprimehub.com.br";
+      const inviteLink = `${origin}/register?invite=${token}`;
+
+      if (!resendKey) {
+        emailError = "RESEND_API_KEY não configurada";
+      } else {
+        try {
+          const r = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              from: "Elite Prime Hub <noreply@eliteprimehub.com.br>",
+              to: [email],
+              subject: "Convite Exclusivo — Elite Prime Hub",
+              html: `
+                <div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;background:#0a0a0a;color:#fff;border-radius:12px;">
+                  <h2 style="color:#fff;margin:0 0 12px;">Você foi convidado para ser Coach no Elite Prime <span style="color:#E11D48;">Hub</span></h2>
+                  <p style="color:#cbd5e1;line-height:1.55;">Clique no botão abaixo para criar sua conta e iniciar seu período de teste de <strong>30 dias</strong>:</p>
+                  <p style="margin:24px 0;">
+                    <a href="${inviteLink}" style="display:inline-block;padding:12px 22px;background:#E11D48;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Aceitar Convite</a>
+                  </p>
+                  <p style="color:#94a3b8;font-size:12px;">Ou copie e cole este link no navegador:<br/>${inviteLink}</p>
+                  <p style="color:#64748b;font-size:11px;margin-top:24px;">Este convite expira em ${expiresInDays} dia(s) e só pode ser usado uma vez.</p>
+                </div>
+              `,
+            }),
+          });
+          if (!r.ok) {
+            const txt = await r.text();
+            emailError = `Resend ${r.status}: ${txt}`;
+          } else {
+            emailSent = true;
+          }
+        } catch (e) {
+          emailError = e instanceof Error ? e.message : "Falha ao enviar e-mail";
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, invite: data, inviteLink, emailSent, emailError }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── LIST INVITES ──
+    if (action === "list-invites") {
+      const { data, error } = await adminClient.from("coach_invites").select("*").order("created_at", { ascending: false }).limit(50);
+      if (error) throw error;
+      return new Response(JSON.stringify({ invites: data || [] }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ── LIST ACCESS LOGS ──
+    if (action === "list-access-logs") {
+      const { limit = 100 } = body;
+      const { data, error } = await adminClient.from("access_logs").select("*").order("accessed_at", { ascending: false }).limit(limit);
+      if (error) throw error;
+
+      const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+      const onlineNow = (data || []).filter((l: { accessed_at: string }) => l.accessed_at >= fifteenMinAgo);
+
+      return new Response(JSON.stringify({ logs: data || [], online_now: onlineNow }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ── CREATE trainer/coach (MÁQUINA DIRETA) ──
+    if (action === "create") {
+      const { email, password, fullName, teamName, notificationEmail, role: targetRole } = body;
+      if (!email || !password || !fullName) throw new Error("Email, senha e nome são obrigatórios");
+
+      const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { full_name: fullName } });
+      if (createError) throw createError;
+
+      const assignRole = targetRole === "coach" ? "coach" : "user";
+      await adminClient.from("user_roles").delete().eq("user_id", newUser.user.id);
+      await adminClient.from("user_roles").insert({ user_id: newUser.user.id, role: assignRole });
+
+      const trialEndsAt = assignRole === "coach" ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null;
+      await adminClient.from("profiles").upsert({
+        user_id: newUser.user.id,
+        full_name: fullName,
+        team_name: teamName || null,
+        email,
+        notification_email: notificationEmail || email,
+        ...(trialEndsAt ? { trial_ends_at: trialEndsAt } : {}),
+      }, { onConflict: "user_id" });
+
+      return new Response(JSON.stringify({ success: true, userId: newUser.user.id }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ── UPDATE PASSWORD ──
+    if (action === "update-password") {
+      const { trainerId, password } = body;
+      if (!trainerId) throw new Error("ID do profissional é obrigatório");
+      if (!password || String(password).length < 6) throw new Error("A senha deve ter no mínimo 6 caracteres");
+
+      const { error } = await adminClient.auth.admin.updateUserById(trainerId, { password: String(password) });
+      if (error) throw error;
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ── DELETE ──
+    if (action === "delete") {
+      const { trainerId } = body;
+      if (!trainerId) throw new Error("ID do treinador é obrigatório");
+      if (trainerId === user?.id) throw new Error("Não é possível remover a si mesmo");
+
+      const { data: targetRoles } = await adminClient.from("user_roles").select("role").eq("user_id", trainerId);
+      const targetIsAdmin = (targetRoles || []).some((r: { role: string }) => r.role === "admin");
+      if (targetIsAdmin && (await countAdmins(adminClient)) <= 1) {
+        throw new Error("Não é possível remover o último administrador");
+      }
+
+      const { data: { user: targetUser } } = await adminClient.auth.admin.getUserById(trainerId);
+      const { error } = await adminClient.auth.admin.deleteUser(trainerId);
+      if (error) throw error;
+
+      await audit(adminClient, {
+        actorId: user?.id, actorEmail: user?.email,
+        action: "delete-user", targetUserId: trainerId, targetEmail: targetUser?.email ?? null,
+        details: { roles: (targetRoles || []).map((r: { role: string }) => r.role) },
+      });
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ── LIST USERS (painel global de usuários — admin) ──
+    // Lista TODOS os usuários de auth.users cruzados com profiles/student_profiles,
+    // user_roles e partner_profiles. Paginação server-side em cima do listUsers.
+    if (action === "list-users") {
+      const page = Math.max(1, Number(body?.page ?? 1));
+      const perPage = Math.min(200, Math.max(1, Number(body?.perPage ?? 50)));
+      const roleFilter: string | null = body?.role && body.role !== "all" ? String(body.role) : null;
+      const search = String(body?.search ?? "").trim().toLowerCase();
+
+      // Sem filtro: paginação nativa. Com filtro/busca: varre até 2000 contas e pagina em memória
+      // (o volume do projeto é pequeno; evita inconsistência entre filtro e página).
+      const collected: ListedUser[] = [];
+      if (!roleFilter && !search) {
+        const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage });
+        if (error) throw error;
+        collected.push(...(data.users as ListedUser[]));
+      } else {
+        for (let p = 1; p <= 10; p++) {
+          const { data, error } = await adminClient.auth.admin.listUsers({ page: p, perPage: 200 });
+          if (error) throw error;
+          const users = data.users as ListedUser[];
+          collected.push(...users);
+          if (users.length < 200) break;
+        }
+      }
+
+      const ids = collected.map((u) => u.id);
+      const [{ data: roles }, { data: profs }, { data: studentProfs }, { data: partners }] = await Promise.all([
+        adminClient.from("user_roles").select("user_id, role").in("user_id", ids),
+        adminClient.from("profiles").select("user_id, full_name, email, blocked_until, trial_ends_at").in("user_id", ids),
+        adminClient.from("student_profiles").select("user_id, full_name").in("user_id", ids),
+        adminClient.from("partner_profiles").select("user_id, status").in("user_id", ids),
+      ]);
+
+      const roleMap = new Map<string, string[]>();
+      ((roles || []) as UserRoleRow[]).forEach((r) => {
+        roleMap.set(r.user_id, [...(roleMap.get(r.user_id) ?? []), r.role]);
+      });
+      const profMap = new Map((profs || []).map((p: Record<string, unknown>) => [p.user_id as string, p]));
+      const studentMap = new Map((studentProfs || []).map((p: Record<string, unknown>) => [p.user_id as string, p]));
+      const partnerMap = new Map((partners || []).map((p: Record<string, unknown>) => [p.user_id as string, p]));
+
+      let rows = collected.map((u) => {
+        const prof = profMap.get(u.id) as Record<string, unknown> | undefined;
+        const student = studentMap.get(u.id) as Record<string, unknown> | undefined;
+        const partner = partnerMap.get(u.id) as Record<string, unknown> | undefined;
+        const userRoles = roleMap.get(u.id) ?? ["user"];
+        return {
+          id: u.id,
+          email: u.email ?? null,
+          full_name: (student?.full_name as string) || (prof?.full_name as string) || null,
+          roles: userRoles,
+          is_partner: !!partner,
+          partner_status: (partner?.status as string) ?? null,
+          blocked_until: (prof?.blocked_until as string) ?? null,
+          trial_ends_at: (prof?.trial_ends_at as string) ?? null,
+          created_at: u.created_at ?? null,
+        };
+      });
+
+      if (roleFilter === "partner") rows = rows.filter((r) => r.is_partner);
+      else if (roleFilter) rows = rows.filter((r) => r.roles.includes(roleFilter));
+      if (search) {
+        rows = rows.filter(
+          (r) => (r.email ?? "").toLowerCase().includes(search) || (r.full_name ?? "").toLowerCase().includes(search),
+        );
+      }
+
+      const total = rows.length;
+      if (roleFilter || search) rows = rows.slice((page - 1) * perPage, page * perPage);
+
+      return new Response(JSON.stringify({ users: rows, total, page, perPage }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── UPDATE USER (nome, e-mail, bloqueio) ──
+    if (action === "update-user") {
+      const { targetId, fullName, email, blockedUntil } = body;
+      if (!targetId) throw new Error("ID do usuário é obrigatório");
+
+      if (typeof email === "string" && email.trim()) {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) throw new Error("E-mail inválido");
+        const { error } = await adminClient.auth.admin.updateUserById(targetId, { email: email.trim() });
+        if (error) throw error;
+      }
+
+      const patch: Record<string, unknown> = { user_id: targetId };
+      if (typeof fullName === "string") patch.full_name = fullName.trim() || null;
+      if (typeof email === "string" && email.trim()) patch.email = email.trim();
+      if (blockedUntil !== undefined) patch.blocked_until = blockedUntil || null;
+      if (Object.keys(patch).length > 1) {
+        const { error } = await adminClient.from("profiles").upsert(patch, { onConflict: "user_id" });
+        if (error) throw error;
+      }
+      if (typeof fullName === "string" && fullName.trim()) {
+        await adminClient.from("student_profiles").update({ full_name: fullName.trim() }).eq("user_id", targetId);
+      }
+
+      await audit(adminClient, {
+        actorId: user?.id, actorEmail: user?.email,
+        action: "update-user", targetUserId: targetId,
+        details: { fullName: fullName ?? null, email: email ?? null, blockedUntil: blockedUntil ?? null },
+      });
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ── SET ROLE ──
+    if (action === "set-role") {
+      const { targetId, role: newRole } = body;
+      if (!targetId) throw new Error("ID do usuário é obrigatório");
+      if (!["user", "coach", "admin"].includes(newRole)) throw new Error("Papel inválido");
+      if (targetId === user?.id) throw new Error("Não é possível alterar o próprio papel");
+
+      const { data: currentRoles } = await adminClient.from("user_roles").select("role").eq("user_id", targetId);
+      const wasAdmin = (currentRoles || []).some((r: { role: string }) => r.role === "admin");
+      if (wasAdmin && newRole !== "admin" && (await countAdmins(adminClient)) <= 1) {
+        throw new Error("Não é possível rebaixar o último administrador");
+      }
+
+      await adminClient.from("user_roles").delete().eq("user_id", targetId);
+      const { error } = await adminClient.from("user_roles").insert({ user_id: targetId, role: newRole });
+      if (error) throw error;
+
+      await audit(adminClient, {
+        actorId: user?.id, actorEmail: user?.email,
+        action: "set-role", targetUserId: targetId,
+        details: { from: (currentRoles || []).map((r: { role: string }) => r.role), to: newRole },
+      });
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ── LIST ELIGIBLE (seleção de parceira/coach no painel de parcerias) ──
+    if (action === "list-eligible") {
+      const { data: roles } = await adminClient.from("user_roles").select("user_id, role");
+      const roleRows = (roles || []) as UserRoleRow[];
+      const coachIds = roleRows.filter((r) => r.role === "coach").map((r) => r.user_id);
+
+      // Candidatas a parceira: alunas com vínculo ativo a algum coach + parceiras já existentes.
+      const { data: links } = await adminClient
+        .from("coach_students").select("student_id, coach_id").eq("status", "active");
+      const { data: partners } = await adminClient.from("partner_profiles").select("user_id, coach_id, status");
+
+      const candidateIds = [...new Set([
+        ...(links || []).map((l: { student_id: string }) => l.student_id),
+        ...(partners || []).map((p: { user_id: string }) => p.user_id),
+      ])];
+      const allIds = [...new Set([...candidateIds, ...coachIds])];
+
+      const [{ data: profs }, { data: studentProfs }] = await Promise.all([
+        adminClient.from("profiles").select("user_id, full_name, email").in("user_id", allIds),
+        adminClient.from("student_profiles").select("user_id, full_name").in("user_id", allIds),
+      ]);
+      const profMap = new Map((profs || []).map((p: Record<string, unknown>) => [p.user_id as string, p]));
+      const studentMap = new Map((studentProfs || []).map((p: Record<string, unknown>) => [p.user_id as string, p]));
+      const coachOf = new Map((links || []).map((l: { student_id: string; coach_id: string }) => [l.student_id, l.coach_id]));
+      const partnerMap = new Map((partners || []).map((p: Record<string, unknown>) => [p.user_id as string, p]));
+
+      const label = (id: string) => {
+        const prof = profMap.get(id) as Record<string, unknown> | undefined;
+        const st = studentMap.get(id) as Record<string, unknown> | undefined;
+        return {
+          id,
+          full_name: (st?.full_name as string) || (prof?.full_name as string) || "Sem nome",
+          email: (prof?.email as string) ?? null,
+        };
+      };
+
+      return new Response(
+        JSON.stringify({
+          coaches: coachIds.map(label),
+          partnerCandidates: candidateIds.map((id) => {
+            const partner = partnerMap.get(id) as Record<string, unknown> | undefined;
+            return {
+              ...label(id),
+              coach_id: (partner?.coach_id as string) ?? coachOf.get(id) ?? null,
+              is_partner: !!partner,
+              partner_status: (partner?.status as string) ?? null,
+            };
+          }),
         }),
-      }
-    );
-
-    if (!response.ok) {
-      const errText = await response.text().catch(() => "(sem corpo)");
-      console.error("[fitness-chat] Groq error", response.status, errText);
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Limite excedido. Tente novamente em instantes." }), { status: 429, headers: corsHeaders });
-      }
-      if (response.status === 413) {
-        return new Response(JSON.stringify({ error: "Conversa muito longa. Limpe o chat e tente novamente." }), { status: 413, headers: corsHeaders });
-      }
-      return new Response(JSON.stringify({ error: `Erro no gateway de IA (${response.status})` }), { status: 500, headers: corsHeaders });
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
-    // Groq retorna SSE OpenAI-compatível — proxy direto para o cliente.
-    return new Response(response.body, {
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
-    });
-  } catch (e) {
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Erro desconhecido" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    // ── LIST COACHES (public-ish, for anamnesis coach selection) ──
+    if (action === "list-coaches") {
+      const { data: coachRoles } = await adminClient.from("user_roles").select("user_id").eq("role", "coach");
+      const coaches = [];
+      for (const r of coachRoles || []) {
+        const { data: profile } = await adminClient.from("profiles").select("full_name, team_name").eq("user_id", r.user_id).maybeSingle();
+        coaches.push({ id: r.user_id, full_name: profile?.full_name || "Coach", team_name: profile?.team_name || null });
+      }
+      return new Response(JSON.stringify({ coaches }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    throw new Error("Ação inválida");
+  } catch (error: unknown) {
+    return new Response(JSON.stringify({ error: errorMessage(error) }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
