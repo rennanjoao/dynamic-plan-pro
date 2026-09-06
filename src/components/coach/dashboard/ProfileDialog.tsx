@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Loader2, Plus, Ticket } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChangePasswordButton } from "@/components/ChangePasswordButton";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { useProfileRecord } from "@/hooks/useProfileRecord";
-import { useCoachPartners } from "@/hooks/usePartnerships";
+import { useCoachPartners, usePartnerDisplayNames } from "@/hooks/usePartnerships";
 import { queryKeys } from "@/lib/queryKeys";
 import type { PlatformCharge } from "@/hooks/usePlatformBilling";
 
@@ -83,19 +83,8 @@ export function ProfileDialog({
   // ── Geração de código de acesso (aluno / indicação / parceria) ──
   const { data: partners = [] } = useCoachPartners(open ? coachId : null);
   const activePartners = useMemo(() => partners.filter((p) => p.status === "active"), [partners]);
-  const { data: partnerNames = {} } = useQuery({
-    queryKey: ["coach-partner-names", partners.map((p) => p.user_id).join(",")],
-    queryFn: async (): Promise<Record<string, string>> => {
-      const ids = partners.map((p) => p.user_id);
-      if (ids.length === 0) return {};
-      const { data: rows } = await supabase.from("profiles").select("user_id, full_name").in("user_id", ids);
-      const map: Record<string, string> = {};
-      (rows ?? []).forEach((r) => { if (r.full_name) map[r.user_id] = r.full_name; });
-      return map;
-    },
-    enabled: partners.length > 0,
-  });
-  const partnerName = (id: string) => partnerNames[id] || partners.find((p) => p.user_id === id)?.pix_holder_name || id.slice(0, 8);
+  const partnerNameMap = usePartnerDisplayNames(open ? coachId : null);
+  const partnerName = (id: string) => partnerNameMap.get(id) ?? id.slice(0, 8);
 
   const [codeMode, setCodeMode] = useState<CodeMode>("student");
   const [codePartner, setCodePartner] = useState("");
@@ -320,12 +309,99 @@ export function ProfileDialog({
           </div>
         ) : (
           <div className="space-y-3 py-2">
-            <Tabs defaultValue="dados" className="space-y-3">
+            <Tabs defaultValue="pagamentos" className="space-y-3">
               <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="dados" className="text-xs">Dados pessoais</TabsTrigger>
                 <TabsTrigger value="pagamentos" className="text-xs">Pagamentos</TabsTrigger>
+                <TabsTrigger value="dados" className="text-xs">Dados pessoais</TabsTrigger>
                 <TabsTrigger value="codigos" className="text-xs">Geração de código</TabsTrigger>
               </TabsList>
+
+              {/* ── Pagamentos ── */}
+              <TabsContent value="pagamentos" className="space-y-3">
+                {platformStatus && (
+                  <div
+                    className={`rounded-xl border px-3 py-2.5 flex items-start gap-2.5 ${
+                      platformStatus === "blocked"
+                        ? "border-destructive/20 bg-destructive/10 text-destructive"
+                        : "border-warning/20 bg-warning/10 text-warning"
+                    }`}
+                  >
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold">
+                        {platformStatus === "blocked" ? "Assinatura da plataforma bloqueada" : "Assinatura da plataforma pendente"}
+                      </p>
+                      {platformCharges.length > 0 && (
+                        <p className="text-[11px] mt-0.5 opacity-90">
+                          {platformCharges.map((c) => `${c.period} — R$ ${Number(c.amount).toFixed(2)}`).join(" · ")}
+                        </p>
+                      )}
+                      {onOpenFinances && (
+                        <Button
+                          type="button"
+                          variant="link"
+                          size="sm"
+                          className="h-auto p-0 mt-1 text-[11px] underline"
+                          onClick={() => { onOpenFinances(); onClose(); }}
+                        >
+                          Ver detalhes na aba Financeiro
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <Label className="text-xs text-warning font-bold">Chave PIX</Label>
+                  <Input
+                    value={pixKey}
+                    onChange={(e) => setPixKey(e.target.value)}
+                    placeholder="Email, CPF..."
+                    maxLength={PIX_KEY_MAX_LENGTH}
+                    className="mt-1 h-9 text-sm border-amber-500/30"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Nome do recebedor (PIX)</Label>
+                    <Input
+                      value={pixHolderName}
+                      onChange={(e) => setPixHolderName(e.target.value.slice(0, 25))}
+                      placeholder="Como aparece no banco"
+                      maxLength={25}
+                      className="mt-1 h-9 text-sm"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">Até 25 caracteres. Usado no QR Code.</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Cidade (PIX)</Label>
+                    <Input
+                      value={pixCity}
+                      onChange={(e) => setPixCity(e.target.value.slice(0, 15))}
+                      placeholder="Ex: SAO PAULO"
+                      maxLength={15}
+                      className="mt-1 h-9 text-sm"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">Até 15 caracteres.</p>
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-xs text-primary font-bold">Aviso de cobrança</Label>
+                  <p className="text-[11px] text-muted-foreground mb-1">
+                    Quantos dias antes do vencimento o aluno recebe o alerta de cobrança.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number" min={1} max={30} value={billingAlertDays}
+                      onChange={(e) => setBillingAlertDays(Math.min(30, Math.max(1, Number(e.target.value) || 7)))}
+                      className="h-9 text-sm w-16 text-center"
+                    />
+                    <span className="text-xs text-muted-foreground">dias antes</span>
+                  </div>
+                </div>
+              </TabsContent>
 
               {/* ── Dados pessoais ── */}
               <TabsContent value="dados" className="space-y-3">
@@ -383,42 +459,6 @@ export function ProfileDialog({
                 </div>
 
                 <div>
-                  <Label className="text-xs text-warning font-bold">Chave PIX</Label>
-                  <Input
-                    value={pixKey}
-                    onChange={(e) => setPixKey(e.target.value)}
-                    placeholder="Email, CPF..."
-                    maxLength={PIX_KEY_MAX_LENGTH}
-                    className="mt-1 h-9 text-sm border-amber-500/30"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Nome do recebedor (PIX)</Label>
-                    <Input
-                      value={pixHolderName}
-                      onChange={(e) => setPixHolderName(e.target.value.slice(0, 25))}
-                      placeholder="Como aparece no banco"
-                      maxLength={25}
-                      className="mt-1 h-9 text-sm"
-                    />
-                    <p className="text-[10px] text-muted-foreground mt-1">Até 25 caracteres. Usado no QR Code.</p>
-                  </div>
-                  <div>
-                    <Label className="text-xs">Cidade (PIX)</Label>
-                    <Input
-                      value={pixCity}
-                      onChange={(e) => setPixCity(e.target.value.slice(0, 15))}
-                      placeholder="Ex: SAO PAULO"
-                      maxLength={15}
-                      className="mt-1 h-9 text-sm"
-                    />
-                    <p className="text-[10px] text-muted-foreground mt-1">Até 15 caracteres.</p>
-                  </div>
-                </div>
-
-                <div>
                   <Label className="text-xs text-success font-bold">Intervalo de feedback</Label>
                   <p className="text-[11px] text-muted-foreground mb-1">A cada quantos dias você quer receber feedback dos alunos?</p>
                   <div className="flex items-center gap-2">
@@ -428,56 +468,6 @@ export function ProfileDialog({
                       className="h-9 text-sm w-16 text-center"
                     />
                     <span className="text-xs text-muted-foreground">dias</span>
-                  </div>
-                </div>
-              </TabsContent>
-
-              {/* ── Pagamentos ── */}
-              <TabsContent value="pagamentos" className="space-y-3">
-                {platformStatus && (
-                  <div
-                    className={`rounded-xl border px-3 py-2.5 flex items-start gap-2.5 ${
-                      platformStatus === "blocked"
-                        ? "border-destructive/20 bg-destructive/10 text-destructive"
-                        : "border-warning/20 bg-warning/10 text-warning"
-                    }`}
-                  >
-                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-bold">
-                        {platformStatus === "blocked" ? "Assinatura da plataforma bloqueada" : "Assinatura da plataforma pendente"}
-                      </p>
-                      {platformCharges.length > 0 && (
-                        <p className="text-[11px] mt-0.5 opacity-90">
-                          {platformCharges.map((c) => `${c.period} — R$ ${Number(c.amount).toFixed(2)}`).join(" · ")}
-                        </p>
-                      )}
-                      {onOpenFinances && (
-                        <Button
-                          type="button"
-                          variant="link"
-                          size="sm"
-                          className="h-auto p-0 mt-1 text-[11px] underline"
-                          onClick={() => { onOpenFinances(); onClose(); }}
-                        >
-                          Ver detalhes na aba Financeiro
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <Label className="text-xs text-primary font-bold">Aviso de cobrança</Label>
-                  <p className="text-[11px] text-muted-foreground mb-1">
-                    Quantos dias antes do vencimento o aluno recebe o alerta de cobrança.
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number" min={1} max={30} value={billingAlertDays}
-                      onChange={(e) => setBillingAlertDays(Math.min(30, Math.max(1, Number(e.target.value) || 7)))}
-                      className="h-9 text-sm w-16 text-center"
-                    />
-                    <span className="text-xs text-muted-foreground">dias antes</span>
                   </div>
                 </div>
               </TabsContent>
