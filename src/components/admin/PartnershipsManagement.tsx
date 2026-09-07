@@ -49,8 +49,29 @@ export function PartnershipsManagement() {
     enabled: partners.length > 0,
   });
 
+  // Nome digitado por QUALQUER coach ao gerar um "Convite de parceria" —
+  // mesmo fallback do painel do coach (ver usePartnerDisplayNames), mas sem
+  // filtrar por coach_id, já que aqui é visão de admin (todas as parcerias
+  // da plataforma). O código de parceria nunca carrega partner_id na
+  // criação (ele CRIA a parceira), então o link de volta é por student_id,
+  // que o resgate grava com o user_id de quem virou parceira.
+  const { data: partnerNotes = {} } = useQuery({
+    queryKey: ["all-partner-invite-notes"],
+    queryFn: async (): Promise<Record<string, string>> => {
+      const { data } = await supabase
+        .from("access_codes")
+        .select("student_id, note")
+        .eq("kind", "partner")
+        .not("student_id", "is", null);
+      const map: Record<string, string> = {};
+      (data ?? []).forEach((r) => { if (r.student_id && r.note?.trim()) map[r.student_id] = r.note.trim(); });
+      return map;
+    },
+    enabled: partners.length > 0,
+  });
+
   const displayName = (id: string) =>
-    names[id] ?? candidates.find((c) => c.id === id)?.full_name ?? eligible?.coaches.find((c) => c.id === id)?.full_name ?? id.slice(0, 8);
+    names[id] ?? candidates.find((c) => c.id === id)?.full_name ?? eligible?.coaches.find((c) => c.id === id)?.full_name ?? partnerNotes[id] ?? id.slice(0, 8);
 
   const selectedCandidate = candidates.find((c) => c.id === form.userId) ?? null;
 
