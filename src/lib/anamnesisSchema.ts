@@ -63,7 +63,7 @@ export const ANAMNESIS_SECTIONS: AnamnesisSection[] = [
     { key: "altura", label: "Altura (cm)", placeholder: "Ex: 175" },
     { key: "peso", label: "Peso (kg)", placeholder: "Ex: 78.5" },
     { key: "pescoco", label: "Pescoço (cm)", placeholder: "Meça no meio do pescoço" },
-    { key: "cintura", label: "Cintura (cm)", placeholder: "Meça na linha do umbigo" },
+    { key: "cintura", label: "Cintura (cm)", placeholder: "Meça no ponto médio entre a última costela e a crista ilíaca" },
     { key: "quadril", label: "Quadril (cm)", placeholder: "Meça na parte mais larga" },
     { key: "braco_d_relaxado",  label: "Braço Dir. Relaxado (cm)",  type: "number", step: "0.1", half: true },
     { key: "braco_e_relaxado",  label: "Braço Esq. Relaxado (cm)",  type: "number", step: "0.1", half: true },

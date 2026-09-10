@@ -703,7 +703,7 @@ const Anamnesis = () => {
             <summary className="cursor-pointer list-none px-4 py-3 font-bold text-primary">📏 COMO MEDIR CORRETAMENTE</summary>
             <div className="px-4 pb-4 space-y-1.5 text-xs leading-relaxed">
               <p>• Pescoço: passe a fita logo abaixo do gogó (laringe), sem apertar.</p>
-              <p>• Cintura: passe a fita na altura exata do umbigo, mantendo a barriga relaxada.</p>
+              <p>• Cintura: meça no ponto médio entre a última costela e a crista ilíaca, mantendo a barriga relaxada.</p>
               <p>• Quadril: passe a fita na parte mais larga dos glúteos.</p>
               <p>• Braços: meça a parte mais grossa do braço. Relaxado = braço solto; contraído = bíceps contraído.</p>
               <p>• Coxas: meça na parte central da coxa, entre o quadril e o joelho.</p>
@@ -718,7 +718,7 @@ const Anamnesis = () => {
               <Field label="Altura (cm)"><FiInput name="altura" type="number" placeholder="170" value={g("altura")} onChange={set("altura")} /></Field>
               <Field label="Peso (kg)"><FiInput name="peso" type="number" step="0.1" placeholder="70.0" value={g("peso")} onChange={set("peso")} /></Field>
               <Field label="Pescoço (cm)"><FiInput name="pescoco" type="number" step="0.1" placeholder="38" value={g("pescoco")} onChange={set("pescoco")} /></Field>
-              <Field label="Cintura no umbigo (cm)"><FiInput name="cintura" type="number" step="0.1" placeholder="80" value={g("cintura")} onChange={set("cintura")} /></Field>
+              <Field label="Cintura (cm)"><FiInput name="cintura" type="number" step="0.1" placeholder="80" value={g("cintura")} onChange={set("cintura")} /></Field>
               <Field label="Quadril (cm)"><FiInput name="quadril" type="number" step="0.1" placeholder="98" value={g("quadril")} onChange={set("quadril")} /></Field>
               <Field label="Braço D Relaxado (cm)"><FiInput name="braco_d_relaxado" type="number" step="0.1" placeholder="Dir." value={g("braco_d_relaxado")} onChange={set("braco_d_relaxado")} /></Field>
               <Field label="Braço E Relaxado (cm)"><FiInput name="braco_e_relaxado" type="number" step="0.1" placeholder="Esq." value={g("braco_e_relaxado")} onChange={set("braco_e_relaxado")} /></Field>
