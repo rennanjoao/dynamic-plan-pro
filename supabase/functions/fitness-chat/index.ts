@@ -114,6 +114,8 @@ serve(async (req) => {
           messages: chatMessages,
           stream: true,
           reasoning_effort: "none",
+          // OTPM da conta é 1000 — sem teto, a Groq recusa o pedido com 429.
+          max_tokens: 800,
         }),
       }
     );
