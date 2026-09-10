@@ -601,7 +601,7 @@ export default function CheckIn() {
           <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 mb-4 space-y-1 text-[11px] text-muted-foreground">
             <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-1">📏 Como medir</p>
             <p>• <span className="text-foreground font-medium">Pescoço:</span> logo abaixo do "gogó".</p>
-            <p>• <span className="text-foreground font-medium">Cintura:</span> no umbigo (M) ou parte mais fina (F).</p>
+            <p>• <span className="text-foreground font-medium">Cintura:</span> no ponto médio entre a última costela e a crista ilíaca.</p>
             <p>• <span className="text-foreground font-medium">Quadril:</span> na maior protuberância dos glúteos.</p>
             <p>• Fita firme, <span className="text-foreground font-medium">sem afundar na pele</span>.</p>
           </div>
