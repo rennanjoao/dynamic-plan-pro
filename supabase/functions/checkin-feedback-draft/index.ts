@@ -10,8 +10,8 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
-    if (!GROQ_API_KEY) throw new Error("GROQ_API_KEY is not configured");
+    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY_EVAL");
+    if (!GROQ_API_KEY) throw new Error("GROQ_API_KEY_EVAL is not configured");
 
     const authHeader = req.headers.get("Authorization");
     const userClient = createClient(supabaseUrl, anonKey, {

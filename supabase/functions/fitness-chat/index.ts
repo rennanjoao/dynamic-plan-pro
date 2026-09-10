@@ -81,8 +81,9 @@ serve(async (req) => {
 
     const { messages, athleteContext } = await req.json();
 
-    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
-    if (!GROQ_API_KEY) throw new Error("GROQ_API_KEY is not configured");
+    const GROQ_KEY_NAME = athleteContext?.isCoach ? "GROQ_API_KEY_EVAL" : "GROQ_API_KEY_STUDENTS";
+    const GROQ_API_KEY = Deno.env.get(GROQ_KEY_NAME);
+    if (!GROQ_API_KEY) throw new Error(`${GROQ_KEY_NAME} is not configured`);
 
     let systemContent = SYSTEM_PROMPT;
     if (athleteContext) {
