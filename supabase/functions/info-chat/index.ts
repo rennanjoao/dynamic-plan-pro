@@ -14,9 +14,9 @@ serve(async (req: Request) => {
   }
 
   try {
-    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY_STUDENTS");
     if (!GROQ_API_KEY) {
-      return new Response(JSON.stringify({ error: "GROQ_API_KEY ausente" }), {
+      return new Response(JSON.stringify({ error: "GROQ_API_KEY_STUDENTS ausente" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
