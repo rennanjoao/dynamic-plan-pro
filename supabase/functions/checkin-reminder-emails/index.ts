@@ -97,7 +97,7 @@ Deno.serve(async (req: Request) => {
       ...new Set((links as CoachStudentLink[]).map((l) => l.coach_id).filter(Boolean) as string[]),
     ];
 
-    const [{ data: studentProfiles }, { data: coachProfiles }, { data: lastCheckins }, { data: lastAnamnesis }] =
+    const [{ data: studentProfiles }, { data: coachProfiles }, { data: lastCheckins }, { data: protocolRows }] =
       await Promise.all([
         admin.from("profiles").select("user_id, full_name, email").in("user_id", studentIds),
         admin
@@ -106,30 +106,53 @@ Deno.serve(async (req: Request) => {
           .in("user_id", coachIds.length ? coachIds : [PLACEHOLDER_UUID]),
         admin
           .from("check_ins")
-          .select("student_id, submitted_at, updated_at")
+          .select("student_id, coach_id, submitted_at, updated_at")
           .in("student_id", studentIds)
+          .or(`coach_id.in.(${coachIds.join(",")}),coach_id.is.null`)
           .order("submitted_at", { ascending: false })
           .limit(studentIds.length * 3),
         admin
-          .from("anamnesis")
-          .select("student_id, submitted_at, updated_at")
-          .in("student_id", studentIds),
+          .from("protocols")
+          .select("student_id, coach_id, student_first_viewed_at")
+          .in("student_id", studentIds)
+          .in("coach_id", coachIds.length ? coachIds : [PLACEHOLDER_UUID])
+          .eq("is_template", false)
+          .not("student_first_viewed_at", "is", null),
       ]);
 
-    const lastCheckinMsByStudent = new Map<string, number>();
-    lastCheckins?.forEach((c: { student_id: string; submitted_at: string; updated_at?: string | null }) => {
+    const linkKey = (studentId: string, coachId: string | null) => `${studentId}:${coachId ?? ""}`;
+    const lastCheckinMsByLink = new Map<string, number>();
+    const legacyCheckinMsByStudent = new Map<string, number>();
+    lastCheckins?.forEach((c: {
+      student_id: string;
+      coach_id?: string | null;
+      submitted_at: string;
+      updated_at?: string | null;
+    }) => {
       const t = effectiveTimeMs(c);
       if (!isFinite(t)) return;
-      const prev = lastCheckinMsByStudent.get(c.student_id);
-      if (prev === undefined || t > prev) lastCheckinMsByStudent.set(c.student_id, t);
+      if (!c.coach_id) {
+        const prev = legacyCheckinMsByStudent.get(c.student_id);
+        if (prev === undefined || t > prev) legacyCheckinMsByStudent.set(c.student_id, t);
+        return;
+      }
+      const key = linkKey(c.student_id, c.coach_id);
+      const prev = lastCheckinMsByLink.get(key);
+      if (prev === undefined || t > prev) lastCheckinMsByLink.set(key, t);
     });
 
-    const lastAnaMsByStudent = new Map<string, number>();
-    lastAnamnesis?.forEach((a: { student_id: string; submitted_at: string | null; updated_at?: string | null }) => {
-      const t = effectiveTimeMs(a);
+    const firstProtocolViewMsByLink = new Map<string, number>();
+    protocolRows?.forEach((p: {
+      student_id: string;
+      coach_id: string | null;
+      student_first_viewed_at?: string | null;
+    }) => {
+      if (!p.coach_id || !p.student_first_viewed_at) return;
+      const t = new Date(p.student_first_viewed_at).getTime();
       if (!isFinite(t)) return;
-      const prev = lastAnaMsByStudent.get(a.student_id);
-      if (prev === undefined || t > prev) lastAnaMsByStudent.set(a.student_id, t);
+      const key = linkKey(p.student_id, p.coach_id);
+      const prev = firstProtocolViewMsByLink.get(key);
+      if (prev === undefined || t < prev) firstProtocolViewMsByLink.set(key, t);
     });
 
     // 2) Calcula o bucket (d1 / d0 / d2) de cada aluno e monta o conteúdo
@@ -140,11 +163,11 @@ Deno.serve(async (req: Request) => {
 
     for (const link of links as CoachStudentLink[]) {
       const sid = link.student_id;
-      const anaMs = lastAnaMsByStudent.get(sid);
-      if (anaMs === undefined) continue; // sem anamnese ainda -> onboarding, não notifica
-
-      const ciMs = lastCheckinMsByStudent.get(sid);
-      const referenceMs = ciMs !== undefined ? ciMs : anaMs;
+      const key = linkKey(sid, link.coach_id);
+      const ciMs = lastCheckinMsByLink.get(key) ?? legacyCheckinMsByStudent.get(sid);
+      const firstViewedMs = firstProtocolViewMsByLink.get(key);
+      const referenceMs = ciMs ?? firstViewedMs;
+      if (referenceMs === undefined) continue; // onboarding: ainda não abriu o protocolo
       const days = daysSinceMs(referenceMs);
       if (days === null) continue;
 
