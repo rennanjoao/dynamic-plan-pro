@@ -1,6 +1,6 @@
 import type { StudentStatus } from "@/hooks/useCoachStudents";
 import { ClipboardList, Dumbbell, History, Sparkles, Settings2, X, MessageSquare } from "lucide-react";
-import { AlertBadge, ClinicalSignalBadge, InsightBadge, WeightTrendBadge } from "./dashboardUtils";
+import { AlertBadge, ClinicalSignalBadge, InsightBadge, STATUS_TEXT, WeightTrendBadge } from "./dashboardUtils";
 import { Private, usePrivacyMode } from "@/components/coach/PrivacyMode";
 
 export function StudentRow({
@@ -24,12 +24,17 @@ export function StudentRow({
   // pode ser um número pequeno normal mesmo sem check-in nenhum — só
   // lastFeedback (a data real do check-in) diz com certeza se existe um.
   const feedbackLabel = (() => {
-    if (!student.lastFeedback) return "Sem check-in registrado";
+    if (student.awaitingFirstProtocol) return "Sem check-in — ver anamnese";
     const d = student.daysSinceLastFeedback;
-    if (d <= 0) return "Último check-in: hoje";
-    if (d === 1) return "Último check-in: ontem";
-    return `Último check-in: há ${d} dias`;
+    const prefix = student.lastFeedback ? "Último check-in" : "Protocolo aberto";
+    if (d <= 0) return `${prefix}: hoje`;
+    if (d === 1) return `${prefix}: ontem`;
+    return `${prefix}: há ${d} dias`;
   })();
+
+  const feedbackStatusClass = student.awaitingFirstProtocol
+    ? "text-muted-foreground hover:bg-accent"
+    : `${STATUS_TEXT[student.alertLevel || "ok"]} ${student.alertLevel === "critical" ? "font-medium" : ""} hover:bg-accent`;
 
   const safeName = student.name || "Aluno";
   const initials = safeName.split(" ").slice(0, 2).map((n) => n[0] || "").join("");
@@ -69,16 +74,11 @@ export function StudentRow({
         <button
           type="button"
           onClick={() => (student.lastFeedback ? onLatestFeedback(student) : onAnamnesis(student))}
-          className={`text-xs flex items-center gap-1 mt-0.5 rounded px-1 -mx-1 transition-colors ${
-            !student.lastFeedback ? "text-emerald-500 font-medium hover:bg-emerald-500/10" :
-            student.daysSinceLastFeedback >= student.criticalDays ? "text-red-500 font-medium hover:bg-red-500/10" :
-            student.daysSinceLastFeedback >= student.warningDays ? "text-orange-500 hover:bg-orange-500/10" :
-            "text-emerald-500 hover:bg-emerald-500/10"
-          }`}
+          className={`text-xs flex items-center gap-1 mt-0.5 rounded px-1 -mx-1 transition-colors ${feedbackStatusClass}`}
           title={student.lastFeedback ? "Ver feedback atual" : "Ver anamnese"}
         >
           {student.lastFeedback ? <MessageSquare className="w-3 h-3" /> : <ClipboardList className="w-3 h-3" />}
-          {student.lastFeedback ? feedbackLabel : "Sem check-in — ver anamnese"}
+          {feedbackLabel}
         </button>
 
       </div>

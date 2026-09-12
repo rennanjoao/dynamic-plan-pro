@@ -61,11 +61,22 @@ function alertReason(
   criticalDays: number | undefined,
   lastFeedbackIso: string | null | undefined
 ): string {
-  if (days == null || days >= 999 || !lastFeedbackIso) {
+  if (days == null || days >= 999) {
     return "Nenhum check-in registrado ainda.";
   }
-  const dateLabel = formatDatePtBR(lastFeedbackIso);
   const dayWord = `${days} dia${days === 1 ? "" : "s"}`;
+
+  if (!lastFeedbackIso) {
+    if (level === "critical") {
+      return `Protocolo aberto há ${dayWord} — passou do limite crítico de ${criticalDays ?? "?"} dias, e o aluno ainda não enviou nenhum check-in.`;
+    }
+    if (level === "warning") {
+      return `Protocolo aberto há ${dayWord} — passou do limite de atenção de ${warningDays ?? "?"} dias sem check-in. Fica crítico em ${criticalDays ?? "?"} dias.`;
+    }
+    return `Protocolo aberto há ${dayWord} — dentro do intervalo esperado, aguardando o 1º check-in (entra em atenção com ${warningDays ?? "?"} dias).`;
+  }
+
+  const dateLabel = formatDatePtBR(lastFeedbackIso);
 
   if (level === "critical") {
     return `Último check-in em ${dateLabel} (${dayWord} atrás) — passou do limite crítico de ${criticalDays ?? "?"} dias sem feedback.`;
