@@ -192,14 +192,19 @@ export function useCoachStudentsPaged(
         supabase.from("profiles").select("user_id, full_name, email").in("user_id", ids),
         supabase
           .from("check_ins")
-          .select("student_id, submitted_at, updated_at, payload")
+          .select("student_id, coach_id, submitted_at, updated_at, payload")
           .in("student_id", ids)
+          // Registros anteriores ao trigger podem não ter coach_id. Como os
+          // alunos acima já pertencem ao vínculo ativo, esses legados entram
+          // como fallback sem misturar check-ins de outro coach identificado.
+          .or(`coach_id.eq.${coachId},coach_id.is.null`)
           .order("submitted_at", { ascending: false })
           .limit(ids.length * 3), // teto explícito, evita full-scan se aluno tiver muitos check-ins
         supabase
           .from("protocols")
           .select("student_id, created_at, student_first_viewed_at")
           .in("student_id", ids)
+          .eq("coach_id", coachId)
           .eq("is_template", false)
           .order("created_at", { ascending: true }), // o primeiro da lista por aluno = 1º protocolo salvo
       ]);
