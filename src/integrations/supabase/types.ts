@@ -1722,6 +1722,44 @@ export type Database = {
           },
         ]
       }
+      protocol_drafts: {
+        Row: {
+          base_revision: number
+          coach_id: string
+          created_at: string
+          payload: Json
+          protocol_id: string
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          base_revision?: number
+          coach_id: string
+          created_at?: string
+          payload: Json
+          protocol_id: string
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          base_revision?: number
+          coach_id?: string
+          created_at?: string
+          payload?: Json
+          protocol_id?: string
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "protocol_drafts_protocol_id_fkey"
+            columns: ["protocol_id"]
+            isOneToOne: true
+            referencedRelation: "protocols"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       protocol_import_logs: {
         Row: {
           anomalies_count: number
@@ -1757,29 +1795,41 @@ export type Database = {
       }
       protocol_versions: {
         Row: {
+          active: boolean | null
+          changed_by: string | null
           coach_id: string
           created_at: string
           id: string
           payload: Json
           protocol_id: string
+          protocol_name: string | null
+          revision: number | null
           student_id: string
           version: number
         }
         Insert: {
+          active?: boolean | null
+          changed_by?: string | null
           coach_id: string
           created_at?: string
           id?: string
           payload: Json
           protocol_id: string
+          protocol_name?: string | null
+          revision?: number | null
           student_id: string
           version: number
         }
         Update: {
+          active?: boolean | null
+          changed_by?: string | null
           coach_id?: string
           created_at?: string
           id?: string
           payload?: Json
           protocol_id?: string
+          protocol_name?: string | null
+          revision?: number | null
           student_id?: string
           version?: number
         }
@@ -1803,6 +1853,7 @@ export type Database = {
           is_template: boolean | null
           name: string
           payload: Json
+          revision: number
           student_first_viewed_at: string | null
           student_id: string | null
           template_division: string | null
@@ -1820,6 +1871,7 @@ export type Database = {
           is_template?: boolean | null
           name: string
           payload?: Json
+          revision?: number
           student_first_viewed_at?: string | null
           student_id?: string | null
           template_division?: string | null
@@ -1837,6 +1889,7 @@ export type Database = {
           is_template?: boolean | null
           name?: string
           payload?: Json
+          revision?: number
           student_first_viewed_at?: string | null
           student_id?: string | null
           template_division?: string | null
@@ -2644,6 +2697,7 @@ export type Database = {
           p_calories: number
           p_carbs: number
           p_coach_id: string
+          p_expected_revision?: number
           p_fat: number
           p_goal: string
           p_name: string
@@ -2653,7 +2707,10 @@ export type Database = {
           p_student_id: string
           p_water: number
         }
-        Returns: string
+        Returns: {
+          protocol_id: string
+          revision: number
+        }[]
       }
       save_workout_block_template: {
         Args: {
