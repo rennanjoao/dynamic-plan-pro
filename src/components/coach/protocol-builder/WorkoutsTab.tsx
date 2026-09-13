@@ -433,7 +433,8 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                       coachId={coachId}
                       currentMobility={mobilityList.map(({ ex }) => ex)}
                       onApply={(exercises) => {
-                        updDay(di, { exercises: [...day.exercises, ...exercises] });
+                        const additions = exercises.map((exercise) => exercise.__id ? exercise : { ...exercise, __id: makeEmptyExercise().__id });
+                        setPayload(applyDayExercisesChange(payload, di, [...day.exercises, ...additions]));
                         setMobOpen((s) => ({ ...s, [di]: true }));
                       }}
                     />
@@ -602,11 +603,11 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
 
             <div className="flex flex-wrap gap-2 mt-1">
               <Button size="sm" variant="outline" onClick={() => setLibraryDayIndex(di)} className="h-7 text-xs border-primary/40 text-primary hover:bg-primary/10"><Library className="w-3 h-3 mr-1" /> Abrir Biblioteca</Button>
-              <Button size="sm" variant="outline" onClick={() => updDay(di, { exercises: [...day.exercises, makeEmptyExercise()] })} className="h-7 text-xs"><Plus className="w-3 h-3 mr-1" /> Exercício</Button>
+              <Button size="sm" variant="outline" onClick={() => setPayload(applyDayExercisesChange(payload, di, [...day.exercises, makeEmptyExercise()]))} className="h-7 text-xs"><Plus className="w-3 h-3 mr-1" /> Exercício</Button>
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => updDay(di, { exercises: [...day.exercises, makeEmptyExercise({ isMobility: true })] })}
+                onClick={() => setPayload(applyDayExercisesChange(payload, di, [...day.exercises, makeEmptyExercise({ isMobility: true })]))}
                 className="h-7 text-xs border-sky-500/50 text-sky-500 hover:bg-sky-500/10 hover:text-sky-400"
               >
                 <StretchHorizontal className="w-3 h-3 mr-1" /> Adicionar Mobilidade
@@ -616,7 +617,8 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                   coachId={coachId}
                   currentMobility={[]}
                   onApply={(exercises) => {
-                    updDay(di, { exercises: [...day.exercises, ...exercises] });
+                    const additions = exercises.map((exercise) => exercise.__id ? exercise : { ...exercise, __id: makeEmptyExercise().__id });
+                    setPayload(applyDayExercisesChange(payload, di, [...day.exercises, ...additions]));
                     setMobOpen((s) => ({ ...s, [di]: true }));
                   }}
                 />

@@ -119,13 +119,14 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
   const updateDraftField = (
     weekIdx: number,
     id: string,
+    exerciseId: string | undefined,
     field: "name" | "sets" | "reps" | "cadence" | "rest",
     value: string,
   ) => {
     const wk = String(weekIdx);
     setDraftOverrides((prev) => {
       const week = { ...(prev[wk] || {}) };
-      week[id] = { ...(week[id] || {}), [field]: value };
+      week[id] = { ...(week[id] || {}), ...(exerciseId ? { exerciseId } : {}), [field]: value };
       return { ...prev, [wk]: week };
     });
   };
@@ -197,9 +198,9 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
     setDraftOverrides((prev) => {
       const week = { ...(prev[wk] || {}) };
       (payload.workouts || []).forEach((day) => {
-        (day.exercises || []).forEach((_ex, ei) => {
+        (day.exercises || []).forEach((ex, ei) => {
           const id = exId(day.key, ei);
-          week[id] = { ...(week[id] || {}), [field]: value };
+          week[id] = { ...(week[id] || {}), ...(ex.__id ? { exerciseId: ex.__id } : {}), [field]: value };
         });
       });
       return { ...prev, [wk]: week };

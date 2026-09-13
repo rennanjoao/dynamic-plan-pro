@@ -1,0 +1,4 @@
+REVOKE ALL ON FUNCTION public.save_protocol_with_plan(uuid, uuid, uuid, text, jsonb, boolean, boolean, text, integer, integer, integer, integer, numeric, integer) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.save_protocol_with_plan(uuid, uuid, uuid, text, jsonb, boolean, boolean, text, integer, integer, integer, integer, numeric, integer) FROM anon;
+GRANT EXECUTE ON FUNCTION public.save_protocol_with_plan(uuid, uuid, uuid, text, jsonb, boolean, boolean, text, integer, integer, integer, integer, numeric, integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.save_protocol_with_plan(uuid, uuid, uuid, text, jsonb, boolean, boolean, text, integer, integer, integer, integer, numeric, integer) TO service_role;
