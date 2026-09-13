@@ -19,6 +19,27 @@ export type PeriodizationValidationResult = {
   overrideErrors: OverrideError[];
 };
 
+type ExerciseOverride = ProtocolPayload["periodization"]["overrides"][string][string];
+
+/** Resolve por identidade estável primeiro e usa a posição somente em legado. */
+export function findExerciseOverride(
+  payload: ProtocolPayload,
+  weekIndex: number,
+  dayKey: string,
+  exerciseIndex: number,
+): ExerciseOverride | undefined {
+  const exercise = payload.workouts.find((day) => day.key === dayKey)?.exercises[exerciseIndex];
+  if (!exercise) return undefined;
+  const week = payload.periodization.overrides?.[String(weekIndex)] || {};
+  if (exercise.__id) {
+    const stable = Object.values(week).find((patch) => patch?.exerciseId === exercise.__id);
+    if (stable) return stable;
+  }
+  const legacy = week[`${dayKey}_${exerciseIndex}`];
+  if (!legacy?.exerciseId || legacy.exerciseId === exercise.__id) return legacy;
+  return undefined;
+}
+
 // Aceita formatos: "3", "3-5", "3 a 5", "3 a 5 séries", "8-12 reps", "8 a 12 repetições"
 const RANGE_RE = /(\d+)\s*(?:a|-|–|—|to)\s*(\d+)/i;
 const SINGLE_RE = /(\d+)/;
@@ -149,7 +170,7 @@ export function resolveExerciseForWeek(
   if (!base) return null;
   const p = payload.periodization;
   const weekMeta = p.weeks[weekIndex];
-  const ov = p.overrides?.[String(weekIndex)]?.[`${dayKey}_${exerciseIndex}`] || {};
+  const ov = findExerciseOverride(payload, weekIndex, dayKey, exerciseIndex) || {};
   return {
     name: ov.name || base.name || "",
     sets:    ov.sets    || base.sets    || weekMeta?.sets    || "",

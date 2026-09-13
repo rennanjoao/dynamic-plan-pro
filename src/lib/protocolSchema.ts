@@ -128,6 +128,9 @@ export const WeekMetaSchema = z.object({
 });
 
 export const ExerciseOverrideSchema = z.object({
+  // Identidade estável do exercício. Protocolos antigos continuam aceitos
+  // pela chave posicional externa; novos overrides sempre persistem este ID.
+  exerciseId: z.string().optional(),
   name: z.string().optional(),
   sets: z.string().optional(),
   reps: z.string().optional(),
@@ -144,7 +147,8 @@ export const PeriodizationSchema = z.object({
     { label: "Semana 3 — Qualidade Neuromuscular", sets: "3 a 4 séries", reps: "10 a 12 reps", rest: "60s a 90s",  cadence: "1s conc / 1-2s exc" },
     { label: "Semana 4 — Estresse Metabólico",     sets: "2 a 4 séries", reps: "15 a 20 reps", rest: "30s a 45s",  cadence: "1s conc / 1s exc" },
   ]),
-  // Chave externa: índice da semana (0..3); interna: exId no formato "<dayKey>_<exerciseIndex>".
+  // Chave externa: índice da semana (0..3). A chave interna posicional é
+  // mantida para compatibilidade, mas `exerciseId` é a fonte primária.
   overrides: z.record(z.record(ExerciseOverrideSchema)).default({}),
 });
 

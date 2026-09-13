@@ -68,6 +68,13 @@ export function remapDayOverrides(
   for (const [weekKey, weekMap] of Object.entries(overrides)) {
     const nextWeekMap: Record<string, unknown> = {};
     for (const [id, patch] of Object.entries(weekMap || {})) {
+      const stableExerciseId = patch?.exerciseId;
+      if (stableExerciseId) {
+        const newIndex = newExercisesIndexForStableId(indexMap, stableExerciseId, dayKey, id);
+        if (newIndex === null) continue;
+        nextWeekMap[newIndex === undefined ? id : `${dayKey}_${newIndex}`] = patch;
+        continue;
+      }
       if (!id.startsWith(prefix)) {
         // Override de outro dia — preserva intacto.
         nextWeekMap[id] = patch;
@@ -87,6 +94,20 @@ export function remapDayOverrides(
     if (Object.keys(nextWeekMap).length > 0) nextOverrides[weekKey] = nextWeekMap;
   }
   return { ...periodization, overrides: nextOverrides };
+}
+
+function newExercisesIndexForStableId(
+  indexMap: Map<number, number | null>,
+  exerciseId: string,
+  dayKey: string,
+  slotId: string,
+): number | null | undefined {
+  const prefix = `${dayKey}_`;
+  if (!slotId.startsWith(prefix)) return undefined;
+  const oldIndex = Number(slotId.slice(prefix.length));
+  if (!Number.isFinite(oldIndex)) return undefined;
+  // O mapa já foi construído comparando os mesmos IDs estáveis.
+  return indexMap.has(oldIndex) ? indexMap.get(oldIndex) : undefined;
 }
 
 /**

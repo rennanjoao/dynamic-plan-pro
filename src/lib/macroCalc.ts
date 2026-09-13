@@ -274,8 +274,8 @@ function foodByName(name: string): TacoFood | IndustrialFood | undefined {
  * Extrai o valor numérico e detecta se é unidade (un, unidade, fatia, ovo)
  * ou peso em gramas/ml.
  *
- * Retorna { grams, isUnit, value } — `grams` já convertido quando isUnit=true
- * usando `unitWeight` opcional do alimento (fallback 50g).
+ * Retorna a quantidade original e a conversão quando ela é segura. Unidades
+ * sem peso cadastrado nunca recebem um peso inventado.
  *
  * Exemplos:
  *   "150g"        → { value:150, grams:150,  isUnit:false }
@@ -286,10 +286,10 @@ function foodByName(name: string): TacoFood | IndustrialFood | undefined {
  */
 export function parseWeightString(
   raw: unknown,
-  unitWeight: number = 50,
-): { value: number; grams: number; isUnit: boolean } {
+  unitWeight?: number,
+): { value: number; grams: number; isUnit: boolean; unit: "g" | "ml" | "kg" | "l" | "unit" | "unknown"; original: string; convertible: boolean } {
   const text = String(raw ?? "").trim();
-  if (!text) return { value: 0, grams: 0, isUnit: false };
+  if (!text) return { value: 0, grams: 0, isUnit: false, unit: "unknown", original: text, convertible: false };
 
   const parsedValue =
     parseFloat(text.replace(/[^\d.,-]/g, "").replace(",", ".")) || 0;
@@ -297,12 +297,19 @@ export function parseWeightString(
   const isUnit = /un|unid|fatia|fatias|ovo|ovos|colher|colheres|copo|copos|porc/i.test(text);
   const isKg = /\bkg\b/i.test(text) || /\bquilo/i.test(text);
   const isLitro = /\bl\b/i.test(text) && !/\bml\b/i.test(text);
+  const isMl = /\bml\b/i.test(text);
+  const isGram = /\bg\b|grama/i.test(text);
 
   let grams = parsedValue;
-  if (isUnit) grams = parsedValue * (unitWeight > 0 ? unitWeight : 50);
+  let convertible = parsedValue > 0;
+  if (isUnit) {
+    convertible = typeof unitWeight === "number" && unitWeight > 0;
+    grams = convertible ? parsedValue * unitWeight : 0;
+  }
   else if (isKg || isLitro) grams = parsedValue * 1000;
 
-  return { value: parsedValue, grams, isUnit };
+  const unit = isUnit ? "unit" : isKg ? "kg" : isLitro ? "l" : isMl ? "ml" : isGram ? "g" : "unknown";
+  return { value: parsedValue, grams, isUnit, unit, original: text, convertible };
 }
 
 export function calcItemMacros(item: any): Macros {
@@ -320,16 +327,16 @@ export function calcItemMacros(item: any): Macros {
     if (typeof item.rawWeight === "number" && item.rawWeight > 0) {
       grams = item.rawWeight;
     } else if (item.weight != null) {
-      const unitW = typeof (food as any).unitWeight === "number" ? (food as any).unitWeight : 50;
+      const unitW = typeof (food as any).unitWeight === "number" ? (food as any).unitWeight : undefined;
       grams = parseWeightString(item.weight, unitW).grams;
     }
     if (!grams || !isFinite(grams) || grams <= 0) return { ...ZERO };
     const f = grams / 100;
     return {
-      kcal: +(food.kcal * f).toFixed(1),
-      protein: +(food.p * f).toFixed(1),
-      carbs: +(food.c * f).toFixed(1),
-      fat: +(food.g * f).toFixed(1),
+      kcal: food.kcal * f,
+      protein: food.p * f,
+      carbs: food.c * f,
+      fat: food.g * f,
     };
   }
   if (item.manualMacros) {
@@ -339,10 +346,10 @@ export function calcItemMacros(item: any): Macros {
     const fat = Number(m.fat) || 0;
     const kcal = Number(m.kcal) || protein * 4 + carbs * 4 + fat * 9;
     return {
-      kcal: +kcal.toFixed(1),
-      protein: +protein.toFixed(1),
-      carbs: +carbs.toFixed(1),
-      fat: +fat.toFixed(1),
+      kcal,
+      protein,
+      carbs,
+      fat,
     };
   }
   return { ...ZERO };
@@ -379,12 +386,7 @@ export function calcMealMacros(meal: any): Macros {
       out.fat     += m.fat;
     });
   });
-  return {
-    kcal: +out.kcal.toFixed(1),
-    protein: +out.protein.toFixed(1),
-    carbs: +out.carbs.toFixed(1),
-    fat: +out.fat.toFixed(1),
-  };
+  return out;
 }
 
 export function calcDayMacros(meals: any[]): Macros {
@@ -397,12 +399,7 @@ export function calcDayMacros(meals: any[]): Macros {
     out.carbs += r.carbs;
     out.fat += r.fat;
   });
-  return {
-    kcal: +out.kcal.toFixed(1),
-    protein: +out.protein.toFixed(1),
-    carbs: +out.carbs.toFixed(1),
-    fat: +out.fat.toFixed(1),
-  };
+  return out;
 }
 
 /**
@@ -420,12 +417,7 @@ export function optionMacros(option: any): Macros {
     out.carbs   += m.carbs;
     out.fat     += m.fat;
   });
-  return {
-    kcal: +out.kcal.toFixed(1),
-    protein: +out.protein.toFixed(1),
-    carbs: +out.carbs.toFixed(1),
-    fat: +out.fat.toFixed(1),
-  };
+  return out;
 }
 
 // ─── Ajuste proporcional de gramagem (Op 2/3 conforme Op 1) ────────────────────
