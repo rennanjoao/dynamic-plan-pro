@@ -15,6 +15,11 @@ describe("parseWeightString", () => {
     expect(parseWeightString("1,5 kg").grams).toBe(1500);
     expect(parseWeightString("1.25 l").grams).toBe(1250);
   });
+
+  it("não trata unidade desconhecida como gramas", () => {
+    expect(parseWeightString("2 conchas")).toMatchObject({ grams: 0, unit: "unknown", convertible: false });
+    expect(parseWeightString("75")).toMatchObject({ grams: 75, convertible: true });
+  });
 });
 
 describe("precisão dos macros", () => {

@@ -774,11 +774,11 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         p_active:      publishActive,
         p_as_draft:    !!opts.asDraft,
         p_goal:        safeGoal,
-        p_calories:    parsed.macros?.calories ?? 2200,
-        p_protein:     parsed.macros?.protein ?? 160,
-        p_carbs:       parsed.macros?.carbs ?? 250,
-        p_fat:         parsed.macros?.fat ?? 55,
-        p_water:       parsed.macros?.water ?? 2.5,
+        p_calories:    parsed.macros?.calories ?? 0,
+        p_protein:     parsed.macros?.protein ?? 0,
+        p_carbs:       parsed.macros?.carbs ?? 0,
+        p_fat:         parsed.macros?.fat ?? 0,
+        p_water:       parsed.macros?.water ?? 0,
         p_expected_revision: revision,
       });
       if (rpcError) throw rpcError;

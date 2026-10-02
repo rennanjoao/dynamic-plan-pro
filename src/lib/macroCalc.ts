@@ -280,7 +280,7 @@ function foodByName(name: string): TacoFood | IndustrialFood | undefined {
  * Exemplos:
  *   "150g"        → { value:150, grams:150,  isUnit:false }
  *   "1,5 kg"      → { value:1.5, grams:1500, isUnit:false }
- *   "8 unidades"  → { value:8,   grams:400,  isUnit:true  } (com unitWeight=50)
+ *   "8 unidades"  → conversão somente quando o alimento possui peso unitário cadastrado
  *   "2 fatias"    → { value:2,   grams:100,  isUnit:true  }
  *   ""            → { value:0,   grams:0,    isUnit:false }
  */
@@ -300,8 +300,9 @@ export function parseWeightString(
   const isMl = /\bml\b/i.test(text);
   const isGram = /\bg\b|grama/i.test(text);
 
-  let grams = parsedValue;
-  let convertible = parsedValue > 0;
+  const hasUnknownUnit = /[a-zA-ZÀ-ÿ]/.test(text) && !isUnit && !isKg && !isLitro && !isMl && !isGram;
+  let grams = hasUnknownUnit ? 0 : parsedValue;
+  let convertible = parsedValue > 0 && !hasUnknownUnit;
   if (isUnit) {
     convertible = typeof unitWeight === "number" && unitWeight > 0;
     grams = convertible ? parsedValue * unitWeight : 0;
