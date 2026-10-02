@@ -186,6 +186,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const updatePayload = (p: ProtocolPayload) => {
     setPayload(p);
     setIsDirty(true);
+    setSaveStatus("dirty");
   };
   const [active, setActive] = useState(true);
   const [saving, setSaving] = useState(false);

@@ -39,7 +39,7 @@ export function computeExerciseIndexRemap(
   });
   const map = new Map<number, number | null>();
   oldExercises.forEach((ex, i) => {
-    const newIndex = ex.__id && idToNewIndex.has(ex.__id) ? idToNewIndex.get(ex.__id)! : null;
+    const newIndex = ex.__id && idToNewIndex.has(ex.__id) ? (idToNewIndex.get(ex.__id) ?? null) : null;
     map.set(i, newIndex);
   });
   return map;

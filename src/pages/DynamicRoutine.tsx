@@ -42,7 +42,7 @@ export default function DynamicRoutine() {
       //    aconteceu — a réplica em coach_plans é "best effort" e pode falhar).
       const { data: protocol } = await supabase
         .from("protocols")
-        .select("payload, draft_payload")
+        .select("id, payload")
         .eq("student_id", userId)
         .eq("is_template", false)
         .eq("active", true)
@@ -50,10 +50,10 @@ export default function DynamicRoutine() {
         .limit(1)
         .maybeSingle();
 
-      const effective =
-        draftPreview && protocol?.draft_payload && Object.keys(protocol.draft_payload as object).length > 0
-          ? protocol.draft_payload
-          : protocol?.payload;
+      const { data: draft } = draftPreview && protocol?.id
+        ? await supabase.from("protocol_drafts").select("payload").eq("protocol_id", protocol.id).maybeSingle()
+        : { data: null };
+      const effective = draft?.payload ?? protocol?.payload;
       if (effective && Object.keys(effective as object).length > 0) {
         return {
           diet_strategy_json: effective,
