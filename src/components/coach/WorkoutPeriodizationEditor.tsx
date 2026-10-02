@@ -457,7 +457,7 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
                                 baseName={ex.name}
                                 value={value}
                                 hasError={ovErr}
-                                onChange={(field, v) => updateDraftField(i, id, field, v)}
+                                onChange={(field, v) => updateDraftField(i, id, ex.__id, field, v)}
                               />
                             );
                           })}

@@ -87,6 +87,7 @@ import {
   type ProtocolChange,
 } from "@/lib/protocolChangeDetector";
 import { mergeProtocolChanges } from "@/lib/protocolChangeMerge";
+import { validateProtocolForPublication } from "@/lib/protocolPublicationValidation";
 import {
   DndContext, closestCenter, PointerSensor, KeyboardSensor,
   useSensor, useSensors, type DragEndEvent,
@@ -120,6 +121,8 @@ interface ProtocolRow {
   draft_payload: ProtocolPayload | null;
   active: boolean | null;
   updated_at: string;
+  revision: number;
+  persisted_draft?: ProtocolPayload | null;
 }
 
 /**
@@ -228,7 +231,10 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [isAutosaving, setIsAutosaving] = useState(false);
   const [pendingOpen, setPendingOpen] = useState(false);
   const [hasDraft, setHasDraft] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const [saveStatus, setSaveStatus] = useState<"published" | "dirty" | "saving" | "draft" | "conflict" | "error">("published");
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveChainRef = useRef<Promise<void>>(Promise.resolve());
   const payloadRef = useRef<ProtocolPayload | null>(null);
   useEffect(() => { payloadRef.current = payload; }, [payload]);
 
@@ -298,7 +304,14 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         .limit(1)
         .maybeSingle();
       if (error) throw error;
-      return (data as ProtocolRow | null) ?? null;
+      if (!data) return null;
+      const { data: draft, error: draftError } = await sb
+        .from("protocol_drafts")
+        .select("payload")
+        .eq("protocol_id", data.id)
+        .maybeSingle();
+      if (draftError) throw draftError;
+      return { ...(data as ProtocolRow), persisted_draft: (draft?.payload as ProtocolPayload | undefined) ?? null };
     },
   });
 
@@ -334,19 +347,22 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       setProtocolId(existing.id);
       setName(existing.name || `Protocolo — ${studentName}`);
       setActive(existing.active ?? true);
+      setRevision(existing.revision ?? 0);
       // Se houver rascunho salvo, retomar dele; senão, usar o payload publicado.
-      const draftParsed = existing.draft_payload
-        ? ProtocolPayloadSchema.safeParse(existing.draft_payload)
+      const draftParsed = existing.persisted_draft
+        ? ProtocolPayloadSchema.safeParse(existing.persisted_draft)
         : null;
       const publishedParsed = ProtocolPayloadSchema.safeParse(existing.payload);
       if (draftParsed && draftParsed.success) {
         setPayload(draftParsed.data);
         setHasDraft(true);
+        setSaveStatus("draft");
       } else {
         setPayload(publishedParsed.success
           ? publishedParsed.data
           : buildBasePayload({ split: "ABC", mealsCount: 5, carbCycle: false }));
         setHasDraft(false);
+        setSaveStatus("published");
       }
       // Só grava o snapshot na primeira vez que carregamos este protocolo.
       // Ignora revalidações posteriores para não corromper a comparação.
@@ -446,28 +462,54 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
     const current = payloadRef.current;
     if (!current) return;
     setIsAutosaving(true);
-    try {
+    setSaveStatus("saving");
+    const task = async () => {
+      try {
       const parsed = ProtocolPayloadSchema.parse(current);
-      const { error } = await sb
-        .from("protocols")
-        .update({ draft_payload: parsed })
-        .eq("id", protocolId);
+      if (!coachId) throw new Error("Coach não identificado");
+      const goalMap: Record<string, string> = { hipertrofia: "hipertrofia", emagrecimento: "emagrecer", emagrecer: "emagrecer", recomposicao: "recomposicao", performance: "manter", manter: "manter" };
+      const safeGoal = goalMap[(parsed.macros?.goal ?? "manter").toLowerCase()] ?? "manter";
+      const { data, error } = await sb.rpc("save_protocol_with_plan", {
+        p_protocol_id: protocolId,
+        p_student_id: studentId,
+        p_coach_id: coachId,
+        p_name: name,
+        p_payload: parsed as unknown as Record<string, unknown>,
+        p_active: active,
+        p_as_draft: true,
+        p_goal: safeGoal,
+        p_calories: parsed.macros?.calories ?? 0,
+        p_protein: parsed.macros?.protein ?? 0,
+        p_carbs: parsed.macros?.carbs ?? 0,
+        p_fat: parsed.macros?.fat ?? 0,
+        p_water: parsed.macros?.water ?? 0,
+        p_expected_revision: revision,
+      });
       if (error) throw error;
+      const result = Array.isArray(data) ? data[0] : data;
+      if (result?.revision != null) setRevision(result.revision);
       setLastAutosavedAt(new Date());
       setHasDraft(true);
+      setSaveStatus("draft");
     } catch (e) {
       console.error("[autosave] falhou", e);
+      const message = e instanceof Error ? e.message : String(e);
+      setSaveStatus(message.includes("revision conflict") ? "conflict" : "error");
     } finally {
       setIsAutosaving(false);
     }
+    };
+    saveChainRef.current = saveChainRef.current.then(task, task);
+    await saveChainRef.current;
   }
 
-  const flushAutosave = () => {
+  const flushAutosave = async () => {
     if (autosaveTimerRef.current) {
       clearTimeout(autosaveTimerRef.current);
       autosaveTimerRef.current = null;
-      performAutosave();
+      await performAutosave();
     }
+    await saveChainRef.current;
   };
 
   // Agenda autosave debounced (1.5s) sempre que o payload muda em modo edição.
@@ -489,23 +531,21 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
 
   // Flush ao trocar de aba.
   const handleTabChange = (v: string) => {
-    flushAutosave();
+    void flushAutosave();
     setActiveTab(v as typeof activeTab);
   };
 
   async function discardDraft() {
     if (!protocolId || !existing) return;
     try {
-      const { error } = await sb
-        .from("protocols")
-        .update({ draft_payload: null })
-        .eq("id", protocolId);
+      const { error } = await sb.from("protocol_drafts").delete().eq("protocol_id", protocolId);
       if (error) throw error;
       const publishedParsed = ProtocolPayloadSchema.safeParse(existing.payload);
       if (publishedParsed.success) setPayload(publishedParsed.data);
       setHasDraft(false);
       setIsDirty(false);
       setLastAutosavedAt(null);
+      setSaveStatus("published");
       toast.success("Rascunho descartado — voltamos à última versão publicada");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao descartar rascunho");
@@ -626,7 +666,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
               const tacoRef = TACO_FOODS.find(
                 (t) => t.name.toLowerCase() === String(item.baseName || item.name).toLowerCase()
               );
-              const unitW = tacoRef && typeof (tacoRef as any).unitWeight === "number" ? (tacoRef as any).unitWeight : 50;
+              const unitW = tacoRef && typeof (tacoRef as any).unitWeight === "number" ? (tacoRef as any).unitWeight : undefined;
               const { grams } = parseWeightString(valor, unitW);
               item.rawWeight = isFinite(grams) && grams > 0 ? grams : 0;
             }
@@ -693,6 +733,14 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       toast.error("Protocolo está Inativo — ative no topo antes de publicar.");
       return;
     }
+    if (!opts.asDraft) {
+      const validation = validateProtocolForPublication(payload);
+      if (validation.errors.length > 0) {
+        toast.error(validation.errors[0]);
+        return;
+      }
+      if (validation.warnings.length > 0) toast.warning(validation.warnings.join(" "));
+    }
     // Cancela qualquer autosave em voo/pendente para não colidir com o publish.
     if (autosaveTimerRef.current) {
       clearTimeout(autosaveTimerRef.current);
@@ -700,7 +748,9 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
     }
     const publishActive = opts.asDraft ? false : active;
     setSaving(true);
+    setSaveStatus("saving");
     try {
+      await saveChainRef.current;
       const parsed = ProtocolPayloadSchema.parse(payload);
       if (!coachId) throw new Error("Coach não identificado");
       // O snapshot em `protocol_versions` (payload anterior + próxima versão) agora
@@ -729,8 +779,11 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         p_carbs:       parsed.macros?.carbs ?? 250,
         p_fat:         parsed.macros?.fat ?? 55,
         p_water:       parsed.macros?.water ?? 2.5,
+        p_expected_revision: revision,
       });
       if (rpcError) throw rpcError;
+      const savedResult = Array.isArray(savedId) ? savedId[0] : savedId;
+      if (savedResult?.revision != null) setRevision(savedResult.revision);
       // Salvou no banco com sucesso → o rascunho local não é mais necessário.
       if (localDraftTimerRef.current) clearTimeout(localDraftTimerRef.current);
       clearLocalDraft();
@@ -739,11 +792,12 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         if (!opts.asDraft) setHasDraft(false);
         toast.success(opts.asDraft ? "Rascunho salvo — aluno ainda não vê esta versão" : "Protocolo atualizado");
       } else {
-        if (savedId) setProtocolId(savedId as string);
+        if (savedResult?.protocol_id) setProtocolId(savedResult.protocol_id);
         toast.success(opts.asDraft ? "Rascunho criado — aluno ainda não vê esta versão" : "Protocolo criado");
       }
       if (!opts.asDraft) {
         setActive(publishActive);
+        setSaveStatus("published");
         toast.success("Dieta e Treino sincronizados com o aluno");
       }
       // ─── Geração best-effort de eventos de mudança do protocolo ───
@@ -801,7 +855,14 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       qc.invalidateQueries({ queryKey: queryKeys.studentProtocol(studentId) });
       setIsDirty(false);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao salvar");
+      const message = e instanceof Error ? e.message : "Erro ao salvar";
+      if (message.includes("revision conflict")) {
+        setSaveStatus("conflict");
+        toast.error("Conflito de edição: recarregue a versão mais recente antes de publicar.");
+      } else {
+        setSaveStatus("error");
+        toast.error(message);
+      }
     } finally { setSaving(false); }
   }
 
@@ -1026,11 +1087,12 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             <div className="flex flex-wrap items-center gap-2">
               {isEditMode && (
                 <span className="text-[10px] text-muted-foreground px-1" aria-live="polite">
-                  {isAutosaving
-                    ? "Salvando…"
-                    : lastAutosavedAt
-                      ? `Salvo às ${lastAutosavedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
-                      : hasDraft ? "Rascunho retomado" : ""}
+                  {saveStatus === "saving" || isAutosaving ? "Salvando…"
+                    : saveStatus === "conflict" ? "Conflito: recarregue a versão mais recente"
+                    : saveStatus === "error" ? "Erro ao salvar"
+                    : isDirty ? "Alterações não salvas"
+                    : hasDraft ? `Rascunho salvo${lastAutosavedAt ? ` às ${lastAutosavedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : ""} — aluno vê a versão anterior`
+                    : "Publicado"}
                 </span>
               )}
               <Button onClick={() => save()} disabled={saving || !active} size="lg" className="shadow-lg">

@@ -13,6 +13,9 @@ interface Version {
   version: number;
   payload: ProtocolPayload;
   created_at: string;
+  revision: number | null;
+  protocol_name: string | null;
+  active: boolean | null;
 }
 
 interface Props {
@@ -37,7 +40,7 @@ export default function ProtocolVersionHistoryDialog({
       setLoading(true);
       const { data, error } = await sb
         .from("protocol_versions")
-        .select("id, version, payload, created_at")
+        .select("id, version, payload, created_at, revision, protocol_name, active")
         .eq("protocol_id", protocolId)
         .order("version", { ascending: false });
       if (active) {
@@ -91,6 +94,8 @@ export default function ProtocolVersionHistoryDialog({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-semibold text-sm">v{v.version}</span>
+                  {v.revision != null && <span className="text-[10px] text-muted-foreground">revisão {v.revision}</span>}
+                  <span className="text-[10px] text-muted-foreground">{v.active === false ? "Inativo" : "Publicado"}</span>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-1">
                   {formatDateTimePtBR(v.created_at)}

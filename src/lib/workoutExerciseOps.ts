@@ -68,9 +68,8 @@ export function remapDayOverrides(
   for (const [weekKey, weekMap] of Object.entries(overrides)) {
     const nextWeekMap: Record<string, unknown> = {};
     for (const [id, patch] of Object.entries(weekMap || {})) {
-      const stableExerciseId = patch?.exerciseId;
-      if (stableExerciseId) {
-        const newIndex = newExercisesIndexForStableId(indexMap, stableExerciseId, dayKey, id);
+      if (patch?.exerciseId) {
+        const newIndex = newExercisesIndexForStableId(indexMap, dayKey, id);
         if (newIndex === null) continue;
         nextWeekMap[newIndex === undefined ? id : `${dayKey}_${newIndex}`] = patch;
         continue;
@@ -98,7 +97,6 @@ export function remapDayOverrides(
 
 function newExercisesIndexForStableId(
   indexMap: Map<number, number | null>,
-  exerciseId: string,
   dayKey: string,
   slotId: string,
 ): number | null | undefined {

@@ -690,7 +690,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                                       );
                                       const unitW = tacoRef && typeof (tacoRef as any).unitWeight === "number"
                                         ? (tacoRef as any).unitWeight
-                                        : 50;
+                                        : undefined;
                                       const { grams } = parseWeightString(w, unitW);
                                       patch.rawWeight = isFinite(grams) && grams > 0 ? grams : 0;
                                     }
@@ -744,7 +744,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                                           const tacoRef = TACO_FOODS.find(
                                             (t) => t.name.toLowerCase() === String(sub.baseName || sub.name).toLowerCase()
                                           );
-                                          const unitW = tacoRef && typeof (tacoRef as any).unitWeight === "number" ? (tacoRef as any).unitWeight : 50;
+                                          const unitW = tacoRef && typeof (tacoRef as any).unitWeight === "number" ? (tacoRef as any).unitWeight : undefined;
                                           const { grams } = parseWeightString(w, unitW);
                                           patch.rawWeight = isFinite(grams) && grams > 0 ? grams : 0;
                                         }
