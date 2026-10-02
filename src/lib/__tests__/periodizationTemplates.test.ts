@@ -8,11 +8,11 @@ function payloadWithWorkouts(overrides: Record<string, unknown> = {}) {
     ...buildBasePayload(setup as any),
     workouts: [
       { key: "A", focus: "Peito/Tríceps", exercises: [
-        { id: "e1", name: "Supino reto", sets: "4", reps: "8" },
-        { id: "e2", name: "Crucifixo", sets: "3", reps: "12" },
+        { __id: "e1", name: "Supino reto", sets: "4", reps: "8" },
+        { __id: "e2", name: "Crucifixo", sets: "3", reps: "12" },
       ] },
       { key: "B", focus: "Costas/Bíceps", exercises: [
-        { id: "e3", name: "Remada curvada", sets: "4", reps: "10" },
+        { __id: "e3", name: "Remada curvada", sets: "4", reps: "10" },
       ] },
     ],
     periodization: { enabled: false, overrides: {} },
@@ -71,6 +71,20 @@ describe("injectPeriodizationBlock", () => {
     const { payload: next } = injectPeriodizationBlock(payloadWithWorkouts(), tpl);
     expect(next.periodization?.weeks?.[0]?.label).toBe("Adaptação");
     expect(next.periodization?.enabled).toBe(true);
+  });
+
+  it("reposiciona override pelo exerciseId e descarta identidade órfã", () => {
+    const tpl = PeriodizationBlockPayloadSchema.parse({
+      scope: "periodization",
+      periodization: { enabled: true, overrides: { semana1: {
+        "A_9": { exerciseId: "e2", sets: "5" },
+        "A_0": { exerciseId: "removido", sets: "9" },
+      } } },
+    });
+    const { payload: next, applied, skipped } = injectPeriodizationBlock(payloadWithWorkouts(), tpl);
+    expect(next.periodization.overrides.semana1.A_1).toEqual({ exerciseId: "e2", sets: "5" });
+    expect(applied).toBe(1);
+    expect(skipped).toBe(1);
   });
 
   it("nunca toca em treino/dieta/macros/suplementos/diretrizes (só periodization)", () => {

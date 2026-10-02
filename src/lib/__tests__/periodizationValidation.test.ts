@@ -87,6 +87,31 @@ describe("resolveExerciseForWeek", () => {
     expect(r.sets).toBe(p.periodization.weeks[0].sets);
     expect(r.overridden).toBe(false);
   });
+
+  it("prioriza exerciseId e não aplica override órfão na mesma posição", () => {
+    const p = ProtocolPayloadSchema.parse({
+      setup: { split: "ABC", mealsCount: 4, carbCycle: false },
+      workouts: [{ key: "A", focus: "", exercises: [
+        { __id: "stable-b", name: "Remada", sets: "3", reps: "10", rest: "60s", cadence: "2-0-1", notes: "" },
+      ] }],
+      periodization: { enabled: true, overrides: { "0": { "A_0": { exerciseId: "removed-a", sets: "9" } } } },
+    });
+    const r = resolveExerciseForWeek(p, 0, "A", 0);
+    expect(r?.sets).toBe("3");
+    expect(r?.overridden).toBe(false);
+  });
+
+  it("encontra override estável mesmo depois de mudar a posição", () => {
+    const p = ProtocolPayloadSchema.parse({
+      setup: { split: "ABC", mealsCount: 4, carbCycle: false },
+      workouts: [{ key: "A", focus: "", exercises: [
+        { __id: "new", name: "Novo", sets: "2", reps: "12", rest: "60s", cadence: "2-0-1", notes: "" },
+        { __id: "stable-a", name: "Supino", sets: "3", reps: "10", rest: "60s", cadence: "2-0-1", notes: "" },
+      ] }],
+      periodization: { enabled: true, overrides: { "0": { "A_0": { exerciseId: "stable-a", sets: "5" } } } },
+    });
+    expect(resolveExerciseForWeek(p, 0, "A", 1)?.sets).toBe("5");
+  });
 });
 
 describe("JSON roundtrip da periodização", () => {

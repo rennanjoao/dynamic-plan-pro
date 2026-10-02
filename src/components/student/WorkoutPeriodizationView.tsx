@@ -53,7 +53,8 @@ interface Props {
   };
 }
 
-type Overrides = Record<number, Record<string, Partial<Exercise>>>;
+type ExerciseOverride = Partial<Exercise> & { exerciseId?: string };
+type Overrides = Record<number, Record<string, ExerciseOverride>>;
 
 function exId(day: WorkoutDay, idx: number) {
   return `${day.key}_${idx}`;
@@ -110,7 +111,7 @@ export default function WorkoutPeriodizationView({
   if (periodization?.overrides) {
     for (const [k, v] of Object.entries(periodization.overrides)) {
       const idx = Number(k);
-      if (!Number.isNaN(idx)) incomingOverrides[idx] = v as Record<string, Partial<Exercise>>;
+      if (!Number.isNaN(idx)) incomingOverrides[idx] = v as Record<string, ExerciseOverride>;
     }
   }
 
@@ -130,7 +131,7 @@ export default function WorkoutPeriodizationView({
     setWeeks((prev) => prev.map((w, i) => (i === activeWeek ? { ...w, [field]: value } : w)));
   };
 
-  const setOverride = (weekIdx: number, exerciseId: string, patch: Partial<Exercise>) => {
+  const setOverride = (weekIdx: number, exerciseId: string, patch: ExerciseOverride) => {
     setOverrides((prev) => ({
       ...prev,
       [weekIdx]: {

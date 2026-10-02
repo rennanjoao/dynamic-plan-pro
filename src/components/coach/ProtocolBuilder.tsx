@@ -118,7 +118,6 @@ interface ProtocolRow {
   name: string;
   is_template: boolean;
   payload: ProtocolPayload;
-  draft_payload: ProtocolPayload | null;
   active: boolean | null;
   updated_at: string;
   revision: number;
@@ -239,7 +238,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   useEffect(() => { payloadRef.current = payload; }, [payload]);
 
   // ─── Rascunho local (localStorage) para PROTOCOLO NOVO ───────────────────
-  // Protocolos já existentes têm autosave em `draft_payload` no banco; a
+  // Protocolos já existentes têm autosave na área privada de rascunhos; a
   // criação não tem linha para salvar, então o rascunho vive no navegador.
   //
   // [FIX — persistência de rascunho para alunos novos] A chave é ancorada
@@ -455,7 +454,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
     setSetupOpen(true);
   }
 
-  // ─── Autosave em draft_payload ─────────────────────────────────────────
+  // ─── Autosave na área privada de rascunhos ─────────────────────────────
   // Só roda em modo edição de um protocolo já existente. Nunca toca em `payload`.
   async function performAutosave() {
     if (!isEditMode || !protocolId) return;
