@@ -744,7 +744,7 @@ export default function ShoppingList() {
 
       const { data: p } = await supabase
         .from("protocols")
-        .select("id, payload, draft_payload, name, updated_at")
+        .select("id, payload, name, updated_at")
         .eq("student_id", uid)
         .eq("is_template", false)
         .eq("active", true)
@@ -752,10 +752,10 @@ export default function ShoppingList() {
         .limit(1)
         .maybeSingle();
 
-      const effectivePayload =
-        draftPreview && (p as any)?.draft_payload && Object.keys((p as any).draft_payload as object).length > 0
-          ? (p as any).draft_payload
-          : p?.payload;
+      const { data: draft } = draftPreview && p?.id
+        ? await supabase.from("protocol_drafts").select("payload").eq("protocol_id", p.id).maybeSingle()
+        : { data: null };
+      const effectivePayload = draft?.payload ?? p?.payload;
       setProtocol(p ? { ...p, payload: effectivePayload } : p);
 
       if (p?.id) {

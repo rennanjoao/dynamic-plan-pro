@@ -15,6 +15,7 @@ import { ExerciseNameButton } from "@/components/shared/ExerciseNameButton";
 
 /* ---------- Tipos ---------- */
 interface Exercise {
+  __id?: string;
   name: string;
   sets?: string;
   reps?: string;
@@ -48,11 +49,12 @@ interface Props {
   periodization?: {
     enabled?: boolean;
     weeks?: WeekMeta[];
-    overrides?: Record<string, Record<string, Partial<Exercise>>>;
+    overrides?: Record<string, Record<string, Partial<Exercise> & { exerciseId?: string }>>;
   };
 }
 
-type Overrides = Record<number, Record<string, Partial<Exercise>>>;
+type ExerciseOverride = Partial<Exercise> & { exerciseId?: string };
+type Overrides = Record<number, Record<string, ExerciseOverride>>;
 
 function exId(day: WorkoutDay, idx: number) {
   return `${day.key}_${idx}`;
@@ -109,7 +111,7 @@ export default function WorkoutPeriodizationView({
   if (periodization?.overrides) {
     for (const [k, v] of Object.entries(periodization.overrides)) {
       const idx = Number(k);
-      if (!Number.isNaN(idx)) incomingOverrides[idx] = v as Record<string, Partial<Exercise>>;
+      if (!Number.isNaN(idx)) incomingOverrides[idx] = v as Record<string, ExerciseOverride>;
     }
   }
 
@@ -129,7 +131,7 @@ export default function WorkoutPeriodizationView({
     setWeeks((prev) => prev.map((w, i) => (i === activeWeek ? { ...w, [field]: value } : w)));
   };
 
-  const setOverride = (weekIdx: number, exerciseId: string, patch: Partial<Exercise>) => {
+  const setOverride = (weekIdx: number, exerciseId: string, patch: ExerciseOverride) => {
     setOverrides((prev) => ({
       ...prev,
       [weekIdx]: {
@@ -144,8 +146,14 @@ export default function WorkoutPeriodizationView({
     return workouts.map((day) => ({
       ...day,
       exercises: (day.exercises || []).map((ex, idx) => {
-        const id = exId(day, idx);
-        return { ...ex, ...(wkOverrides[id] || {}), __id: id } as Exercise & { __id: string };
+        const positionalId = exId(day, idx);
+        const stableId = ex.__id;
+        const stableOverride = stableId
+          ? Object.values(wkOverrides).find((patch) => patch.exerciseId === stableId)
+          : undefined;
+        const legacyOverride = wkOverrides[positionalId];
+        const override = stableOverride || (!legacyOverride?.exerciseId || legacyOverride.exerciseId === stableId ? legacyOverride : undefined) || {};
+        return { ...ex, ...override, __id: stableId || positionalId } as Exercise & { __id: string };
       }),
     }));
   }, [workouts, overrides, activeWeek]);
@@ -307,7 +315,7 @@ export default function WorkoutPeriodizationView({
                         key={ex.__id}
                         exercise={ex}
                         editMode={editMode}
-                        onPatch={(patch) => setOverride(activeWeek, ex.__id, patch)}
+        onPatch={(patch) => setOverride(activeWeek, ex.__id, { exerciseId: ex.__id, ...patch })}
                       />
                     ))}
                   </AccordionContent>

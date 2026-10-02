@@ -31,7 +31,7 @@ export interface Protocol {
   title: string;
   html_content: string;
   payload?: Record<string, unknown> | null;
-  draft_payload?: Record<string, unknown> | null;
+  persisted_draft?: Record<string, unknown> | null;
   active: boolean;
   updated_at: string;
 }
@@ -110,7 +110,15 @@ export function useStudentData(explicitStudentId?: string) {
         .limit(1)
         .maybeSingle();
       if (error) throw error;
-      return (data as unknown as Protocol) ?? null;
+      if (!data) return null;
+      if (!draftPreview) return data as unknown as Protocol;
+      const { data: draft, error: draftError } = await sb
+        .from("protocol_drafts")
+        .select("payload")
+        .eq("protocol_id", data.id)
+        .maybeSingle();
+      if (draftError) throw draftError;
+      return { ...(data as unknown as Protocol), persisted_draft: draft?.payload as Record<string, unknown> | undefined };
     },
   });
 
@@ -179,8 +187,8 @@ export function useStudentData(explicitStudentId?: string) {
 
   const protocol = protocolQ.data ?? null;
   const effectiveProtocolPayload =
-    draftPreview && protocol?.draft_payload && Object.keys(protocol.draft_payload as object).length > 0
-      ? protocol.draft_payload
+    draftPreview && protocol?.persisted_draft && Object.keys(protocol.persisted_draft).length > 0
+      ? protocol.persisted_draft
       : protocol?.payload ?? null;
 
   return {

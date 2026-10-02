@@ -68,7 +68,7 @@ export default function CopyProtocolDialog({
       // conteúdo publicado e as seções não selecionadas ficam intactos.
       const { data: target } = await sb
         .from("protocols")
-        .select("id, payload, draft_payload")
+        .select("id, payload, revision, name, active")
         .eq("student_id", selectedId)
         .eq("is_template", false)
         .order("updated_at", { ascending: false })
@@ -76,8 +76,14 @@ export default function CopyProtocolDialog({
         .maybeSingle();
 
       if (target?.id) {
+        const { data: targetDraft, error: draftError } = await sb
+          .from("protocol_drafts")
+          .select("payload")
+          .eq("protocol_id", target.id)
+          .maybeSingle();
+        if (draftError) throw draftError;
         const base: any = JSON.parse(
-          JSON.stringify(target.draft_payload ?? target.payload ?? {})
+          JSON.stringify(targetDraft?.payload ?? target.payload ?? {})
         );
         if (sections.workout) {
           base.workouts = src.workouts ?? [];
@@ -93,10 +99,23 @@ export default function CopyProtocolDialog({
           base.supplementCombos = src.supplementCombos ?? [];
         }
 
-        const { error } = await sb
-          .from("protocols")
-          .update({ draft_payload: base, updated_at: new Date().toISOString() })
-          .eq("id", target.id);
+        const macros = base.macros ?? {};
+        const { error } = await sb.rpc("save_protocol_with_plan", {
+          p_protocol_id: target.id,
+          p_student_id: selectedId,
+          p_coach_id: coachId,
+          p_name: target.name || protocolName || "Protocolo",
+          p_payload: base,
+          p_active: target.active ?? false,
+          p_as_draft: true,
+          p_goal: macros.goal || "manter",
+          p_calories: macros.calories || 0,
+          p_protein: macros.protein || 0,
+          p_carbs: macros.carbs || 0,
+          p_fat: macros.fat || 0,
+          p_water: macros.water || 0,
+          p_expected_revision: target.revision ?? 0,
+        });
         if (error) throw error;
         toast.success(
           `Seções copiadas para ${targetName} como rascunho — o restante do protocolo dele foi preservado`

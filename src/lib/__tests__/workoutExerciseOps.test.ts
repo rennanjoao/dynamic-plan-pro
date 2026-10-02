@@ -85,6 +85,16 @@ describe("remapDayOverrides", () => {
     const next = remapDayOverrides(periodization, "A", map);
     expect(next.overrides!["0"]).toEqual({ A_1: { sets: "4" } });
   });
+
+  it("mantém a identidade estável gravada no override durante o remapeamento", () => {
+    const periodization = PeriodizationSchema.parse({
+      enabled: true,
+      overrides: { "0": { A_0: { exerciseId: "stable-a", sets: "4" } } },
+    });
+    const map = new Map<number, number | null>([[0, 2]]);
+    const next = remapDayOverrides(periodization, "A", map);
+    expect(next.overrides?.["0"]?.A_2).toEqual({ exerciseId: "stable-a", sets: "4" });
+  });
 });
 
 describe("applyDayExercisesChange (integração)", () => {

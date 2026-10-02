@@ -88,7 +88,7 @@ export default function Supplements() {
       // 1) Try active protocol first (most recent data structure)
       const { data: protocol } = await supabase
         .from("protocols")
-        .select("payload, draft_payload, updated_at")
+        .select("id, payload, updated_at")
         .eq("student_id", userId)
         .eq("is_template", false)
         .eq("active", true)
@@ -96,7 +96,10 @@ export default function Supplements() {
         .limit(1)
         .maybeSingle();
 
-      const draft = protocol?.draft_payload as Record<string, unknown> | null | undefined;
+      const { data: draftRow } = draftPreview && protocol?.id
+        ? await supabase.from("protocol_drafts").select("payload").eq("protocol_id", protocol.id).maybeSingle()
+        : { data: null };
+      const draft = draftRow?.payload as Record<string, unknown> | null | undefined;
       const pPayload =
         (draftPreview && draft && Object.keys(draft).length > 0
           ? draft

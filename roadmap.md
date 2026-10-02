@@ -1,0 +1,8 @@
+# Roadmap
+
+- [x] Isolate unpublished protocol drafts from student-readable data.
+- [x] Add atomic publishing, revision conflicts, and version metadata.
+- [x] Serialize autosave and expose clear save/conflict states.
+- [x] Stabilize exercise identities and periodization overrides.
+- [x] Preserve nutrition precision and reject invented serving conversions.
+- [x] Validate publication and cover critical behavior with focused tests.

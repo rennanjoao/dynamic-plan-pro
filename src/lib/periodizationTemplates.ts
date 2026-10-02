@@ -157,8 +157,13 @@ export function injectPeriodizationBlock(
   tpl: PeriodizationBlockPayload,
 ): { payload: ProtocolPayload; applied: number; skipped: number } {
   const validSlots = new Set<string>();
+  const stableSlots = new Map<string, string>();
   for (const day of payload.workouts) {
-    day.exercises.forEach((_, idx) => validSlots.add(`${day.key}_${idx}`));
+    day.exercises.forEach((exercise, idx) => {
+      const slot = `${day.key}_${idx}`;
+      validSlots.add(slot);
+      if (exercise.__id) stableSlots.set(exercise.__id, slot);
+    });
   }
 
   let applied = 0;
@@ -167,8 +172,9 @@ export function injectPeriodizationBlock(
   for (const [weekKey, weekMap] of Object.entries(tpl.periodization.overrides || {})) {
     const nextWeekMap: Record<string, unknown> = {};
     for (const [slotId, patch] of Object.entries(weekMap || {})) {
-      if (validSlots.has(slotId)) {
-        nextWeekMap[slotId] = patch;
+      const targetSlot = patch.exerciseId ? stableSlots.get(patch.exerciseId) : slotId;
+      if (targetSlot && validSlots.has(targetSlot)) {
+        nextWeekMap[targetSlot] = patch;
         applied++;
       } else {
         skipped++;
