@@ -62,6 +62,24 @@ export interface ExerciseHistory {
   sessionLabel?: string;
 }
 
+// ── Cargas por série de um treino (histórico por semana da periodização) ──────
+export interface SessionLoadSet {
+  setNumber: number;
+  weightKg: number;
+  reps: number;
+  perceivedEffort?: 1 | 2 | 3;
+}
+
+/** Um treino anterior de um exercício: todas as séries daquela sessão. */
+export interface ExerciseSessionLoad {
+  sessionId: string;
+  executedAt: string;
+  /** Semana da periodização (0..3); null = sem periodização. */
+  periodizationWeek: number | null;
+  /** Ordenadas por setNumber. */
+  sets: SessionLoadSet[];
+}
+
 // ── Sugestão de progressão ────────────────────────────────────────────────────
 export interface ProgressionSuggestion {
   exerciseKey: string;
