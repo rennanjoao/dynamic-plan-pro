@@ -2415,6 +2415,7 @@ export type Database = {
           notes: string | null
           perceived_effort: number | null
           periodization_key: string | null
+          periodization_week: number | null
           reps: number | null
           reps_target_max: number | null
           reps_target_min: number | null
@@ -2436,6 +2437,7 @@ export type Database = {
           notes?: string | null
           perceived_effort?: number | null
           periodization_key?: string | null
+          periodization_week?: number | null
           reps?: number | null
           reps_target_max?: number | null
           reps_target_min?: number | null
@@ -2457,6 +2459,7 @@ export type Database = {
           notes?: string | null
           perceived_effort?: number | null
           periodization_key?: string | null
+          periodization_week?: number | null
           reps?: number | null
           reps_target_max?: number | null
           reps_target_min?: number | null
