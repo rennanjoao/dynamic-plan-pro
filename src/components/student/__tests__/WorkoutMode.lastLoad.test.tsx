@@ -20,7 +20,7 @@ vi.mock("@/hooks/useExerciseGif", () => ({ useExerciseGif: () => null }));
 vi.mock("@/hooks/useAdaptiveWeightStep", () => ({ useAdaptiveWeightStep: () => ({ onPointerDown: () => () => {}, onPointerUp: () => {}, onPointerLeave: () => {} }) }));
 vi.mock("@/components/ConfirmProvider", () => ({ useConfirm: () => async () => false }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => ({ select: () => ({ eq: () => ({ order: () => ({ limit: async () => ({ data: [] }) }) }) }) }) } }));
-vi.mock("@/lib/exerciseLibrary", () => ({ getLibraryEntry: async () => null, listExercisesByMuscleGroup: async () => [] }));
+vi.mock("@/lib/exerciseLibrary", () => ({ getLibraryEntry: async () => null, listExercisesByMuscleGroup: async () => [{ key: "remada", displayName: "Remada", url: "" }] }));
 vi.mock("../WorkoutShareCard", () => ({ default: () => null }));
 
 const workout = [{ key: "A", exercises: [{ name: "Supino", sets: "3", reps: "8", rest: "60s" }] }];
@@ -65,5 +65,16 @@ describe("referência compacta da última carga", () => {
     show(0, false);
     await waitFor(() => expect(batch).toHaveBeenCalledWith(["Supino"], null));
     expect(screen.queryByTestId("last-load-ref")).toBeNull();
+  });
+
+  it("trocar exercício rebusca os nomes e mostra somente a carga do novo exercício", async () => {
+    loads = { Supino: [{ weightKg: 30, reps: 8, executedAt: "2026-10-02" }] };
+    show();
+    await screen.findByText("Últ. Peso: 30kg × 8");
+    await userEvent.click(screen.getByRole("button", { name: /Trocar exercício/i }));
+    await userEvent.click(await screen.findByRole("button", { name: "Remada" }));
+    await waitFor(() => expect(batch).toHaveBeenCalledWith(["Remada"], "peso"));
+    expect(await screen.findByText("Sem carga anterior nesta fase")).toBeTruthy();
+    expect(screen.queryByTestId("last-load-ref")?.textContent).not.toContain("30kg");
   });
 });
