@@ -5,8 +5,9 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toExerciseKey } from "@/lib/workoutTypes";
-import type { ExerciseHistory } from "@/lib/workoutTypes";
+import type { ExerciseHistory, ExerciseSessionLoad } from "@/lib/workoutTypes";
 import { workoutDraftStorageKey } from "@/lib/periodizationKey";
+import { groupSetRowsIntoSessions, type SetRowLike } from "@/lib/loadProgression";
 
 /* ── Parâmetros ──────────────────────────────────────────────────────────────── */
 
@@ -50,6 +51,7 @@ interface RegisterSetParams {
   swappedFromName?: string | null;
   /** Periodização da sessão — grava junto da série para separar o histórico. */
   periodizationKey?: string | null;
+  periodizationWeek?: number | null;
 }
 
 interface FinishSessionParams {
@@ -81,6 +83,7 @@ function buildSetRow(sessionId: string, userId: string, params: RegisterSetParam
     notes:            params.notes ?? null,
     swapped_from_name: params.swappedFromName ?? null,
     periodization_key: params.periodizationKey ?? null,
+    periodization_week: params.periodizationWeek ?? null,
     executed_at:      new Date().toISOString(),
   };
 }
@@ -586,6 +589,26 @@ export function useWorkoutSession() {
     []
   );
 
+  // Uma consulta por exercício: um limite global esconderia exercícios pouco usados.
+  const getExerciseLoadHistory = useCallback(async (opts: LoadHistoryOptions): Promise<Record<string, ExerciseSessionLoad[]>> => {
+    const { userId, exerciseNames, weekSlot = null, excludeSessionId = null, sessionsPerExercise = 3 } = opts;
+    const result: Record<string, ExerciseSessionLoad[]> = {};
+    if (!userId || exerciseNames.length === 0) return result;
+    await Promise.all(Array.from(new Set(exerciseNames)).map(async name => {
+      let query = supabase.from("workout_sets")
+        .select("session_id, set_number, weight_kg, reps, perceived_effort, executed_at, periodization_week")
+        .eq("user_id", userId).eq("exercise_key", toExerciseKey(name))
+        .eq("completed", true).eq("skipped", false);
+      if (weekSlot != null) query = query.eq("periodization_week", weekSlot);
+      if (excludeSessionId && !excludeSessionId.startsWith("local_")) query = query.neq("session_id", excludeSessionId);
+      const { data, error } = await query.order("executed_at", { ascending: false }).limit(LOAD_HISTORY_ROWS_PER_EXERCISE);
+      if (error || !data) return;
+      const sessions = groupSetRowsIntoSessions(data as SetRowLike[], sessionsPerExercise);
+      if (sessions.length) result[name] = sessions;
+    }));
+    return result;
+  }, []);
+
   // ── Streak real de dias consecutivos com sessão finalizada ─────────────────
   // Substitui o `streak={0}` hardcoded do WorkoutMode — sem isso o gatilho de
   // "perder a sequência" (o de maior retenção comprovada do mercado) era fake.
@@ -631,6 +654,17 @@ export function useWorkoutSession() {
     finishSession,
     getExerciseHistory,
     getExerciseHistoryBatch,
+    getExerciseLoadHistory,
     getStreak,
   };
 }
+
+export interface LoadHistoryOptions {
+  userId: string;
+  exerciseNames: string[];
+  weekSlot?: number | null;
+  excludeSessionId?: string | null;
+  sessionsPerExercise?: number;
+}
+
+const LOAD_HISTORY_ROWS_PER_EXERCISE = 60;
