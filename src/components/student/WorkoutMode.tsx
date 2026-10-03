@@ -36,7 +36,7 @@ import { useConfirm } from "@/components/ConfirmProvider";
 import { useWorkoutSession, isSessionStale } from "@/hooks/useWorkoutSession";
 import { useAdaptiveWeightStep } from "@/hooks/useAdaptiveWeightStep";
 import { supabase } from "@/integrations/supabase/client";
-import type { ExerciseHistory } from "@/lib/workoutTypes";
+import type { ExerciseSessionLoad } from "@/lib/workoutTypes";
 import { effortLabel, toExerciseKey } from "@/lib/workoutTypes";
 import { useExerciseGif } from "@/hooks/useExerciseGif";
 import { isMobilityExercise } from "@/lib/protocolSchema";
@@ -44,7 +44,8 @@ import { parseExerciseNotes } from "@/lib/parseExerciseNotes";
 import { ExerciseVideoSheet } from "./ExerciseVideoSheet";
 import { CompactWeekSelector } from "./CompactWeekSelector";
 import { DEFAULT_WEEKS, parseRepsMin, parseRepsMax } from "@/lib/periodizationDefaults";
-import { buildPeriodizationKey, periodizationKeyLabel, workoutStateStorageKey } from "@/lib/periodizationKey";
+import { buildPeriodizationKey, periodizationWeekSlot, workoutStateStorageKey } from "@/lib/periodizationKey";
+import { pickSetForPrefill } from "@/lib/loadProgression";
 import {
   getLibraryEntry,
   listExercisesByMuscleGroup,
@@ -134,13 +135,14 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     });
 
   const initialPeriodizationKey = periodizationKeyOf(initialWeek ?? 0);
-  const initialStorageKey = workoutStateStorageKey(userId, dayKeyForStorage, initialPeriodizationKey);
+  const initialStorageKey = workoutStateStorageKey(userId, dayKeyForStorage, initialPeriodizationKey, periodizationWeekSlot(isPeriodizationOn, initialWeek ?? 0));
 
   const _saved = (() => { try { return JSON.parse(localStorage.getItem(initialStorageKey) ?? "null"); } catch { return null; } })();
 
   const [activeWeek, setActiveWeek] = useState<number>(_saved?.activeWeek ?? initialWeek ?? 0);
   const periodizationKey = periodizationKeyOf(activeWeek);
-  const storageKey = workoutStateStorageKey(userId, dayKeyForStorage, periodizationKey);
+  const weekSlot = periodizationWeekSlot(isPeriodizationOn, activeWeek);
+  const storageKey = workoutStateStorageKey(userId, dayKeyForStorage, periodizationKey, weekSlot);
   const [currentExIdx, setCurrentExIdx] = useState(0);
   const [phase, setPhase] = useState<"training" | "conclusion">("training");
   const [setDataMap, setSetDataMap] = useState<Record<string, any[]>>(_saved?.setDataMap ?? {});
@@ -183,7 +185,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const [swapOptions, setSwapOptions] = useState<LibraryEntry[]>([]);
   const [swapCurated, setSwapCurated] = useState(false);
 
-  const [historyMap, setHistoryMap] = useState<Record<string, ExerciseHistory[]>>({});
+  const [historyMap, setHistoryMap] = useState<Record<string, ExerciseSessionLoad[]>>({});
   const [historyReadyScope, setHistoryReadyScope] = useState<string | null>(null);
   const [sessionPRs, setSessionPRs] = useState<{ exerciseName: string; weightKg: number; reps: number }[]>([]);
   const [prPulse, setPrPulse] = useState(false);
@@ -208,7 +210,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   });
   const exerciseNames: string[] = exercises.map((e: { name: string }) => e.name);
   const exerciseNamesKey = exerciseNames.join("|");
-  const historyScope = `${day?.key}@@${periodizationKey ?? "legacy"}@@${exerciseNamesKey}`;
+  const historyScope = `${day?.key}@@${weekSlot ?? "legacy"}@@${exerciseNamesKey}`;
 
   const currentEx = exercises[currentExIdx];
   const currentExKey = `${day?.key}::${currentExIdx}`;
@@ -426,15 +428,15 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   }, [currentEx?.name, currentEx?.gifKey, (currentEx as any)?.allowed_substitutes]);
 
   useEffect(() => {
-    if (!exerciseNames.length) return;
+    if (!exerciseNames.length || !session.sessionId) return;
     let cancelled = false;
     session
-      .getExerciseHistoryBatch(exerciseNames, periodizationKey)
+      .getExerciseLoadHistory({ userId, exerciseNames, weekSlot, excludeSessionId: session.sessionId })
       .then((map) => { if (!cancelled) { setHistoryMap(map ?? {}); setHistoryReadyScope(historyScope); } })
-      .catch((err) => { if (!cancelled) console.warn("getExerciseHistoryBatch falhou:", err); });
+      .catch((err) => { if (!cancelled) console.warn("getExerciseLoadHistory falhou:", err); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [day?.key, exerciseNamesKey, periodizationKey]);
+  }, [userId, day?.key, exerciseNamesKey, weekSlot, session.sessionId]);
 
   const isRegisteringSetRef = useRef(false);
   const [isRegisteringSet, setIsRegisteringSet] = useState(false);
@@ -453,7 +455,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     setSetDataMap(prev => ({ ...prev, [currentExKey]: newSets }));
 
     const history = historyMap[currentEx?.name] ?? [];
-    const historyBestWeight = history.length ? Math.max(...history.map(h => h.weightKg)) : 0;
+    const historyBestWeight = history.length ? Math.max(0, ...history.flatMap(h => h.sets.map(s => s.weightKg))) : 0;
     const sessionBestWeightThisEx = currentSets.length ? Math.max(...currentSets.map(s => s.weight || 0)) : 0;
     const bestPrevWeight = Math.max(historyBestWeight, sessionBestWeightThisEx);
     const isPR = activeWeight > 0 && activeWeight > bestPrevWeight;
@@ -486,6 +488,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         completed: true,
         swappedFromName: currentEx?.swappedFrom ?? null,
         periodizationKey,
+        periodizationWeek: weekSlot,
       });
       if (!isPR) {
         toast.success(`Série ${setIdx + 1} registrada`, { duration: 2200 });
@@ -509,28 +512,28 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const doneSets = (setDataMap[currentExKey] ?? []).filter(s => s.done);
   const todasFeitas = doneSets.length >= setsMax;
 
-  const lastPrefillKeyRef = useRef<string | null>(null);
+  const prefillIdentityRef = useRef<string | null>(null);
+  const prefillDoneRef = useRef(0);
   useEffect(() => {
-    const prefillIdentity = `${currentExKey}@@${periodizationKey ?? "legacy"}`;
-    const keyChanged = lastPrefillKeyRef.current !== prefillIdentity;
-    lastPrefillKeyRef.current = prefillIdentity;
+    const identity = `${currentExKey}@@${currentEx?.name}@@${weekSlot ?? "legacy"}`;
+    const identityChanged = prefillIdentityRef.current !== identity;
+    const doneCount = doneSets.length;
+    const increased = !identityChanged && doneCount > prefillDoneRef.current;
+    const decreased = !identityChanged && doneCount < prefillDoneRef.current;
+    prefillIdentityRef.current = identity;
+    prefillDoneRef.current = doneCount;
 
-    const currentSets = setDataMap[currentExKey] ?? [];
-    const hasDoneSets = currentSets.some((s: any) => s.done);
-
-    const weight = keyChanged ? 0 : activeWeight;
-    const reps = keyChanged ? 0 : activeReps;
-    if (keyChanged) { setActiveWeight(0); setActiveReps(0); }
-
-    if (hasDoneSets) return;
-    const history = historyMap[currentEx?.name] ?? [];
-    if (history.length > 0) {
-      const last = history[0];
-      if (last?.weightKg && !weight) setActiveWeight(last.weightKg);
-      if (last?.reps && !reps) setActiveReps(last.reps);
-    }
+    if (identityChanged) { setActiveWeight(0); setActiveReps(0); }
+    if (decreased || historyReadyScope !== historyScope) return;
+    const lastSets = historyMap[currentEx?.name]?.[0]?.sets ?? [];
+    if (lastSets.length === 0 || doneCount >= setsMax) return;
+    if (!identityChanged && !increased && (activeWeight || activeReps)) return;
+    const target = pickSetForPrefill(lastSets, doneCount + 1);
+    if (!target) return;
+    setActiveWeight(target.weightKg || 0);
+    setActiveReps(target.reps || 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentExKey, historyMap, periodizationKey]);
+  }, [currentExKey, currentEx?.name, historyMap, historyReadyScope, historyScope, weekSlot, doneSets.length]);
 
   const handleUndoLastSet = useCallback(async () => {
     const currentSets = setDataMap[currentExKey] ?? [];
@@ -575,12 +578,14 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         completed: false,
         skipped: true,
         swappedFromName: currentEx?.swappedFrom ?? null,
+        periodizationKey,
+        periodizationWeek: weekSlot,
       });
     } catch (err) {
       console.warn("[WorkoutMode] Falha ao registrar série pulada:", err);
     }
     toast("Série pulada", { icon: "⏭️", duration: 1800 });
-  }, [setDataMap, currentExKey, setsMax, session, currentEx]);
+  }, [setDataMap, currentExKey, setsMax, session, currentEx, periodizationKey, weekSlot]);
 
   const handleSaveEditSet = useCallback(async () => {
     if (editingSetIdx == null) return;
@@ -602,12 +607,14 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         completed: !target.skipped,
         skipped: !!target.skipped,
         swappedFromName: currentEx?.swappedFrom ?? null,
+        periodizationKey,
+        periodizationWeek: weekSlot,
       });
     } catch (err) {
       console.warn("[WorkoutMode] Falha ao editar série:", err);
     }
     setEditingSetIdx(null);
-  }, [editingSetIdx, editWeight, editReps, setDataMap, currentExKey, session, currentEx]);
+  }, [editingSetIdx, editWeight, editReps, setDataMap, currentExKey, session, currentEx, periodizationKey, weekSlot]);
 
   const handleRemoveSet = useCallback(async () => {
     if (editingSetIdx == null) return;
@@ -895,12 +902,10 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                   </div>
                 </div>
                 {historyReadyScope === historyScope && (() => {
-                  const last = historyMap[currentEx.name]?.[0];
-                  const phaseLabel = periodizationKeyLabel(periodizationKey);
-                  if (last && (last.weightKg > 0 || last.reps > 0)) {
-                    return <p data-testid="last-load-ref" className="text-center text-[10px] font-bold text-muted-foreground -mt-1">Últ.{phaseLabel ? ` ${phaseLabel}` : ""}: {last.weightKg > 0 ? `${last.weightKg}kg × ${last.reps}` : `${last.reps} reps`}</p>;
-                  }
-                  return phaseLabel ? <p data-testid="last-load-ref" className="text-center text-[10px] font-bold text-muted-foreground/70 -mt-1">Sem carga anterior nesta fase</p> : null;
+                  const lastSets = (historyMap[currentEx.name]?.[0]?.sets ?? []).filter(st => st.weightKg > 0 || st.reps > 0);
+                  if (lastSets.length === 0) return null;
+                  const label = weekSlot != null ? `Último treino (Sem. ${weekSlot + 1})` : "Último treino";
+                  return <p data-testid="last-load-ref" className="text-center text-[10px] font-bold text-muted-foreground -mt-1">{label}: {lastSets.map(st => st.weightKg > 0 ? `${st.weightKg}kg×${st.reps}` : `${st.reps} reps`).join(" · ")}</p>;
                 })()}
                 <div className="grid grid-cols-3 gap-2">
                   {EFFORT_OPTIONS.map(opt => (

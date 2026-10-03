@@ -1,13 +1,8 @@
 // src/lib/periodizationKey.ts
-// Identificador ESTÁVEL do tipo de periodização de uma sessão de treino.
-//
-// Por que não usar `periodization_week` (índice 0..3): o índice não descreve o
-// estímulo — o coach pode reordenar/editar as semanas e a "semana 2" passa a
-// ser outra coisa. A carga sugerida precisa ser específica do TIPO de semana
-// (Força/Pesado, Técnica/Hipertrofia, Resistência, Deload).
-//
-// Periodização ativa: somente a fase exata; outra fase e legado sem chave
-// nunca preenchem a carga. Desligada: último treino geral do exercício.
+// Dois eixos: periodization_key é o tipo da semana (rótulos e filtro de sessões);
+// periodization_week é sua posição 0..3 (histórico de cargas série a série).
+// Se o coach reordenar semanas, as cargas seguem a posição, não o estímulo.
+// Sem periodização, o histórico de carga usa os últimos treinos gerais.
 
 import { classifyWeekFocus } from "@/lib/periodizationDefaults";
 
@@ -43,9 +38,16 @@ export function buildPeriodizationKey(input: BuildPeriodizationKeyInput): Period
   return classifyWeekFocus(input.reps).key;
 }
 
+/** Semana usada como gaveta do histórico de carga; sem periodização, null. */
+export function periodizationWeekSlot(enabled: boolean | undefined, weekIdx: number | null | undefined): number | null {
+  if (!enabled) return null;
+  return Number.isInteger(weekIdx) && (weekIdx as number) >= 0 ? (weekIdx as number) : null;
+}
+
 /** Chave do estado da tela (progresso do dia) no localStorage. */
-export function workoutStateStorageKey(userId: string, workoutKey: string, periodizationKey: string | null): string {
-  return `workout_session_${userId}_${workoutKey}_${periodizationKey ?? LEGACY_BUCKET}`;
+export function workoutStateStorageKey(userId: string, workoutKey: string, periodizationKey: string | null, weekSlot: number | null = null): string {
+  const base = `workout_session_${userId}_${workoutKey}_${periodizationKey ?? LEGACY_BUCKET}`;
+  return weekSlot == null ? base : `${base}_w${weekSlot}`;
 }
 
 /** Chave da fila offline de séries no localStorage. */
