@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildPeriodizationKey,
+  periodizationKeyLabel,
   selectHistoryForPeriodization,
   workoutDraftStorageKey,
   workoutStateStorageKey,
@@ -53,8 +54,17 @@ describe("selectHistoryForPeriodization", () => {
   it("5) sessões antigas sem periodização não contaminam periodizações identificadas", () => {
     const peso = selectHistoryForPeriodization(HISTORY, "peso");
     expect(peso.some((r) => r.periodization_key === null)).toBe(false);
-    // e o balde legado só devolve o próprio histórico legado
-    expect(selectHistoryForPeriodization(HISTORY, null).map((r) => r.weight)).toEqual([88]);
+    // sem fase ativa, o histórico geral inclui todas as fases e o legado
+    expect(selectHistoryForPeriodization(HISTORY, null)).toEqual(HISTORY);
+  });
+});
+
+describe("periodizationKeyLabel", () => {
+  it("nomeia as quatro fases e rejeita chaves ausentes ou desconhecidas", () => {
+    expect(["peso", "tecnica", "resistencia", "deload"].map(periodizationKeyLabel)).toEqual(["Peso", "Técnica", "Resistência", "Deload"]);
+    expect(periodizationKeyLabel(null)).toBeNull();
+    expect(periodizationKeyLabel(undefined)).toBeNull();
+    expect(periodizationKeyLabel("outra")).toBeNull();
   });
 });
 
