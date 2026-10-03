@@ -1,11 +1,14 @@
 // src/components/student/WorkoutHistory.tsx
 // Histórico de treinos com dados reais do logbook (Sprint 2)
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Trophy, Dumbbell, Clock, TrendingUp, Zap, Moon, Activity } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { effortLabel } from "@/lib/workoutTypes";
+import { periodizationKeyLabel } from "@/lib/periodizationKey";
+import { Button } from "@/components/ui/button";
 
 /* ── Helpers ─────────────────────────────────────────────────────────────────── */
 
@@ -53,6 +56,7 @@ interface SessionRow {
   general_feeling?: number;
   sleep_quality?: number;
   is_deload_week: boolean;
+  periodization_key?: string | null;
   sets?: SetRow[];
 }
 
@@ -66,15 +70,24 @@ interface SetRow {
 
 /* ── Componente ─────────────────────────────────────────────────────────────── */
 
-export default function WorkoutHistory({ userId }: { userId: string }) {
+export default function WorkoutHistory({ userId, periodizationKey = null }: { userId: string; periodizationKey?: string | null }) {
+  const [phaseOnly, setPhaseOnly] = useState(true);
+  const scopedKey = phaseOnly && periodizationKey ? periodizationKey : null;
+  const label = periodizationKeyLabel(periodizationKey);
+  const phaseToggle = periodizationKey && (
+    <div className="flex w-fit max-w-full gap-0.5 bg-muted/40 p-0.5 rounded-md mb-3" aria-label="Filtrar histórico por fase">
+      <Button type="button" variant="ghost" size="sm" aria-pressed={phaseOnly} onClick={() => setPhaseOnly(true)} className={`h-7 px-2 text-[11px] rounded-sm shadow-none ${phaseOnly ? "bg-background text-foreground" : "text-muted-foreground"}`}>Fase atual · {label ?? periodizationKey}</Button>
+      <Button type="button" variant="ghost" size="sm" aria-pressed={!phaseOnly} onClick={() => setPhaseOnly(false)} className={`h-7 px-2 text-[11px] rounded-sm shadow-none ${!phaseOnly ? "bg-background text-foreground" : "text-muted-foreground"}`}>Todas</Button>
+    </div>
+  );
   // Busca sessões com sets aninhados
   const { data: sessions, isLoading } = useQuery({
-    queryKey: ["workout_history_v2", userId],
+    queryKey: ["workout_history_v2", userId, scopedKey ?? "all"],
     enabled: !!userId,
     staleTime: 1000 * 60 * 3,
     queryFn: async (): Promise<SessionRow[]> => {
       // Tenta buscar da nova tabela workout_sessions
-      const { data: newData, error } = await (supabase as any)
+      let query = supabase
         .from("workout_sessions")
         .select(`
           id,
@@ -85,6 +98,7 @@ export default function WorkoutHistory({ userId }: { userId: string }) {
           general_feeling,
           sleep_quality,
           is_deload_week,
+          periodization_key,
           workout_sets (
             exercise_name,
             set_number,
@@ -93,9 +107,9 @@ export default function WorkoutHistory({ userId }: { userId: string }) {
             perceived_effort
           )
         `)
-        .eq("user_id", userId)
-        .order("started_at", { ascending: false })
-        .limit(30);
+        .eq("user_id", userId);
+      if (scopedKey) query = query.eq("periodization_key", scopedKey);
+      const { data: newData, error } = await query.order("started_at", { ascending: false }).limit(30);
 
       if (!error && newData) {
         const withSets = (newData as any[]).filter(
@@ -114,6 +128,8 @@ export default function WorkoutHistory({ userId }: { userId: string }) {
         }
       }
 
+      // Registros legados não têm fase e não podem aparecer no filtro ativo.
+      if (scopedKey) return [];
       // Fallback: tabela legada workout_progress
       const { data: legacy } = await (supabase as any)
         .from("workout_progress")
@@ -135,29 +151,26 @@ export default function WorkoutHistory({ userId }: { userId: string }) {
 
   if (isLoading) {
     return (
-      <div className="space-y-2">
+      <div>{phaseToggle}<div className="space-y-2">
         {Array.from({ length: 5 }).map((_, i) => (
           <div key={i} className="h-16 bg-muted/30 rounded-lg animate-pulse" />
         ))}
-      </div>
+      </div></div>
     );
   }
 
   if (!sessions?.length) {
     return (
-      <div className="text-center py-10 space-y-3">
+      <div>{phaseToggle}<div className="text-center py-10 space-y-3">
         <Dumbbell className="w-10 h-10 text-muted-foreground/30 mx-auto" />
-        <p className="text-sm font-semibold text-foreground">Nenhum treino registrado ainda.</p>
-        <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-          Complete um treino no Modo Treino para ver seu histórico aqui.
-          A partir do primeiro treino, você terá acesso a dados de carga e evolução.
-        </p>
-      </div>
+        <p className="text-sm font-semibold text-foreground">{scopedKey ? `Nenhum treino na fase ${label ?? scopedKey} ainda.` : "Nenhum treino registrado ainda."}</p>
+        {scopedKey ? <><p className="text-xs text-muted-foreground">Seus treinos de outras fases continuam disponíveis.</p><Button variant="link" size="sm" onClick={() => setPhaseOnly(false)}>Ver todas</Button></> : <p className="text-xs text-muted-foreground max-w-xs mx-auto">Complete um treino no Modo Treino para ver seu histórico aqui. A partir do primeiro treino, você terá acesso a dados de carga e evolução.</p>}
+      </div></div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3">{phaseToggle}
       {sessions.map((session) => {
         const hasSets    = session.sets && session.sets.length > 0;
         const totalSets  = session.sets?.length ?? 0;
@@ -197,7 +210,7 @@ export default function WorkoutHistory({ userId }: { userId: string }) {
                   )}
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  {fmtDate(session.started_at)}
+                  {fmtDate(session.started_at)}{!scopedKey && periodizationKeyLabel(session.periodization_key) ? ` · ${periodizationKeyLabel(session.periodization_key)}` : ""}
                 </p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">

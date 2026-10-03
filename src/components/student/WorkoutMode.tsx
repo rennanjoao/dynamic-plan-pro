@@ -44,7 +44,7 @@ import { parseExerciseNotes } from "@/lib/parseExerciseNotes";
 import { ExerciseVideoSheet } from "./ExerciseVideoSheet";
 import { CompactWeekSelector } from "./CompactWeekSelector";
 import { DEFAULT_WEEKS, parseRepsMin, parseRepsMax } from "@/lib/periodizationDefaults";
-import { buildPeriodizationKey, workoutStateStorageKey } from "@/lib/periodizationKey";
+import { buildPeriodizationKey, periodizationKeyLabel, workoutStateStorageKey } from "@/lib/periodizationKey";
 import {
   getLibraryEntry,
   listExercisesByMuscleGroup,
@@ -184,6 +184,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const [swapCurated, setSwapCurated] = useState(false);
 
   const [historyMap, setHistoryMap] = useState<Record<string, ExerciseHistory[]>>({});
+  const [historyReadyScope, setHistoryReadyScope] = useState<string | null>(null);
   const [sessionPRs, setSessionPRs] = useState<{ exerciseName: string; weightKg: number; reps: number }[]>([]);
   const [prPulse, setPrPulse] = useState(false);
   const [realStreak, setRealStreak] = useState(0);
@@ -205,6 +206,9 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     const sw = swapMap[`${day?.key}::${idx}`];
     return sw ? { ...ex, name: sw.name, gifKey: sw.gifKey, swappedFrom: dayExercises[idx]?.name } : ex;
   });
+  const exerciseNames: string[] = exercises.map((e: { name: string }) => e.name);
+  const exerciseNamesKey = exerciseNames.join("|");
+  const historyScope = `${day?.key}@@${periodizationKey ?? "legacy"}@@${exerciseNamesKey}`;
 
   const currentEx = exercises[currentExIdx];
   const currentExKey = `${day?.key}::${currentExIdx}`;
@@ -422,15 +426,15 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   }, [currentEx?.name, currentEx?.gifKey, (currentEx as any)?.allowed_substitutes]);
 
   useEffect(() => {
-    if (!exercises.length) return;
+    if (!exerciseNames.length) return;
     let cancelled = false;
     session
-      .getExerciseHistoryBatch(exercises.map((e: any) => e.name), periodizationKey)
-      .then((map) => { if (!cancelled) setHistoryMap(map ?? {}); })
-      .catch((err) => { console.warn("getExerciseHistoryBatch falhou:", err); });
+      .getExerciseHistoryBatch(exerciseNames, periodizationKey)
+      .then((map) => { if (!cancelled) { setHistoryMap(map ?? {}); setHistoryReadyScope(historyScope); } })
+      .catch((err) => { if (!cancelled) console.warn("getExerciseHistoryBatch falhou:", err); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [day?.key, exercises.length, periodizationKey]);
+  }, [day?.key, exerciseNamesKey, periodizationKey]);
 
   const isRegisteringSetRef = useRef(false);
   const [isRegisteringSet, setIsRegisteringSet] = useState(false);
@@ -890,6 +894,14 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                     </div>
                   </div>
                 </div>
+                {historyReadyScope === historyScope && (() => {
+                  const last = historyMap[currentEx.name]?.[0];
+                  const phaseLabel = periodizationKeyLabel(periodizationKey);
+                  if (last && (last.weightKg > 0 || last.reps > 0)) {
+                    return <p data-testid="last-load-ref" className="text-center text-[10px] font-bold text-muted-foreground -mt-1">Últ.{phaseLabel ? ` ${phaseLabel}` : ""}: {last.weightKg > 0 ? `${last.weightKg}kg × ${last.reps}` : `${last.reps} reps`}</p>;
+                  }
+                  return phaseLabel ? <p data-testid="last-load-ref" className="text-center text-[10px] font-bold text-muted-foreground/70 -mt-1">Sem carga anterior nesta fase</p> : null;
+                })()}
                 <div className="grid grid-cols-3 gap-2">
                   {EFFORT_OPTIONS.map(opt => (
                     <button key={opt.value} onClick={() => handleFizASerie(opt.value)} disabled={isRegisteringSet || isFinishing} className="flex flex-col items-center justify-center min-h-20 rounded-2xl border-2 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none" style={{ borderColor: opt.color, backgroundColor: opt.bg, color: opt.color }}><span className="text-2xl">{opt.emoji}</span><span className="text-[10px] font-black uppercase mt-1">{opt.label}</span></button>
