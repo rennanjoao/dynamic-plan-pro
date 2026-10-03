@@ -87,7 +87,7 @@ export default function WorkoutHistory({ userId, periodizationKey = null }: { us
     staleTime: 1000 * 60 * 3,
     queryFn: async (): Promise<SessionRow[]> => {
       // Tenta buscar da nova tabela workout_sessions
-      let query = (supabase as any)
+      let query = supabase
         .from("workout_sessions")
         .select(`
           id,
