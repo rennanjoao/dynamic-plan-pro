@@ -6,13 +6,22 @@
 // ser outra coisa. A carga sugerida precisa ser específica do TIPO de semana
 // (Força/Pesado, Técnica/Hipertrofia, Resistência, Deload).
 //
-// Sessões legadas (antes desta feature) gravam `null`. Regra documentada:
-// histórico sem chave NUNCA preenche uma periodização identificada — ele só é
-// usado quando a sessão atual também não tem periodização (`null`).
+// Periodização ativa: somente a fase exata; outra fase e legado sem chave
+// nunca preenchem a carga. Desligada: último treino geral do exercício.
 
 import { classifyWeekFocus } from "@/lib/periodizationDefaults";
 
 export type PeriodizationKey = "peso" | "tecnica" | "resistencia" | "deload";
+
+export const PERIODIZATION_KEY_LABEL: Record<PeriodizationKey, string> = {
+  peso: "Peso", tecnica: "Técnica", resistencia: "Resistência", deload: "Deload",
+};
+
+export function periodizationKeyLabel(key: string | null | undefined): string | null {
+  return key && Object.prototype.hasOwnProperty.call(PERIODIZATION_KEY_LABEL, key)
+    ? PERIODIZATION_KEY_LABEL[key as PeriodizationKey]
+    : null;
+}
 
 /** Chave usada em memória/localStorage quando a sessão não tem periodização. */
 export const LEGACY_BUCKET = "legacy";
@@ -46,11 +55,11 @@ export function workoutDraftStorageKey(userId: string, workoutKey: string, perio
 
 /**
  * Filtra linhas de histórico para a periodização atual.
- * Correspondência EXATA — `null` só casa com `null`.
+ * Fase identificada exige correspondência exata; sem fase não filtra.
  */
 export function selectHistoryForPeriodization<T extends { periodization_key?: string | null }>(
   rows: T[],
   periodizationKey: string | null,
 ): T[] {
-  return (rows ?? []).filter((r) => (r?.periodization_key ?? null) === (periodizationKey ?? null));
+  return periodizationKey == null ? (rows ?? []) : (rows ?? []).filter((r) => r?.periodization_key === periodizationKey);
 }

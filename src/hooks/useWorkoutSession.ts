@@ -521,11 +521,8 @@ export function useWorkoutSession() {
         .eq("set_number", 1)
         .eq("completed", true);
 
-      // Filtro no BANCO (não no JSX): histórico de Força nunca alimenta
-      // Hipertrofia/Deload. Sessões legadas (null) formam um balde próprio.
-      query = periodizationKey
-        ? query.eq("periodization_key", periodizationKey)
-        : query.is("periodization_key", null);
+      // Fase ativa: filtro exato no banco; sem periodização: último treino geral.
+      if (periodizationKey) query = query.eq("periodization_key", periodizationKey);
 
       const { data, error } = await query
         .order("executed_at", { ascending: false })
@@ -564,9 +561,8 @@ export function useWorkoutSession() {
         .eq("set_number", 1)
         .eq("completed", true);
 
-      query = periodizationKey
-        ? query.eq("periodization_key", periodizationKey)
-        : query.is("periodization_key", null);
+      // Fase ativa: filtro exato; sem fase: inclui sessões de todas as fases.
+      if (periodizationKey) query = query.eq("periodization_key", periodizationKey);
 
       const { data, error } = await query.order("executed_at", { ascending: false });
 

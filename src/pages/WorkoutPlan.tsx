@@ -24,6 +24,7 @@ import { MobilitySuggestedDrawer } from "@/components/student/MobilitySuggestedD
 import { WorkoutGuideDrawer } from "@/components/student/WorkoutGuideDrawer";
 import { useCurrentPeriodizationWeek } from "@/hooks/useCurrentPeriodizationWeek";
 import { DEFAULT_WEEKS } from "@/lib/periodizationDefaults";
+import { buildPeriodizationKey } from "@/lib/periodizationKey";
 import { useAuthUserId } from "@/hooks/useAuthUserId";
 import { PageLoader } from "@/components/ui/PageLoader";
 import PreviewModeBar from "@/components/student/PreviewModeBar";
@@ -271,6 +272,12 @@ export default function WorkoutPlan() {
     workoutKeys
   );
   const currentWeek = currentWeekRaw ?? 0;
+  const currentPeriodizationKey = buildPeriodizationKey({
+    enabled: periodizationEnabled,
+    reps: weeks[currentWeek]?.reps,
+    label: weeks[currentWeek]?.label,
+    isDeload: weeks[currentWeek]?.isDeload,
+  });
 
   // Treino de hoje (a partir do weekDays do protocolo) — abre por padrão e recebe badge.
   const WEEKDAY_ORDER = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
@@ -593,7 +600,7 @@ export default function WorkoutPlan() {
           <SheetHeader className="mb-4">
             <SheetTitle>Histórico de Treinos</SheetTitle>
           </SheetHeader>
-          <WorkoutHistory userId={userId} />
+          <WorkoutHistory userId={userId} periodizationKey={currentPeriodizationKey} />
         </SheetContent>
       </Sheet>
 
