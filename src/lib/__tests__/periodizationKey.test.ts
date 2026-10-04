@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildPeriodizationKey,
   periodizationKeyLabel,
+  periodizationWeekSlot,
   selectHistoryForPeriodization,
   workoutDraftStorageKey,
   workoutStateStorageKey,
@@ -75,5 +76,14 @@ describe("chaves de localStorage (fluxo offline)", () => {
     expect(workoutStateStorageKey("u1", "A", "peso")).not.toBe(workoutStateStorageKey("u1", "A", "tecnica"));
     expect(workoutDraftStorageKey("u1", "A", null)).toBe("workout_session_draft_u1_A_legacy");
     expect(workoutDraftStorageKey("u2", "A", "peso")).not.toBe(workoutDraftStorageKey("u1", "A", "peso"));
+  });
+
+  it("separa as semanas 2 e 3 sem alterar a chave legada", () => {
+    expect(periodizationWeekSlot(true, 1)).toBe(1);
+    expect(periodizationWeekSlot(true, 2)).toBe(2);
+    expect(periodizationWeekSlot(false, 2)).toBeNull();
+    expect(workoutStateStorageKey("u1", "A", "tecnica", 1)).toBe("workout_session_u1_A_tecnica_w1");
+    expect(workoutStateStorageKey("u1", "A", "tecnica", 2)).toBe("workout_session_u1_A_tecnica_w2");
+    expect(workoutStateStorageKey("u1", "A", "tecnica")).toBe("workout_session_u1_A_tecnica");
   });
 });
