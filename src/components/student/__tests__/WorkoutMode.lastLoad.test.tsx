@@ -13,7 +13,11 @@ vi.mock("@/hooks/useWorkoutSession", () => ({
     startSession: vi.fn(),
     findActiveSession: async () => null,
     getExerciseLoadHistory: (opts: unknown) => batch(opts),
+    getExerciseBestWeights: async () => ({}),
+    materializeLocalSession: async () => null,
+    hasLocalSession: () => false,
     registerSet: vi.fn(),
+    removeSet: vi.fn(),
     getStreak: async () => 0,
   }),
 }));
