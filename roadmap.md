@@ -8,3 +8,4 @@
 - [x] Validate publication and cover critical behavior with focused tests.
 - [x] Separate active-phase load suggestions and history while retaining all-phase behavior without periodization.
 - [x] Test phase queries, workout reference, and history controls.
+- [x] Per-week load history: each set stores `periodization_week`, each set prefills from the same set of the last session in that week, and a progression drawer lists current exercises with removed ones kept in red.
