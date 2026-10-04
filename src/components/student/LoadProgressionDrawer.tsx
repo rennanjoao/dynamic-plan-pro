@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useIsMobile } from "@/hooks/use-mobile";
 import { isMobilityExercise } from "@/lib/protocolSchema";
 import { buildProgression, formatSets, progressSummary, sessionsForWeek, type ProgressionExercise, type ProgressionRow, type ProgressionSession } from "@/lib/loadProgression";
+import type { SessionLoadSet } from "@/lib/workoutTypes";
 
 interface Props {
   userId: string;
@@ -20,11 +21,28 @@ interface Props {
 
 const fmtDate = (date: string) => new Date(date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
 
+// Resumo da evolução contra o treino anterior, série a série ("↑ 3/4 séries · +2.5kg").
 function Trend({ session }: { session: ProgressionSession }) {
   if (!session.trend) return null;
-  return <span className={session.trend === "up" ? "text-emerald-500" : session.trend === "down" ? "text-amber-500" : "text-muted-foreground"}>
-    {session.trend === "same" ? "igual" : `${session.trend === "up" ? "+" : ""}${session.deltaKg}kg`}
-  </span>;
+  const { setsImproved: up, setsRegressed: down, setsCompared: total } = session;
+  const sets = session.trend === "up" ? `↑ ${up}/${total} séries` : session.trend === "down" ? `↓ ${down}/${total} séries` : "igual";
+  const kg = session.deltaKg ? ` · ${session.deltaKg > 0 ? "+" : ""}${session.deltaKg}kg` : "";
+  return <span className={session.trend === "up" ? "text-emerald-500" : session.trend === "down" ? "text-amber-500" : "text-muted-foreground"}>{sets}{kg}</span>;
+}
+
+const TREND_MARK: Record<string, { mark: string; cls: string }> = {
+  up: { mark: "↑", cls: "text-emerald-500" },
+  down: { mark: "↓", cls: "text-amber-500" },
+};
+
+// Todas as séries do treino, cada uma marcada contra a mesma série do treino anterior.
+function SetsLine({ session }: { session: ProgressionSession }) {
+  return <p className="text-muted-foreground">
+    {session.sets.map((set: SessionLoadSet, i) => {
+      const t = TREND_MARK[session.setTrends[set.setNumber] ?? ""];
+      return <span key={set.setNumber}>{i > 0 && " · "}{formatSets([set])}{t && <span className={t.cls} aria-label={t.mark === "↑" ? "evoluiu" : "caiu"}>{t.mark}</span>}</span>;
+    })}
+  </p>;
 }
 
 function ExerciseItem({ exercise, week, value }: { exercise: ProgressionExercise; week: number | null; value: string }) {
@@ -45,7 +63,7 @@ function ExerciseItem({ exercise, week, value }: { exercise: ProgressionExercise
       {sessions.length === 0 && <p className="text-xs text-muted-foreground">{exercise.sessions.length ? 'Sem registros nesta semana — veja "Todas as semanas".' : "Ainda sem cargas registradas."}</p>}
       {sessions.slice(0, 12).map(session => <div key={session.sessionId} className="border-t border-border/50 pt-2 text-xs space-y-1">
         <div className="flex items-center justify-between gap-2"><span className="font-semibold">{fmtDate(session.executedAt)}{session.week != null && ` · Sem. ${session.week + 1}`}</span><Trend session={session} /></div>
-        <p className="text-muted-foreground">{formatSets(session.sets)}</p>
+        <SetsLine session={session} />
         {session.swappedTo && <p className="text-muted-foreground">Executado com: {session.swappedTo}</p>}
       </div>)}
       {sessions.length > 12 && <p className="text-xs text-muted-foreground">Mostrando os 12 treinos mais recentes.</p>}
@@ -59,6 +77,7 @@ export function LoadProgressionDrawer({ userId, workouts, periodizationEnabled, 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [weekOnly, setWeekOnly] = useState(true);
+  const [truncated, setTruncated] = useState(false);
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -71,7 +90,7 @@ export function LoadProgressionDrawer({ userId, workouts, periodizationEnabled, 
       let from = 0;
       while (from < 5000) {
         const { data, error: fetchError } = await supabase.from("workout_sets")
-          .select("id, session_id, exercise_name, exercise_key, swapped_from_name, set_number, weight_kg, reps, executed_at, periodization_week")
+          .select("id, session_id, exercise_name, exercise_key, swapped_from_name, set_number, weight_kg, reps, executed_at, periodization_week, periodization_key")
           .eq("user_id", userId).eq("completed", true).eq("skipped", false)
           .order("executed_at", { ascending: false }).order("id", { ascending: true })
           .range(from, Math.min(from + 999, 4999));
@@ -80,7 +99,7 @@ export function LoadProgressionDrawer({ userId, workouts, periodizationEnabled, 
         collected.push(...data);
         from += data.length;
       }
-      if (!cancelled) setRows(collected);
+      if (!cancelled) { setRows(collected); setTruncated(collected.length >= 5000); }
     })().catch(() => { if (!cancelled) setError(true); }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [open, userId]);
@@ -102,6 +121,7 @@ export function LoadProgressionDrawer({ userId, workouts, periodizationEnabled, 
       <Button type="button" variant={weekOnly ? "secondary" : "ghost"} size="sm" aria-pressed={weekOnly} onClick={() => setWeekOnly(true)} className="flex-1 text-xs h-auto min-h-9 whitespace-normal">Semana atual · Sem. {currentWeek + 1}</Button>
       <Button type="button" variant={!weekOnly ? "secondary" : "ghost"} size="sm" aria-pressed={!weekOnly} onClick={() => setWeekOnly(false)} className="flex-1 text-xs h-auto min-h-9 whitespace-normal">Todas as semanas</Button>
     </div>}
+    {truncated && !loading && !error && <p className="text-xs text-muted-foreground">Histórico muito longo: mostrando os registros mais recentes.</p>}
     {loading ? <div className="flex justify-center py-10" role="status"><Loader2 className="w-5 h-5 animate-spin text-primary" /><span className="sr-only">Carregando</span></div> : error ? <p className="text-sm text-muted-foreground">Não foi possível carregar seu histórico agora. Tente novamente em instantes.</p> : <>
       {groups.every(g => !g.exercises.length) && !removed.length && <p className="text-sm text-muted-foreground">Nenhum exercício neste treino.</p>}
       {groups.filter(group => group.exercises.length).map(group => <section key={group.key} className="space-y-1">
