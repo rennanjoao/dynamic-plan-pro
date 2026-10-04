@@ -4,15 +4,16 @@ import userEvent from "@testing-library/user-event";
 import WorkoutMode from "../WorkoutMode";
 
 const batch = vi.fn();
-let loads: Record<string, { weightKg: number; reps: number; executedAt: string }[]> = {};
+let loads: Record<string, { sessionId: string; executedAt: string; periodizationWeek: number | null; sets: { setNumber: number; weightKg: number; reps: number }[] }[]> = {};
 
 vi.mock("@/hooks/useWorkoutSession", () => ({
   isSessionStale: () => false,
   useWorkoutSession: () => ({
-    sessionId: null,
+    sessionId: "active-session",
     startSession: vi.fn(),
     findActiveSession: async () => null,
-    getExerciseHistoryBatch: (...args: [string[], string | null]) => batch(...args),
+    getExerciseLoadHistory: (opts: unknown) => batch(opts),
+    registerSet: vi.fn(),
     getStreak: async () => 0,
   }),
 }));
@@ -42,39 +43,38 @@ describe("referência compacta da última carga", () => {
   });
 
   it("mostra carga da fase Peso", async () => {
-    loads = { Supino: [{ weightKg: 30, reps: 8, executedAt: "2026-10-02" }] };
+    loads = { Supino: [{ sessionId: "old", executedAt: "2026-10-02", periodizationWeek: 0, sets: [{ setNumber: 1, weightKg: 30, reps: 8 }, { setNumber: 2, weightKg: 35, reps: 8 }] }] };
     show();
-    await waitFor(() => expect(batch).toHaveBeenCalledWith(["Supino"], "peso"));
-    expect(await screen.findByTestId("last-load-ref")).toHaveTextContent("Últ. Peso: 30kg × 8");
+    await waitFor(() => expect(batch).toHaveBeenCalledWith(expect.objectContaining({ userId: "student-1", exerciseNames: ["Supino"], weekSlot: 0, excludeSessionId: "active-session" })));
+    expect(await screen.findByTestId("last-load-ref")).toHaveTextContent("Último treino (Sem. 1): 30kg×8 · 35kg×8");
   });
 
   it("não reutiliza Peso na Resistência sem registros", async () => {
     show(3);
-    await waitFor(() => expect(batch).toHaveBeenCalledWith(["Supino"], "resistencia"));
-    expect(await screen.findByTestId("last-load-ref")).toHaveTextContent("Sem carga anterior nesta fase");
+    await waitFor(() => expect(batch).toHaveBeenCalledWith(expect.objectContaining({ weekSlot: 3 })));
+    expect(screen.queryByTestId("last-load-ref")).toBeNull();
   });
 
   it("sem periodização lê o geral, sem fase na referência", async () => {
-    loads = { Supino: [{ weightKg: 40, reps: 10, executedAt: "2026-10-02" }] };
+    loads = { Supino: [{ sessionId: "old", executedAt: "2026-10-02", periodizationWeek: null, sets: [{ setNumber: 1, weightKg: 40, reps: 10 }] }] };
     show(0, false);
-    await waitFor(() => expect(batch).toHaveBeenCalledWith(["Supino"], null));
-    expect(await screen.findByTestId("last-load-ref")).toHaveTextContent("Últ.: 40kg × 10");
+    await waitFor(() => expect(batch).toHaveBeenCalledWith(expect.objectContaining({ weekSlot: null })));
+    expect(await screen.findByTestId("last-load-ref")).toHaveTextContent("Último treino: 40kg×10");
   });
 
   it("sem fase nem registro não acrescenta texto", async () => {
     show(0, false);
-    await waitFor(() => expect(batch).toHaveBeenCalledWith(["Supino"], null));
+    await waitFor(() => expect(batch).toHaveBeenCalledWith(expect.objectContaining({ weekSlot: null })));
     expect(screen.queryByTestId("last-load-ref")).toBeNull();
   });
 
   it("trocar exercício rebusca os nomes e mostra somente a carga do novo exercício", async () => {
-    loads = { Supino: [{ weightKg: 30, reps: 8, executedAt: "2026-10-02" }] };
+    loads = { Supino: [{ sessionId: "old", executedAt: "2026-10-02", periodizationWeek: 0, sets: [{ setNumber: 1, weightKg: 30, reps: 8 }] }] };
     show();
-    await screen.findByText("Últ. Peso: 30kg × 8");
+    await screen.findByText("Último treino (Sem. 1): 30kg×8");
     await userEvent.click(screen.getByRole("button", { name: /Trocar exercício/i }));
     await userEvent.click(await screen.findByRole("button", { name: "Remada" }));
-    await waitFor(() => expect(batch).toHaveBeenCalledWith(["Remada"], "peso"));
-    expect(await screen.findByText("Sem carga anterior nesta fase")).toBeTruthy();
-    expect(screen.queryByTestId("last-load-ref")?.textContent).not.toContain("30kg");
+    await waitFor(() => expect(batch).toHaveBeenCalledWith(expect.objectContaining({ exerciseNames: ["Remada"], weekSlot: 0 })));
+    await waitFor(() => expect(screen.queryByTestId("last-load-ref")).toBeNull());
   });
 });
