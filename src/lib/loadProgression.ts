@@ -8,6 +8,8 @@ export interface SetRowLike {
   perceived_effort?: number | null;
   executed_at: string;
   periodization_week: number | null;
+  /** Fase da periodização gravada junto da série (peso/tecnica/resistencia/deload). */
+  periodization_key?: string | null;
 }
 
 export function groupSetRowsIntoSessions(rows: SetRowLike[], maxSessions = 3): ExerciseSessionLoad[] {
@@ -34,14 +36,55 @@ export interface ProgressionRow extends SetRowLike {
   exercise_key: string;
   swapped_from_name: string | null;
 }
+export type SetTrend = "up" | "down" | "same" | "new";
+
+export interface SetComparison {
+  /** Resultado de cada série da sessão atual contra a MESMA série (mesmo nº) da anterior. */
+  perSet: Partial<Record<number, SetTrend>>;
+  improved: number;
+  regressed: number;
+  same: number;
+  /** Séries que existem nas duas sessões (as únicas comparáveis). */
+  compared: number;
+}
+
+/**
+ * Compara série a série (carga e reps) uma sessão com a anterior.
+ * Mais carga = evoluiu (mesmo com menos reps); mesma carga: mais reps = evoluiu.
+ * Série que só existe na sessão atual é "new" e não entra na contagem.
+ */
+export function compareSets(current: SessionLoadSet[], previous: SessionLoadSet[]): SetComparison {
+  const prevByNumber = new Map(previous.map(s => [s.setNumber, s]));
+  const out: SetComparison = { perSet: {}, improved: 0, regressed: 0, same: 0, compared: 0 };
+  for (const set of current) {
+    const before = prevByNumber.get(set.setNumber);
+    if (!before) { out.perSet[set.setNumber] = "new"; continue; }
+    const diff = set.weightKg !== before.weightKg ? set.weightKg - before.weightKg : set.reps - before.reps;
+    const trend: SetTrend = diff > 0 ? "up" : diff < 0 ? "down" : "same";
+    out.perSet[set.setNumber] = trend;
+    out.compared++;
+    if (trend === "up") out.improved++; else if (trend === "down") out.regressed++; else out.same++;
+  }
+  return out;
+}
+
 export interface ProgressionSession {
   sessionId: string;
   executedAt: string;
   week: number | null;
+  /** Fase da periodização da sessão (null = sem fase gravada). */
+  phase: string | null;
   sets: SessionLoadSet[];
   topWeightKg: number;
+  /** Tendência da sessão, decidida série a série (não só pela maior carga). */
   trend: "up" | "down" | "same" | null;
+  /** Diferença da MAIOR carga contra a sessão anterior comparável. */
   deltaKg: number | null;
+  /** Resultado por série contra a sessão anterior comparável. */
+  setTrends: Partial<Record<number, SetTrend>>;
+  setsImproved: number;
+  setsRegressed: number;
+  setsCompared: number;
   swappedTo: string | null;
 }
 export interface ProgressionExercise { key: string; name: string; sessions: ProgressionSession[]; removed?: boolean }
@@ -61,7 +104,7 @@ export function buildProgression({ rows, currentByDay, dayKeys }: {
     if (!history.has(key)) { history.set(key, { key, name, sessions: [] }); bySession.set(key, new Map()); }
     const sessions = bySession.get(key);
     if (!sessions) continue;
-    if (!sessions.has(row.session_id)) sessions.set(row.session_id, { sessionId: row.session_id, executedAt: row.executed_at, week: row.periodization_week, sets: [], topWeightKg: 0, trend: null, deltaKg: null, swappedTo: row.swapped_from_name ? row.exercise_name : null });
+    if (!sessions.has(row.session_id)) sessions.set(row.session_id, { sessionId: row.session_id, executedAt: row.executed_at, week: row.periodization_week, phase: row.periodization_key ?? null, sets: [], topWeightKg: 0, trend: null, deltaKg: null, setTrends: {}, setsImproved: 0, setsRegressed: 0, setsCompared: 0, swappedTo: row.swapped_from_name ? row.exercise_name : null });
     const session = sessions.get(row.session_id);
     if (!session) continue;
     if (row.executed_at > session.executedAt) session.executedAt = row.executed_at;
@@ -74,10 +117,21 @@ export function buildProgression({ rows, currentByDay, dayKeys }: {
     for (const session of sessions) {
       session.sets.sort((a, b) => a.setNumber - b.setNumber);
       if (session.swappedTo) continue;
-      const previous = sessions.find(other => other.executedAt < session.executedAt && other.week === session.week && !other.swappedTo);
+      // Só compara com treino da mesma semana E da mesma fase (o slot da semana é
+      // posicional: se o coach reordena as semanas, o mesmo slot vira outro estímulo).
+      // Registro sem fase gravada (antigo) continua comparável.
+      const previous = sessions.find(other =>
+        other.executedAt < session.executedAt && other.week === session.week && !other.swappedTo &&
+        (other.phase == null || session.phase == null || other.phase === session.phase));
       if (previous) {
         session.deltaKg = Math.round((session.topWeightKg - previous.topWeightKg) * 100) / 100;
-        session.trend = session.deltaKg > 0 ? "up" : session.deltaKg < 0 ? "down" : "same";
+        const cmp = compareSets(session.sets, previous.sets);
+        session.setTrends = cmp.perSet;
+        session.setsImproved = cmp.improved;
+        session.setsRegressed = cmp.regressed;
+        session.setsCompared = cmp.compared;
+        // A tendência vem das SÉRIES: mais séries melhores que piores = subiu.
+        session.trend = cmp.compared === 0 ? null : cmp.improved > cmp.regressed ? "up" : cmp.regressed > cmp.improved ? "down" : "same";
       }
     }
     exercise.sessions = sessions;
