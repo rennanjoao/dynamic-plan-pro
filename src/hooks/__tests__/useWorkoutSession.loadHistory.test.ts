@@ -16,7 +16,7 @@ const from = vi.fn(() => {
   return builder;
 });
 
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (...args: unknown[]) => from(...args) } }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => from() } }));
 
 describe("getExerciseLoadHistory", () => {
   beforeEach(() => { queries.length = 0; from.mockClear(); });
