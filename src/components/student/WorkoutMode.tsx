@@ -46,6 +46,7 @@ import { CompactWeekSelector } from "./CompactWeekSelector";
 import { DEFAULT_WEEKS, parseRepsMin, parseRepsMax } from "@/lib/periodizationDefaults";
 import { buildPeriodizationKey, periodizationWeekSlot, workoutStateStorageKey } from "@/lib/periodizationKey";
 import { pickSetForPrefill } from "@/lib/loadProgression";
+import { countDoneSets, isNewRecord, nextSetIndex, planSetRemoval, type LocalSetData, type SetRemovalPlan } from "@/lib/workoutSets";
 import {
   getLibraryEntry,
   listExercisesByMuscleGroup,
@@ -187,6 +188,9 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
 
   const [historyMap, setHistoryMap] = useState<Record<string, ExerciseSessionLoad[]>>({});
   const [historyReadyScope, setHistoryReadyScope] = useState<string | null>(null);
+  // Melhor carga já registrada de cada exercício (qualquer semana/fase): base do "novo recorde".
+  const [bestWeightMap, setBestWeightMap] = useState<Record<string, number>>({});
+  const [bestWeightReadyScope, setBestWeightReadyScope] = useState<string | null>(null);
   const [sessionPRs, setSessionPRs] = useState<{ exerciseName: string; weightKg: number; reps: number }[]>([]);
   const [prPulse, setPrPulse] = useState(false);
   const [realStreak, setRealStreak] = useState(0);
@@ -265,7 +269,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
       setRestSegStartedAt(null);
       setRestBaseSec(maxRest);
 
-      const doneCountThisEx = (setDataMap[currentExKey] ?? []).filter((s: any) => s.done).length;
+      const doneCountThisEx = countDoneSets(setDataMap[currentExKey] ?? []);
       const exerciseFullyDone = doneCountThisEx >= setsMax;
       const hasNextExercise = currentExIdx < exercises.length - 1;
 
@@ -329,7 +333,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
             if (idx === -1) return;
             const key = `${day.key}::${idx}`;
             const arr = rebuilt[key] ?? [];
-            arr[s.set_number - 1] = { weight: s.weight_kg ?? 0, reps: s.reps ?? 0, done: s.completed, skipped: s.skipped };
+            arr[s.set_number - 1] = { weight: s.weight_kg ?? 0, reps: s.reps ?? 0, done: s.completed || s.skipped, skipped: s.skipped, executedAt: s.executed_at ?? undefined };
             rebuilt[key] = arr;
           });
           setSetDataMap((prev) => ({ ...rebuilt, ...prev }));
@@ -341,20 +345,31 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
 
     (async () => {
       try {
-        if (_saved?.sessionId && !String(_saved.sessionId).startsWith("local_")) {
+        // Sessão que o app abriu sem rede ("local_..."): tenta criá-la de verdade
+        // agora. Se ainda não há rede, continua nela (mesmo id) em vez de abrir
+        // outra — assim as séries feitas offline ficam todas na mesma sessão.
+        let savedSessionId: string | null = _saved?.sessionId ? String(_saved.sessionId) : null;
+        if (savedSessionId?.startsWith("local_")) {
+          const real = await session.materializeLocalSession(savedSessionId);
+          if (cancelled) return;
+          if (real) savedSessionId = real;
+          else if (!session.hasLocalSession(savedSessionId)) savedSessionId = null; // legado: sem registro, segue o fluxo antigo
+        }
+
+        if (savedSessionId) {
           const startedAt = _saved.startedAt ?? Date.now();
           if (isSessionStale(startedAt)) {
             const keep = await askResume(startedAt);
             if (cancelled) return;
             if (!keep) {
-              await session.abandonSession(String(_saved.sessionId));
+              await session.abandonSession(savedSessionId);
               if (cancelled) return;
               resetLocalProgress();
               beginNew();
               return;
             }
           }
-          session.resumeSession({ sessionId: _saved.sessionId, userId, workoutKey: day.key, startedAt, periodizationKey });
+          session.resumeSession({ sessionId: savedSessionId, userId, workoutKey: day.key, startedAt, periodizationKey });
           return;
         }
 
@@ -431,12 +446,25 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     if (!exerciseNames.length || !session.sessionId) return;
     let cancelled = false;
     session
-      .getExerciseLoadHistory({ userId, exerciseNames, weekSlot, excludeSessionId: session.sessionId })
+      .getExerciseLoadHistory({ userId, exerciseNames, weekSlot, periodizationKey, excludeSessionId: session.sessionId })
       .then((map) => { if (!cancelled) { setHistoryMap(map ?? {}); setHistoryReadyScope(historyScope); } })
       .catch((err) => { if (!cancelled) console.warn("getExerciseLoadHistory falhou:", err); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, day?.key, exerciseNamesKey, weekSlot, session.sessionId]);
+  }, [userId, day?.key, exerciseNamesKey, weekSlot, periodizationKey, session.sessionId]);
+
+  // Melhor carga de sempre de cada exercício — só para decidir "novo recorde".
+  const bestScope = `${day?.key}@@${exerciseNamesKey}`;
+  useEffect(() => {
+    if (!exerciseNames.length || !userId) return;
+    let cancelled = false;
+    session
+      .getExerciseBestWeights({ userId, exerciseNames })
+      .then((map) => { if (!cancelled) { setBestWeightMap(map ?? {}); setBestWeightReadyScope(bestScope); } })
+      .catch((err) => { if (!cancelled) console.warn("getExerciseBestWeights falhou:", err); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, day?.key, exerciseNamesKey]);
 
   const isRegisteringSetRef = useRef(false);
   const [isRegisteringSet, setIsRegisteringSet] = useState(false);
@@ -444,21 +472,22 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const handleFizASerie = async (effort: 1 | 2 | 3) => {
     if (isRegisteringSetRef.current || isFinishingRef.current) return;
     const currentSets = setDataMap[currentExKey] ?? [];
-    const setIdx = currentSets.filter(s => s.done).length;
+    const setIdx = nextSetIndex(currentSets);
     if (setIdx >= setsMax) return;
 
     isRegisteringSetRef.current = true;
     setIsRegisteringSet(true);
 
+    const executedAt = new Date().toISOString();
     const newSets = [...currentSets];
-    newSets[setIdx] = { weight: activeWeight, reps: activeReps, effort, done: true, skipped: false };
+    newSets[setIdx] = { weight: activeWeight, reps: activeReps, effort, done: true, skipped: false, executedAt };
     setSetDataMap(prev => ({ ...prev, [currentExKey]: newSets }));
 
-    const history = historyMap[currentEx?.name] ?? [];
-    const historyBestWeight = history.length ? Math.max(0, ...history.flatMap(h => h.sets.map(s => s.weightKg))) : 0;
-    const sessionBestWeightThisEx = currentSets.length ? Math.max(...currentSets.map(s => s.weight || 0)) : 0;
-    const bestPrevWeight = Math.max(historyBestWeight, sessionBestWeightThisEx);
-    const isPR = activeWeight > 0 && activeWeight > bestPrevWeight;
+    // Recorde = maior carga de sempre do exercício (qualquer semana/fase). Sem
+    // registro anterior — ou com o histórico ainda carregando — não há o que bater.
+    const baselineKg = bestWeightReadyScope === bestScope ? bestWeightMap[currentEx?.name] : undefined;
+    const sessionBestWeightThisEx = currentSets.reduce((m, s) => (s?.done && !s?.skipped ? Math.max(m, s.weight || 0) : m), 0);
+    const isPR = isNewRecord(activeWeight, baselineKg, sessionBestWeightThisEx);
 
     if (isPR) {
       setSessionPRs(prev => {
@@ -489,6 +518,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         swappedFromName: currentEx?.swappedFrom ?? null,
         periodizationKey,
         periodizationWeek: weekSlot,
+        executedAt,
       });
       if (!isPR) {
         toast.success(`Série ${setIdx + 1} registrada`, { duration: 2200 });
@@ -509,7 +539,8 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const [editingSetIdx, setEditingSetIdx] = useState<number | null>(null);
   const [editWeight, setEditWeight] = useState(0);
   const [editReps, setEditReps] = useState(0);
-  const doneSets = (setDataMap[currentExKey] ?? []).filter(s => s.done);
+  const rawSets = setDataMap[currentExKey] ?? [];
+  const doneSets = rawSets.filter(s => s?.done);
   const todasFeitas = doneSets.length >= setsMax;
 
   const prefillIdentityRef = useRef<string | null>(null);
@@ -535,6 +566,35 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentExKey, currentEx?.name, historyMap, historyReadyScope, historyScope, weekSlot, doneSets.length]);
 
+  // Leva ao servidor uma remoção de série: as de cima descem de número (com os
+  // dados e horários originais) e o excedente é apagado — ver `removeSet` no hook.
+  const syncSetRemoval = useCallback(async (plan: SetRemovalPlan<LocalSetData>) => {
+    try {
+      await session.removeSet(currentEx?.name ?? "—", {
+        fromSetNumber: plan.fromSetNumber,
+        keepCount: plan.keepCount,
+        shifted: plan.shifted.map(({ setNumber, data }) => ({
+          exerciseName: currentEx?.name ?? "—",
+          setNumber,
+          weightKg: data.weight ?? 0,
+          reps: data.reps ?? 0,
+          repsTargetMin: parseRepsMin(currentEx?.reps),
+          repsTargetMax: parseRepsMax(currentEx?.reps),
+          perceivedEffort: data.effort ?? undefined,
+          completed: !data.skipped,
+          skipped: !!data.skipped,
+          swappedFromName: currentEx?.swappedFrom ?? null,
+          periodizationKey,
+          periodizationWeek: weekSlot,
+          executedAt: data.executedAt,
+        })),
+      });
+    } catch (err) {
+      console.warn("[WorkoutMode] removeSet falhou:", err);
+      toast.error("Sem conexão — o ajuste das séries foi salvo localmente e será sincronizado.", { duration: 2500 });
+    }
+  }, [session, currentEx, periodizationKey, weekSlot]);
+
   const handleUndoLastSet = useCallback(async () => {
     const currentSets = setDataMap[currentExKey] ?? [];
     let lastIdx = -1;
@@ -543,26 +603,23 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     }
     if (lastIdx < 0) return;
     const removed = currentSets[lastIdx];
-    const next = currentSets.slice(0, lastIdx).concat(currentSets.slice(lastIdx + 1));
-    setSetDataMap((prev) => ({ ...prev, [currentExKey]: next }));
+    const plan = planSetRemoval(currentSets, lastIdx);
+    setSetDataMap((prev) => ({ ...prev, [currentExKey]: plan.nextSets }));
     if (typeof removed?.weight === "number") setActiveWeight(removed.weight);
     if (typeof removed?.reps === "number") setActiveReps(removed.reps);
     setRestBaseSec(0);
     setRestSegStartedAt(null);
-    try {
-      await session.deleteSet(lastIdx + 1, currentEx?.name ?? "—");
-    } catch (err) {
-      console.warn("[WorkoutMode] deleteSet falhou:", err);
-    }
-  }, [setDataMap, currentExKey, session, currentEx]);
+    await syncSetRemoval(plan);
+  }, [setDataMap, currentExKey, syncSetRemoval]);
 
   const handlePularSerie = useCallback(async () => {
     if (isRegisteringSetRef.current || isFinishingRef.current) return;
     const currentSets = setDataMap[currentExKey] ?? [];
-    const setIdx = currentSets.filter((s) => s.done).length;
+    const setIdx = nextSetIndex(currentSets);
     if (setIdx >= setsMax) return;
+    const executedAt = new Date().toISOString();
     const newSets = [...currentSets];
-    newSets[setIdx] = { weight: 0, reps: 0, effort: null, done: true, skipped: true };
+    newSets[setIdx] = { weight: 0, reps: 0, effort: null, done: true, skipped: true, executedAt };
     setSetDataMap((prev) => ({ ...prev, [currentExKey]: newSets }));
     setRestBaseSec(0);
     setRestSegStartedAt(Date.now());
@@ -580,6 +637,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         swappedFromName: currentEx?.swappedFrom ?? null,
         periodizationKey,
         periodizationWeek: weekSlot,
+        executedAt,
       });
     } catch (err) {
       console.warn("[WorkoutMode] Falha ao registrar série pulada:", err);
@@ -609,6 +667,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         swappedFromName: currentEx?.swappedFrom ?? null,
         periodizationKey,
         periodizationWeek: weekSlot,
+        executedAt: target.executedAt,
       });
     } catch (err) {
       console.warn("[WorkoutMode] Falha ao editar série:", err);
@@ -620,24 +679,20 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     if (editingSetIdx == null) return;
     const currentSets = setDataMap[currentExKey] ?? [];
     const target = currentSets[editingSetIdx];
-    const nextArr = currentSets.slice(0, editingSetIdx).concat(currentSets.slice(editingSetIdx + 1));
-    setSetDataMap((prev) => ({ ...prev, [currentExKey]: nextArr }));
-    try {
-      await session.deleteSet(editingSetIdx + 1, currentEx?.name ?? "—");
-    } catch (err) {
-      console.warn("[WorkoutMode] deleteSet falhou:", err);
-    }
+    const plan = planSetRemoval(currentSets, editingSetIdx);
+    setSetDataMap((prev) => ({ ...prev, [currentExKey]: plan.nextSets }));
     if (typeof target?.weight === "number") setActiveWeight(target.weight);
     if (typeof target?.reps === "number") setActiveReps(target.reps);
     setEditingSetIdx(null);
-  }, [editingSetIdx, setDataMap, currentExKey, session, currentEx]);
+    await syncSetRemoval(plan);
+  }, [editingSetIdx, setDataMap, currentExKey, syncSetRemoval]);
 
   const progressPct = Math.round((Object.values(completed).flat().length / (exercises.reduce((acc: number, ex: any) => acc + parseSetsMin(ex.sets), 0))) * 100);
 
   const getExStatus = (i: number): "done" | "partial" | "pending" => {
     const ex = exercises[i];
     const key = `${day?.key}::${i}`;
-    const doneCount = (setDataMap[key] ?? []).filter((s: any) => s.done).length;
+    const doneCount = countDoneSets(setDataMap[key] ?? []);
     if (doneCount <= 0) return "pending";
     if (doneCount >= parseSetsMin(ex?.sets)) return "done";
     return "partial";
@@ -793,8 +848,8 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
               </div>
               <div className="flex gap-2">
                 {Array.from({ length: setsMax }).map((_, i) => {
-                  const s = doneSets[i];
-                  const isCurrent = i === doneSets.length;
+                  const s = rawSets[i]?.done ? rawSets[i] : undefined;
+                  const isCurrent = i === nextSetIndex(rawSets);
                   const isSkipped = s?.skipped;
                   const cls = s
                     ? isSkipped
