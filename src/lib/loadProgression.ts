@@ -36,36 +36,52 @@ export interface ProgressionRow extends SetRowLike {
   exercise_key: string;
   swapped_from_name: string | null;
 }
-export type SetTrend = "up" | "down" | "same" | "new";
 
-export interface SetComparison {
-  /** Resultado de cada série da sessão atual contra a MESMA série (mesmo nº) da anterior. */
-  perSet: Partial<Record<number, SetTrend>>;
-  improved: number;
-  regressed: number;
-  same: number;
-  /** Séries que existem nas duas sessões (as únicas comparáveis). */
-  compared: number;
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+// ── Regra única de comparação ────────────────────────────────────────────────
+// Cada treino é resumido por UMA série: a mais pesada (com a mesma carga, a de mais
+// repetições). Essa série é comparada com a série mais pesada do treino anterior.
+// Aquecimento, séries progressivas e treinos com número de séries diferente não
+// atrapalham, e o selo ("Evoluiu") e os números (+2 kg) saem sempre da mesma conta.
+
+/** Série que representa o treino. Tentativa com 0 reps só vale se não houver outra série. */
+export function pickBestSet(sets: SessionLoadSet[]): SessionLoadSet | null {
+  const done = sets.filter(s => s.reps > 0);
+  const pool = done.length ? done : sets;
+  let best: SessionLoadSet | null = null;
+  for (const set of pool) {
+    if (!best || set.weightKg > best.weightKg || (set.weightKg === best.weightKg && set.reps > best.reps)) best = set;
+  }
+  return best;
 }
 
-/**
- * Compara série a série (carga e reps) uma sessão com a anterior.
- * Mais carga = evoluiu (mesmo com menos reps); mesma carga: mais reps = evoluiu.
- * Série que só existe na sessão atual é "new" e não entra na contagem.
- */
-export function compareSets(current: SessionLoadSet[], previous: SessionLoadSet[]): SetComparison {
-  const prevByNumber = new Map(previous.map(s => [s.setNumber, s]));
-  const out: SetComparison = { perSet: {}, improved: 0, regressed: 0, same: 0, compared: 0 };
-  for (const set of current) {
-    const before = prevByNumber.get(set.setNumber);
-    if (!before) { out.perSet[set.setNumber] = "new"; continue; }
-    const diff = set.weightKg !== before.weightKg ? set.weightKg - before.weightKg : set.reps - before.reps;
-    const trend: SetTrend = diff > 0 ? "up" : diff < 0 ? "down" : "same";
-    out.perSet[set.setNumber] = trend;
-    out.compared++;
-    if (trend === "up") out.improved++; else if (trend === "down") out.regressed++; else out.same++;
-  }
-  return out;
+export type ChangeKind = "up" | "down" | "same";
+/** O que decidiu: a carga (kg) ou, com a mesma carga, as repetições. */
+export type ChangeBasis = "kg" | "reps" | "none";
+
+export interface SessionChange {
+  kind: ChangeKind;
+  basis: ChangeBasis;
+  /** Variação da carga da série mais pesada (kg). */
+  deltaKg: number;
+  /** Variação das repetições da série mais pesada. */
+  deltaReps: number;
+  /** Série mais pesada do treino anterior. */
+  from: SessionLoadSet;
+  /** Série mais pesada do treino atual. */
+  to: SessionLoadSet;
+}
+
+/** Mais carga = evoluiu (mesmo com menos reps). Mesma carga: mais reps = evoluiu. */
+export function compareBest(current: SessionLoadSet, previous: SessionLoadSet): SessionChange {
+  const deltaKg = round2(current.weightKg - previous.weightKg);
+  const deltaReps = current.reps - previous.reps;
+  let kind: ChangeKind = "same";
+  let basis: ChangeBasis = "none";
+  if (deltaKg !== 0) { kind = deltaKg > 0 ? "up" : "down"; basis = "kg"; }
+  else if (deltaReps !== 0) { kind = deltaReps > 0 ? "up" : "down"; basis = "reps"; }
+  return { kind, basis, deltaKg, deltaReps, from: previous, to: current };
 }
 
 export interface ProgressionSession {
@@ -75,16 +91,14 @@ export interface ProgressionSession {
   /** Fase da periodização da sessão (null = sem fase gravada). */
   phase: string | null;
   sets: SessionLoadSet[];
+  /** Série mais pesada do treino (a que entra na comparação). */
+  best: SessionLoadSet | null;
+  /** Carga da série mais pesada (0 = peso corporal). */
   topWeightKg: number;
-  /** Tendência da sessão, decidida série a série (não só pela maior carga). */
-  trend: "up" | "down" | "same" | null;
-  /** Diferença da MAIOR carga contra a sessão anterior comparável. */
-  deltaKg: number | null;
-  /** Resultado por série contra a sessão anterior comparável. */
-  setTrends: Partial<Record<number, SetTrend>>;
-  setsImproved: number;
-  setsRegressed: number;
-  setsCompared: number;
+  /** Resultado contra o treino anterior comparável (null = primeiro registro ou exercício trocado). */
+  change: SessionChange | null;
+  /** Com qual treino anterior esta sessão foi comparada. */
+  comparedWith: { executedAt: string; week: number | null } | null;
   swappedTo: string | null;
 }
 export interface ProgressionExercise { key: string; name: string; sessions: ProgressionSession[]; removed?: boolean }
@@ -104,34 +118,31 @@ export function buildProgression({ rows, currentByDay, dayKeys }: {
     if (!history.has(key)) { history.set(key, { key, name, sessions: [] }); bySession.set(key, new Map()); }
     const sessions = bySession.get(key);
     if (!sessions) continue;
-    if (!sessions.has(row.session_id)) sessions.set(row.session_id, { sessionId: row.session_id, executedAt: row.executed_at, week: row.periodization_week, phase: row.periodization_key ?? null, sets: [], topWeightKg: 0, trend: null, deltaKg: null, setTrends: {}, setsImproved: 0, setsRegressed: 0, setsCompared: 0, swappedTo: row.swapped_from_name ? row.exercise_name : null });
+    if (!sessions.has(row.session_id)) sessions.set(row.session_id, { sessionId: row.session_id, executedAt: row.executed_at, week: row.periodization_week, phase: row.periodization_key ?? null, sets: [], best: null, topWeightKg: 0, change: null, comparedWith: null, swappedTo: row.swapped_from_name ? row.exercise_name : null });
     const session = sessions.get(row.session_id);
     if (!session) continue;
     if (row.executed_at > session.executedAt) session.executedAt = row.executed_at;
     session.sets.push({ setNumber: row.set_number, weightKg: row.weight_kg ?? 0, reps: row.reps ?? 0, perceivedEffort: row.perceived_effort == null ? undefined : row.perceived_effort as 1 | 2 | 3 });
-    session.topWeightKg = Math.max(session.topWeightKg, row.weight_kg ?? 0);
     if (row.swapped_from_name) session.swappedTo = row.exercise_name;
   }
   for (const [key, exercise] of history) {
     const sessions = Array.from(bySession.get(key)?.values() ?? []).sort((a, b) => b.executedAt.localeCompare(a.executedAt));
     for (const session of sessions) {
       session.sets.sort((a, b) => a.setNumber - b.setNumber);
-      if (session.swappedTo) continue;
+      session.best = pickBestSet(session.sets);
+      session.topWeightKg = session.best?.weightKg ?? 0;
+    }
+    for (const session of sessions) {
+      if (session.swappedTo || !session.best) continue;
       // Só compara com treino da mesma semana E da mesma fase (o slot da semana é
       // posicional: se o coach reordena as semanas, o mesmo slot vira outro estímulo).
       // Registro sem fase gravada (antigo) continua comparável.
       const previous = sessions.find(other =>
-        other.executedAt < session.executedAt && other.week === session.week && !other.swappedTo &&
+        other.executedAt < session.executedAt && other.week === session.week && !other.swappedTo && other.best &&
         (other.phase == null || session.phase == null || other.phase === session.phase));
-      if (previous) {
-        session.deltaKg = Math.round((session.topWeightKg - previous.topWeightKg) * 100) / 100;
-        const cmp = compareSets(session.sets, previous.sets);
-        session.setTrends = cmp.perSet;
-        session.setsImproved = cmp.improved;
-        session.setsRegressed = cmp.regressed;
-        session.setsCompared = cmp.compared;
-        // A tendência vem das SÉRIES: mais séries melhores que piores = subiu.
-        session.trend = cmp.compared === 0 ? null : cmp.improved > cmp.regressed ? "up" : cmp.regressed > cmp.improved ? "down" : "same";
+      if (previous?.best) {
+        session.change = compareBest(session.best, previous.best);
+        session.comparedWith = { executedAt: previous.executedAt, week: previous.week };
       }
     }
     exercise.sessions = sessions;
@@ -146,14 +157,66 @@ export function sessionsForWeek(sessions: ProgressionSession[], week: number | n
   return week == null ? sessions : sessions.filter(session => session.week === week);
 }
 
+/** Da primeira até a última vez (só vale com sessões da mesma semana do ciclo). */
 export function progressSummary(sessionsNewestFirst: ProgressionSession[]): { fromKg: number; toKg: number; deltaKg: number } | null {
   const comparable = sessionsNewestFirst.filter(s => !s.swappedTo);
   if (comparable.length < 2) return null;
   const fromKg = comparable.at(-1)?.topWeightKg ?? 0;
   const toKg = comparable[0].topWeightKg;
-  return { fromKg, toKg, deltaKg: Math.round((toKg - fromKg) * 100) / 100 };
+  return { fromKg, toKg, deltaKg: round2(toKg - fromKg) };
+}
+
+/** Maior carga já registrada (em empate, a mais recente). Não compara semanas entre si. */
+export function heaviestLoad(sessionsNewestFirst: ProgressionSession[]): { weightKg: number; executedAt: string } | null {
+  let top: { weightKg: number; executedAt: string } | null = null;
+  for (const session of sessionsNewestFirst) {
+    if (session.swappedTo || session.topWeightKg <= 0) continue;
+    if (!top || session.topWeightKg > top.weightKg) top = { weightKg: session.topWeightKg, executedAt: session.executedAt };
+  }
+  return top;
+}
+
+// ── Textos em linguagem simples ──────────────────────────────────────────────
+const plural = (n: number, one: string, many: string) => (Math.abs(n) === 1 ? one : many);
+
+export const formatKg = (kg: number) => `${String(round2(kg)).replace(".", ",")} kg`;
+export const formatLoad = (kg: number) => (kg > 0 ? formatKg(kg) : "peso corporal");
+
+/** "11 kg × 4" (carga × repetições) ou "12 reps" quando é peso corporal. */
+export function formatSet(set: SessionLoadSet): string {
+  return set.weightKg > 0 ? `${formatKg(set.weightKg)} × ${set.reps}` : `${set.reps} ${plural(set.reps, "rep", "reps")}`;
 }
 
 export function formatSets(sets: SessionLoadSet[]): string {
-  return sets.map(s => s.weightKg > 0 ? `${s.weightKg}kg×${s.reps}` : `${s.reps} reps`).join(" · ");
+  return sets.map(formatSet).join(" · ");
+}
+
+export interface ChangeText {
+  tone: ChangeKind;
+  /** Selo curto, para a linha do exercício. */
+  badge: string;
+  /** Frase completa, para o detalhe do treino. */
+  sentence: string;
+}
+
+export function describeChange(change: SessionChange): ChangeText {
+  const { kind, basis, deltaKg, deltaReps, from, to } = change;
+  if (kind === "same") return { tone: "same", badge: "Manteve", sentence: `Igual à última vez: ${formatSet(to)}.` };
+  const up = kind === "up";
+  if (basis === "kg") {
+    const kg = formatKg(Math.abs(deltaKg));
+    return {
+      tone: kind,
+      badge: up ? `Evoluiu +${kg}` : `Carga menor −${kg}`,
+      sentence: `${up ? "Você aumentou a carga" : "Você usou menos carga"}: ${formatLoad(from.weightKg)} → ${formatLoad(to.weightKg)} (${up ? "+" : "−"}${kg}).`,
+    };
+  }
+  const reps = Math.abs(deltaReps);
+  const bodyweight = to.weightKg <= 0 && from.weightKg <= 0;
+  const lead = bodyweight ? (up ? "Mais repetições" : "Menos repetições") : `Mesma carga (${formatKg(to.weightKg)}), ${up ? "mais" : "menos"} repetições`;
+  return {
+    tone: kind,
+    badge: up ? `Evoluiu +${reps} ${plural(reps, "rep", "reps")}` : `Menos reps −${reps}`,
+    sentence: `${lead}: ${from.reps} → ${to.reps} (${up ? "+" : "−"}${reps}).`,
+  };
 }
