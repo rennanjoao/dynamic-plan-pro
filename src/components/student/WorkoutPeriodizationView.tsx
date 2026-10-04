@@ -46,6 +46,10 @@ interface Props {
   /** Controla se a Diretriz/Banner é exibida para o aluno */
   showGuidelines?: boolean;
   initialWeek?: number;
+  /** Semana exibida, controlada pelo pai (ex.: para a progressão de carga acompanhar a escolha do aluno). */
+  selectedWeek?: number;
+  /** Chamado quando o aluno toca em outra semana. */
+  onActiveWeekChange?: (week: number) => void;
   periodization?: {
     enabled?: boolean;
     weeks?: WeekMeta[];
@@ -100,6 +104,8 @@ export default function WorkoutPeriodizationView({
   onStartWorkout,
   showGuidelines = false,
   initialWeek,
+  selectedWeek,
+  onActiveWeekChange,
   periodization,
 }: Props) {
   const incomingWeeks =
@@ -120,7 +126,13 @@ export default function WorkoutPeriodizationView({
     : periodization?.enabled ?? true;
 
   const [periodizationOn, setPeriodizationOn] = useState(initialOn);
-  const [activeWeek, setActiveWeek] = useState(initialWeek ?? 0);
+  const [internalWeek, setInternalWeek] = useState(initialWeek ?? 0);
+  // Controlado pelo pai quando `selectedWeek` é informado; senão guarda a escolha aqui mesmo.
+  const activeWeek = selectedWeek ?? internalWeek;
+  const setActiveWeek = (week: number) => {
+    setInternalWeek(week);
+    onActiveWeekChange?.(week);
+  };
   const [editMode, setEditMode] = useState(false);
   const [weeks, setWeeks] = useState<WeekMeta[]>(incomingWeeks);
   const [overrides, setOverrides] = useState<Overrides>(incomingOverrides);
