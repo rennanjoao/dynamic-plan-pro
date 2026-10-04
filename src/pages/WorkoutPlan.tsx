@@ -103,6 +103,9 @@ export default function WorkoutPlan() {
   const [showWorkoutMode, setShowWorkoutMode] = useState(false);
   const [workoutModeDay, setWorkoutModeDay] = useState<string | undefined>(undefined);
   const [workoutModeWeek, setWorkoutModeWeek] = useState<number>(0);
+  // Semana que o aluno escolheu manualmente no plano. null = acompanha a semana atual do sistema.
+  // Só vive em memória: ao sair da tela/app, volta a seguir a semana em que o aluno realmente está.
+  const [manualWeek, setManualWeek] = useState<number | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   // Drawer de "Mobilidade sugerida" aberto pelo link no header (WorkoutStrategyHeader).
   const [mobilityDrawerOpen, setMobilityDrawerOpen] = useState(false);
@@ -273,6 +276,8 @@ export default function WorkoutPlan() {
     workoutKeys
   );
   const currentWeek = currentWeekRaw ?? 0;
+  // Semana que o aluno está vendo: a escolhida por ele ou, sem escolha, a atual do sistema.
+  const viewedWeek = Math.max(0, Math.min(manualWeek ?? currentWeek, weeks.length - 1));
   const currentPeriodizationKey = buildPeriodizationKey({
     enabled: periodizationEnabled,
     reps: weeks[currentWeek]?.reps,
@@ -504,6 +509,7 @@ export default function WorkoutPlan() {
             workouts={workouts}
             periodizationEnabled={periodizationEnabled}
             currentWeek={currentWeek}
+            viewedWeek={viewedWeek}
             todayWorkoutKey={todayWorkoutKey}
           />
         )}
@@ -518,6 +524,8 @@ export default function WorkoutPlan() {
             showGuidelines={showGuidelines}
             allowEdit={false}
             initialWeek={currentWeek}
+            selectedWeek={viewedWeek}
+            onActiveWeekChange={(week) => setManualWeek(week === currentWeek ? null : week)}
             renderLegacy={() => workoutAccordion}
           />
         ) : (
