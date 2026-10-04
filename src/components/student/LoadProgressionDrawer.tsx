@@ -16,7 +16,10 @@ interface Props {
   userId: string;
   workouts: { key: string; exercises?: { name: string }[] }[];
   periodizationEnabled: boolean;
+  /** Semana em que o aluno realmente está (calculada pelo sistema). */
   currentWeek: number;
+  /** Semana que ele está vendo no plano (a que escolheu ou, sem escolha, a atual). Sem o valor, usa currentWeek. */
+  viewedWeek?: number;
   todayWorkoutKey?: string | null;
 }
 
@@ -124,7 +127,7 @@ function ExerciseItem({ exercise, week, value }: { exercise: ProgressionExercise
   </AccordionItem>;
 }
 
-export function LoadProgressionDrawer({ userId, workouts, periodizationEnabled, currentWeek, todayWorkoutKey }: Props) {
+export function LoadProgressionDrawer({ userId, workouts, periodizationEnabled, currentWeek, viewedWeek, todayWorkoutKey }: Props) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<ProgressionRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -162,7 +165,10 @@ export function LoadProgressionDrawer({ userId, workouts, periodizationEnabled, 
     dayKeys: workouts.map(workout => workout.key),
     currentByDay: Object.fromEntries(workouts.map(workout => [workout.key, (workout.exercises ?? []).filter(ex => !isMobilityExercise(ex))])),
   }), [rows, workouts]);
-  const week = periodizationEnabled && weekOnly ? currentWeek : null;
+  // A aba da semana acompanha a semana que o aluno está vendo no plano (automática ou escolhida por ele).
+  const shownWeek = viewedWeek ?? currentWeek;
+  const viewingOtherWeek = shownWeek !== currentWeek;
+  const week = periodizationEnabled && weekOnly ? shownWeek : null;
   const trigger = <Button type="button" variant="outline" onClick={() => setOpen(true)} className="w-full h-auto min-h-16 justify-between text-left px-4 py-3 gap-3 border-border bg-card">
     <TrendingUp className="w-5 h-5 text-primary shrink-0" />
     <span className="flex-1 min-w-0"><span className="block font-bold whitespace-normal">Como está minha progressão de carga?</span><span className="block text-xs text-muted-foreground font-normal whitespace-normal">Veja como suas cargas evoluíram em cada exercício.</span></span>
@@ -171,9 +177,10 @@ export function LoadProgressionDrawer({ userId, workouts, periodizationEnabled, 
 
   const body = <div className="space-y-4 pb-6">
     {periodizationEnabled && <div role="group" aria-label="Filtro de semana" className="flex gap-1 rounded-md bg-muted/40 p-1">
-      <Button type="button" variant={weekOnly ? "secondary" : "ghost"} size="sm" aria-pressed={weekOnly} onClick={() => setWeekOnly(true)} className="flex-1 text-xs h-auto min-h-9 whitespace-normal">Semana atual · Sem. {currentWeek + 1}</Button>
+      <Button type="button" variant={weekOnly ? "secondary" : "ghost"} size="sm" aria-pressed={weekOnly} onClick={() => setWeekOnly(true)} className="flex-1 text-xs h-auto min-h-9 whitespace-normal">{viewingOtherWeek ? "Semana escolhida" : "Semana atual"} · Sem. {shownWeek + 1}</Button>
       <Button type="button" variant={!weekOnly ? "secondary" : "ghost"} size="sm" aria-pressed={!weekOnly} onClick={() => setWeekOnly(false)} className="flex-1 text-xs h-auto min-h-9 whitespace-normal">Todas as semanas</Button>
     </div>}
+    {periodizationEnabled && weekOnly && viewingOtherWeek && <p className="text-xs text-muted-foreground">Você está vendo a Sem. {shownWeek + 1} do plano. Sua semana atual é a Sem. {currentWeek + 1}.</p>}
     <div className="rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
       <p className="font-semibold text-foreground">Como ler esta tela</p>
       <p>{periodizationEnabled
