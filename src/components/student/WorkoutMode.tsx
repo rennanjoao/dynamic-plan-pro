@@ -46,7 +46,7 @@ import { CompactWeekSelector } from "./CompactWeekSelector";
 import { DEFAULT_WEEKS, parseRepsMin, parseRepsMax } from "@/lib/periodizationDefaults";
 import { buildPeriodizationKey, periodizationWeekSlot, workoutStateStorageKey } from "@/lib/periodizationKey";
 import { pickSetForPrefill } from "@/lib/loadProgression";
-import { countDoneSets, isNewRecord, nextSetIndex, planSetRemoval, type LocalSetData, type SetRemovalPlan } from "@/lib/workoutSets";
+import { countDoneSets, formatDecimalInput, isNewRecord, nextSetIndex, parseDecimalDraft, planSetRemoval, sanitizeDecimalDraft, type LocalSetData, type SetRemovalPlan } from "@/lib/workoutSets";
 import {
   getLibraryEntry,
   listExercisesByMuscleGroup,
@@ -76,6 +76,29 @@ function parseSetsMin(s?: string): number {
 function fmtMMSS(s: number) {
   const m = Math.floor(s / 60), sec = s % 60;
   return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+}
+
+/* ── Campo de carga (kg) ──
+   Edita um TEXTO e só então extrai o número: aceita "7,5" e "7.5" e mantém o separador
+   enquanto a aluna digita (guardar só o número apagava a vírgula: 7,5 virava 75).
+   Quando o valor muda por fora (botões +/−, histórico), o campo mostra o valor novo. */
+function DecimalInput({ value, onChange, className }: { value: number; onChange: (n: number) => void; className: string }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const text = draft !== null && parseDecimalDraft(draft) === value ? draft : formatDecimalInput(value);
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={text.replace(".", ",")}
+      onChange={(e) => {
+        const next = sanitizeDecimalDraft(e.target.value);
+        setDraft(next);
+        onChange(parseDecimalDraft(next));
+      }}
+      onBlur={() => setDraft(null)}
+      className={className}
+    />
+  );
 }
 
 /* ── Sons ── */
@@ -936,7 +959,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                         className="w-12 h-14 shrink-0 rounded-2xl bg-white/5 border border-white/10 text-xl font-black text-white/70 active:bg-white/10 active:scale-95 transition-all"
                         aria-label="Diminuir carga (mantenha pressionado para acelerar)"
                       >–</button>
-                      <input type="text" inputMode="numeric" value={activeWeight || ""} onChange={e => setActiveWeight(parseFloat(e.target.value.replace(/[^0-9.]/g, "")) || 0)} className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl text-center text-2xl font-black outline-none focus:border-primary/50" />
+                      <DecimalInput value={activeWeight} onChange={setActiveWeight} className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl text-center text-2xl font-black outline-none focus:border-primary/50" />
                       <button
                         type="button"
                         onPointerDown={weightInc.onPointerDown(1)}

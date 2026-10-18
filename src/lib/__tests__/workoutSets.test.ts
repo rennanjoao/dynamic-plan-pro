@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countDoneSets, isNewRecord, nextSetIndex, planSetRemoval, type LocalSetData } from "../workoutSets";
+import { countDoneSets, formatDecimalInput, isNewRecord, nextSetIndex, parseDecimalDraft, planSetRemoval, sanitizeDecimalDraft, type LocalSetData } from "../workoutSets";
 
 const s = (weight: number, extra: Partial<LocalSetData> = {}): LocalSetData => ({ weight, reps: 8, done: true, ...extra });
 
@@ -74,5 +74,33 @@ describe("isNewRecord", () => {
     expect(isNewRecord(40, 40, 0)).toBe(false);
     expect(isNewRecord(41, 40, 42)).toBe(false);
     expect(isNewRecord(0, 40, 0)).toBe(false);
+  });
+});
+
+describe("entrada de carga (kg) com vírgula ou ponto", () => {
+  it("vírgula e ponto valem como decimal — 7,5 nunca vira 75", () => {
+    expect(parseDecimalDraft(sanitizeDecimalDraft("7,5"))).toBe(7.5);
+    expect(parseDecimalDraft(sanitizeDecimalDraft("7.5"))).toBe(7.5);
+    expect(parseDecimalDraft(sanitizeDecimalDraft("2,5"))).toBe(2.5);
+    expect(parseDecimalDraft(sanitizeDecimalDraft("0,5"))).toBe(0.5);
+  });
+
+  it("mantém o separador enquanto ainda está digitando", () => {
+    expect(sanitizeDecimalDraft("7,")).toBe("7.");
+    expect(parseDecimalDraft("7.")).toBe(7);
+    expect(sanitizeDecimalDraft("")).toBe("");
+  });
+
+  it("descarta letras, segundo separador e casas/dígitos em excesso", () => {
+    expect(sanitizeDecimalDraft("1a2,5,5")).toBe("12.55");
+    expect(sanitizeDecimalDraft("12,567")).toBe("12.56");
+    expect(sanitizeDecimalDraft("12345")).toBe("123");
+  });
+
+  it("vazio, ponto sozinho ou inválido = 0; carga 0 mostra campo vazio", () => {
+    expect(parseDecimalDraft("")).toBe(0);
+    expect(parseDecimalDraft(".")).toBe(0);
+    expect(formatDecimalInput(0)).toBe("");
+    expect(formatDecimalInput(7.5)).toBe("7.5");
   });
 });

@@ -175,7 +175,7 @@ export default function WorkoutPlan() {
       //    aconteceu — a réplica em coach_plans é "best effort" e pode falhar).
       const { data: protocol } = await supabase
         .from("protocols")
-        .select("id, payload, coach_id")
+        .select("id, payload, coach_id, student_first_viewed_at")
         .eq("student_id", userId)
         .eq("is_template", false)
         .eq("active", true)
@@ -191,6 +191,8 @@ export default function WorkoutPlan() {
         return {
           workout_periodization_json: effective,
           coach_id: protocol?.coach_id,
+          // Dia em que a aluna abriu o protocolo: é daqui que a semana do ciclo passa a correr.
+          student_first_viewed_at: protocol?.student_first_viewed_at ?? null,
         };
       }
 
@@ -264,18 +266,16 @@ export default function WorkoutPlan() {
   const trainingGuideline = safePayload?.guidelines?.training;
   const showGuidelines: boolean = (safePayload as any)?.showGuidelines ?? false;
   const periodizationEnabled: boolean = safePayload?.periodization?.enabled ?? false;
-  const workoutKeys = workouts.map((w: any) => w.key);
   const weeks =
     safePayload?.periodization?.weeks?.length === 4
       ? safePayload.periodization.weeks
       : DEFAULT_WEEKS;
-  const { data: currentWeekRaw } = useCurrentPeriodizationWeek(
-    userId,
+  // A semana corre em loop pelo calendário (não depende de a aluna treinar nem de usar o Modo Treino).
+  const currentWeek = useCurrentPeriodizationWeek(
     periodizationEnabled,
     weeks.length,
-    workoutKeys
-  );
-  const currentWeek = currentWeekRaw ?? 0;
+    (planData as { student_first_viewed_at?: string | null } | null | undefined)?.student_first_viewed_at ?? null
+  ) ?? 0;
   // Semana que o aluno está vendo: a escolhida por ele ou, sem escolha, a atual do sistema.
   const viewedWeek = Math.max(0, Math.min(manualWeek ?? currentWeek, weeks.length - 1));
   const currentPeriodizationKey = buildPeriodizationKey({
