@@ -84,3 +84,29 @@ export function isNewRecord(
   if (baselineKg == null || !(baselineKg > 0)) return false;
   return weightKg > Math.max(baselineKg, sessionBestKg || 0);
 }
+
+// ── Entrada de carga (kg) digitada pela aluna ────────────────────────────────
+// Antes, o campo guardava só o NÚMERO: ao digitar "7,5" a vírgula era apagada e
+// a carga virava 75 kg (e "7." virava 7, perdendo o ponto). Agora a aluna edita um
+// TEXTO; o número só é extraído dele. Aceita vírgula ou ponto.
+
+/** Limpa o que foi digitado: só dígitos e um separador decimal ("," vira "."). Até 999,99 kg. */
+export function sanitizeDecimalDraft(raw: string, maxDecimals = 2): string {
+  const cleaned = raw.replace(/,/g, ".").replace(/[^0-9.]/g, "");
+  const firstDot = cleaned.indexOf(".");
+  if (firstDot === -1) return cleaned.slice(0, 3);
+  const int = cleaned.slice(0, firstDot).slice(0, 3);
+  const dec = cleaned.slice(firstDot + 1).replace(/\./g, "").slice(0, maxDecimals);
+  return `${int}.${dec}`;
+}
+
+/** Número do texto digitado (vazio, "." ou inválido = 0). */
+export function parseDecimalDraft(draft: string): number {
+  const n = parseFloat(draft);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** Texto do campo quando a carga vem de fora (botões +/−, histórico): 0 = campo vazio. */
+export function formatDecimalInput(value: number): string {
+  return value > 0 ? String(value) : "";
+}

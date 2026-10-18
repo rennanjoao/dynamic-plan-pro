@@ -66,6 +66,7 @@ interface SetRow {
   weight_kg?: number;
   reps?: number;
   perceived_effort?: number;
+  skipped?: boolean | null;
 }
 
 /* ── Componente ─────────────────────────────────────────────────────────────── */
@@ -104,7 +105,8 @@ export default function WorkoutHistory({ userId, periodizationKey = null }: { us
             set_number,
             weight_kg,
             reps,
-            perceived_effort
+            perceived_effort,
+            skipped
           )
         `)
         .eq("user_id", userId);
@@ -123,7 +125,8 @@ export default function WorkoutHistory({ userId, periodizationKey = null }: { us
                   (new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 1000
                 )
               : undefined,
-            sets: s.workout_sets ?? [],
+            // Série pulada não é série feita: fora da contagem.
+            sets: (s.workout_sets ?? []).filter((set: SetRow) => !set.skipped),
           }));
         }
       }
