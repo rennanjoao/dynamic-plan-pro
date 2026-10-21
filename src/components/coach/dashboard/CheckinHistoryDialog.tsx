@@ -10,6 +10,14 @@ import { Private, usePrivacyMode } from "@/components/coach/PrivacyMode";
 import { resolveMediaUrl } from "@/lib/studentMedia";
 
 const PRIVACY_EXPORT_TITLE = "Desativado no Modo Privacidade — o PDF abriria com nome e fotos do aluno visíveis.";
+// Escapa HTML antes de interpolar dados do aluno em document.write (evita XSS armazenado)
+const esc = (v: unknown): string =>
+  String(v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 
 interface CheckinRow {
   id: string;
@@ -108,7 +116,7 @@ export function CheckinHistoryDialog({
   const renderCheckinHTML = async (c: CheckinRow) => {
     const metrics = c.current_metrics || {};
     const rows = Object.entries(metrics)
-      .map(([k, v]) => `<div class="row"><span class="lbl">${k}</span><span class="val">${typeof v === "object" ? JSON.stringify(v) : String(v ?? "—")}</span></div>`)
+      .map(([k, v]) => `<div class="row"><span class="lbl">${esc(k)}</span><span class="val">${esc(typeof v === "object" ? JSON.stringify(v) : String(v ?? "—"))}</span></div>`)
       .join("");
     const fotos = ((c.payload as Record<string, unknown> | null)?.fotos as Record<string, string> | undefined) || {};
     const POSES: Array<[string, string]> = [
@@ -122,7 +130,7 @@ export function CheckinHistoryDialog({
             : (fotos[key] || "");
           const url = await resolveMediaUrl(ref);
           if (!url) return "";
-          return `<figure class="photo"><img src="${url}" alt="${label}"/><figcaption>${label}</figcaption></figure>`;
+          return `<figure class="photo"><img src="${esc(url)}" alt="${label}"/><figcaption>${label}</figcaption></figure>`;
         }),
       )
     ).join("");
@@ -130,7 +138,7 @@ export function CheckinHistoryDialog({
       <h2>Check-in — ${fmtDate(c.submitted_at)}</h2>
       ${rows}
       ${photoImgs ? `<h3>Fotos</h3><div class="photos">${photoImgs}</div>` : ""}
-      ${c.coach_feedback ? `<h3>Feedback do Coach</h3><p>${c.coach_feedback}</p>` : ""}
+      ${c.coach_feedback ? `<h3>Feedback do Coach</h3><p>${esc(c.coach_feedback)}</p>` : ""}
     `;
     return body;
   };
@@ -140,8 +148,9 @@ export function CheckinHistoryDialog({
     const html = await renderCheckinHTML(c);
     const w = window.open("", "_blank");
     if (!w) { toast.error("Permita popups para exportar"); return; }
+    w.opener = null;
     w.document.write(`
-      <!doctype html><html><head><meta charset="utf-8"><title>Check-in — ${student.name}</title>
+      <!doctype html><html><head><meta charset="utf-8"><title>Check-in — ${esc(student.name)}</title>
       <style>body{font-family:Arial,sans-serif;padding:24px;max-width:780px;margin:auto;color:#111}
       h1{font-size:20px;border-bottom:2px solid #C0392B;padding-bottom:8px}
       h2{font-size:14px;color:#C0392B;margin-top:22px;text-transform:uppercase;letter-spacing:.05em}
@@ -153,7 +162,7 @@ export function CheckinHistoryDialog({
       .photo img{max-width:150px;max-height:220px;object-fit:cover;border:1px solid #ddd;display:block}
       .photo figcaption{font-size:11px;color:#555;text-align:center;margin-top:2px}
       @media print{body{padding:0}}</style></head><body>
-      <h1>Check-in — ${student.name}</h1>
+      <h1>Check-in — ${esc(student.name)}</h1>
       ${html}
       <script>window.onload=()=>setTimeout(()=>window.print(),300);</script>
       </body></html>`);
@@ -179,8 +188,9 @@ export function CheckinHistoryDialog({
       ).join("");
       const w = window.open("", "_blank");
       if (!w) { toast.dismiss(t); toast.error("Permita popups para exportar"); return; }
+      w.opener = null;
       w.document.write(`
-      <!doctype html><html><head><meta charset="utf-8"><title>Check-ins — ${student.name}</title>
+      <!doctype html><html><head><meta charset="utf-8"><title>Check-ins — ${esc(student.name)}</title>
       <style>body{font-family:Arial,sans-serif;padding:24px;max-width:780px;margin:auto;color:#111}
       h1{font-size:20px;border-bottom:2px solid #C0392B;padding-bottom:8px}
       h2{font-size:14px;color:#C0392B;margin-top:22px;text-transform:uppercase;letter-spacing:.05em}
@@ -193,7 +203,7 @@ export function CheckinHistoryDialog({
       .photo figcaption{font-size:11px;color:#555;text-align:center;margin-top:2px}
       .checkin{page-break-after:always;margin-bottom:30px}
       @media print{body{padding:0}}</style></head><body>
-      <h1>Histórico de Check-ins — ${student.name}</h1>
+      <h1>Histórico de Check-ins — ${esc(student.name)}</h1>
       ${allHtml}
       <script>window.onload=()=>setTimeout(()=>window.print(),300);</script>
       </body></html>`);
