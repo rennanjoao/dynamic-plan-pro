@@ -2009,6 +2009,42 @@ export type Database = {
         }
         Relationships: []
       }
+      student_activity_sessions: {
+        Row: {
+          area: string
+          created_at: string
+          duration_seconds: number
+          ended_at: string
+          id: string
+          is_app_open: boolean
+          route: string | null
+          started_at: string
+          student_id: string
+        }
+        Insert: {
+          area: string
+          created_at?: string
+          duration_seconds?: number
+          ended_at?: string
+          id?: string
+          is_app_open?: boolean
+          route?: string | null
+          started_at?: string
+          student_id: string
+        }
+        Update: {
+          area?: string
+          created_at?: string
+          duration_seconds?: number
+          ended_at?: string
+          id?: string
+          is_app_open?: boolean
+          route?: string | null
+          started_at?: string
+          student_id?: string
+        }
+        Relationships: []
+      }
       student_daily_nudge: {
         Row: {
           generated_at: string
@@ -2637,6 +2673,7 @@ export type Database = {
           student_name: string
         }[]
       }
+      get_student_engagement: { Args: { p_student_id: string }; Returns: Json }
       get_student_hub_context: { Args: { p_student_id: string }; Returns: Json }
       has_role: {
         Args: {

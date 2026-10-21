@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, FileDown } from "lucide-react";
+import { Loader2, FileDown, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 import type { StudentStatus } from "@/hooks/useCoachStudents";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -30,11 +30,12 @@ interface CheckinRow {
 }
 
 export function CheckinHistoryDialog({
-  student, open, onClose,
+  student, open, onClose, onConfigure,
 }: {
   student: StudentStatus | null;
   open: boolean;
   onClose: () => void;
+  onConfigure?: (s: StudentStatus) => void;
 }) {
   const [items, setItems] = useState<CheckinRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -224,6 +225,16 @@ export function CheckinHistoryDialog({
         <DialogHeader>
           <DialogTitle>Check-ins — <Private>{student?.name ?? "Aluno"}</Private></DialogTitle>
         </DialogHeader>
+        {student && onConfigure && (
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+            <p className="text-xs text-muted-foreground">
+              Frequência, início e prazo dos check-ins deste aluno
+            </p>
+            <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={() => onConfigure(student)}>
+              <Settings2 className="w-3.5 h-3.5" /> Configurar prazo
+            </Button>
+          </div>
+        )}
 
         {loading ? (
           <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
