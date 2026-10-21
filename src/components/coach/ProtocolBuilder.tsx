@@ -22,7 +22,7 @@ const ProtocolChangeHistoryDialog = lazyWithRetry(() => import("@/components/coa
  * Fix: FoodRow agora utiliza fallback robusto com .normalize("NFD") e camadas z-[60]/z-[70] mapeadas.
  */
 import { loadCoachProfile } from "@/lib/prescriptionMemory";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { sb } from "@/integrations/supabase/untyped";
