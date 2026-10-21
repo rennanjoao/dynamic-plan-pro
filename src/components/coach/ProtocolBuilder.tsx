@@ -1,4 +1,5 @@
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
+const ProtocolChangeHistoryDialog = lazyWithRetry(() => import("@/components/coach/ProtocolChangeHistoryDialog"));
 /**
  * ProtocolBuilder.tsx — Master Protocol Builder (Fase 2).
  *
@@ -21,7 +22,7 @@ import { lazyWithRetry } from "@/lib/lazyWithRetry";
  * Fix: FoodRow agora utiliza fallback robusto com .normalize("NFD") e camadas z-[60]/z-[70] mapeadas.
  */
 import { loadCoachProfile } from "@/lib/prescriptionMemory";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { sb } from "@/integrations/supabase/untyped";
@@ -195,6 +196,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [setupMeals, setSetupMeals] = useState(5);
   const [setupCarbCycle, setSetupCarbCycle] = useState(false);
   const [consultOpen, setConsultOpen] = useState(false);
+  const [changeHistoryOpen, setChangeHistoryOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"macros" | "guidelines" | "workouts" | "diet">("macros");
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -940,6 +942,16 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                   size="sm"
                   variant="outline"
                   className="h-9 text-xs"
+                  onClick={() => setChangeHistoryOpen(true)}
+                  title="Histórico de alterações"
+                >
+                  <History className="w-3.5 h-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Alterações</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 text-xs"
                   onClick={() => setConsultOpen(true)}
                   title="Abrir anamnese do aluno"
                 >
@@ -1337,6 +1349,15 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         </DialogContent>
       </Dialog>
 
+      {changeHistoryOpen && (
+        <Suspense fallback={null}>
+          <ProtocolChangeHistoryDialog
+            student={{ id: studentId, name: studentName ?? "Aluno" }}
+            open={changeHistoryOpen}
+            onClose={() => setChangeHistoryOpen(false)}
+          />
+        </Suspense>
+      )}
       {consultOpen && (
         <Suspense fallback={null}>
           <CheckinFeedbackPanel
