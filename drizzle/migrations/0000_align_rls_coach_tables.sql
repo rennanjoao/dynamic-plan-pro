@@ -1,0 +1,3 @@
+ALTER TABLE public.coach_students ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.coach_notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.coach_invites ENABLE ROW LEVEL SECURITY;
