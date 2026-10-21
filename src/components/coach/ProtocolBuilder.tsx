@@ -1352,7 +1352,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       {changeHistoryOpen && (
         <Suspense fallback={null}>
           <ProtocolChangeHistoryDialog
-            student={{ id: studentId, name: studentName ?? "Aluno" }}
+            student={{ id: studentId, name: studentName || "Aluno", lastAnamnesis: null, isExempt: false }}
             open={changeHistoryOpen}
             onClose={() => setChangeHistoryOpen(false)}
           />
