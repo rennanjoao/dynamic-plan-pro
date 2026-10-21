@@ -1,4 +1,5 @@
 import { Suspense, useEffect } from "react";
+import StudentActivityTracker from "@/components/StudentActivityTracker";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -77,6 +78,7 @@ const App = () => {
           <BrowserRouter>
           <NavigationControls />
           <Suspense fallback={<PageLoader />}>
+            <StudentActivityTracker />
             <Routes>
               {/* Públicas */}
               <Route path="/"            element={<ErrorBoundary label="Algo deu errado. Recarregue a página."><Index /></ErrorBoundary>} />

@@ -39,6 +39,7 @@ import { PriorityQueuePanel } from "@/components/coach/dashboard/PriorityQueuePa
 import { EvolutionDialog } from "@/components/coach/dashboard/EvolutionDialog";
 import { StudentFeedbackConfigDialog } from "@/components/coach/dashboard/StudentFeedbackConfigDialog";
 import { CheckinHistoryDialog } from "@/components/coach/dashboard/CheckinHistoryDialog";
+import { StudentEngagementDialog } from "@/components/coach/dashboard/StudentEngagementDialog";
 import { FinancesTab } from "@/components/coach/dashboard/FinancesTab";
 import { PartnersTab } from "@/components/coach/dashboard/PartnersTab";
 import { ProfileDialog } from "@/components/coach/dashboard/ProfileDialog";
@@ -48,7 +49,6 @@ import { PrivacyProvider, PrivacyToggle, Private } from "@/components/coach/Priv
 const ProtocolBuilder = lazyWithRetry(() => import("@/components/coach/ProtocolBuilder"));
 const CheckinFeedbackPanel = lazyWithRetry(() => import("@/components/coach/CheckinFeedbackPanel"));
 const StudentWorkoutAnalytics = lazyWithRetry(() => import("@/components/coach/StudentWorkoutAnalytics"));
-const ProtocolChangeHistoryDialog = lazyWithRetry(() => import("@/components/coach/ProtocolChangeHistoryDialog"));
 
 type CoachView = "list" | "protocol";
 
@@ -61,7 +61,7 @@ function CoachDashboardInner() {
   const [showProfile, setShowProfile] = useState(false);
   const [unlinkTarget, setUnlinkTarget] = useState<StudentStatus | null>(null);
   const [historyStudent, setHistoryStudent] = useState<StudentStatus | null>(null);
-  const [changeHistoryStudent, setChangeHistoryStudent] = useState<StudentStatus | null>(null);
+  const [engagementStudent, setEngagementStudent] = useState<StudentStatus | null>(null);
   const [evoStudent, setEvoStudent] = useState<StudentStatus | null>(null);
   const [latestFbStudent, setLatestFbStudent] = useState<StudentStatus | null>(null);
   const [settingsStudent, setSettingsStudent] = useState<StudentStatus | null>(null);
@@ -268,9 +268,8 @@ function CoachDashboardInner() {
                     onProtocol={(st) => { setSelectedStudent(st); setView("protocol"); }}
                     onUnlink={setUnlinkTarget}
                     onHistory={setHistoryStudent}
-                    onChangeHistory={setChangeHistoryStudent}
+                    onEngagement={setEngagementStudent}
                     onLatestFeedback={(st) => setLatestFbStudent(st)}
-                    onSettings={(st) => setSettingsStudent(st)}
                   />
                 ))}
                 {totalPages > 1 && (
@@ -373,15 +372,14 @@ function CoachDashboardInner() {
           student={historyStudent}
           open={!!historyStudent}
           onClose={() => setHistoryStudent(null)}
+          onConfigure={(st) => setSettingsStudent(st)}
         />
 
-        <Suspense fallback={null}>
-          <ProtocolChangeHistoryDialog
-            student={changeHistoryStudent}
-            open={!!changeHistoryStudent}
-            onClose={() => setChangeHistoryStudent(null)}
-          />
-        </Suspense>
+        <StudentEngagementDialog
+          student={engagementStudent}
+          open={!!engagementStudent}
+          onClose={() => setEngagementStudent(null)}
+        />
 
         <EvolutionDialog
           student={evoStudent}

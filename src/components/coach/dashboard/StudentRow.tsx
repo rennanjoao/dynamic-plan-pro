@@ -1,19 +1,18 @@
 import type { StudentStatus } from "@/hooks/useCoachStudents";
-import { ClipboardList, Dumbbell, History, Sparkles, Settings2, X, MessageSquare } from "lucide-react";
+import { ClipboardList, Dumbbell, History, Activity, X, MessageSquare } from "lucide-react";
 import { AlertBadge, ClinicalSignalBadge, InsightBadge, STATUS_TEXT, WeightTrendBadge } from "./dashboardUtils";
 import { Private, usePrivacyMode } from "@/components/coach/PrivacyMode";
 
 export function StudentRow({
-  student, onAnamnesis, onProtocol, onUnlink, onHistory, onChangeHistory, onLatestFeedback, onSettings,
+  student, onAnamnesis, onProtocol, onUnlink, onHistory, onEngagement, onLatestFeedback,
 }: {
   student: StudentStatus;
   onAnamnesis: (s: StudentStatus) => void;
   onProtocol: (s: StudentStatus) => void;
   onUnlink: (s: StudentStatus) => void;
   onHistory: (s: StudentStatus) => void;
-  onChangeHistory: (s: StudentStatus) => void;
+  onEngagement: (s: StudentStatus) => void;
   onLatestFeedback: (s: StudentStatus) => void;
-  onSettings: (s: StudentStatus) => void;
 }) {
   // Sempre em dias exatos (nunca "há N semana(s)") — o coach precisa comparar
   // isso diretamente com os limites de atenção/crítico, que também são em dias.
@@ -101,11 +100,8 @@ export function StudentRow({
         <button onClick={() => onHistory(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Histórico de Check-ins">
           <History className="w-4 h-4" />
         </button>
-        <button onClick={() => onChangeHistory(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Histórico de Alterações">
-          <Sparkles className="w-4 h-4" />
-        </button>
-        <button onClick={() => onSettings(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Configurar feedback do aluno">
-          <Settings2 className="w-4 h-4" />
+        <button onClick={() => onEngagement(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Engajamento">
+          <Activity className="w-4 h-4" />
         </button>
         <button onClick={() => onUnlink(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-destructive transition-colors" title="Desvincular">
           <X className="w-4 h-4" />
