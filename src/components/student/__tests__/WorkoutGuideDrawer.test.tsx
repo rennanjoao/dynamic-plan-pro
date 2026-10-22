@@ -1,7 +1,7 @@
 /**
  * WorkoutGuideDrawer.test.tsx
  *
- * Cobre a MISSÃO 2: o gatilho abre o guia e o conteúdo das 4 regras
+ * Cobre a MISSÃO 2: o gatilho abre o guia e o conteúdo das 3 regras
  * aparece, tanto no branch desktop (Dialog) quanto no branch mobile
  * (Drawer) — a mesma ramificação por useIsMobile() já usada em
  * ExerciseVideoSheet.tsx/MobilitySuggestedDrawer.tsx.
@@ -20,7 +20,7 @@ function setViewportWidth(width: number) {
 }
 
 describe("WorkoutGuideDrawer", () => {
-  it("desktop: o gatilho abre um Dialog com as 4 regras", async () => {
+  it("desktop: o gatilho abre um Dialog com as 3 regras", async () => {
     setViewportWidth(1280);
     const user = userEvent.setup();
     render(<WorkoutGuideDrawer />);
@@ -30,7 +30,6 @@ describe("WorkoutGuideDrawer", () => {
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText(/O Primeiro Aquecimento/)).toBeInTheDocument();
-    expect(screen.getByText(/A Regra do "2\+2"/)).toBeInTheDocument();
     expect(screen.getByText(/Ir até a Falha/)).toBeInTheDocument();
     expect(screen.getByText(/Faltou no treino/)).toBeInTheDocument();
   });
@@ -43,7 +42,6 @@ describe("WorkoutGuideDrawer", () => {
     await user.click(screen.getByRole("button", { name: /Como ler meu treino/i }));
 
     await screen.findByText(/O Primeiro Aquecimento/);
-    expect(screen.getByText(/A Regra do "2\+2"/)).toBeInTheDocument();
     // O DrawerContent (vaul) é portalizado pro document.body, assim como o
     // DialogContent — por isso a busca é em document, não no container do
     // render. A "alcinha" de arraste só existe no DrawerContent, nunca no
@@ -54,6 +52,6 @@ describe("WorkoutGuideDrawer", () => {
   it("não empurra conteúdo: o texto completo só existe no DOM depois do clique", () => {
     setViewportWidth(1280);
     render(<WorkoutGuideDrawer />);
-    expect(screen.queryByText(/Hard Sets/)).toBeNull();
+    expect(screen.queryByText(/Série Zero/)).toBeNull();
   });
 });

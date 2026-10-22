@@ -7,7 +7,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { useIsMobile } from "@/hooks/use-mobile";
 import { X, TrendingUp, ShieldCheck } from "lucide-react";
 import {
-  PHASES, PHASE_ORDER, DELOAD_COPY, MENU_INTRO, LOAD_SECTION, HERE_BADGE,
+  PHASES, PHASE_ORDER, MENU_INTRO, LOAD_SECTION, HERE_BADGE,
   PERIODIZATION_MENU_TITLE, type PhaseKey,
 } from "@/lib/periodizationCopy";
 import { WorkoutRulesContent } from "@/components/student/WorkoutGuideDrawer";
@@ -38,7 +38,7 @@ export function PeriodizationGuideDrawer({ trigger, currentPhase }: Props) {
       </h3>
       <p className="text-xs text-muted-foreground leading-relaxed">{MENU_INTRO}</p>
 
-      <Accordion type="single" collapsible defaultValue={currentPhase ?? undefined}>
+      <Accordion type="single" collapsible defaultValue={currentPhase && currentPhase !== "deload" ? currentPhase : undefined}>
         {PHASE_ORDER.map((k) => {
           const p = PHASES[k];
           return (
@@ -70,21 +70,6 @@ export function PeriodizationGuideDrawer({ trigger, currentPhase }: Props) {
             </AccordionItem>
           );
         })}
-        <AccordionItem value="deload">
-          <AccordionTrigger className="text-left">
-            <div>
-              <div className="text-sm font-bold flex items-center">
-                {DELOAD_COPY.menuTitle}
-                {currentPhase === "deload" && badge}
-              </div>
-              <div className="text-[11px] text-muted-foreground font-normal">{DELOAD_COPY.technicalName}</div>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="space-y-2 text-xs text-muted-foreground leading-relaxed">
-            <p><strong className="text-foreground">Objetivo:</strong> {DELOAD_COPY.objective}</p>
-            <p><strong className="text-foreground">Como fazer:</strong> {DELOAD_COPY.howTo}</p>
-          </AccordionContent>
-        </AccordionItem>
       </Accordion>
 
       <section className="space-y-3">

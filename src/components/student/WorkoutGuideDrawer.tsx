@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from "@/components/ui/drawer";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { BookOpenText, Flame, Layers, Target, RotateCcw, X, AlertTriangle } from "lucide-react";
+import { BookOpenText, Flame, Target, RotateCcw, X, AlertTriangle } from "lucide-react";
 
 interface WorkoutGuideDrawerProps {
   /** Substitui o botão-gatilho padrão (ex: pra usar um ícone em vez do texto). */
@@ -32,7 +32,7 @@ export function WorkoutRulesContent() {
   return (
     <div className="space-y-5">
       <p className="text-xs text-muted-foreground leading-relaxed">
-        Para extrair o máximo de resultado sem se machucar, siga estas 4 regras de ouro na sua rotina:
+        Para extrair o máximo de resultado sem se machucar, siga estas 3 regras de ouro na sua rotina:
       </p>
 
       <section className="space-y-1.5">
@@ -51,31 +51,8 @@ export function WorkoutRulesContent() {
 
       <section className="space-y-1.5">
         <h3 className="flex items-center gap-2 text-sm font-bold">
-          <Layers className="w-4 h-4 text-primary shrink-0" />
-          2. A Regra do "2+2" (Preparação + Valendo)
-        </h3>
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          Se você vir marcações como <strong className="text-foreground">"2+2"</strong> ou{" "}
-          <strong className="text-foreground">"1+3"</strong> no campo de séries, nem todas são pra matar. Exemplo de
-          um 2+2 (lembrando que você já fez a sua Série Zero de 5kg antes disso):
-        </p>
-        <ul className="text-xs text-muted-foreground rounded-md border border-border/50 bg-muted/20 divide-y divide-border/50 overflow-hidden">
-          <li className="p-2">
-            <span className="font-bold text-foreground">Série 1 (Aquecimento):</span> 30% a 40% da carga máxima que você aguenta.
-          </li>
-          <li className="p-2">
-            <span className="font-bold text-foreground">Série 2 (Reconhecimento):</span> 50% a 70% da carga, pra sentir o peso.
-          </li>
-          <li className="p-2">
-            <span className="font-bold text-foreground">Séries 3 e 4 (Hard Sets):</span> carga máxima para a faixa de repetições pedida. Aqui é para valer!
-          </li>
-        </ul>
-      </section>
-
-      <section className="space-y-1.5">
-        <h3 className="flex items-center gap-2 text-sm font-bold">
           <Target className="w-4 h-4 text-primary shrink-0" />
-          3. O que é "Ir até a Falha"?
+          2. O que é "Ir até a Falha"?
         </h3>
         <p className="text-xs text-muted-foreground leading-relaxed">
           Falhar não é desmaiar ou quebrar o equipamento. Buscamos a <strong className="text-foreground">Falha
@@ -87,7 +64,7 @@ export function WorkoutRulesContent() {
       <section className="space-y-1.5">
         <h3 className="flex items-center gap-2 text-sm font-bold">
           <RotateCcw className="w-4 h-4 text-primary shrink-0" />
-          4. Faltou no treino? O que fazer
+          3. Faltou no treino? O que fazer
         </h3>
         <p className="text-xs text-muted-foreground leading-relaxed">
           Percebeu que não vai conseguir treinar hoje? Sem desespero. Faça desse um dia de descanso total ou, no
