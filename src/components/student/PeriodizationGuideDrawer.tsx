@@ -204,34 +204,40 @@ export function PeriodizationGuideDrawer({ trigger, currentPhase }: Props) {
 
   if (isMobile) {
     return (
-      <Drawer open={open} onOpenChange={setOpen}>
-        <div onClick={() => setOpen(true)}>{trigger}</div>
+      <Drawer open={open} onOpenChange={handleOpenChange}>
+        <div onClick={() => handleOpenChange(true)}>{trigger}</div>
         <DrawerContent className="max-h-[85dvh] flex flex-col">
-          <DrawerHeader className="flex flex-row items-center justify-between gap-2 shrink-0 text-left">
-            <DrawerTitle className="text-left truncate min-w-0">{title}</DrawerTitle>
-            <DrawerClose asChild>
-              <button type="button" aria-label="Fechar" className="rounded-full p-2 hover:bg-muted transition-colors shrink-0">
-                <X className="w-5 h-5" />
-              </button>
-            </DrawerClose>
-          </DrawerHeader>
-          <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-6" style={{ WebkitOverflowScrolling: "touch" }}>
-            {body}
-          </div>
+          <Tabs value={tab} onValueChange={changeTab} className="flex flex-col min-h-0 flex-1">
+            <DrawerHeader className="flex flex-row items-center justify-between gap-2 shrink-0 text-left">
+              <DrawerTitle className="text-left truncate min-w-0">{title}</DrawerTitle>
+              <DrawerClose asChild>
+                <button type="button" aria-label="Fechar" className="rounded-full p-2 hover:bg-muted transition-colors shrink-0">
+                  <X className="w-5 h-5" />
+                </button>
+              </DrawerClose>
+            </DrawerHeader>
+            <div className="px-4 pb-3 shrink-0">{tabsBar}</div>
+            <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-4 pb-6" style={{ WebkitOverflowScrolling: "touch" }}>
+              {content}
+            </div>
+          </Tabs>
         </DrawerContent>
       </Drawer>
     );
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <div onClick={() => setOpen(true)}>{trigger}</div>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <div onClick={() => handleOpenChange(true)}>{trigger}</div>
       <DialogContent className="sm:max-w-lg max-h-[85dvh] flex flex-col p-0 overflow-hidden">
-        <DialogHeader className="p-5 pb-3 shrink-0">
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription className="sr-only">Explicação de cada fase do ciclo e de como subir a carga.</DialogDescription>
-        </DialogHeader>
-        <div className="flex-1 min-h-0 overflow-y-auto px-5 pb-5">{body}</div>
+        <Tabs value={tab} onValueChange={changeTab} className="flex flex-col min-h-0 flex-1">
+          <DialogHeader className="p-5 pb-3 shrink-0">
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription className="sr-only">Explicação de cada fase do ciclo e de como subir a carga.</DialogDescription>
+          </DialogHeader>
+          <div className="px-5 pb-3 shrink-0">{tabsBar}</div>
+          <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-5 pb-5">{content}</div>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
