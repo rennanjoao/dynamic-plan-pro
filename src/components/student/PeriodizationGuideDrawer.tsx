@@ -70,21 +70,6 @@ export function PeriodizationGuideDrawer({ trigger, currentPhase }: Props) {
             </AccordionItem>
           );
         })}
-        <AccordionItem value="deload">
-          <AccordionTrigger className="text-left">
-            <div>
-              <div className="text-sm font-bold flex items-center">
-                {DELOAD_COPY.menuTitle}
-                {currentPhase === "deload" && badge}
-              </div>
-              <div className="text-[11px] text-muted-foreground font-normal">{DELOAD_COPY.technicalName}</div>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="space-y-2 text-xs text-muted-foreground leading-relaxed">
-            <p><strong className="text-foreground">Objetivo:</strong> {DELOAD_COPY.objective}</p>
-            <p><strong className="text-foreground">Como fazer:</strong> {DELOAD_COPY.howTo}</p>
-          </AccordionContent>
-        </AccordionItem>
       </Accordion>
 
       <section className="space-y-3">
