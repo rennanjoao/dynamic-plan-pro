@@ -7,7 +7,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { useIsMobile } from "@/hooks/use-mobile";
 import { X, TrendingUp, ShieldCheck } from "lucide-react";
 import {
-  PHASES, PHASE_ORDER, DELOAD_COPY, MENU_INTRO, LOAD_SECTION, HERE_BADGE,
+  PHASES, PHASE_ORDER, MENU_INTRO, LOAD_SECTION, HERE_BADGE,
   PERIODIZATION_MENU_TITLE, type PhaseKey,
 } from "@/lib/periodizationCopy";
 import { WorkoutRulesContent } from "@/components/student/WorkoutGuideDrawer";
@@ -38,7 +38,7 @@ export function PeriodizationGuideDrawer({ trigger, currentPhase }: Props) {
       </h3>
       <p className="text-xs text-muted-foreground leading-relaxed">{MENU_INTRO}</p>
 
-      <Accordion type="single" collapsible defaultValue={currentPhase ?? undefined}>
+      <Accordion type="single" collapsible defaultValue={currentPhase && currentPhase !== "deload" ? currentPhase : undefined}>
         {PHASE_ORDER.map((k) => {
           const p = PHASES[k];
           return (

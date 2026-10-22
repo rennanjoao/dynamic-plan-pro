@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from "@/components/ui/drawer";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { BookOpenText, Flame, Layers, Target, RotateCcw, X, AlertTriangle } from "lucide-react";
+import { BookOpenText, Flame, Target, RotateCcw, X, AlertTriangle } from "lucide-react";
 
 interface WorkoutGuideDrawerProps {
   /** Substitui o botão-gatilho padrão (ex: pra usar um ícone em vez do texto). */
