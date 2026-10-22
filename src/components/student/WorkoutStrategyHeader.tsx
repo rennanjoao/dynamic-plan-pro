@@ -1,4 +1,6 @@
-import { StretchHorizontal, ChevronRight } from "lucide-react";
+import { StretchHorizontal, ChevronRight, BookOpenText } from "lucide-react";
+import { PeriodizationGuideDrawer } from "@/components/student/PeriodizationGuideDrawer";
+import { PHASES, phaseFromFocus, isDeloadWeek, PERIODIZATION_LINK_LABEL } from "@/lib/periodizationCopy";
 import { buildWeekStrip, todayKey } from "@/lib/weekCycle";
 import { classifyWeekFocus, WEEK_FOCUS_COLOR, type WeekMeta } from "@/lib/periodizationDefaults";
 import { isMobilityExercise } from "@/lib/protocolSchema";
@@ -87,18 +89,44 @@ export default function WorkoutStrategyHeader({
         </button>
       )}
 
-      {weekMeta && focus && cc && (
-        <div className={`flex items-center flex-wrap gap-2 rounded-lg border ${cc.border} ${cc.bg} px-3 py-2`}>
-          <span className="text-xs font-bold text-foreground">
-            Semana {currentWeek + 1} de {weeks.length}
-          </span>
-          <span className="text-xs text-muted-foreground">·</span>
-          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-bold ${cc.pill}`}>
-            {focus.label}
-          </span>
-          <span className="text-[11px] text-muted-foreground">({weekMeta.reps})</span>
-        </div>
-      )}
+      {weekMeta && focus && cc && (() => {
+        const deload = isDeloadWeek(weekMeta as WeekMeta & { isDeload?: boolean });
+        const phaseKey = phaseFromFocus(focus.key);
+        const phase = PHASES[phaseKey];
+        return (
+          <div className={`rounded-lg border ${cc.border} ${cc.bg} px-3 py-2 space-y-1.5`}>
+            <div className="flex items-center flex-wrap gap-2">
+              <span className="text-xs font-bold text-foreground">
+                Semana {currentWeek + 1} de {weeks.length}
+              </span>
+              <span className="text-xs text-muted-foreground">·</span>
+              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-bold ${cc.pill}`}>
+                {deload ? focus.label : phase.name}
+              </span>
+              <span className="text-[11px] text-muted-foreground">({weekMeta.reps})</span>
+            </div>
+            {!deload && (
+              <>
+                <p className="text-xs text-foreground"><strong>Foco:</strong> {phase.focus}</p>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">{phase.summary}</p>
+              </>
+            )}
+            <PeriodizationGuideDrawer
+              currentPhase={deload ? "deload" : phaseKey}
+              trigger={
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-1.5 text-xs font-medium text-sky-500 hover:text-sky-400 transition-colors"
+                >
+                  <BookOpenText className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">{PERIODIZATION_LINK_LABEL}</span>
+                  <ChevronRight className="w-3.5 h-3.5 shrink-0 ml-auto opacity-60" />
+                </button>
+              }
+            />
+          </div>
+        );
+      })()}
     </div>
   );
 }
