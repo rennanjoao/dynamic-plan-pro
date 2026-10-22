@@ -15,8 +15,9 @@ export function isDeloadWeek(week: { label?: string; isDeload?: boolean } | null
   return !!week.isDeload || /deload|descarga/i.test(week.label ?? "");
 }
 
-export const PERIODIZATION_LINK_LABEL = "Como ler minha periodização";
-export const PERIODIZATION_MENU_TITLE = "Como ler minha periodização";
+export const PERIODIZATION_LINK_LABEL = "Como entender meu treino e periodização";
+export const PERIODIZATION_MENU_TITLE = "Como entender meu treino e periodização";
+export const IMPORTANT_READ_ALERT = "Leitura importante";
 export const HERE_BADGE = "Você está aqui";
 
 export interface PhaseCopy {

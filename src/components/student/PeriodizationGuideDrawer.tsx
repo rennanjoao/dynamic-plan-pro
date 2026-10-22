@@ -10,6 +10,7 @@ import {
   PHASES, PHASE_ORDER, DELOAD_COPY, MENU_INTRO, LOAD_SECTION, HERE_BADGE,
   PERIODIZATION_MENU_TITLE, type PhaseKey,
 } from "@/lib/periodizationCopy";
+import { WorkoutRulesContent } from "@/components/student/WorkoutGuideDrawer";
 
 interface Props {
   trigger: ReactNode;
@@ -29,6 +30,12 @@ export function PeriodizationGuideDrawer({ trigger, currentPhase }: Props) {
 
   const body = (
     <div className="space-y-5">
+      <h3 className="text-xs font-bold uppercase tracking-wide text-primary">Regras do treino</h3>
+      <WorkoutRulesContent />
+
+      <h3 className="text-xs font-bold uppercase tracking-wide text-primary pt-2 border-t border-border/50">
+        Periodização e cargas
+      </h3>
       <p className="text-xs text-muted-foreground leading-relaxed">{MENU_INTRO}</p>
 
       <Accordion type="single" collapsible defaultValue={currentPhase ?? undefined}>

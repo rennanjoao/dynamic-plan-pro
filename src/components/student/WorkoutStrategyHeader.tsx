@@ -1,6 +1,6 @@
-import { StretchHorizontal, ChevronRight, BookOpenText } from "lucide-react";
+import { StretchHorizontal, ChevronRight, BookOpenText, AlertTriangle } from "lucide-react";
 import { PeriodizationGuideDrawer } from "@/components/student/PeriodizationGuideDrawer";
-import { PHASES, phaseFromFocus, isDeloadWeek, PERIODIZATION_LINK_LABEL } from "@/lib/periodizationCopy";
+import { PHASES, phaseFromFocus, isDeloadWeek, PERIODIZATION_LINK_LABEL, IMPORTANT_READ_ALERT } from "@/lib/periodizationCopy";
 import { buildWeekStrip, todayKey } from "@/lib/weekCycle";
 import { classifyWeekFocus, WEEK_FOCUS_COLOR, type WeekMeta } from "@/lib/periodizationDefaults";
 import { isMobilityExercise } from "@/lib/protocolSchema";
@@ -114,14 +114,19 @@ export default function WorkoutStrategyHeader({
             <PeriodizationGuideDrawer
               currentPhase={deload ? "deload" : phaseKey}
               trigger={
-                <button
-                  type="button"
-                  className="w-full flex items-center gap-1.5 text-xs font-medium text-sky-500 hover:text-sky-400 transition-colors"
-                >
-                  <BookOpenText className="w-3.5 h-3.5 shrink-0" />
-                  <span className="truncate">{PERIODIZATION_LINK_LABEL}</span>
-                  <ChevronRight className="w-3.5 h-3.5 shrink-0 ml-auto opacity-60" />
-                </button>
+                <div>
+                  <button
+                    type="button"
+                    className="w-full flex items-center gap-1.5 text-xs font-medium text-sky-500 hover:text-sky-400 transition-colors"
+                  >
+                    <BookOpenText className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">{PERIODIZATION_LINK_LABEL}</span>
+                    <ChevronRight className="w-3.5 h-3.5 shrink-0 ml-auto opacity-60" />
+                  </button>
+                  <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-amber-500">
+                    <AlertTriangle className="w-3 h-3 shrink-0" /> {IMPORTANT_READ_ALERT}
+                  </span>
+                </div>
               }
             />
           </div>

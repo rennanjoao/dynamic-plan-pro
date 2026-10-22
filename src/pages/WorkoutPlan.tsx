@@ -473,9 +473,12 @@ export default function WorkoutPlan() {
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
 
-        <div className="flex justify-end -mb-2">
-          <WorkoutGuideDrawer />
-        </div>
+        {/* Com periodização, o guia unificado fica na faixa da semana. */}
+        {!(periodizationEnabled && weeks.length > 0) && (
+          <div className="flex justify-end -mb-2">
+            <WorkoutGuideDrawer />
+          </div>
+        )}
 
         <WorkoutStrategyHeader
           payload={safePayload}
