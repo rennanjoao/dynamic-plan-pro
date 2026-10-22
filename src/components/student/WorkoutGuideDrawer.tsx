@@ -31,9 +31,7 @@ export function WorkoutGuideDrawer({ trigger, className }: WorkoutGuideDrawerPro
   const [open, setOpen] = useState(false);
   const isMobile = useIsMobile();
   const title = "Guia Rápido: Como ler o seu treino";
-
-  const body = (
-    <div className="space-y-5">
+  const body = <WorkoutRulesContent />;
       <p className="text-xs text-muted-foreground leading-relaxed">
         Para extrair o máximo de resultado sem se machucar, siga estas 4 regras de ouro na sua rotina:
       </p>
@@ -101,6 +99,13 @@ export function WorkoutGuideDrawer({ trigger, className }: WorkoutGuideDrawerPro
       </section>
     </div>
   );
+}
+
+function WorkoutGuideShell({ trigger, className, title, body, open, setOpen, isMobile }: {
+  trigger?: ReactNode; className?: string; title: string; body: ReactNode;
+  open: boolean; setOpen: (v: boolean) => void; isMobile: boolean;
+}) {
+
 
   const defaultTrigger = (
     <Button
