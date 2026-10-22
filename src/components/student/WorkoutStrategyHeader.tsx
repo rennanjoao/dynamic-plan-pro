@@ -1,6 +1,6 @@
-import { StretchHorizontal, ChevronRight, BookOpenText } from "lucide-react";
+import { StretchHorizontal, ChevronRight, BookOpenText, AlertTriangle } from "lucide-react";
 import { PeriodizationGuideDrawer } from "@/components/student/PeriodizationGuideDrawer";
-import { PHASES, phaseFromFocus, isDeloadWeek, PERIODIZATION_LINK_LABEL } from "@/lib/periodizationCopy";
+import { PHASES, phaseFromFocus, isDeloadWeek, PERIODIZATION_LINK_LABEL, IMPORTANT_READ_ALERT } from "@/lib/periodizationCopy";
 import { buildWeekStrip, todayKey } from "@/lib/weekCycle";
 import { classifyWeekFocus, WEEK_FOCUS_COLOR, type WeekMeta } from "@/lib/periodizationDefaults";
 import { isMobilityExercise } from "@/lib/protocolSchema";
