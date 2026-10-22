@@ -27,11 +27,10 @@ interface WorkoutGuideDrawerProps {
   className?: string;
 }
 
-export function WorkoutGuideDrawer({ trigger, className }: WorkoutGuideDrawerProps) {
-  const [open, setOpen] = useState(false);
-  const isMobile = useIsMobile();
-  const title = "Guia Rápido: Como ler o seu treino";
-  const body = <WorkoutRulesContent />;
+/** As 4 regras gerais — reutilizadas no guia unificado de periodização. */
+export function WorkoutRulesContent() {
+  return (
+    <div className="space-y-5">
       <p className="text-xs text-muted-foreground leading-relaxed">
         Para extrair o máximo de resultado sem se machucar, siga estas 4 regras de ouro na sua rotina:
       </p>
@@ -101,10 +100,11 @@ export function WorkoutGuideDrawer({ trigger, className }: WorkoutGuideDrawerPro
   );
 }
 
-function WorkoutGuideShell({ trigger, className, title, body, open, setOpen, isMobile }: {
-  trigger?: ReactNode; className?: string; title: string; body: ReactNode;
-  open: boolean; setOpen: (v: boolean) => void; isMobile: boolean;
-}) {
+export function WorkoutGuideDrawer({ trigger, className }: WorkoutGuideDrawerProps) {
+  const [open, setOpen] = useState(false);
+  const isMobile = useIsMobile();
+  const title = "Guia Rápido: Como ler o seu treino";
+  const body = <WorkoutRulesContent />;
 
 
   const defaultTrigger = (
