@@ -17,7 +17,7 @@ describe("TpmCravingsDialog", () => {
     expect(screen.getByText("Válvula de Escape")).toBeInTheDocument();
     expect(screen.getByText(/no auge da sua TPM/)).toBeInTheDocument();
     expect(screen.getByText(/siga o seu protocolo normalmente no dia seguinte/)).toBeInTheDocument();
-    expect(screen.getByText("49 opções")).toBeInTheDocument();
+    expect(screen.getByText("48 opções")).toBeInTheDocument();
   });
 
   it("mostra os 4 grupos na ordem, e o aviso da troca de refeição", async () => {
@@ -45,7 +45,8 @@ describe("TpmCravingsDialog", () => {
     await user.click(screen.getByRole("button", { name: "Sem lactose" }));
 
     await user.click(screen.getByRole("button", { name: "Sem amendoim" }));
-    expect(screen.queryByText("Snickers (Meia Barra)")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bombom Sonho de Valsa ou Ouro Branco")).not.toBeInTheDocument();
+    expect(screen.queryByText("Paçoca Rolha Zero Açúcar")).not.toBeInTheDocument();
     expect(screen.getByText("Chocolate 70% Cacau")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Sem amendoim" }));
 
@@ -75,6 +76,25 @@ describe("TpmCravingsDialog", () => {
     await user.click(within(painel).getByRole("button", { name: "60 g" }));
     expect(within(painel).getByRole("button", { name: "60 g" })).toHaveAttribute("aria-pressed", "true");
     expect(within(painel).getByText("Esta opção: ~215 kcal")).toBeInTheDocument();
+  });
+
+  it("Chocolate Quente Fit deixa escolher o leite e avisa quando a opção tem mais gordura", async () => {
+    const user = await abrir();
+    await user.click(screen.getByText("Chocolate Quente Fit"));
+    const painel = document.getElementById("craving-chocolate-quente-fit")!;
+    expect(within(painel).getByText("Esta opção: ~85 kcal")).toBeInTheDocument();
+    expect(within(painel).queryByText(/tem mais gordura que o resto da lista/i)).not.toBeInTheDocument();
+    await user.click(within(painel).getByRole("button", { name: "Leite integral" }));
+    expect(within(painel).getByText("Esta opção: ~125 kcal")).toBeInTheDocument();
+    expect(within(painel).getByText(/tem mais gordura que o resto da lista/i)).toBeInTheDocument();
+  });
+
+  it("não mostra mousse de banana, banana quente com cacau nem meia barra", async () => {
+    await abrir();
+    for (const t of ["Mousse de Banana com Cacau", "Banana Quente com Cacau e Canela", "Snickers (Meia Barra)"]) {
+      expect(screen.queryByText(t), t).not.toBeInTheDocument();
+    }
+    expect(screen.getByText("Minis de Chocolate (Qualquer Versão Mini)")).toBeInTheDocument();
   });
 
   it("Picolé Caseiro de Fruta oferece três frutas leves", async () => {
