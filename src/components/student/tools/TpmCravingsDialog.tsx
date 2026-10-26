@@ -8,6 +8,7 @@ import {
   CRAVINGS,
   GRUPOS,
   INGREDIENTES,
+  LIMITE_GORDURA_PADRAO_G,
   ROTULO_FLAG,
   type Categoria,
   type Craving,
@@ -64,6 +65,7 @@ function CravingCard({
   const painelId = `craving-${item.id}`;
   const opcao = item.opcoes[opcaoIdx] ?? item.opcoes[0];
   const m = item.macros[opcaoIdx] ?? item.macros[0];
+  const fixaNaOpcao = item.grupo !== "troca" && m.g > LIMITE_GORDURA_PADRAO_G;
   const macros = [
     { rotulo: "Proteína", valor: m.p },
     { rotulo: "Carbo", valor: m.c },
@@ -166,7 +168,7 @@ function CravingCard({
               </ol>
             </section>
 
-            {item.porcaoFixa && (
+            {fixaNaOpcao && (
               <p className="text-xs text-muted-foreground rounded-lg bg-muted/60 p-2">
                 <strong className="text-foreground">Porção fixa:</strong> tem mais gordura que o resto da lista. Meça e guarde o resto.
               </p>
