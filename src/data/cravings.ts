@@ -121,7 +121,6 @@ const defs = {
   paoHamburguer: { nome: "Pão de hambúrguer (Pullman)", kcal: 276, p: 8.3, c: 56, g: 2.4, fonte: "rotulo", contem: ["gluten"] },
   chocolateAoLeite: { nome: "Chocolate ao leite", kcal: 540, p: 7.2, c: 59.6, g: 30.3, fonte: "taco-online", contem: ["lactose"] },
   chocolate70: { nome: "Chocolate 70% cacau", kcal: 547, p: 10, c: 39, g: 36, fonte: "rotulo", contem: ["lactose", "gluten"] },
-  snickers: { nome: "Snickers (barra de 45 g)", kcal: 482, p: 8.9, c: 60, g: 22.2, fonte: "rotulo", contem: ["lactose", "amendoim"] },
   miniChocolate: { nome: "Mini chocolate recheado (Snickers Mini)", kcal: 472, p: 8.3, c: 61.1, g: 22.2, fonte: "rotulo", contem: ["lactose", "amendoim"] },
   bombom: { nome: "Bombom Sonho de Valsa / Ouro Branco", kcal: 488, p: 5.6, c: 60.5, g: 29.3, fonte: "rotulo", contem: ["lactose", "amendoim", "gluten"] },
   pacocaZero: { nome: "Paçoca rolha zero açúcar", kcal: 472, p: 22.2, c: 30.6, g: 33.3, fonte: "rotulo", contem: ["amendoim"] },
@@ -130,6 +129,8 @@ const defs = {
   picoleFrutasVermZero: { nome: "Picolé frutas vermelhas zero", kcal: 93, p: 2, c: 20, g: 0, fonte: "rotulo" },
   picoleUva: { nome: "Picolé de uva", kcal: 102, p: 0, c: 25, g: 0, fonte: "rotulo" },
   picoleLimao: { nome: "Picolé de limão", kcal: 111, p: 0, c: 28, g: 0, fonte: "rotulo" },
+  leiteIntegral: { nome: "Leite integral", kcal: 61, p: 3.1, c: 4.6, g: 3.2, fonte: "taco-app", tacoNome: "Leite de vaca integral (líquido)", contem: ["lactose"] },
+  chocolateMeioAmargo: { nome: "Chocolate meio amargo", kcal: 475, p: 4.9, c: 62.4, g: 29.9, fonte: "taco-online", contem: ["lactose"] },
 } satisfies Record<string, Ingrediente>;
 
 export type IngredienteId = keyof typeof defs;
@@ -389,10 +390,23 @@ const BASE: CravingBase[] = [
     grupo: "natural",
     categoria: "chocolate",
     resumo: "Cacau de verdade com leite desnatado e mel: aquece e mata a vontade de chocolate.",
-    ingredientes: [
-      { id: "leiteDesnatado", gramas: 150, unidade: "ml", medida: "cerca de 1 xícara" },
-      { id: "cacauPo", gramas: 5, medida: "1 colher de sopa rasa" },
-      { id: "mel", gramas: 7, medida: "1 colher de chá" },
+    opcoes: [
+      {
+        rotulo: "Leite desnatado",
+        ingredientes: [
+          { id: "leiteDesnatado", gramas: 150, unidade: "ml", medida: "cerca de 1 xícara" },
+          { id: "cacauPo", gramas: 5, medida: "1 colher de sopa rasa" },
+          { id: "mel", gramas: 7, medida: "1 colher de chá" },
+        ],
+      },
+      {
+        rotulo: "Leite integral",
+        ingredientes: [
+          { id: "leiteIntegral", gramas: 150, unidade: "ml", medida: "cerca de 1 xícara" },
+          { id: "cacauPo", gramas: 5, medida: "1 colher de sopa rasa" },
+          { id: "mel", gramas: 7, medida: "1 colher de chá" },
+        ],
+      },
     ],
     preparo: [
       "Dissolva o cacau em um pouco do leite frio, mexendo bem.",
@@ -400,7 +414,7 @@ const BASE: CravingBase[] = [
       "Adoce com o mel e mexa de novo.",
     ],
     tempo: "4 min",
-    dica: "Leite desnatado sem lactose funciona igual.",
+    dica: "Use o leite que preferir. Leite sem lactose tem a mesma kcal do comum (desnatado ou integral). Bebida vegetal varia de ~25 a ~60 kcal por 100 ml: confira o rótulo.",
   },
   {
     id: "abacaxi-grelhado",
@@ -437,24 +451,6 @@ const BASE: CravingBase[] = [
     tempo: "2 min",
   },
   {
-    id: "banana-quente-cacau",
-    icone: "🔥",
-    titulo: "Banana Quente com Cacau e Canela",
-    grupo: "natural",
-    categoria: "chocolate",
-    resumo: "Banana aquecida com cacau: parece sobremesa de chocolate.",
-    ingredientes: [
-      { id: "bananaPrata", gramas: 90, medida: "1 banana prata" },
-      { id: "cacauPo", gramas: 5, medida: "1 colher de sopa rasa" },
-    ],
-    extras: ["Canela a gosto"],
-    preparo: [
-      "Amasse levemente a banana com o cacau e a canela.",
-      "Aqueça 1 minuto no micro-ondas.",
-    ],
-    tempo: "2 min",
-  },
-  {
     id: "batata-airfryer",
     icone: "🍟",
     titulo: "Batata Crocante na Airfryer",
@@ -472,26 +468,6 @@ const BASE: CravingBase[] = [
     ],
     tempo: "20 min",
     dica: "Quer mais crocância? Use no máximo 1 borrifada de óleo em spray.",
-  },
-  {
-    id: "mousse-banana-cacau",
-    icone: "🥣",
-    titulo: "Mousse de Banana com Cacau",
-    grupo: "natural",
-    categoria: "chocolate",
-    resumo: "Creme de chocolate só com banana e cacau, sem açúcar adicionado.",
-    ingredientes: [
-      { id: "bananaPrata", gramas: 100, medida: "1 banana média, sem casca" },
-      { id: "cacauPo", gramas: 5, medida: "1 colher de sopa rasa" },
-    ],
-    extras: ["Canela a gosto"],
-    preparo: [
-      "Amasse a banana com um garfo até virar um creme.",
-      "Misture o cacau e a canela até ficar homogêneo.",
-      "Se der tempo, leve à geladeira por 15 minutos.",
-    ],
-    tempo: "5 min",
-    dica: "Quanto mais madura a banana, mais doce fica o creme.",
   },
   {
     id: "sorvete-banana-morango",
@@ -986,23 +962,6 @@ const BASE: CravingBase[] = [
     dica: "O número de quadradinhos varia por marca: na primeira vez, confira o peso na balança.",
   },
   {
-    id: "snickers-meia-barra",
-    icone: "🍫",
-    titulo: "Snickers (Meia Barra)",
-    grupo: "industrializado",
-    categoria: "chocolate",
-    resumo: "O Snickers de sempre, em uma porção que cabe no plano.",
-    ingredientes: [
-      { id: "snickers", gramas: 22.5, medida: "metade de uma barra de 45 g" },
-    ],
-    preparo: [
-      "Corte a barra ao meio.",
-      "Guarde a outra metade; congelada, ela fica dura e demora mais para comer.",
-    ],
-    tempo: "1 min",
-    dica: "Confira o rótulo: pode conter traços de trigo, soja e outras oleaginosas.",
-  },
-  {
     id: "sobremesa-proteica",
     icone: "🍮",
     titulo: "Sobremesa Proteica Pronta",
@@ -1069,7 +1028,7 @@ const BASE: CravingBase[] = [
       "Coma devagar, saboreando.",
     ],
     tempo: "1 min",
-    dica: "Barras grandes de 40 a 60 g (15 a 20 g de proteína) costumam passar de 200 kcal: coma só metade.",
+    dica: "Barras grandes de 40 a 60 g (15 a 20 g de proteína) costumam passar de 200 kcal: escolha a versão mini ou pequena, de até 150 kcal.",
   },
   {
     id: "biscoito-arroz-geleia",
@@ -1092,19 +1051,36 @@ const BASE: CravingBase[] = [
   {
     id: "minis-chocolate",
     icone: "🍪",
-    titulo: "Minis de Chocolate Recheado",
+    titulo: "Minis de Chocolate (Qualquer Versão Mini)",
     grupo: "industrializado",
     categoria: "chocolate",
-    resumo: "Snickers Mini, Trento Mini e similares: até 30 g.",
-    ingredientes: [
-      { id: "miniChocolate", gramas: 30, medida: "3 a 4 minis" },
+    resumo: "Snickers Mini, Trento Mini, KitKat Mini e similares: escolha a quantidade e guarde o pacote.",
+    opcoes: [
+      {
+        rotulo: "18 g (2 minis)",
+        ingredientes: [
+          { id: "miniChocolate", gramas: 18, medida: "2 minis" },
+        ],
+      },
+      {
+        rotulo: "24 g (3 minis)",
+        ingredientes: [
+          { id: "miniChocolate", gramas: 24, medida: "3 minis" },
+        ],
+      },
+      {
+        rotulo: "30 g (3 a 4 minis)",
+        ingredientes: [
+          { id: "miniChocolate", gramas: 30, medida: "3 a 4 minis" },
+        ],
+      },
     ],
     preparo: [
-      "Separe até 30 g de minis (3 a 4 unidades) e guarde o pacote.",
+      "Separe os minis na balança (até 30 g) e guarde o pacote.",
       "Coma devagar.",
     ],
     tempo: "1 min",
-    dica: "O Charge (barra de 40 g) tem cerca de 195 kcal: só vale meia barra. Confira o rótulo e escolha sabores sem recheio de oleaginosas.",
+    dica: "Vale qualquer chocolate em versão mini. Confira o rótulo: o recheio muda a kcal e alguns levam amendoim ou trigo. Barras grandes, como o Charge de 40 g, passam de 190 kcal: prefira a versão mini.",
   },
   // ───────── TROCA DE REFEIÇÃO ─────────
   {
@@ -1224,6 +1200,74 @@ const BASE: CravingBase[] = [
     ],
     tempo: "25 min",
     dica: "Mostarda, ketchup e molho de tomate somam pouco. Maionese e molhos cremosos somam de 35 a 100 kcal por colher de sopa. O patinho é pesado cru: 180 g viram cerca de 125 g depois de pronto.",
+  },
+  {
+    id: "panqueca-banana",
+    icone: "🍌",
+    titulo: "Panqueca de Banana (3 Ingredientes)",
+    grupo: "troca",
+    categoria: "quentinho",
+    resumo: "Banana, ovo e aveia: massa simples, dourada na frigideira, no lugar de um lanche.",
+    ingredientes: [
+      { id: "bananaPrata", gramas: 100, medida: "1 banana madura" },
+      { id: "ovo", gramas: 50, medida: "1 ovo" },
+      { id: "aveia", gramas: 20, medida: "2 colheres de sopa rasas" },
+    ],
+    extras: ["Canela e fermento (opcionais)"],
+    preparo: [
+      "Amasse a banana.",
+      "Misture com o ovo, a aveia, a canela e o fermento.",
+      "Doure em uma frigideira levemente untada, em fogo baixo, dos dois lados.",
+    ],
+    tempo: "10 min",
+    dica: "Com as 2 colheres de aveia cheias (30 g), soma cerca de 40 kcal. Cada grama de óleo para untar soma cerca de 9 kcal.",
+  },
+  {
+    id: "doce-fit-uva-whey",
+    icone: "🍇",
+    titulo: "Doce Fit de Uva com Whey",
+    grupo: "troca",
+    categoria: "gelado",
+    resumo: "Creme de iogurte, whey e leite em pó com uvas, gelado no freezer.",
+    opcoes: [
+      {
+        rotulo: "100 g de uva",
+        ingredientes: [
+          { id: "iogurteDesnatado", gramas: 170, medida: "1 pote" },
+          { id: "wheyConcentrado", gramas: 30, medida: "1 scoop" },
+          { id: "leitePoDesnatado", gramas: 20, medida: "2 colheres de sopa rasas" },
+          { id: "uva", gramas: 100, medida: "sem sementes" },
+        ],
+      },
+      {
+        rotulo: "200 g de uva",
+        ingredientes: [
+          { id: "iogurteDesnatado", gramas: 170, medida: "1 pote" },
+          { id: "wheyConcentrado", gramas: 30, medida: "1 scoop" },
+          { id: "leitePoDesnatado", gramas: 20, medida: "2 colheres de sopa rasas" },
+          { id: "uva", gramas: 200, medida: "sem sementes" },
+        ],
+      },
+      {
+        rotulo: "200 g de uva com cobertura",
+        ingredientes: [
+          { id: "iogurteDesnatado", gramas: 170, medida: "1 pote" },
+          { id: "wheyConcentrado", gramas: 30, medida: "1 scoop" },
+          { id: "leitePoDesnatado", gramas: 20, medida: "2 colheres de sopa rasas" },
+          { id: "uva", gramas: 200, medida: "sem sementes" },
+          { id: "chocolateMeioAmargo", gramas: 10, medida: "derretido, por cima" },
+        ],
+      },
+    ],
+    preparo: [
+      "Misture o iogurte, o whey (baunilha, chocolate branco ou cookies) e o leite em pó até formar um creme liso, sem grumos.",
+      "Lave as uvas, tire os cabinhos e corte ao meio (ou deixe inteiras).",
+      "Monte em forminhas de silicone ou potinhos: uma camada de creme, as uvas e o resto do creme.",
+      "Leve ao freezer por 3 a 4 horas, até firmar.",
+      "Se quiser, derreta o chocolate meio amargo e despeje por cima na hora de servir.",
+    ],
+    tempo: "15 min + congelar",
+    dica: "A receita inteira tem de 330 a 445 kcal e cerca de 39 g de proteína. Dividida em 2 potinhos, cada um tem metade. Iogurte grego light costuma ter mais proteína e algumas kcal a mais: confira o rótulo.",
   },
 ];
 
