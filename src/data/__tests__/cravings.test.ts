@@ -28,12 +28,10 @@ const GOLDEN: Record<string, [number, number, number, number][]> = {
   "maca-assada": [[73, 0.4, 19.8, 0.0]],
   "ameixa-seca": [[84, 0.8, 22.4, 0.1]],
   "tamaras": [[85, 0.8, 22.5, 0.1]],
-  "chocolate-quente-fit": [[86, 6.1, 15.8, 1.0]],
+  "chocolate-quente-fit": [[86, 6.1, 15.8, 1.0], [125, 5.7, 15.4, 5.5]],
   "abacaxi-grelhado": [[86, 1.6, 22.1, 0.2]],
   "melancia-gelada": [[90, 1.8, 22.5, 0.3]],
-  "banana-quente-cacau": [[92, 2.2, 24.1, 0.8]],
   "batata-airfryer": [[96, 1.8, 22.1, 0.2]],
-  "mousse-banana-cacau": [[100, 2.3, 26.5, 0.8]],
   "sorvete-banana-morango": [[104, 1.8, 27.2, 0.3]],
   "morango-leite-moca": [[108, 2.9, 21.6, 1.8]],
   "queijo-goiabada-zero": [[108, 5.3, 13.0, 6.1]],
@@ -57,24 +55,25 @@ const GOLDEN: Record<string, [number, number, number, number][]> = {
   "bombom": [[105, 1.2, 13.0, 6.3]],
   "suspiro": [[107, 1.9, 25.8, 0.0], [161, 2.8, 38.7, 0.0], [215, 3.7, 51.5, 0.1]],
   "chocolate-ao-leite": [[108, 1.4, 11.9, 6.1]],
-  "snickers-meia-barra": [[108, 2.0, 13.5, 5.0]],
   "sobremesa-proteica": [[108, 15.0, 9.2, 1.3]],
   "chocolate-70": [[109, 2.0, 7.8, 7.2]],
   "whey-chocolate-gelado": [[120, 24.0, 2.4, 1.8]],
   "barrinha-proteina": [[123, 10.0, 9.5, 5.0]],
   "biscoito-arroz-geleia": [[136, 2.3, 30.0, 0.9]],
-  "minis-chocolate": [[142, 2.5, 18.3, 6.7]],
+  "minis-chocolate": [[85, 1.5, 11.0, 4.0], [113, 2.0, 14.7, 5.3], [142, 2.5, 18.3, 6.7]],
   "crepioca-doce": [[238, 9.4, 26.9, 11.7]],
   "panqueca-proteica": [[391, 28.7, 49.2, 10.1]],
   "bife-pao-frances": [[464, 40.5, 31.6, 19.2], [456, 42.0, 30.6, 18.0]],
   "hamburguer-artesanal": [[456, 48.6, 32.3, 14.1], [492, 48.7, 34.1, 17.4]],
+  "panqueca-banana": [[239, 10.6, 37.9, 6.6]],
+  "doce-fit-uva-whey": [[330, 38.8, 40.1, 2.2], [398, 39.4, 57.4, 2.3], [446, 39.9, 63.7, 5.3]],
 };
 
 const ORDEM_ESPERADA: Record<string, string[]> = {
-  natural: ["cha-mel", "palitos-pepino-cenoura", "picole-caseiro", "cafe-leite-mel", "doce-banana-zero", "uva-congelada", "maca-assada", "ameixa-seca", "tamaras", "abacaxi-grelhado", "chocolate-quente-fit", "melancia-gelada", "banana-quente-cacau", "batata-airfryer", "mousse-banana-cacau", "sorvete-banana-morango", "morango-leite-moca", "queijo-goiabada-zero", "pipoca-agua", "iogurte-gelado-morango"],
+  natural: ["cha-mel", "palitos-pepino-cenoura", "picole-caseiro", "cafe-leite-mel", "doce-banana-zero", "uva-congelada", "maca-assada", "ameixa-seca", "tamaras", "abacaxi-grelhado", "chocolate-quente-fit", "melancia-gelada", "batata-airfryer", "sorvete-banana-morango", "morango-leite-moca", "queijo-goiabada-zero", "pipoca-agua", "iogurte-gelado-morango"],
   caseiro: ["doce-leite-zero", "pao-integral-doce-leite", "pessego-calda", "doce-abobora", "doce-batata", "goiabada-cascao", "brigadeiro-proteico", "doce-mocoto", "tapioca-geleia", "morango-chocolate-70", "torrada-tomate", "beijinho-coco"],
-  industrializado: ["gelatina-zero", "picole-fruta", "pacoca-zero", "bombom", "suspiro", "chocolate-ao-leite", "snickers-meia-barra", "sobremesa-proteica", "chocolate-70", "whey-chocolate-gelado", "barrinha-proteina", "biscoito-arroz-geleia", "minis-chocolate"],
-  troca: ["crepioca-doce", "panqueca-proteica", "bife-pao-frances", "hamburguer-artesanal"],
+  industrializado: ["gelatina-zero", "picole-fruta", "minis-chocolate", "pacoca-zero", "bombom", "suspiro", "chocolate-ao-leite", "sobremesa-proteica", "chocolate-70", "whey-chocolate-gelado", "barrinha-proteina", "biscoito-arroz-geleia"],
+  troca: ["crepioca-doce", "panqueca-banana", "doce-fit-uva-whey", "panqueca-proteica", "bife-pao-frances", "hamburguer-artesanal"],
 };
 
 const textoDe = (c: Craving) =>
@@ -92,11 +91,11 @@ const snacks = CRAVINGS.filter((c) => c.grupo !== "troca");
 const trocas = CRAVINGS.filter((c) => c.grupo === "troca");
 
 describe("S.O.S TPM — lista de opções", () => {
-  it("tem as 49 opções, com ids únicos, e a contagem certa por grupo", () => {
-    expect(CRAVINGS).toHaveLength(49);
-    expect(new Set(CRAVINGS.map((c) => c.id)).size).toBe(49);
+  it("tem as 48 opções, com ids únicos, e a contagem certa por grupo", () => {
+    expect(CRAVINGS).toHaveLength(48);
+    expect(new Set(CRAVINGS.map((c) => c.id)).size).toBe(48);
     const contagem = Object.fromEntries(GRUPOS.map((g) => [g.id, CRAVINGS.filter((c) => c.grupo === g.id).length]));
-    expect(contagem).toEqual({ natural: 20, caseiro: 12, industrializado: 13, troca: 4 });
+    expect(contagem).toEqual({ natural: 18, caseiro: 12, industrializado: 12, troca: 6 });
     for (const cat of CATEGORIAS) expect(CRAVINGS.some((c) => c.categoria === cat.id), cat.label).toBe(true);
   });
 
@@ -135,7 +134,7 @@ describe("S.O.S TPM — lista de opções", () => {
       expect(c.kcalMax, c.id).toBeLessThanOrEqual(LIMITE_KCAL_SNACK);
       for (const m of c.macros) expect(m.g, c.id).toBeLessThanOrEqual(LIMITE_GORDURA_FIXA_G);
       if (c.porcaoFixa) expect(c.macros[0].g, c.id).toBeGreaterThan(LIMITE_GORDURA_PADRAO_G);
-      else for (const m of c.macros) expect(m.g, c.id).toBeLessThanOrEqual(LIMITE_GORDURA_PADRAO_G);
+      else expect(c.macros[0].g, c.id).toBeLessThanOrEqual(LIMITE_GORDURA_PADRAO_G);
     }
     for (const c of trocas) {
       expect(c.porcaoFixa, c.id).toBe(false);
@@ -151,7 +150,7 @@ describe("S.O.S TPM — lista de opções", () => {
       if (AMENDOIM.test(textoDe(c))) expect(c.contem, `${c.id} cita amendoim sem aviso`).toContain("amendoim");
     }
     const comAmendoim = CRAVINGS.filter((c) => c.contem.includes("amendoim")).map((c) => c.id).sort();
-    expect(comAmendoim).toEqual(["bombom", "minis-chocolate", "pacoca-zero", "snickers-meia-barra"]);
+    expect(comAmendoim).toEqual(["bombom", "minis-chocolate", "pacoca-zero"]);
   });
 
   it("pipoca é só de milho feito na água, de 30 a 50 g, e nunca de micro-ondas", () => {
@@ -196,10 +195,40 @@ describe("S.O.S TPM — lista de opções", () => {
     }
   });
 
+  it("não tem os itens retirados nem 'meia barra': chocolate em barra só em versão mini", () => {
+    for (const id of ["mousse-banana-cacau", "banana-quente-cacau", "snickers-meia-barra"]) {
+      expect(CRAVINGS.some((c) => c.id === id), id).toBe(false);
+    }
+    for (const c of CRAVINGS) expect(/meia barra/i.test(textoDe(c)), c.id).toBe(false);
+    const minis = porId("minis-chocolate");
+    expect(minis.titulo).toMatch(/Qualquer Versão Mini/);
+    expect(minis.opcoes.map((o) => o.ingredientes[0].gramas)).toEqual([18, 24, 30]);
+  });
+
+  it("chocolate quente deixa escolher o leite, e a kcal acompanha", () => {
+    const q = porId("chocolate-quente-fit");
+    expect(q.opcoes.map((o) => o.rotulo)).toEqual(["Leite desnatado", "Leite integral"]);
+    expect(q.macros[1].kcal).toBeGreaterThan(q.macros[0].kcal);
+    expect(q.dica).toMatch(/leite que preferir/i);
+  });
+
+  it("doce fit de uva com whey e panqueca de banana têm a receita e a kcal base", () => {
+    const u = porId("doce-fit-uva-whey");
+    expect(u.grupo).toBe("troca");
+    expect(u.macros.map((m) => m.kcal)).toEqual([330, 398, 446]);
+    expect(u.preparo.length).toBe(5);
+    const p = porId("panqueca-banana");
+    expect(p.grupo).toBe("troca");
+    expect(p.macros[0].kcal).toBe(239);
+    expect(p.opcoes[0].ingredientes.map((l) => l.id)).toEqual(["bananaPrata", "ovo", "aveia"]);
+  });
+
   it("marca lactose, glúten e amendoim a partir dos ingredientes", () => {
     expect(porId("morango-leite-moca").contem).toContain("lactose");
     expect(porId("torrada-tomate").contem).toContain("gluten");
-    expect(porId("snickers-meia-barra").contem).toEqual(expect.arrayContaining(["lactose", "amendoim"]));
+    expect(porId("minis-chocolate").contem).toEqual(expect.arrayContaining(["lactose", "amendoim"]));
+    expect(porId("doce-fit-uva-whey").contem).toContain("lactose");
+    expect(porId("panqueca-banana").contem).toEqual(["gluten"]);
     expect(porId("hamburguer-artesanal").contem).toEqual(expect.arrayContaining(["lactose", "gluten"]));
     expect(porId("goiabada-cascao").contem).toEqual([]);
     expect(porId("picole-caseiro").contem).toEqual([]);
