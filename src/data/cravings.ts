@@ -16,11 +16,13 @@
  *  - "taco-app":    mesma tabela do app (tacoFoods.ts). O teste confere se não divergiu.
  *  - "taco-online": TACO/IBGE (tabelatacoonline.com.br).
  *  - "rotulo":      média de rótulos/bases de mercado. Marca diferente pode variar um pouco.
+ *  - "equivalente": versão zero lactose / sem glúten com valor assumido igual ao do ingrediente comum.
+ *                   A aluna deve conferir o rótulo.
  */
 
 export type Grupo = "natural" | "caseiro" | "industrializado" | "troca";
 export type Categoria = "doce" | "chocolate" | "gelado" | "crocante" | "quentinho";
-export type Flag = "lactose" | "gluten" | "amendoim";
+export type Flag = "lactose" | "gluten" | "amendoim" | "ovo";
 
 export const LIMITE_GORDURA_PADRAO_G = 2.5;
 export const LIMITE_GORDURA_FIXA_G = 8;
@@ -53,6 +55,7 @@ export const ROTULO_FLAG: Record<Flag, string> = {
   lactose: "Contém lactose",
   gluten: "Contém glúten",
   amendoim: "Contém amendoim",
+  ovo: "Contém ovo",
 };
 
 export interface Ingrediente {
@@ -62,10 +65,12 @@ export interface Ingrediente {
   p: number;
   c: number;
   g: number;
-  fonte: "taco-app" | "taco-online" | "rotulo";
+  fonte: "taco-app" | "taco-online" | "rotulo" | "equivalente";
   /** nome exato em TACO_FOODS (fonte "taco-app"); o teste confere os valores */
   tacoNome?: string;
   contem?: Flag[];
+  /** id do ingrediente equivalente SEM a flag (lactose e/ou glúten) */
+  substituto?: string;
 }
 
 const defs = {
@@ -79,28 +84,27 @@ const defs = {
   cenoura: { nome: "Cenoura crua", kcal: 34, p: 1.3, c: 7.7, g: 0.2, fonte: "taco-app", tacoNome: "Cenoura (crua)" },
   tomate: { nome: "Tomate", kcal: 15, p: 1.1, c: 3.1, g: 0.2, fonte: "taco-app", tacoNome: "Tomate salada" },
   mel: { nome: "Mel", kcal: 320, p: 0.3, c: 82, g: 0, fonte: "taco-app", tacoNome: "Mel de abelha" },
-  paoForma: { nome: "Pão de forma tradicional", kcal: 253, p: 8.5, c: 49.9, g: 2, fonte: "taco-app", tacoNome: "Pão de forma tradicional", contem: ["gluten"] },
-  paoIntegral: { nome: "Pão de forma integral", kcal: 253, p: 9.4, c: 49.9, g: 2.9, fonte: "taco-app", tacoNome: "Pão de forma integral", contem: ["gluten"] },
-  paoFrances: { nome: "Pão francês", kcal: 300, p: 8, c: 58.6, g: 3.1, fonte: "taco-app", tacoNome: "Pão francês", contem: ["gluten"] },
+  paoForma: { nome: "Pão de forma tradicional", kcal: 253, p: 8.5, c: 49.9, g: 2, fonte: "taco-app", tacoNome: "Pão de forma tradicional", contem: ["gluten"], substituto: "paoFormaSemGluten" },
+  paoIntegral: { nome: "Pão de forma integral", kcal: 253, p: 9.4, c: 49.9, g: 2.9, fonte: "taco-app", tacoNome: "Pão de forma integral", contem: ["gluten"], substituto: "paoIntegralSemGluten" },
+  paoFrances: { nome: "Pão francês", kcal: 300, p: 8, c: 58.6, g: 3.1, fonte: "taco-app", tacoNome: "Pão francês", contem: ["gluten"], substituto: "paoFrancesSemGluten" },
   tapiocaGoma: { nome: "Goma de tapioca hidratada", kcal: 130, p: 0.1, c: 32.1, g: 0.2, fonte: "taco-app", tacoNome: "Tapioca (goma hidratada/pronta)" },
   batata: { nome: "Batata inglesa crua", kcal: 64, p: 1.2, c: 14.7, g: 0.1, fonte: "taco-app", tacoNome: "Batata inglesa (crua)" },
-  iogurteDesnatado: { nome: "Iogurte natural desnatado", kcal: 41, p: 4.1, c: 5.9, g: 0.1, fonte: "taco-app", tacoNome: "Iogurte natural desnatado", contem: ["lactose"] },
-  leiteDesnatado: { nome: "Leite desnatado", kcal: 35, p: 3.4, c: 4.9, g: 0.2, fonte: "taco-app", tacoNome: "Leite de vaca desnatado (líquido)", contem: ["lactose"] },
-  wheyConcentrado: { nome: "Whey concentrado", kcal: 400, p: 80, c: 8, g: 6, fonte: "taco-app", tacoNome: "Whey Protein Concentrado (80%)", contem: ["lactose"] },
-  leitePoDesnatado: { nome: "Leite em pó desnatado", kcal: 362, p: 36, c: 52, g: 0.8, fonte: "taco-app", tacoNome: "Leite em pó desnatado", contem: ["lactose"] },
-  mucarela: { nome: "Mussarela", kcal: 300, p: 21.6, c: 2.4, g: 23, fonte: "taco-app", tacoNome: "Queijo Muçarela", contem: ["lactose"] },
-  minasFrescal: { nome: "Queijo minas frescal", kcal: 264, p: 17.4, c: 3.2, g: 20.2, fonte: "taco-app", tacoNome: "Queijo Minas Frescal", contem: ["lactose"] },
-  requeijaoLight: { nome: "Requeijão light", kcal: 140, p: 8, c: 4, g: 10.5, fonte: "taco-app", tacoNome: "Requeijão light", contem: ["lactose"] },
+  iogurteDesnatado: { nome: "Iogurte natural desnatado", kcal: 41, p: 4.1, c: 5.9, g: 0.1, fonte: "taco-app", tacoNome: "Iogurte natural desnatado", contem: ["lactose"], substituto: "iogurteDesnatadoSemLactose" },
+  leiteDesnatado: { nome: "Leite desnatado", kcal: 35, p: 3.4, c: 4.9, g: 0.2, fonte: "taco-app", tacoNome: "Leite de vaca desnatado (líquido)", contem: ["lactose"], substituto: "leiteDesnatadoSemLactose" },
+  wheyConcentrado: { nome: "Whey concentrado", kcal: 400, p: 80, c: 8, g: 6, fonte: "taco-app", tacoNome: "Whey Protein Concentrado (80%)", contem: ["lactose"], substituto: "wheyIsolado" },
+  leitePoDesnatado: { nome: "Leite em pó desnatado", kcal: 362, p: 36, c: 52, g: 0.8, fonte: "taco-app", tacoNome: "Leite em pó desnatado", contem: ["lactose"], substituto: "leitePoDesnatadoSemLactose" },
+  mucarela: { nome: "Mussarela", kcal: 300, p: 21.6, c: 2.4, g: 23, fonte: "taco-app", tacoNome: "Queijo Muçarela", contem: ["lactose"], substituto: "mucarelaSemLactose" },
+  minasFrescal: { nome: "Queijo minas frescal", kcal: 264, p: 17.4, c: 3.2, g: 20.2, fonte: "taco-app", tacoNome: "Queijo Minas Frescal", contem: ["lactose"], substituto: "minasFrescalSemLactose" },
+  requeijaoLight: { nome: "Requeijão light", kcal: 140, p: 8, c: 4, g: 10.5, fonte: "taco-app", tacoNome: "Requeijão light", contem: ["lactose"], substituto: "requeijaoLightSemLactose" },
   patinhoCru: { nome: "Patinho moído cru", kcal: 133, p: 21.7, c: 0, g: 4.5, fonte: "taco-app", tacoNome: "Patinho (cru)" },
   contraFileCru: { nome: "Contrafilé cru", kcal: 145, p: 21.4, c: 0, g: 6.5, fonte: "taco-app", tacoNome: "Contra-filé (cru)" },
   alface: { nome: "Alface americana", kcal: 14, p: 1.4, c: 2.4, g: 0.2, fonte: "taco-app", tacoNome: "Alface americana" },
   cebola: { nome: "Cebola", kcal: 40, p: 1.1, c: 9.3, g: 0.1, fonte: "taco-app", tacoNome: "Cebola (crua)" },
-  ovo: { nome: "Ovo inteiro cru", kcal: 143, p: 13, c: 1.6, g: 9.5, fonte: "taco-app", tacoNome: "Ovo de galinha inteiro (cru)" },
-  aveia: { nome: "Aveia em flocos", kcal: 394, p: 13.9, c: 66.6, g: 8.5, fonte: "taco-app", tacoNome: "Aveia em flocos", contem: ["gluten"] },
+  ovo: { nome: "Ovo inteiro cru", kcal: 143, p: 13, c: 1.6, g: 9.5, fonte: "taco-app", tacoNome: "Ovo de galinha inteiro (cru)", contem: ["ovo"] },
+  aveia: { nome: "Aveia em flocos", kcal: 394, p: 13.9, c: 66.6, g: 8.5, fonte: "taco-app", tacoNome: "Aveia em flocos", contem: ["gluten"], substituto: "aveiaSemGluten" },
   cocoRalado: { nome: "Coco ralado sem açúcar", kcal: 650, p: 6, c: 20, g: 60, fonte: "taco-app", tacoNome: "Coco ralado (seco s/ açúcar)" },
-  leiteCondensado: { nome: "Leite condensado", kcal: 313, p: 7.7, c: 57, g: 6.7, fonte: "taco-online", contem: ["lactose"] },
-  doceDeLeite: { nome: "Doce de leite cremoso", kcal: 306, p: 5.5, c: 59.5, g: 6, fonte: "taco-online", contem: ["lactose"] },
-  doceDeLeiteZero: { nome: "Doce de leite zero açúcar", kcal: 177, p: 6.6, c: 33, g: 2.1, fonte: "rotulo", contem: ["lactose"] },
+  leiteCondensado: { nome: "Leite condensado", kcal: 313, p: 7.7, c: 57, g: 6.7, fonte: "taco-online", contem: ["lactose"], substituto: "leiteCondensadoSemLactose" },
+  doceDeLeite: { nome: "Doce de leite", kcal: 300, p: 5.4, c: 58.3, g: 5.9, fonte: "rotulo", contem: ["lactose"], substituto: "doceDeLeiteSemLactose" },
   goiabadaCascao: { nome: "Goiabada cascão (tablete)", kcal: 333, p: 0, c: 83, g: 0, fonte: "rotulo" },
   goiabadaZero: { nome: "Goiabada zero açúcar", kcal: 146, p: 0.6, c: 60, g: 0.2, fonte: "rotulo" },
   doceBananaZero: { nome: "Doce de banana zero açúcar", kcal: 213, p: 2.6, c: 55, g: 0.5, fonte: "rotulo" },
@@ -116,25 +120,49 @@ const defs = {
   biscoitoArroz: { nome: "Biscoito de arroz", kcal: 365, p: 7.5, c: 77, g: 3, fonte: "rotulo" },
   gelatinaZero: { nome: "Gelatina zero pronta", kcal: 8, p: 1.8, c: 0.2, g: 0, fonte: "rotulo" },
   milhoPipoca: { nome: "Milho de pipoca (grão cru)", kcal: 375, p: 12.9, c: 74.3, g: 4.3, fonte: "rotulo" },
-  suspiro: { nome: "Suspiro", kcal: 358, p: 6.2, c: 85.9, g: 0.1, fonte: "taco-online" },
+  suspiro: { nome: "Suspiro", kcal: 358, p: 6.2, c: 85.9, g: 0.1, fonte: "taco-online", contem: ["ovo"] },
   maionaseLight: { nome: "Maionese light", kcal: 240, p: 0.4, c: 12, g: 22, fonte: "rotulo" },
-  paoHamburguer: { nome: "Pão de hambúrguer (Pullman)", kcal: 276, p: 8.3, c: 56, g: 2.4, fonte: "rotulo", contem: ["gluten"] },
-  chocolateAoLeite: { nome: "Chocolate ao leite", kcal: 540, p: 7.2, c: 59.6, g: 30.3, fonte: "taco-online", contem: ["lactose"] },
-  chocolate70: { nome: "Chocolate 70% cacau", kcal: 547, p: 10, c: 39, g: 36, fonte: "rotulo", contem: ["lactose", "gluten"] },
+  paoHamburguer: { nome: "Pão de hambúrguer (Pullman)", kcal: 276, p: 8.3, c: 56, g: 2.4, fonte: "rotulo", contem: ["gluten"], substituto: "paoHamburguerSemGluten" },
+  chocolateAoLeite: { nome: "Chocolate ao leite", kcal: 540, p: 7.2, c: 59.6, g: 30.3, fonte: "taco-online", contem: ["lactose"], substituto: "chocolateAoLeiteSemLactose" },
+  chocolate70: { nome: "Chocolate 70% cacau", kcal: 547, p: 10, c: 39, g: 36, fonte: "rotulo", contem: ["lactose", "gluten"], substituto: "chocolate70Zero" },
   miniChocolate: { nome: "Mini chocolate recheado (Snickers Mini)", kcal: 472, p: 8.3, c: 61.1, g: 22.2, fonte: "rotulo", contem: ["lactose", "amendoim"] },
   bombom: { nome: "Bombom Sonho de Valsa / Ouro Branco", kcal: 488, p: 5.6, c: 60.5, g: 29.3, fonte: "rotulo", contem: ["lactose", "amendoim", "gluten"] },
   pacocaZero: { nome: "Paçoca rolha zero açúcar", kcal: 472, p: 22.2, c: 30.6, g: 33.3, fonte: "rotulo", contem: ["amendoim"] },
-  barraProteina: { nome: "Barrinha de proteína (33 g)", kcal: 373, p: 30.3, c: 28.8, g: 15.2, fonte: "rotulo", contem: ["lactose"] },
-  sobremesaProteica: { nome: "Sobremesa proteica pronta (tipo YoPRO)", kcal: 72, p: 10, c: 6.1, g: 0.87, fonte: "rotulo", contem: ["lactose"] },
+  barraProteina: { nome: "Barrinha de proteína (33 g)", kcal: 373, p: 30.3, c: 28.8, g: 15.2, fonte: "rotulo", contem: ["lactose"], substituto: "barraProteinaSemLactose" },
+  sobremesaProteica: { nome: "Sobremesa proteica pronta (tipo YoPRO)", kcal: 72, p: 10, c: 6.1, g: 0.87, fonte: "rotulo", contem: ["lactose"], substituto: "sobremesaProteicaSemLactose" },
   picoleFrutasVermZero: { nome: "Picolé frutas vermelhas zero", kcal: 93, p: 2, c: 20, g: 0, fonte: "rotulo" },
   picoleUva: { nome: "Picolé de uva", kcal: 102, p: 0, c: 25, g: 0, fonte: "rotulo" },
   picoleLimao: { nome: "Picolé de limão", kcal: 111, p: 0, c: 28, g: 0, fonte: "rotulo" },
-  leiteIntegral: { nome: "Leite integral", kcal: 61, p: 3.1, c: 4.6, g: 3.2, fonte: "taco-app", tacoNome: "Leite de vaca integral (líquido)", contem: ["lactose"] },
-  chocolateMeioAmargo: { nome: "Chocolate meio amargo", kcal: 475, p: 4.9, c: 62.4, g: 29.9, fonte: "taco-online", contem: ["lactose"] },
+  leiteIntegral: { nome: "Leite integral", kcal: 61, p: 3.1, c: 4.6, g: 3.2, fonte: "taco-app", tacoNome: "Leite de vaca integral (líquido)", contem: ["lactose"], substituto: "leiteIntegralSemLactose" },
+  chocolateMeioAmargo: { nome: "Chocolate meio amargo", kcal: 475, p: 4.9, c: 62.4, g: 29.9, fonte: "taco-online", contem: ["lactose"], substituto: "chocolateMeioAmargoSemLactose" },
+  // ── Versões zero lactose / sem glúten (substitutos) ──
+  leiteDesnatadoSemLactose: { nome: "Leite desnatado sem lactose", kcal: 35, p: 3.4, c: 4.9, g: 0.2, fonte: "equivalente" },
+  leiteIntegralSemLactose: { nome: "Leite integral sem lactose", kcal: 61, p: 3.1, c: 4.6, g: 3.2, fonte: "equivalente" },
+  iogurteDesnatadoSemLactose: { nome: "Iogurte natural desnatado sem lactose", kcal: 41, p: 4.1, c: 5.9, g: 0.1, fonte: "equivalente" },
+  leitePoDesnatadoSemLactose: { nome: "Leite em pó desnatado sem lactose", kcal: 362, p: 36, c: 52, g: 0.8, fonte: "equivalente" },
+  mucarelaSemLactose: { nome: "Mussarela sem lactose", kcal: 300, p: 21.6, c: 2.4, g: 23, fonte: "equivalente" },
+  minasFrescalSemLactose: { nome: "Queijo minas frescal sem lactose", kcal: 264, p: 17.4, c: 3.2, g: 20.2, fonte: "equivalente" },
+  requeijaoLightSemLactose: { nome: "Requeijão light sem lactose", kcal: 140, p: 8, c: 4, g: 10.5, fonte: "equivalente" },
+  leiteCondensadoSemLactose: { nome: "Leite condensado sem lactose", kcal: 313, p: 7.7, c: 57, g: 6.7, fonte: "equivalente" },
+  doceDeLeiteSemLactose: { nome: "Doce de leite zero lactose", kcal: 300, p: 5.4, c: 58.3, g: 5.9, fonte: "equivalente" },
+  chocolateAoLeiteSemLactose: { nome: "Chocolate ao leite zero lactose", kcal: 540, p: 7.2, c: 59.6, g: 30.3, fonte: "equivalente" },
+  chocolateMeioAmargoSemLactose: { nome: "Chocolate meio amargo zero lactose", kcal: 475, p: 4.9, c: 62.4, g: 29.9, fonte: "equivalente" },
+  chocolate70Zero: { nome: "Chocolate 70% zero lactose e sem glúten", kcal: 547, p: 10, c: 39, g: 36, fonte: "equivalente" },
+  barraProteinaSemLactose: { nome: "Barrinha de proteína zero lactose (33 g)", kcal: 373, p: 30.3, c: 28.8, g: 15.2, fonte: "equivalente" },
+  sobremesaProteicaSemLactose: { nome: "Sobremesa proteica zero lactose", kcal: 72, p: 10, c: 6.1, g: 0.87, fonte: "equivalente" },
+  wheyIsolado: { nome: "Whey isolado (zero lactose)", kcal: 367, p: 90, c: 2, g: 1, fonte: "taco-app", tacoNome: "Whey Protein Isolado (90%+)" },
+  paoFormaSemGluten: { nome: "Pão de forma sem glúten", kcal: 253, p: 8.5, c: 49.9, g: 2, fonte: "equivalente" },
+  paoIntegralSemGluten: { nome: "Pão de forma integral sem glúten", kcal: 253, p: 9.4, c: 49.9, g: 2.9, fonte: "equivalente" },
+  paoFrancesSemGluten: { nome: "Pão tipo francês sem glúten", kcal: 300, p: 8, c: 58.6, g: 3.1, fonte: "equivalente" },
+  paoHamburguerSemGluten: { nome: "Pão de hambúrguer sem glúten", kcal: 276, p: 8.3, c: 56, g: 2.4, fonte: "equivalente" },
+  aveiaSemGluten: { nome: "Aveia sem glúten (certificada)", kcal: 394, p: 13.9, c: 66.6, g: 8.5, fonte: "equivalente" },
 } satisfies Record<string, Ingrediente>;
 
 export type IngredienteId = keyof typeof defs;
 export const INGREDIENTES: Record<IngredienteId, Ingrediente> = defs;
+
+/** Doces de marca sem versão zero lactose / sem glúten (lista fechada). */
+export const SEM_SUBSTITUTO: string[] = ["bombom", "miniChocolate"];
 
 export interface LinhaIngrediente {
   id: IngredienteId;
@@ -164,6 +192,7 @@ interface CravingBase {
   preparo: string[];
   tempo: string;
   dica?: string;
+  semVersao?: { lactose?: string; gluten?: string };
 }
 
 export interface Macros {
@@ -191,6 +220,7 @@ export interface Craving {
   kcalMax: number;
   contem: Flag[];
   porcaoFixa: boolean;
+  semVersao?: { lactose?: string; gluten?: string };
 }
 
 const arred1 = (n: number) => Math.round(n * 10) / 10;
@@ -583,21 +613,21 @@ const BASE: CravingBase[] = [
   },
   // ───────── CASEIROS E TRADICIONAIS ─────────
   {
-    id: "doce-leite-zero",
+    id: "doce-leite",
     icone: "🥄",
-    titulo: "Doce de Leite Zero",
+    titulo: "Doce de Leite",
     grupo: "caseiro",
     categoria: "doce",
-    resumo: "Zero açúcar e, de preferência, sem amido: confira o rótulo.",
+    resumo: "Doce de colher em porção medida de 20 g. De preferência zero açúcar e sem amido: confira o rótulo.",
     ingredientes: [
-      { id: "doceDeLeiteZero", gramas: 30, medida: "1 colher de sopa cheia" },
+      { id: "doceDeLeite", gramas: 20, medida: "1 colher de sopa rasa" },
     ],
     preparo: [
-      "Coloque 30 g numa colher ou pires.",
+      "Coloque 20 g numa colher ou pires.",
       "Guarde o pote antes de comer e saboreie devagar.",
     ],
     tempo: "1 min",
-    dica: "A kcal varia muito entre marcas (de ~145 a ~285 por 100 g). Prefira a que não leva amido na lista de ingredientes.",
+    dica: "Referência: 60 kcal por 20 g. Versões zero açúcar podem ter menos kcal, e a kcal varia entre as marcas.",
   },
   {
     id: "pessego-calda",
@@ -677,7 +707,7 @@ const BASE: CravingBase[] = [
         rotulo: "1 fatia (25 g)",
         ingredientes: [
           { id: "paoIntegral", gramas: 25, medida: "1 fatia" },
-          { id: "doceDeLeiteZero", gramas: 10, medida: "1 colher de sobremesa" },
+          { id: "doceDeLeite", gramas: 10, medida: "1 colher de sobremesa" },
           { id: "bananaPrata", gramas: 30, medida: "fatiada" },
           { id: "morango", gramas: 15, medida: "fatiado" },
         ],
@@ -686,7 +716,7 @@ const BASE: CravingBase[] = [
         rotulo: "Versão leve (meia fatia)",
         ingredientes: [
           { id: "paoIntegral", gramas: 12.5, medida: "meia fatia" },
-          { id: "doceDeLeiteZero", gramas: 5, medida: "1 colher de chá" },
+          { id: "doceDeLeite", gramas: 5, medida: "1 colher de chá" },
           { id: "bananaPrata", gramas: 20, medida: "fatiada" },
           { id: "morango", gramas: 10, medida: "fatiado" },
         ],
@@ -1293,6 +1323,7 @@ function normalizar(b: CravingBase): Craving {
     preparo: b.preparo,
     tempo: b.tempo,
     dica: b.dica,
+    semVersao: b.semVersao,
     macros,
     kcalMin: Math.min(...kcals),
     kcalMax: Math.max(...kcals),
