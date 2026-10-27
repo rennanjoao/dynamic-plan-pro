@@ -100,6 +100,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import { TACO_FOODS } from "@/data/tacoFoods";
+import { ENRICHED_FOODS } from "@/data/enrichedFoods";
 const TACO_DATA = TACO_FOODS.map((t, i) => ({ ...t, id: String(i), cookFactor: t.cookFactor ?? 1 }));
 import { searchFoods, type FoodHit } from "@/lib/foodSearch";
 import { Private } from "@/components/coach/PrivacyMode";
@@ -665,11 +666,11 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             // (onChangeWeight de FoodRow) — mantém rawWeight coerente pra itens TACO.
             item.weight = valor;
             if (item.isTaco || item.isIndustrial) {
-              const tacoRef = TACO_FOODS.find(
+              const tacoRef = [...ENRICHED_FOODS, ...TACO_FOODS].find(
                 (t) => t.name.toLowerCase() === String(item.baseName || item.name).toLowerCase()
               );
               const unitW = tacoRef && typeof (tacoRef as any).unitWeight === "number" ? (tacoRef as any).unitWeight : undefined;
-              const { grams } = parseWeightString(valor, unitW);
+              const { grams } = parseWeightString(valor, unitW, (tacoRef as any)?.portions);
               item.rawWeight = isFinite(grams) && grams > 0 ? grams : 0;
             }
             count++;

@@ -212,6 +212,8 @@ export const MealMacrosSchema = z.object({
   carbs: z.number().min(0).default(0),
   protein: z.number().min(0).default(0),
   fat: z.number().min(0).default(0),
+  // Campo aditivo: protocolos legados sem fibra recebem zero no parse.
+  fiber: z.number().min(0).optional().default(0),
 });
 
 // Substituição opcional anexada a um alimento principal (1:1).
@@ -425,6 +427,7 @@ export const ProtocolPayloadSchema = z.object({
     protein: z.number().default(160),
     carbs: z.number().default(250),
     fat: z.number().default(55),
+    fiber: z.number().min(0).optional().default(25),
     water: z.number().default(3.0),
     goal: z.string().default("hipertrofia"),
   }).default({} as any),

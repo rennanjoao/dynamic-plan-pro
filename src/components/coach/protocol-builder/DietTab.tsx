@@ -44,8 +44,19 @@ import {
 } from "@/lib/macroCalc";
 import { searchFoods, type FoodHit } from "@/lib/foodSearch";
 import { TACO_FOODS } from "@/data/tacoFoods";
+import { ENRICHED_FOODS } from "@/data/enrichedFoods";
 
-const TACO_DATA = TACO_FOODS.map((t, i) => ({ ...t, id: String(i), cookFactor: t.cookFactor ?? 1 }));
+const FOOD_CATALOG = [...ENRICHED_FOODS, ...TACO_FOODS];
+const CUT_VARIANT_PAIRS = [
+  ["Acém (cru)", "Carne, bovina, acém, sem gordura, cru"],
+  ["Contra-filé (cru)", "Carne, bovina, contra-filé, sem gordura, cru"],
+  ["Alcatra (crua)", "Carne, bovina, miolo de alcatra, sem gordura, cru"],
+  ["Coxão mole (cru)", "Carne, bovina, coxão mole, sem gordura, cru"],
+  ["Carne, bovina, picanha, com gordura, crua", "Carne, bovina, picanha, sem gordura, crua"],
+  ["Frango, sobrecoxa, com pele, crua", "Frango, sobrecoxa, sem pele, crua"],
+  ["Bisteca suína c/ gordura (crua)", "Bisteca suína s/ gordura (crua)"],
+];
+const TACO_DATA = FOOD_CATALOG.map((t, i) => ({ ...t, id: String(i), cookFactor: t.cookFactor ?? 1 }));
 
 /**
  * Regra de três: quantos gramas do alimento `hit` batem as mesmas kcal do
@@ -685,13 +696,13 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                                   onChangeWeight={(w) => {
                                     const patch: any = { weight: w };
                                     if (it.isTaco || it.isIndustrial) {
-                                      const tacoRef = TACO_FOODS.find(
+                                      const tacoRef = FOOD_CATALOG.find(
                                         (t) => t.name.toLowerCase() === String(it.baseName || it.name).toLowerCase()
                                       );
                                       const unitW = tacoRef && typeof (tacoRef as any).unitWeight === "number"
                                         ? (tacoRef as any).unitWeight
                                         : undefined;
-                                      const { grams } = parseWeightString(w, unitW);
+                                      const { grams } = parseWeightString(w, unitW, (tacoRef as any)?.portions);
                                       patch.rawWeight = isFinite(grams) && grams > 0 ? grams : 0;
                                     }
                                     updItem(mealIdx, kind, optIdx, ii, patch);
@@ -741,11 +752,11 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                                         const sub = it.substitution || {};
                                         const patch: any = { weight: w };
                                         if (sub.isTaco || sub.isIndustrial) {
-                                          const tacoRef = TACO_FOODS.find(
+                                          const tacoRef = FOOD_CATALOG.find(
                                             (t) => t.name.toLowerCase() === String(sub.baseName || sub.name).toLowerCase()
                                           );
                                           const unitW = tacoRef && typeof (tacoRef as any).unitWeight === "number" ? (tacoRef as any).unitWeight : undefined;
-                                          const { grams } = parseWeightString(w, unitW);
+                                          const { grams } = parseWeightString(w, unitW, (tacoRef as any)?.portions);
                                           patch.rawWeight = isFinite(grams) && grams > 0 ? grams : 0;
                                         }
                                         updSubstitution(mealIdx, kind, optIdx, ii, patch);
@@ -962,6 +973,38 @@ function FoodRow({
             placeholder="Nome do alimento (digite para ver sugestões TACO)…"
             className="h-8 text-xs w-full"
           />
+          {(() => {
+            const selectedName = String(it.baseName || it.name || "");
+            const selectedFood = FOOD_CATALOG.find((food) => food.name.toLowerCase() === selectedName.toLowerCase());
+            const portions = selectedFood?.portions || (selectedFood?.unitWeight ? [{ label: "1 unidade", grams: selectedFood.unitWeight }] : selectedFood ? [{ label: "100 g", grams: 100 }] : []);
+            const cutVariants = CUT_VARIANT_PAIRS.find((pair) => pair.some((name) => name.toLowerCase() === selectedName.toLowerCase()));
+            return selectedFood ? (
+              <div className="flex gap-1 mt-1">
+                <select
+                  aria-label="Medida caseira"
+                  className="h-6 max-w-[58%] bg-background text-[10px] border border-border rounded px-1"
+                  value=""
+                  onChange={(e) => { const grams = Number(e.target.value); if (grams > 0) onChangeWeight(`${grams}g`); }}
+                >
+                  <option value="">Medida / porção</option>
+                  {portions.map((portion) => <option key={`${portion.label}-${portion.grams}`} value={portion.grams}>{portion.label} · {portion.grams}g</option>)}
+                </select>
+                {cutVariants && (
+                  <select
+                    aria-label="Versão do corte"
+                    className="h-6 min-w-0 flex-1 bg-background text-[10px] border border-border rounded px-1"
+                    value={selectedFood.name}
+                    onChange={(e) => {
+                      const nextFood = TACO_DATA.find((food) => food.name === e.target.value);
+                      if (nextFood) onPickTaco({ ...nextFood, source: "taco" } as FoodHit);
+                    }}
+                  >
+                    {cutVariants.map((name) => <option key={name} value={name}>{/sem gordura|s\/ gordura|sem pele/i.test(name) ? "Limpa / sem gordura" : "Comum / com gordura"}</option>)}
+                  </select>
+                )}
+              </div>
+            ) : null;
+          })()}
           {showSuggestions && (
             <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-popover border border-border rounded-md shadow-lg max-h-64 overflow-y-auto">
               <div className="px-2 py-1 text-[9px] uppercase tracking-wider text-muted-foreground border-b border-border/50">

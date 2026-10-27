@@ -138,6 +138,7 @@ describe("ProtocolPayloadSchema — round-trip & legacy", () => {
     };
     const r = ProtocolPayloadSchema.parse(payload);
     expect(r.meals[0].options[0].items[0].rawWeight).toBe(50);
+    expect(r.meals[0].macros.fiber).toBe(0);
     expect(r.meals[0].options[0].items[0].isTaco).toBe(true);
     expect(r.meals[0].day_type).toBe("rest");
     expect(r.meals[0].pairId).toBe("pair-almoco");
@@ -170,6 +171,7 @@ describe("ProtocolPayloadSchema — round-trip & legacy", () => {
   it("payload mínimo aplica defaults", () => {
     const r = ProtocolPayloadSchema.parse({ setup: { split: "ABC", mealsCount: 5, carbCycle: false } });
     expect(r.macros.calories).toBe(2200);
+    expect(r.macros.fiber).toBe(25);
     expect(r.workouts).toEqual([]);
     expect(r.meals).toEqual([]);
   });
