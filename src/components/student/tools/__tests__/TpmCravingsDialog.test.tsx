@@ -36,11 +36,12 @@ describe("TpmCravingsDialog", () => {
     expect(screen.queryByText("Pipoca de Milho na Água")).not.toBeInTheDocument();
   });
 
-  it("os filtros de restrição escondem lactose, amendoim e glúten", async () => {
+  it("os filtros de restrição: lactose e glúten trocam a versão, amendoim esconde", async () => {
     const user = await abrir();
     expect(screen.getByText("Morango com Leite Moça")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Sem lactose" }));
-    expect(screen.queryByText("Morango com Leite Moça")).not.toBeInTheDocument();
+    expect(screen.getByText("Morango com Leite Moça")).toBeInTheDocument();
+    expect(screen.queryByText("Minis de Chocolate (Qualquer Versão Mini)")).not.toBeInTheDocument();
     expect(screen.getByText("Goiabada Cascão")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Sem lactose" }));
 
@@ -51,7 +52,8 @@ describe("TpmCravingsDialog", () => {
     await user.click(screen.getByRole("button", { name: "Sem amendoim" }));
 
     await user.click(screen.getByRole("button", { name: "Sem glúten" }));
-    expect(screen.queryByText("Torrada com Tomate e Orégano")).not.toBeInTheDocument();
+    expect(screen.getByText("Torrada com Tomate e Orégano")).toBeInTheDocument();
+    expect(screen.queryByText("Bombom Sonho de Valsa ou Ouro Branco")).not.toBeInTheDocument();
   });
 
   it("grupo sem itens visíveis some da lista", async () => {
@@ -121,5 +123,78 @@ describe("TpmCravingsDialog", () => {
     expect(within(painel).getByText("Gordura")).toBeInTheDocument();
     await user.click(uva);
     expect(uva).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("Sem lactose: 46 opções e o card já abre na versão sem lactose", async () => {
+    const user = await abrir();
+    await user.click(screen.getByRole("button", { name: "Sem lactose" }));
+    expect(screen.getByText("46 opções")).toBeInTheDocument();
+    expect(screen.queryByText("Bombom Sonho de Valsa ou Ouro Branco")).not.toBeInTheDocument();
+    await user.click(screen.getByText("Chocolate Quente Fit"));
+    const painel = document.getElementById("craving-chocolate-quente-fit")!;
+    expect(within(painel).getByRole("button", { name: "Sem lactose" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(painel).getByText(/Leite desnatado sem lactose/)).toBeInTheDocument();
+  });
+
+  it("Sem glúten: 47 opções e o hambúrguer abre com pão sem glúten", async () => {
+    const user = await abrir();
+    await user.click(screen.getByRole("button", { name: "Sem glúten" }));
+    expect(screen.getByText("47 opções")).toBeInTheDocument();
+    await user.click(screen.getByText("Hambúrguer Artesanal"));
+    const painel = document.getElementById("craving-hamburguer-artesanal")!;
+    expect(within(painel).getByRole("button", { name: "Sem glúten" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(painel).getByText(/Pão de hambúrguer sem glúten/)).toBeInTheDocument();
+  });
+
+  it("Sem ovo mostra 44 opções e Sem amendoim mostra 45", async () => {
+    const user = await abrir();
+    await user.click(screen.getByRole("button", { name: "Sem ovo" }));
+    expect(screen.getByText("44 opções")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Sem ovo" }));
+    await user.click(screen.getByRole("button", { name: "Sem amendoim" }));
+    expect(screen.getByText("45 opções")).toBeInTheDocument();
+  });
+
+  it("Hambúrguer Artesanal tem as 4 versões e trocar troca o pão", async () => {
+    const user = await abrir();
+    await user.click(screen.getByText("Hambúrguer Artesanal"));
+    const painel = document.getElementById("craving-hamburguer-artesanal")!;
+    for (const n of ["Padrão", "Sem lactose", "Sem glúten", "Sem lactose e sem glúten"]) {
+      expect(within(painel).getByRole("button", { name: n })).toBeInTheDocument();
+    }
+    expect(within(painel).queryByText(/Pão de hambúrguer sem glúten/)).not.toBeInTheDocument();
+    await user.click(within(painel).getByRole("button", { name: "Sem glúten" }));
+    expect(within(painel).getByText(/Pão de hambúrguer sem glúten/)).toBeInTheDocument();
+  });
+
+  it("Bombom mostra o aviso de que não tem versão", async () => {
+    const user = await abrir();
+    await user.click(screen.getByText("Bombom Sonho de Valsa ou Ouro Branco"));
+    const painel = document.getElementById("craving-bombom")!;
+    expect(within(painel).getByText(/não tem versão zero lactose nem sem glúten/)).toBeInTheDocument();
+    expect(within(painel).queryByRole("button", { name: "Sem lactose" })).not.toBeInTheDocument();
+  });
+
+  it("fechar e reabrir zera os filtros", async () => {
+    const user = await abrir();
+    await user.click(screen.getByRole("button", { name: "Sem ovo" }));
+    expect(screen.getByText("44 opções")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: /S\.O\.S TPM/i }));
+    expect(screen.getByText("48 opções")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sem ovo" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("a mensagem fica na área que rola e o título na área fixa; Como usar vem antes dos grupos", async () => {
+    await abrir();
+    const fixo = screen.getByTestId("sos-fixo");
+    const lista = screen.getByTestId("sos-lista");
+    expect(within(lista).getByText(/no auge da sua TPM/)).toBeInTheDocument();
+    expect(within(fixo).queryByText(/no auge da sua TPM/)).not.toBeInTheDocument();
+    expect(within(fixo).getByText("Válvula de Escape")).toBeInTheDocument();
+    const comoUsar = screen.getByTestId("sos-como-usar");
+    const primeiroGrupo = lista.querySelector("h2[id^='grupo-']")!;
+    expect(comoUsar.compareDocumentPosition(primeiroGrupo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText(/Os filtros ajudam, mas não substituem o rótulo/)).toBeInTheDocument();
   });
 });
