@@ -181,7 +181,10 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Coco fresco (polpa crua)",        kcal: 354, p: 3.0,  c: 6.3,  g: 34.0, group: "fat" },
   { name: "Coco ralado (seco s/ açúcar)",    kcal: 650, p: 6.0,  c: 20.0, g: 60.0, group: "fat" },
   { name: "Leite de coco (garrafinha)",      kcal: 197, p: 2.1,  c: 4.5,  g: 20.0, group: "fat" },
-  { name: "Chia (sementes)",                 kcal: 486, p: 16.5, c: 42.1, g: 30.7, group: "fat" },
+  // Rótulo: porção 10 g (1 colher de sopa) = 49 kcal, 1,7 g P, 4,2 g C, 3,1 g G, 3,4 g fibra
+  { name: "Chia (sementes)",                 kcal: 490, p: 17.0, c: 42.0, g: 31.0, fiber: 34, group: "fat", portions: [{ label: "1 colher de sopa", grams: 10 }] },
+  // Rótulo (média das marcas): porção 10 g (1 colher de sopa) ≈ 25 kcal, 0,3 g P, 4 g C, 0,1 g G, 7,5 g fibra
+  { name: "Psyllium (casca em pó)",          kcal: 250, p: 3.0,  c: 40.0, g: 1.0,  fiber: 75, group: "other", portions: [{ label: "1 colher de sopa", grams: 10 }] },
   { name: "Linhaça (sementes)",              kcal: 534, p: 18.3, c: 28.9, g: 42.2, group: "fat" },
 
   // ─── LÁCTEOS & QUEIJOS ───────────────────────────────────────────────────────
