@@ -43,3 +43,15 @@ describe("precisão dos macros", () => {
     expect(total.protein).toBeCloseTo(0.333, 10);
   });
 });
+describe("digitação flexível de peso na prescrição", () => {
+  it.each(["100g", "100 g", "100G", "100 G", "100 gramas", "100"])("%s = 100 g", (txt) => {
+    expect(parseWeightString(txt)).toMatchObject({ grams: 100, convertible: true });
+  });
+  it("medidas caseiras usam a porção cadastrada", () => {
+    const portions = [{ label: "1 lata drenada", grams: 120 }, { label: "1/2 lata", grams: 60 }];
+    expect(parseWeightString("1 lata", undefined, portions).grams).toBe(120);
+    expect(parseWeightString("2 latas", undefined, portions).grams).toBe(240);
+    expect(parseWeightString("1 scoop", undefined, [{ label: "1 scoop", grams: 30 }]).grams).toBe(30);
+    expect(parseWeightString("2 unidades", 50).grams).toBe(100);
+  });
+});

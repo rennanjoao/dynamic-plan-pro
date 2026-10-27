@@ -4,6 +4,7 @@
  */
 
 import { TACO_FOODS, searchTaco, type TacoFood } from "@/data/tacoFoods";
+import { ENRICHED_FOODS } from "@/data/enrichedFoods";
 import { INDUSTRIAL_FOODS, type IndustrialFood } from "@/data/industrialFoods";
 
 export type FoodHit =
@@ -17,8 +18,9 @@ function norm(s: string): string {
 export function searchFoods(query: string, limit = 14): FoodHit[] {
   const q = query.trim();
   if (q.length < 2) return [];
-  const tacoHits: FoodHit[] = searchTaco(q).map((t) => ({ ...t, source: "taco" as const }));
   const nq = norm(q);
+  const enrichedHits: TacoFood[] = ENRICHED_FOODS.filter((f) => norm(f.name).includes(nq));
+  const tacoHits: FoodHit[] = [...searchTaco(q), ...enrichedHits].map((t) => ({ ...t, source: "taco" as const }));
   const industrialHits: FoodHit[] = INDUSTRIAL_FOODS
     .filter((f) => norm(f.name).includes(nq) || norm(f.brand).includes(nq))
     .map((f) => ({ ...f, source: "industrial" as const }));
@@ -28,7 +30,7 @@ export function searchFoods(query: string, limit = 14): FoodHit[] {
 export function findFoodByName(name: string): FoodHit | undefined {
   if (!name) return undefined;
   const n = name.trim().toLowerCase();
-  const taco = TACO_FOODS.find((t) => t.name.toLowerCase() === n);
+  const taco = TACO_FOODS.find((t) => t.name.toLowerCase() === n) || ENRICHED_FOODS.find((t) => t.name.toLowerCase() === n);
   if (taco) return { ...taco, source: "taco" as const };
   const ind = INDUSTRIAL_FOODS.find((f) => f.name.toLowerCase() === n);
   if (ind) return { ...ind, source: "industrial" as const };
