@@ -248,6 +248,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
     { label: "Prot", cur: dayMacros.protein, goal: goals.protein || 1, color: "bg-blue-500" },
     { label: "Carb", cur: dayMacros.carbs, goal: goals.carbs || 1, color: "bg-amber-500" },
     { label: "Gord", cur: dayMacros.fat, goal: goals.fat || 1, color: "bg-rose-500" },
+    { label: "Fibra", cur: dayMacros.fiber || 0, goal: Number((goals as any).fiber ?? 25) || 1, color: "bg-emerald-500" },
   ];
 
   function updMealField(mealIdx: number, patch: Partial<ProtocolPayload["meals"][number]>) {
@@ -383,7 +384,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
               <Library className="w-3 h-3 mr-1" /> Carregar modelo
             </Button>
           </div>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-5 gap-2">
             {bars.map((b) => {
               const pct = Math.min(150, Math.round((b.cur / b.goal) * 100));
               const over = b.cur > b.goal;
