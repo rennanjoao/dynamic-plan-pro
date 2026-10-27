@@ -286,33 +286,72 @@ function foodByName(name: string): TacoFood | IndustrialFood | undefined {
  *   "2 fatias"    → { value:2,   grams:100,  isUnit:true  }
  *   ""            → { value:0,   grams:0,    isUnit:false }
  */
+function normTxt(s: string): string {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/** Lê quantidade inicial: "100", "7,5", "1/2", "1 1/2", "meia", "uma". */
+function readQuantity(t: string): { qty: number; rest: string } {
+  let m = t.match(/^(\d+)\s+(\d+)\/(\d+)\s*(.*)$/);
+  if (m) return { qty: Number(m[1]) + Number(m[2]) / Number(m[3]), rest: m[4] };
+  m = t.match(/^(\d+)\/(\d+)\s*(.*)$/);
+  if (m) return { qty: Number(m[1]) / Number(m[2]), rest: m[3] };
+  m = t.match(/^(\d+(?:[.,]\d+)?)\s*(.*)$/);
+  if (m) return { qty: parseFloat(m[1].replace(",", ".")), rest: m[2] };
+  m = t.match(/^(meia|meio)\s+(.*)$/);
+  if (m) return { qty: 0.5, rest: m[2] };
+  m = t.match(/^(uma|um)\s+(.*)$/);
+  if (m) return { qty: 1, rest: m[2] };
+  return { qty: 0, rest: t };
+}
+
+const UNIT_WORDS = /^(un|und|unid|unidade|unidades|fatia|fatias|ovo|ovos|clara|claras|colher|colheres|col|cs|cc|copo|copos|porcao|porcoes|scoop|scoops|dosador|lata|latas|pote|potes|xicara|xicaras|concha|conchas|pedaco|pedacos|file|files|bife|bifes|castanha|castanhas)\b/;
+
+/**
+ * Converte o texto digitado na prescrição em gramas.
+ * Aceita "100g", "100 g", "100G", "100 G", "100 gramas", "1,5 kg", "250 ml", "1 l"
+ * e medidas caseiras ("1 lata", "2 fatias", "1 scoop", "1 colher de sopa").
+ * Medidas caseiras só convertem quando há peso cadastrado (porção ou unitWeight);
+ * nunca inventa peso.
+ */
 export function parseWeightString(
   raw: unknown,
   unitWeight?: number,
+  portions?: Array<{ label: string; grams: number }>,
 ): { value: number; grams: number; isUnit: boolean; unit: "g" | "ml" | "kg" | "l" | "unit" | "unknown"; original: string; convertible: boolean } {
   const text = String(raw ?? "").trim();
-  if (!text) return { value: 0, grams: 0, isUnit: false, unit: "unknown", original: text, convertible: false };
+  const fail = (value = 0, isUnit = false) => ({ value, grams: 0, isUnit, unit: (isUnit ? "unit" : "unknown") as any, original: text, convertible: false });
+  if (!text) return fail();
 
-  const parsedValue =
-    parseFloat(text.replace(/[^\d.,-]/g, "").replace(",", ".")) || 0;
+  const t = normTxt(text);
+  const { qty, rest: rest0 } = readQuantity(t);
+  const rest = rest0.replace(/[.]+$/, "").trim();
+  if (!(qty > 0)) return fail();
+  const ok = (grams: number, unit: any, isUnit = false) => ({ value: qty, grams, isUnit, unit, original: text, convertible: grams > 0 });
 
-  const isUnit = /un|unid|fatia|fatias|ovo|ovos|colher|colheres|copo|copos|porc/i.test(text);
-  const isKg = /\bkg\b/i.test(text) || /\bquilo/i.test(text);
-  const isLitro = /\bl\b/i.test(text) && !/\bml\b/i.test(text);
-  const isMl = /\bml\b/i.test(text);
-  const isGram = /\bg\b|grama/i.test(text);
+  if (!rest || /^(g|gr|grs|grama|gramas)\b/.test(rest)) return ok(qty, "g");
+  if (/^(kg|kgs|quilo|quilos|kilo|kilos)\b/.test(rest)) return ok(qty * 1000, "kg");
+  if (/^(ml|mls|mililitro|mililitros)\b/.test(rest)) return ok(qty, "ml");
+  if (/^(l|lt|lts|litro|litros)\b/.test(rest)) return ok(qty * 1000, "l");
 
-  const hasUnknownUnit = /[a-zA-ZÀ-ÿ]/.test(text) && !isUnit && !isKg && !isLitro && !isMl && !isGram;
-  let grams = hasUnknownUnit ? 0 : parsedValue;
-  let convertible = parsedValue > 0 && !hasUnknownUnit;
-  if (isUnit) {
-    convertible = typeof unitWeight === "number" && unitWeight > 0;
-    grams = convertible ? parsedValue * unitWeight : 0;
+  // Medidas caseiras cadastradas para o alimento (ex.: "1 lata drenada" = 120 g).
+  if (portions && portions.length) {
+    for (const p of portions) {
+      const pl = normTxt(p.label);
+      const { qty: pq, rest: pr } = readQuantity(pl);
+      const base = pq > 0 ? pq : 1;
+      const word = (pr || pl).split(" ")[0];
+      if (pr && (rest === pr || rest.startsWith(pr) || pr.startsWith(rest) || (word && rest.startsWith(word)))) {
+        return ok((qty / base) * p.grams, "unit", true);
+      }
+    }
   }
-  else if (isKg || isLitro) grams = parsedValue * 1000;
 
-  const unit = isUnit ? "unit" : isKg ? "kg" : isLitro ? "l" : isMl ? "ml" : isGram ? "g" : "unknown";
-  return { value: parsedValue, grams, isUnit, unit, original: text, convertible };
+  if (UNIT_WORDS.test(rest)) {
+    if (typeof unitWeight === "number" && unitWeight > 0) return ok(qty * unitWeight, "unit", true);
+    return fail(qty, true);
+  }
+  return fail(qty);
 }
 
 export function calcItemMacros(item: any): Macros {

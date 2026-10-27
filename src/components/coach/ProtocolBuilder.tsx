@@ -669,7 +669,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                 (t) => t.name.toLowerCase() === String(item.baseName || item.name).toLowerCase()
               );
               const unitW = tacoRef && typeof (tacoRef as any).unitWeight === "number" ? (tacoRef as any).unitWeight : undefined;
-              const { grams } = parseWeightString(valor, unitW);
+              const { grams } = parseWeightString(valor, unitW, (tacoRef as any)?.portions);
               item.rawWeight = isFinite(grams) && grams > 0 ? grams : 0;
             }
             count++;

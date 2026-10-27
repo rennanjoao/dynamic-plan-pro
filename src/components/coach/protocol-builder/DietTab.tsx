@@ -702,7 +702,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                                       const unitW = tacoRef && typeof (tacoRef as any).unitWeight === "number"
                                         ? (tacoRef as any).unitWeight
                                         : undefined;
-                                      const { grams } = parseWeightString(w, unitW);
+                                      const { grams } = parseWeightString(w, unitW, (tacoRef as any)?.portions);
                                       patch.rawWeight = isFinite(grams) && grams > 0 ? grams : 0;
                                     }
                                     updItem(mealIdx, kind, optIdx, ii, patch);
@@ -756,7 +756,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                                             (t) => t.name.toLowerCase() === String(sub.baseName || sub.name).toLowerCase()
                                           );
                                           const unitW = tacoRef && typeof (tacoRef as any).unitWeight === "number" ? (tacoRef as any).unitWeight : undefined;
-                                          const { grams } = parseWeightString(w, unitW);
+                                          const { grams } = parseWeightString(w, unitW, (tacoRef as any)?.portions);
                                           patch.rawWeight = isFinite(grams) && grams > 0 ? grams : 0;
                                         }
                                         updSubstitution(mealIdx, kind, optIdx, ii, patch);
