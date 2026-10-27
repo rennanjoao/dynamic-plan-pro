@@ -12,7 +12,14 @@ import {
   LIMITE_KCAL_TROCA,
   MAX_PORCAO_FIXA,
   OLEAGINOSAS_PROIBIDAS,
+  SEM_SUBSTITUTO,
   calcularMacros,
+  flagsDaVersao,
+  macrosDaOpcao,
+  versaoPossivel,
+  type Flag,
+  type IngredienteId,
+  type Versao,
   type Craving,
 } from "../cravings";
 import { TACO_FOODS } from "../tacoFoods";
@@ -37,12 +44,12 @@ const GOLDEN: Record<string, [number, number, number, number][]> = {
   "queijo-goiabada-zero": [[108, 5.3, 13.0, 6.1]],
   "pipoca-agua": [[113, 3.9, 22.3, 1.3], [150, 5.2, 29.7, 1.7], [188, 6.5, 37.2, 2.2]],
   "iogurte-gelado-morango": [[122, 7.9, 22.6, 0.5]],
-  "doce-leite-zero": [[53, 2.0, 9.9, 0.6]],
+  "doce-leite": [[60, 1.1, 11.7, 1.2]],
   "pessego-calda": [[63, 0.7, 16.9, 0.0]],
   "doce-abobora": [[80, 0.4, 21.8, 0.1]],
   "doce-batata": [[91, 0.0, 23.6, 0.0]],
   "goiabada-cascao": [[100, 0.0, 24.9, 0.0]],
-  "pao-integral-doce-leite": [[112, 3.5, 23.9, 1.0], [61, 1.9, 13.3, 0.5]],
+  "pao-integral-doce-leite": [[124, 3.4, 26.5, 1.4], [67, 1.8, 14.6, 0.7]],
   "brigadeiro-proteico": [[113, 11.0, 18.4, 1.6]],
   "doce-mocoto": [[120, 3.0, 28.0, 0.0]],
   "tapioca-geleia": [[120, 0.1, 29.6, 0.1]],
@@ -62,7 +69,7 @@ const GOLDEN: Record<string, [number, number, number, number][]> = {
   "biscoito-arroz-geleia": [[136, 2.3, 30.0, 0.9]],
   "minis-chocolate": [[85, 1.5, 11.0, 4.0], [113, 2.0, 14.7, 5.3], [142, 2.5, 18.3, 6.7]],
   "crepioca-doce": [[238, 9.4, 26.9, 11.7]],
-  "panqueca-proteica": [[391, 28.7, 49.2, 10.1]],
+  "panqueca-proteica": [[389, 28.7, 48.9, 10.0]],
   "bife-pao-frances": [[464, 40.5, 31.6, 19.2], [456, 42.0, 30.6, 18.0]],
   "hamburguer-artesanal": [[456, 48.6, 32.3, 14.1], [492, 48.7, 34.1, 17.4]],
   "panqueca-banana": [[239, 10.6, 37.9, 6.6]],
@@ -71,7 +78,7 @@ const GOLDEN: Record<string, [number, number, number, number][]> = {
 
 const ORDEM_ESPERADA: Record<string, string[]> = {
   natural: ["cha-mel", "palitos-pepino-cenoura", "picole-caseiro", "cafe-leite-mel", "doce-banana-zero", "uva-congelada", "maca-assada", "ameixa-seca", "tamaras", "abacaxi-grelhado", "chocolate-quente-fit", "melancia-gelada", "batata-airfryer", "sorvete-banana-morango", "morango-leite-moca", "queijo-goiabada-zero", "pipoca-agua", "iogurte-gelado-morango"],
-  caseiro: ["doce-leite-zero", "pao-integral-doce-leite", "pessego-calda", "doce-abobora", "doce-batata", "goiabada-cascao", "brigadeiro-proteico", "doce-mocoto", "tapioca-geleia", "morango-chocolate-70", "torrada-tomate", "beijinho-coco"],
+  caseiro: ["doce-leite", "pessego-calda", "pao-integral-doce-leite", "doce-abobora", "doce-batata", "goiabada-cascao", "brigadeiro-proteico", "doce-mocoto", "tapioca-geleia", "morango-chocolate-70", "torrada-tomate", "beijinho-coco"],
   industrializado: ["gelatina-zero", "picole-fruta", "minis-chocolate", "pacoca-zero", "bombom", "suspiro", "chocolate-ao-leite", "sobremesa-proteica", "chocolate-70", "whey-chocolate-gelado", "barrinha-proteina", "biscoito-arroz-geleia"],
   troca: ["crepioca-doce", "panqueca-banana", "doce-fit-uva-whey", "panqueca-proteica", "bife-pao-frances", "hamburguer-artesanal"],
 };
@@ -228,9 +235,82 @@ describe("S.O.S TPM — lista de opções", () => {
     expect(porId("torrada-tomate").contem).toContain("gluten");
     expect(porId("minis-chocolate").contem).toEqual(expect.arrayContaining(["lactose", "amendoim"]));
     expect(porId("doce-fit-uva-whey").contem).toContain("lactose");
-    expect(porId("panqueca-banana").contem).toEqual(["gluten"]);
+    expect(porId("panqueca-banana").contem).toEqual(["gluten", "ovo"]);
     expect(porId("hamburguer-artesanal").contem).toEqual(expect.arrayContaining(["lactose", "gluten"]));
     expect(porId("goiabada-cascao").contem).toEqual([]);
     expect(porId("picole-caseiro").contem).toEqual([]);
+  });
+});
+
+const SO_LACTOSE: Versao = { semLactose: true, semGluten: false };
+const SO_GLUTEN: Versao = { semLactose: false, semGluten: true };
+const AMBOS: Versao = { semLactose: true, semGluten: true };
+
+describe("S.O.S TPM — versões zero lactose e sem glúten", () => {
+  it("todo ingrediente com lactose ou glúten tem substituto válido, exceto a lista fechada", () => {
+    expect(SEM_SUBSTITUTO).toEqual(["bombom", "miniChocolate"]);
+    for (const [id, ing] of Object.entries(INGREDIENTES)) {
+      const flags = (ing.contem ?? []).filter((f): f is Flag => f === "lactose" || f === "gluten");
+      if (flags.length === 0) continue;
+      if (SEM_SUBSTITUTO.includes(id)) {
+        expect(ing.substituto, id).toBeUndefined();
+        continue;
+      }
+      expect(ing.substituto, `${id} sem substituto`).toBeTruthy();
+      const sub = INGREDIENTES[ing.substituto as IngredienteId];
+      expect(sub, `${id}: substituto ${ing.substituto} não existe`).toBeDefined();
+      for (const f of flags) expect(sub.contem ?? [], `${id} → ${ing.substituto}`).not.toContain(f);
+      if (ing.substituto === "wheyIsolado") {
+        expect(sub.kcal).toBeGreaterThanOrEqual(ing.kcal * 0.85);
+        expect(sub.kcal).toBeLessThanOrEqual(ing.kcal);
+      } else {
+        expect({ kcal: sub.kcal, p: sub.p, c: sub.c, g: sub.g }, id).toEqual({ kcal: ing.kcal, p: ing.p, c: ing.c, g: ing.g });
+      }
+    }
+  });
+
+  it("só bombom e minis ficam sem versão", () => {
+    const sem = (v: Versao) => CRAVINGS.filter((c) => !versaoPossivel(c, v)).map((c) => c.id).sort();
+    expect(sem(SO_LACTOSE)).toEqual(["bombom", "minis-chocolate"]);
+    expect(sem(SO_GLUTEN)).toEqual(["bombom"]);
+    expect(sem(AMBOS)).toEqual(["bombom", "minis-chocolate"]);
+  });
+
+  it("a versão possível tira a lactose e/ou o glúten", () => {
+    for (const c of CRAVINGS) {
+      if (versaoPossivel(c, SO_LACTOSE)) expect(flagsDaVersao(c, SO_LACTOSE), c.id).not.toContain("lactose");
+      if (versaoPossivel(c, SO_GLUTEN)) expect(flagsDaVersao(c, SO_GLUTEN), c.id).not.toContain("gluten");
+      if (versaoPossivel(c, AMBOS)) {
+        expect(flagsDaVersao(c, AMBOS), c.id).not.toContain("lactose");
+        expect(flagsDaVersao(c, AMBOS), c.id).not.toContain("gluten");
+      }
+    }
+  });
+
+  it("kcal das versões é igual ao padrão, exceto nos itens com whey", () => {
+    const muda: Record<string, number[]> = {
+      "whey-chocolate-gelado": [110],
+      "panqueca-proteica": [383],
+      "doce-fit-uva-whey": [320, 388, 436],
+    };
+    for (const c of CRAVINGS) {
+      const padrao = c.macros.map((m) => m.kcal);
+      for (const v of [SO_LACTOSE, SO_GLUTEN, AMBOS]) {
+        if (!versaoPossivel(c, v)) continue;
+        const kcals = c.opcoes.map((_, i) => macrosDaOpcao(c, i, v).kcal);
+        const esperado = v.semLactose && muda[c.id] ? muda[c.id] : padrao;
+        expect(kcals, `${c.id} ${JSON.stringify(v)}`).toEqual(esperado);
+      }
+    }
+  });
+
+  it("flag ovo nos itens certos; doce de leite com 60 kcal por 20 g", () => {
+    expect(CRAVINGS.filter((c) => c.contem.includes("ovo")).map((c) => c.id).sort()).toEqual(
+      ["crepioca-doce", "panqueca-banana", "panqueca-proteica", "suspiro"],
+    );
+    expect(CRAVINGS.some((c) => c.id === "doce-leite-zero")).toBe(false);
+    const d = porId("doce-leite");
+    expect(d.opcoes[0].ingredientes).toEqual([{ id: "doceDeLeite", gramas: 20, medida: "1 colher de sopa rasa" }]);
+    expect(d.macros[0].kcal).toBe(60);
   });
 });
