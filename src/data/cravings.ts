@@ -925,6 +925,7 @@ const BASE: CravingBase[] = [
   },
   {
     id: "bombom",
+    semVersao: { lactose: "Esta opção não tem versão zero lactose nem sem glúten. Veja o Chocolate 70% Cacau, que tem versão zero lactose e sem glúten.", gluten: "Esta opção não tem versão zero lactose nem sem glúten. Veja o Chocolate 70% Cacau, que tem versão zero lactose e sem glúten." },
     icone: "🎁",
     titulo: "Bombom Sonho de Valsa ou Ouro Branco",
     grupo: "industrializado",
@@ -1080,6 +1081,7 @@ const BASE: CravingBase[] = [
   },
   {
     id: "minis-chocolate",
+    semVersao: { lactose: "Esta opção não tem versão zero lactose. Veja o Chocolate 70% Cacau, que tem versão zero lactose." },
     icone: "🍪",
     titulo: "Minis de Chocolate (Qualquer Versão Mini)",
     grupo: "industrializado",
@@ -1300,6 +1302,54 @@ const BASE: CravingBase[] = [
     dica: "A receita inteira tem de 330 a 445 kcal e cerca de 39 g de proteína. Dividida em 2 potinhos, cada um tem metade. Iogurte grego light costuma ter mais proteína e algumas kcal a mais: confira o rótulo.",
   },
 ];
+
+export type Versao = { semLactose: boolean; semGluten: boolean };
+
+function flagsAtivas(v: Versao): Flag[] {
+  const f: Flag[] = [];
+  if (v.semLactose) f.push("lactose");
+  if (v.semGluten) f.push("gluten");
+  return f;
+}
+
+/** Troca cada ingrediente com flag ativa pelo substituto. `null` se alguma linha não tiver versão. */
+export function aplicarVersao(linhas: LinhaIngrediente[], v: Versao): LinhaIngrediente[] | null {
+  const ativas = flagsAtivas(v);
+  if (ativas.length === 0) return linhas;
+  const temAtiva = (ing: Ingrediente) => (ing.contem ?? []).some((f) => ativas.includes(f));
+  const out: LinhaIngrediente[] = [];
+  for (const l of linhas) {
+    const ing = INGREDIENTES[l.id];
+    if (!temAtiva(ing)) {
+      out.push(l);
+      continue;
+    }
+    const subId = ing.substituto as IngredienteId | undefined;
+    const sub = subId ? INGREDIENTES[subId] : undefined;
+    if (!subId || !sub || temAtiva(sub)) return null;
+    out.push({ ...l, id: subId });
+  }
+  return out;
+}
+
+export function versaoPossivel(c: Craving, v: Versao): boolean {
+  return c.opcoes.every((o) => aplicarVersao(o.ingredientes, v) !== null);
+}
+
+export function macrosDaOpcao(c: Craving, opcaoIdx: number, v: Versao): Macros {
+  const o = c.opcoes[opcaoIdx] ?? c.opcoes[0];
+  const linhas = aplicarVersao(o.ingredientes, v);
+  return linhas ? calcularMacros(linhas) : (c.macros[opcaoIdx] ?? c.macros[0]);
+}
+
+export function flagsDaVersao(c: Craving, v: Versao): Flag[] {
+  const set = new Set<Flag>();
+  for (const o of c.opcoes) {
+    const linhas = aplicarVersao(o.ingredientes, v) ?? o.ingredientes;
+    for (const { id } of linhas) INGREDIENTES[id].contem?.forEach((f) => set.add(f));
+  }
+  return [...set].sort();
+}
 
 function flagsDe(opcoes: Opcao[]): Flag[] {
   const set = new Set<Flag>();
