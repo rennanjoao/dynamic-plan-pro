@@ -305,7 +305,7 @@ function readQuantity(t: string): { qty: number; rest: string } {
   return { qty: 0, rest: t };
 }
 
-const UNIT_WORDS = /^(un|und|unid|unidade|unidades|fatia|fatias|ovo|ovos|clara|claras|colher|colheres|col|cs|cc|copo|copos|porcao|porcoes|scoop|scoops|dosador|lata|latas|pote|potes|xicara|xicaras|concha|conchas|pedaco|pedacos|file|files|bife|bifes|castanha|castanhas)\b/;
+const UNIT_WORDS = /^(un|und|unid|unidade|unidades|fatia|fatias|ovo|ovos|clara|claras|colher|colheres|col|cs|cc|copo|copos|porcao|porcoes|scoop|scoops|dosador|lata|latas|pote|potes|xicara|xicaras|pedaco|pedacos|file|files|bife|bifes|castanha|castanhas)\b/;
 
 /**
  * Converte o texto digitado na prescrição em gramas.
