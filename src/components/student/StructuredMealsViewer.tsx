@@ -15,6 +15,8 @@ import { Clock, Flame, Dna, Wheat, Droplets, Salad, Check } from "lucide-react";
 import { type CarbMode } from "@/components/student/CarbCycleSelector";
 import StickyDietBar from "@/components/student/StickyDietBar";
 import { calcItemMacros } from "@/lib/macroCalc";
+import { TACO_FOODS } from "@/data/tacoFoods";
+import { ENRICHED_FOODS } from "@/data/enrichedFoods";
 import { buildWeekStrip, CARB_LABEL, CARB_COLOR, todayKey, tomorrowKey } from "@/lib/weekCycle";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -85,8 +87,13 @@ function getCurrentMealIndex(meals: any[]): number {
 }
 
 
-function getCookedMultiplier(name: string): number {
+export function getCookedMultiplier(name: string): number {
+  const key = name.trim().toLowerCase();
+  const canonical = ENRICHED_FOODS.find((food) => food.name.toLowerCase() === key) || TACO_FOODS.find((food) => food.name.toLowerCase() === key);
+  if (canonical) return typeof canonical.cookFactor === "number" ? canonical.cookFactor : 1;
   const s = name.toLowerCase();
+  if (/atum/.test(s) && /(lata|conserva|drenad)/.test(s)) return 1;
+  if (/p[aã]o|aveia/.test(s)) return 1;
   if (/\barroz(?!\s+integral)/.test(s)) return 2.5;
   if (/arroz\s+integral/.test(s)) return 2.4;
   if (/(macarr[aã]o|massa|talharim|espaguete|penne|p[aã]o)/.test(s)) return 2.2;
@@ -107,7 +114,7 @@ function getCookedMultiplier(name: string): number {
   return 1;
 }
 
-function applySmartMath(
+export function applySmartMath(
   text: string,
   mode: CarbMode,
   isCooked: boolean,

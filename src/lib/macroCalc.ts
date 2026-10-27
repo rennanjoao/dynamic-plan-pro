@@ -16,6 +16,7 @@
  */
 
 import { TACO_FOODS, type TacoFood } from "@/data/tacoFoods";
+import { ENRICHED_FOODS } from "@/data/enrichedFoods";
 import { INDUSTRIAL_FOODS, industrialByName, type IndustrialFood } from "@/data/industrialFoods";
 
 // ─── Dicionário de aliases ─────────────────────────────────────────────────────
@@ -251,14 +252,15 @@ export interface Macros {
   protein: number;
   carbs: number;
   fat: number;
+  fiber: number;
 }
 
-const ZERO: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+const ZERO: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
 
 function tacoByName(name: string): TacoFood | undefined {
   if (!name) return undefined;
   const n = name.trim().toLowerCase();
-  return TACO_FOODS.find((t) => t.name.toLowerCase() === n);
+  return ENRICHED_FOODS.find((t) => t.name.toLowerCase() === n) || TACO_FOODS.find((t) => t.name.toLowerCase() === n);
 }
 
 /**
@@ -338,6 +340,7 @@ export function calcItemMacros(item: any): Macros {
       protein: food.p * f,
       carbs: food.c * f,
       fat: food.g * f,
+      fiber: Number((food as any).fiber) * f || 0,
     };
   }
   if (item.manualMacros) {
@@ -351,6 +354,7 @@ export function calcItemMacros(item: any): Macros {
       protein,
       carbs,
       fat,
+      fiber: 0,
     };
   }
   return { ...ZERO };
@@ -385,6 +389,7 @@ export function calcMealMacros(meal: any): Macros {
       out.protein += m.protein;
       out.carbs   += m.carbs;
       out.fat     += m.fat;
+      out.fiber   += m.fiber || 0;
     });
   });
   return out;
@@ -399,6 +404,7 @@ export function calcDayMacros(meals: any[]): Macros {
     out.protein += r.protein;
     out.carbs += r.carbs;
     out.fat += r.fat;
+    out.fiber += r.fiber || 0;
   });
   return out;
 }
@@ -417,6 +423,7 @@ export function optionMacros(option: any): Macros {
     out.protein += m.protein;
     out.carbs   += m.carbs;
     out.fat     += m.fat;
+    out.fiber   += m.fiber || 0;
   });
   return out;
 }
@@ -446,6 +453,7 @@ export function itemMacrosPerGram(item: any): Macros | null {
       protein: food.p / 100,
       carbs: food.c / 100,
       fat: food.g / 100,
+      fiber: Number((food as any).fiber) / 100 || 0,
     };
   }
   return null;

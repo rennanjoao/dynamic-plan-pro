@@ -20,12 +20,23 @@ describe("parseWeightString", () => {
     expect(parseWeightString("2 conchas")).toMatchObject({ grams: 0, unit: "unknown", convertible: false });
     expect(parseWeightString("75")).toMatchObject({ grams: 75, convertible: true });
   });
+
+  it("calcula fibras por 100 g da nova base e soma no dia, com legado em zero", async () => {
+    const { ENRICHED_FOODS } = await import("@/data/enrichedFoods");
+    expect(ENRICHED_FOODS).toHaveLength(83);
+    expect(ENRICHED_FOODS.every((food) => Number.isFinite(food.fiber))).toBe(true);
+    const food = ENRICHED_FOODS.find((entry) => entry.name === "Goiaba, vermelha, com casca, crua")!;
+    const item = { isTaco: true, baseName: food.name, rawWeight: 100 };
+    expect(calcItemMacros(item).fiber).toBeCloseTo(food.fiber, 8);
+    expect(calcDayMacros([{ options: [{ kind: "carb", items: [item] }] }]).fiber).toBeCloseTo(food.fiber, 8);
+  });
 });
 
 describe("precisão dos macros", () => {
   it("preserva macros manuais fracionados sem arredondar cada item", () => {
     const item = { manualMacros: { kcal: 1.234, protein: 0.111, carbs: 0.222, fat: 0.033 } };
-    expect(calcItemMacros(item)).toEqual(item.manualMacros);
+    expect(calcItemMacros(item)).toMatchObject(item.manualMacros);
+    expect(calcItemMacros(item).fiber).toBe(0);
     const meal = { options: [{ kind: "other", items: [item, item, item] }] };
     const total = calcDayMacros([meal]);
     expect(total.kcal).toBeCloseTo(3.702, 10);

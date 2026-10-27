@@ -20,6 +20,10 @@ export interface TacoFood {
   valuesArCooked?: boolean;
   /** peso médio em gramas de 1 unidade deste alimento */
   unitWeight?: number;
+  /** Medidas caseiras reais; weight gravado continua sendo o peso comestível cru. */
+  portions?: Array<{ label: string; grams: number }>;
+  /** Fibra alimentar por 100 g; opcional para manter compatibilidade de bases legadas. */
+  fiber?: number;
 }
 
 export const TACO_FOODS: TacoFood[] = [
@@ -47,7 +51,7 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Inhame (cozido)",                 kcal: 118, p: 1.5,  c: 27.9, g: 0.1, group: "carb", valuesArCooked: true },
   { name: "Pão francês",                     kcal: 300, p: 8.0,  c: 58.6, g: 3.1, group: "carb", unitWeight: 50 },
   { name: "Pão de forma tradicional",        kcal: 253, p: 8.5,  c: 49.9, g: 2.0, group: "carb", unitWeight: 25 },
-  { name: "Pão de forma integral",           kcal: 253, p: 9.4,  c: 49.9, g: 2.9, group: "carb", unitWeight: 25 },
+  { name: "Pão de forma integral",           kcal: 253, p: 9.4,  c: 49.9, g: 2.9, group: "carb", unitWeight: 25 , portions: [{ label: "1 fatia", grams: 25 }]},
   { name: "Rap10 / Tortilha de trigo",       kcal: 288, p: 8.0,  c: 50.0, g: 5.5, group: "carb", unitWeight: 40 },
   { name: "Tapioca (goma hidratada/pronta)", kcal: 130, p: 0.1,  c: 32.1, g: 0.2, group: "carb", unitWeight: 60 },
   { name: "Tapioca (goma seca/polvilho)",    kcal: 358, p: 0.0,  c: 89.4, g: 0.1, group: "carb", cookFactor: 2.5 },
@@ -84,10 +88,10 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Frango coxa+sobrecoxa s/ pele (cozida)",  kcal: 213, p: 25.8, c: 0.0, g: 12.2, group: "protein", valuesArCooked: true },
   { name: "Frango coxa+sobrecoxa c/ pele (crua)",    kcal: 191, p: 16.0, c: 0.0, g: 14.1, group: "protein", cookFactor: 0.68 },
   { name: "Frango coxa+sobrecoxa c/ pele (assada)",  kcal: 282, p: 23.5, c: 0.0, g: 20.8, group: "protein", valuesArCooked: true },
-  { name: "Ovo de galinha inteiro (cru)",    kcal: 143, p: 13.0, c: 1.6,  g: 9.5,  group: "protein", cookFactor: 0.92, unitWeight: 50 },
+  { name: "Ovo de galinha inteiro (cru)",    kcal: 143, p: 13.0, c: 1.6,  g: 9.5,  group: "protein", cookFactor: 0.92, unitWeight: 50 , portions: [{ label: "1 unidade", grams: 50 }]},
   { name: "Ovo de galinha inteiro (cozido)", kcal: 146, p: 13.3, c: 0.6,  g: 9.5,  group: "protein", valuesArCooked: true, unitWeight: 50 },
   { name: "Ovo de galinha (frito s/ óleo)",  kcal: 146, p: 13.3, c: 0.6,  g: 9.5,  group: "protein", valuesArCooked: true, unitWeight: 50 },
-  { name: "Clara de ovo (crua/líquida)",     kcal: 43,  p: 9.0,  c: 0.4,  g: 0.0,  group: "protein", cookFactor: 0.85, unitWeight: 35 },
+  { name: "Clara de ovo (crua/líquida)",     kcal: 43,  p: 9.0,  c: 0.4,  g: 0.0,  group: "protein", cookFactor: 0.85, unitWeight: 35 , portions: [{ label: "1 clara", grams: 35 }]},
   { name: "Clara de ovo (cozida)",           kcal: 50,  p: 10.5, c: 0.5,  g: 0.0,  group: "protein", valuesArCooked: true, unitWeight: 35 },
   { name: "Gema de ovo (crua)",              kcal: 322, p: 16.0, c: 3.6,  g: 28.0, group: "fat",     cookFactor: 0.9,  unitWeight: 15 },
 
@@ -110,7 +114,7 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Músculo (cozido)",                kcal: 206, p: 32.0, c: 0.0,  g: 8.3,  group: "protein", valuesArCooked: true },
   { name: "Contra-filé (cru)",               kcal: 145, p: 21.4, c: 0.0,  g: 6.5,  group: "protein", cookFactor: 0.70 },
   { name: "Contra-filé (grelhado)",          kcal: 236, p: 32.6, c: 0.0,  g: 11.7,  group: "protein", valuesArCooked: true },
-  { name: "Picanha s/ gordura (crua)",       kcal: 149, p: 21.3, c: 0.0,  g: 6.5,  group: "protein", cookFactor: 0.70 },
+  { name: "Picanha s/ gordura (crua)",       kcal: 149, p: 21.3, c: 0.0,  g: 6.5,  group: "protein", cookFactor: 0.68 },
   { name: "Picanha c/ gordura (grelhada)",   kcal: 304, p: 37.7, c: 0.0,  g: 16.4, group: "protein", valuesArCooked: true },
   { name: "Picanha c/ gordura (crua)",       kcal: 244, p: 16.0, c: 0.0, g: 20.0, group: "protein", cookFactor: 0.68 },
   { name: "Picanha s/ gordura (grelhada)",   kcal: 205, p: 30.4, c: 0.0, g:  9.3, group: "protein", valuesArCooked: true },
@@ -148,17 +152,17 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Salmão s/ pele (cru)",            kcal: 170, p: 19.3, c: 0.0,  g: 10.4, group: "protein", cookFactor: 0.80 },
   { name: "Salmão s/ pele (grelhado)",       kcal: 213, p: 24.1, c: 0.0,  g: 13.0, group: "protein", valuesArCooked: true },
   { name: "Atum fresco (cru)",               kcal: 108, p: 23.4, c: 0.0,  g: 0.9,  group: "protein", cookFactor: 0.75 },
-  { name: "Atum em lata (em água/drenado)",  kcal: 116, p: 25.5, c: 0.0,  g: 1.0,  group: "protein", valuesArCooked: true },
-  { name: "Atum em lata (em óleo/drenado)",  kcal: 166, p: 24.0, c: 0.0,  g: 8.0,  group: "protein", valuesArCooked: true },
+  { name: "Atum em lata (em água/drenado)",  kcal: 116, p: 25.5, c: 0.0,  g: 1.0,  group: "protein", valuesArCooked: true, cookFactor: 1, portions: [{ label: "1 lata drenada", grams: 120 }, { label: "1/2 lata", grams: 60 }]},
+  { name: "Atum em lata (em óleo/drenado)",  kcal: 166, p: 24.0, c: 0.0,  g: 8.0,  group: "protein", valuesArCooked: true , cookFactor: 1},
   { name: "Sardinha fresca (crua)",          kcal: 124, p: 21.1, c: 0.0,  g: 3.8,  group: "protein", cookFactor: 0.80 },
-  { name: "Sardinha em lata (óleo/drenada)", kcal: 208, p: 24.6, c: 0.0,  g: 11.5, group: "protein", valuesArCooked: true },
+  { name: "Sardinha em lata (óleo/drenada)", kcal: 208, p: 24.6, c: 0.0,  g: 11.5, group: "protein", valuesArCooked: true , cookFactor: 1},
   { name: "Merluza / Pescada (crua)",        kcal: 81,  p: 16.7, c: 0.0,  g: 1.0,  group: "protein", cookFactor: 0.75 },
   { name: "Merluza (grelhada/assada)",       kcal: 108, p: 22.3, c: 0.0,  g: 1.3,  group: "protein", valuesArCooked: true },
   { name: "Camarão (cru)",                   kcal: 90,  p: 20.0, c: 0.0,  g: 1.0,  group: "protein", cookFactor: 0.75 },
 
   // ─── SUPLEMENTOS PROTÉICOS ───────────────────────────────────────────────────
-  { name: "Whey Protein Concentrado (80%)",  kcal: 400, p: 80.0, c: 8.0,  g: 6.0,  group: "protein", unitWeight: 30 },
-  { name: "Whey Protein Isolado (90%+)",     kcal: 367, p: 90.0, c: 2.0,  g: 1.0,  group: "protein", unitWeight: 30 },
+  { name: "Whey Protein Concentrado (80%)",  kcal: 400, p: 80.0, c: 8.0,  g: 6.0,  group: "protein", unitWeight: 30, portions: [{ label: "1 scoop", grams: 30 }] },
+  { name: "Whey Protein Isolado (90%+)",     kcal: 367, p: 90.0, c: 2.0,  g: 1.0,  group: "protein", unitWeight: 30, portions: [{ label: "1 scoop", grams: 30 }] },
   { name: "Albumina em pó",                  kcal: 350, p: 80.0, c: 4.0,  g: 0.0,  group: "protein", unitWeight: 30 },
   { name: "Proteína de Soja isolada",        kcal: 375, p: 88.0, c: 2.0,  g: 1.0,  group: "protein", unitWeight: 30 },
 
@@ -166,7 +170,7 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Azeite de oliva extra virgem",    kcal: 884, p: 0.0,  c: 0.0,  g: 100.0,group: "fat", unitWeight: 13 }, // 1 colher sopa
   { name: "Óleo de coco",                    kcal: 892, p: 0.0,  c: 0.0,  g: 99.1, group: "fat", unitWeight: 13 },
   { name: "Manteiga integral (com ou s/ sal)",kcal: 726, p: 0.4,  c: 0.1,  g: 82.4, group: "fat", unitWeight: 10 },
-  { name: "Pasta de amendoim integral",      kcal: 588, p: 25.0, c: 20.0, g: 50.0, group: "fat", unitWeight: 15 },
+  { name: "Pasta de amendoim integral",      kcal: 588, p: 25.0, c: 20.0, g: 50.0, group: "fat", unitWeight: 15 , portions: [{ label: "1 colher de sopa", grams: 20 }]},
   { name: "Amendoim torrado (s/ pele/sal)",  kcal: 585, p: 23.0, c: 21.0, g: 49.0, group: "fat" },
   { name: "Castanha de caju (torrada)",      kcal: 570, p: 18.5, c: 28.7, g: 43.8, group: "fat" },
   { name: "Castanha do Pará / Brasil",       kcal: 643, p: 14.5, c: 15.1, g: 63.5, group: "fat", unitWeight: 4 }, // 1 castanha

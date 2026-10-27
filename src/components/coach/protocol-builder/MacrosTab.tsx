@@ -82,6 +82,7 @@ export function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; s
   };
   const hasMacroDelta =
     Math.abs(macroDeltas.carbs) >= 1 || Math.abs(macroDeltas.protein) >= 1 || Math.abs(macroDeltas.fat) >= 1;
+  const fiberDelta = Number(m.fiber ?? 25) - dayMacros.fiber;
   const upd = (k: keyof typeof m, v: number | string) => {
     const next = { ...m, [k]: v } as typeof m;
     // Recalcula calorias automaticamente ao alterar macros
@@ -110,11 +111,12 @@ export function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; s
   return (
     <Card className="bg-card/60 border-border p-4">
       <p className="text-xs text-muted-foreground mb-3">Base calórica e macros. Servem de referência para ciclo de carbo.</p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
         <div><Label className="text-xs">Calorias <span className="text-[9px] text-muted-foreground">(auto)</span></Label><Input type="number" value={m.calories} onChange={(e) => upd("calories", Number(e.target.value) || 0)} className="mt-1 h-9 text-sm" /></div>
         <div><Label className="text-xs">Proteína (g)</Label><Input type="number" value={m.protein} onChange={(e) => upd("protein", Number(e.target.value) || 0)} className="mt-1 h-9 text-sm" /></div>
         <div><Label className="text-xs">Carbo (g)</Label><Input type="number" value={m.carbs} onChange={(e) => upd("carbs", Number(e.target.value) || 0)} className="mt-1 h-9 text-sm" /></div>
         <div><Label className="text-xs">Gordura (g)</Label><Input type="number" value={m.fat} onChange={(e) => upd("fat", Number(e.target.value) || 0)} className="mt-1 h-9 text-sm" /></div>
+        <div><Label className="text-xs">Fibras (g)</Label><Input type="number" min="0" value={m.fiber ?? 25} onChange={(e) => upd("fiber", Number(e.target.value) || 0)} className="mt-1 h-9 text-sm" /></div>
         <div><Label className="text-xs">Água (L)</Label><Input type="number" step="0.1" value={m.water} onChange={(e) => upd("water", Number(e.target.value) || 0)} className="mt-1 h-9 text-sm" /></div>
         <div>
           <Label className="text-xs">Objetivo</Label>
@@ -141,6 +143,7 @@ export function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; s
                 <MacroDeltaBadge label="Carbo" value={macroDeltas.carbs} />
                 <MacroDeltaBadge label="Prot" value={macroDeltas.protein} />
                 <MacroDeltaBadge label="Gord" value={macroDeltas.fat} />
+                <MacroDeltaBadge label="Fibras" value={fiberDelta} />
               </div>
             </div>
             <Button
