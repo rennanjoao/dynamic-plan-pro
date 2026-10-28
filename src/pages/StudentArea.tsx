@@ -30,6 +30,8 @@ import { TrainerAlert } from "@/components/student/TrainerAlert";
 import CoachUpdatesCard from "@/components/student/CoachUpdatesCard";
 import CoachUpdatesHistoryDialog from "@/components/student/CoachUpdatesHistoryDialog";
 import StudentOnboardingCard from "@/components/student/StudentOnboardingCard";
+import WhatsNewHost from "@/components/student/WhatsNewHost";
+import WhatsNewHistoryLink from "@/components/student/WhatsNewHistoryLink";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { buildPixBrCode } from "@/lib/pixBrCode";
 import { StudentPlanCard } from "@/components/student/StudentPlanCard";
@@ -511,6 +513,8 @@ export default function StudentArea() {
       )}
 
       <StudentOnboardingCard userId={userId} />
+      {/* Novidades da plataforma: desligado no Modo Espelho do coach (não consome o aviso do aluno) */}
+      <WhatsNewHost enabled={!previewAs} />
 
       {/* ── Header ── */}
       <header className={`bg-card border-b border-border/50 shadow-sm ${!previewAs ? 'sticky top-0 z-10' : ''}`}>
@@ -741,6 +745,10 @@ export default function StudentArea() {
             </div>
           </div>
         )}
+
+        <div className="flex justify-center pt-1 pb-4">
+          <WhatsNewHistoryLink enabled={!previewAs} />
+        </div>
 
       </main>
     </div>
