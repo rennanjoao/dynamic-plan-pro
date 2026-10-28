@@ -190,6 +190,74 @@ export type Database = {
         }
         Relationships: []
       }
+      announcement_views: {
+        Row: {
+          announcement_id: string
+          seen_at: string
+          user_id: string
+        }
+        Insert: {
+          announcement_id: string
+          seen_at?: string
+          user_id: string
+        }
+        Update: {
+          announcement_id?: string
+          seen_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcement_views_announcement_id_fkey"
+            columns: ["announcement_id"]
+            isOneToOne: false
+            referencedRelation: "app_announcements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_announcements: {
+        Row: {
+          audience: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          published_at: string
+          slides: Json
+          slug: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          audience?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          published_at?: string
+          slides: Json
+          slug: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          audience?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          published_at?: string
+          slides?: Json
+          slug?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       app_settings: {
         Row: {
           key: string
@@ -2672,6 +2740,28 @@ export type Database = {
           stage: string
           student_name: string
         }[]
+      }
+      get_pending_announcements: {
+        Args: { p_audience?: string }
+        Returns: {
+          audience: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          published_at: string
+          slides: Json
+          slug: string
+          title: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "app_announcements"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       get_student_engagement: { Args: { p_student_id: string }; Returns: Json }
       get_student_hub_context: { Args: { p_student_id: string }; Returns: Json }
