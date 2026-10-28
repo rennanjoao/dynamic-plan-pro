@@ -12,7 +12,10 @@ export default function StudentToolbar() {
       <TacoCalculatorDialog />
       <ProteinGuideDialog />
       <FoodmapsDialog />
-      <TpmCravingsDialog />
+      {/* id usado pelo botão "Abrir o S.O.S TPM" das Novidades (?highlight=tool-tpm) */}
+      <div id="tool-tpm">
+        <TpmCravingsDialog />
+      </div>
     </div>
   );
 }
