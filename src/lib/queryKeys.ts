@@ -72,4 +72,8 @@ export const queryKeys = {
   // Espelha src/hooks/useCurrentPeriodizationWeek.ts.
   currentPeriodizationWeek: (userId: string, workoutKeys: string[]) =>
     ["current-periodization-week", userId, workoutKeys.join(",")] as const,
+
+  // Espelha src/hooks/usePostureAssessments.ts.
+  coachPostureAssessments: (studentId: string | null) =>
+    ["coach-posture-assessments", studentId] as const,
 } as const;

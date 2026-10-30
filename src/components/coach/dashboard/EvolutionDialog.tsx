@@ -8,6 +8,7 @@ import { Private } from "@/components/coach/PrivacyMode";
 
 const EvolutionComparisonLazy = lazyWithRetry(() => import("@/components/coach/EvolutionComparison"));
 const AnamnesisViewerLazy = lazyWithRetry(() => import("@/components/anamnesis/AnamnesisViewer"));
+const PostureAssessmentPanelLazy = lazyWithRetry(() => import("@/components/coach/posture/PostureAssessmentPanel"));
 
 export function EvolutionDialog({ student, open, onClose }: { student: StudentStatus | null; open: boolean; onClose: () => void }) {
   return (
@@ -16,14 +17,15 @@ export function EvolutionDialog({ student, open, onClose }: { student: StudentSt
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ClipboardList className="w-4 h-4 text-primary" />
-            Anamnese — <Private>{student?.name || "Aluno"}</Private>
+            Acompanhamento — <Private>{student?.name || "Aluno"}</Private>
           </DialogTitle>
         </DialogHeader>
         {student && (
           <Tabs defaultValue="evolucao" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="evolucao">Evolução</TabsTrigger>
               <TabsTrigger value="anamnese">Anamnese</TabsTrigger>
+              <TabsTrigger value="postural">Avaliação postural</TabsTrigger>
             </TabsList>
             <TabsContent value="evolucao" className="mt-4">
               <Suspense fallback={<div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>}>
@@ -33,6 +35,11 @@ export function EvolutionDialog({ student, open, onClose }: { student: StudentSt
             <TabsContent value="anamnese" className="mt-4">
               <Suspense fallback={<div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>}>
                 <AnamnesisViewerLazy studentId={student.id} studentName={student.name} />
+              </Suspense>
+            </TabsContent>
+            <TabsContent value="postural" className="mt-4">
+              <Suspense fallback={<div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>}>
+                <PostureAssessmentPanelLazy studentId={student.id} />
               </Suspense>
             </TabsContent>
           </Tabs>
