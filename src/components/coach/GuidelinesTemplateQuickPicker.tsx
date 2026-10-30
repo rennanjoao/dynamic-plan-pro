@@ -6,6 +6,7 @@ import { useConfirm } from "@/components/ConfirmProvider";
 import type { ProtocolPayload } from "@/lib/protocolSchema";
 import {
   listGuidelinesTemplates,
+  deleteGuidelinesTemplate,
   saveGuidelinesAsTemplate,
   injectGuidelines,
   hasAnyGuideline,
@@ -43,6 +44,7 @@ export function GuidelinesTemplateQuickPicker({
       emptyLabel="Nenhum template encontrado."
       loadItems={listGuidelinesTemplates}
       onApply={applyTemplate}
+      onDelete={(tpl) => deleteGuidelinesTemplate(tpl.id, coachId as string)}
       canSave={hasAnyGuideline(payload.guidelines)}
       saveLabel="Salvar diretrizes"
       savingHint="Salvar diretrizes atuais como template"

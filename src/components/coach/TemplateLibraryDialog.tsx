@@ -17,17 +17,16 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Loader2, BookmarkPlus, Trash2, Dumbbell, Utensils, FileText, ClipboardList, Eye, History, Pencil, Salad, CalendarRange } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmProvider";
-import { ProtocolPayloadSchema, WorkoutBlockPayloadSchema, DietBlockPayloadSchema, PeriodizationBlockPayloadSchema, type ProtocolPayload, genItemId } from "@/lib/protocolSchema";
+import { ProtocolPayloadSchema, WorkoutBlockPayloadSchema, DietBlockPayloadSchema, PeriodizationBlockPayloadSchema, type ProtocolPayload } from "@/lib/protocolSchema";
 import { checkMuscleRecovery } from "@/lib/muscleRecovery";
 import TemplateHistoryDialog from "./TemplateHistoryDialog";
-import { WorkoutBlockHistoryDialog } from "./WorkoutBlockHistoryDialog";
-import { DietBlockHistoryDialog } from "./DietBlockHistoryDialog";
-import { PeriodizationBlockHistoryDialog } from "./PeriodizationBlockHistoryDialog";
+import { BlockHistoryDialog } from "./BlockHistoryDialog";
 import { cn } from "@/lib/utils";
+import { toIndependentMeal } from "@/lib/mealCopy";
 import { saveProtocolAsTemplate } from "@/lib/protocolTemplates";
-import { listWorkoutBlockTemplates, deleteWorkoutBlockTemplate, injectWorkoutBlock } from "@/lib/workoutTemplates";
-import { listDietBlockTemplates, deleteDietBlockTemplate, injectDietBlock } from "@/lib/dietTemplates";
-import { listPeriodizationBlockTemplates, deletePeriodizationBlockTemplate, injectPeriodizationBlock } from "@/lib/periodizationTemplates";
+import { listWorkoutBlockTemplates, deleteWorkoutBlockTemplate, injectWorkoutBlock, listWorkoutBlockVersions, restoreWorkoutBlockVersion } from "@/lib/workoutTemplates";
+import { listDietBlockTemplates, deleteDietBlockTemplate, injectDietBlock, listDietBlockVersions, restoreDietBlockVersion } from "@/lib/dietTemplates";
+import { listPeriodizationBlockTemplates, deletePeriodizationBlockTemplate, injectPeriodizationBlock, listPeriodizationBlockVersions, restorePeriodizationBlockVersion } from "@/lib/periodizationTemplates";
 import { formatDatePtBR } from "@/lib/formatDate";
 
 type TplType = "workout" | "meal" | "protocol" | "diet" | "periodization";
@@ -50,6 +49,14 @@ const TYPE_META: Record<TplType, { label: string; icon: any; badge: string }> = 
   periodization: { label: "Periodização",        icon: CalendarRange, badge: "bg-sky-500/15 text-sky-500 border-sky-500/40" },
   protocol:      { label: "Protocolo completo",  icon: ClipboardList, badge: "bg-primary/15 text-primary border-primary/40" },
 };
+
+// Histórico de versões por tipo de bloco — uma única casca (BlockHistoryDialog)
+// parametrizada, em vez de um wrapper por tipo.
+const BLOCK_HISTORY = {
+  workout:       { listVersions: listWorkoutBlockVersions,       restoreVersion: restoreWorkoutBlockVersion },
+  diet:          { listVersions: listDietBlockVersions,          restoreVersion: restoreDietBlockVersion },
+  periodization: { listVersions: listPeriodizationBlockVersions, restoreVersion: restorePeriodizationBlockVersion },
+} as const;
 
 const DIVISIONS = ["todos", "AB", "ABC", "ABCD", "ABCDE"] as const;
 const PROFILES: { value: string; label: string }[] = [
@@ -157,6 +164,8 @@ export default function TemplateLibraryDialog({
 
 
       setItems(merged);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao carregar a biblioteca");
     } finally { setLoading(false); }
   }
 
@@ -190,7 +199,9 @@ export default function TemplateLibraryDialog({
       toast.success(mode === "filled" ? "Treino aplicado com exercícios" : "Estrutura aplicada — adicione seus exercícios");
     } else if (item.type === "meal") {
       const meal = item.raw.meal_data;
-      setPayload({ ...payload, meals: [...payload.meals, { ...meal, name: meal?.name || item.name, __id: genItemId("meal") }] });
+      const independent = toIndependentMeal(meal);
+      independent.name = independent.name || item.name;
+      setPayload({ ...payload, meals: [...payload.meals, independent] });
       toast.success("Refeição adicionada");
     } else if (item.type === "diet") {
       const parsed = DietBlockPayloadSchema.safeParse(item.raw.dieta);
@@ -289,7 +300,8 @@ export default function TemplateLibraryDialog({
           .from("protocols")
           .update({ name: trimmed, payload: parsed as any })
           .eq("id", editingTemplate.id)
-          .eq("is_template", true);
+          .eq("is_template", true)
+          .eq("coach_id", coachId);
         if (error) throw error;
         toast.success("Template atualizado");
         setEditingTemplate(null);
@@ -614,34 +626,18 @@ export default function TemplateLibraryDialog({
         templateName={historyItem?.name ?? ""}
         onRestore={restoreFromVersion}
       />
-      {blockHistoryItem && coachId && blockHistoryItem.kind === "workout" && (
-        <WorkoutBlockHistoryDialog
+      {blockHistoryItem && coachId && (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- união de 3 tipos de versão; a casca só usa id/version/createdAt
+        <BlockHistoryDialog<any>
           open={!!blockHistoryItem}
           onOpenChange={(v) => !v && setBlockHistoryItem(null)}
           templateId={blockHistoryItem.id}
           templateName={blockHistoryItem.name}
           coachId={coachId}
           onRestored={reload}
-        />
-      )}
-      {blockHistoryItem && coachId && blockHistoryItem.kind === "diet" && (
-        <DietBlockHistoryDialog
-          open={!!blockHistoryItem}
-          onOpenChange={(v) => !v && setBlockHistoryItem(null)}
-          templateId={blockHistoryItem.id}
-          templateName={blockHistoryItem.name}
-          coachId={coachId}
-          onRestored={reload}
-        />
-      )}
-      {blockHistoryItem && coachId && blockHistoryItem.kind === "periodization" && (
-        <PeriodizationBlockHistoryDialog
-          open={!!blockHistoryItem}
-          onOpenChange={(v) => !v && setBlockHistoryItem(null)}
-          templateId={blockHistoryItem.id}
-          templateName={blockHistoryItem.name}
-          coachId={coachId}
-          onRestored={reload}
+          listVersions={BLOCK_HISTORY[blockHistoryItem.kind].listVersions}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          restoreVersion={BLOCK_HISTORY[blockHistoryItem.kind].restoreVersion as any}
         />
       )}
     </>
