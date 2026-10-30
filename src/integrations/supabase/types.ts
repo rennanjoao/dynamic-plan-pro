@@ -1625,6 +1625,87 @@ export type Database = {
         }
         Relationships: []
       }
+      posture_assessments: {
+        Row: {
+          assessed_at: string
+          coach_id: string
+          complaint: string | null
+          created_at: string
+          decision: Json
+          functional_tests: Json
+          id: string
+          intervention: string | null
+          muscle_sensation: string | null
+          notes: string | null
+          pain_better_with: string | null
+          pain_location: string | null
+          pain_score: number | null
+          pain_worse_with: string | null
+          photo_paths: Json
+          post_intervention_response: string | null
+          progression_criterion: string | null
+          progression_level: number | null
+          red_flags: Json
+          referral_recommended: boolean
+          relevant_history: string | null
+          static_observations: Json
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          assessed_at?: string
+          coach_id: string
+          complaint?: string | null
+          created_at?: string
+          decision?: Json
+          functional_tests?: Json
+          id?: string
+          intervention?: string | null
+          muscle_sensation?: string | null
+          notes?: string | null
+          pain_better_with?: string | null
+          pain_location?: string | null
+          pain_score?: number | null
+          pain_worse_with?: string | null
+          photo_paths?: Json
+          post_intervention_response?: string | null
+          progression_criterion?: string | null
+          progression_level?: number | null
+          red_flags?: Json
+          referral_recommended?: boolean
+          relevant_history?: string | null
+          static_observations?: Json
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          assessed_at?: string
+          coach_id?: string
+          complaint?: string | null
+          created_at?: string
+          decision?: Json
+          functional_tests?: Json
+          id?: string
+          intervention?: string | null
+          muscle_sensation?: string | null
+          notes?: string | null
+          pain_better_with?: string | null
+          pain_location?: string | null
+          pain_score?: number | null
+          pain_worse_with?: string | null
+          photo_paths?: Json
+          post_intervention_response?: string | null
+          progression_criterion?: string | null
+          progression_level?: number | null
+          red_flags?: Json
+          referral_recommended?: boolean
+          relevant_history?: string | null
+          static_observations?: Json
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       prescription_profile: {
         Row: {
           coach_id: string
