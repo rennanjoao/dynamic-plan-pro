@@ -16,9 +16,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useCoachStudentsLite } from "@/hooks/useCoachStudents";
-import type { ProtocolPayload } from "@/lib/protocolSchema";
+import { ProtocolPayloadSchema, type ProtocolPayload } from "@/lib/protocolSchema";
+import { buildSaveProtocolArgs } from "@/lib/protocolSave";
+import { blankProtocolPayload, copyProtocolSections, type CopySection } from "@/lib/protocolCopy";
 
-type Section = "workout" | "diet" | "supplements";
+const SECTION_LABELS: Record<CopySection, string> = {
+  workout: "Treino", diet: "Dieta", supplements: "Suplementos", guidelines: "Diretrizes",
+};
 
 export default function CopyProtocolDialog({
   open, onOpenChange, coachId, payload, sourceStudentId, protocolName,
@@ -33,10 +37,12 @@ export default function CopyProtocolDialog({
   const { data: students = [], isLoading } = useCoachStudentsLite(open ? coachId : null);
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [sections, setSections] = useState<Record<Section, boolean>>({
-    workout: true, diet: true, supplements: true,
+  const [sections, setSections] = useState<Record<CopySection, boolean>>({
+    workout: true, diet: true, supplements: true, guidelines: true,
   });
   const [copying, setCopying] = useState(false);
+  // Calorias/macros são individuais (peso, objetivo): por padrão NÃO viajam junto com a dieta.
+  const [copyMacros, setCopyMacros] = useState(false);
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -45,13 +51,13 @@ export default function CopyProtocolDialog({
       .filter((st) => !s || st.name.toLowerCase().includes(s));
   }, [students, search, sourceStudentId]);
 
-  function toggle(k: Section) {
+  function toggle(k: CopySection) {
     setSections((prev) => ({ ...prev, [k]: !prev[k] }));
   }
 
   async function handleCopy() {
     if (!coachId || !payload || !selectedId) return;
-    if (!sections.workout && !sections.diet && !sections.supplements) {
+    if (!Object.values(sections).some(Boolean)) {
       toast.error("Selecione ao menos uma seção");
       return;
     }
@@ -85,56 +91,30 @@ export default function CopyProtocolDialog({
         const base: any = JSON.parse(
           JSON.stringify(targetDraft?.payload ?? target.payload ?? {})
         );
-        if (sections.workout) {
-          base.workouts = src.workouts ?? [];
-          if (src.periodization !== undefined) base.periodization = src.periodization;
-        }
-        if (sections.diet) {
-          base.meals = src.meals ?? [];
-          base.macros = src.macros ?? base.macros;
-          if (src.carbCycle !== undefined) base.carbCycle = src.carbCycle;
-        }
-        if (sections.supplements) {
-          base.supplements = src.supplements ?? [];
-          base.supplementCombos = src.supplementCombos ?? [];
-        }
-
-        const macros = base.macros ?? {};
-        const { error } = await sb.rpc("save_protocol_with_plan", {
-          p_protocol_id: target.id,
-          p_student_id: selectedId,
-          p_coach_id: coachId,
-          p_name: target.name || protocolName || "Protocolo",
-          p_payload: base,
-          p_active: target.active ?? false,
-          p_as_draft: true,
-          p_goal: macros.goal || "manter",
-          p_calories: macros.calories || 0,
-          p_protein: macros.protein || 0,
-          p_carbs: macros.carbs || 0,
-          p_fat: macros.fat || 0,
-          p_water: macros.water || 0,
-          p_expected_revision: target.revision ?? 0,
-        });
+        const picked = (Object.keys(sections) as CopySection[]).filter((k) => sections[k]).map((k) => SECTION_LABELS[k]).join(", ");
+        if (!window.confirm(`Substituir ${picked} no rascunho de ${targetName}? O que você não marcou fica como está.`)) return;
+        const merged = copyProtocolSections(base, src, sections);
+        if (!copyMacros) merged.macros = base.macros;
+        const checked = ProtocolPayloadSchema.safeParse(merged);
+        if (!checked.success) throw new Error("O protocolo resultante ficou inválido — nada foi copiado");
+        const { error } = await sb.rpc("save_protocol_with_plan", buildSaveProtocolArgs({
+          protocolId: target.id,
+          studentId: selectedId,
+          coachId,
+          name: target.name || protocolName || "Protocolo",
+          payload: checked.data,
+          active: target.active ?? false,
+          asDraft: true,
+          expectedRevision: target.revision ?? 0,
+        }));
         if (error) throw error;
         toast.success(
           `Seções copiadas para ${targetName} como rascunho — o restante do protocolo dele foi preservado`
         );
       } else {
-        const next: any = src;
-        if (!sections.workout) {
-          next.workouts = [];
-          next.periodization = undefined;
-        }
-        if (!sections.diet) {
-          next.meals = [];
-          next.macros = { calories: 0, protein: 0, carbs: 0, fat: 0, water: 0 };
-          next.carbCycle = undefined;
-        }
-        if (!sections.supplements) {
-          next.supplements = [];
-          next.supplementCombos = [];
-        }
+        const blank = blankProtocolPayload();
+        const next = copyProtocolSections(blank, src, sections);
+        if (!copyMacros) next.macros = blank.macros;
         const { error } = await sb.from("protocols").insert({
           coach_id: coachId,
           student_id: selectedId,
@@ -163,7 +143,7 @@ export default function CopyProtocolDialog({
         <DialogHeader>
           <DialogTitle>Copiar protocolo para outro aluno</DialogTitle>
           <DialogDescription className="text-xs">
-            Cria um novo protocolo inativo (rascunho) no aluno de destino. Nada é publicado até você revisar e ativar.
+            As seções marcadas entram como rascunho no protocolo do aluno de destino; o que você não marcar fica como está. Se ele ainda não tiver protocolo, é criado um inativo. Nada vai para o aluno até você revisar e publicar.
           </DialogDescription>
         </DialogHeader>
 
@@ -171,17 +151,19 @@ export default function CopyProtocolDialog({
           <div>
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">O que copiar</p>
             <div className="flex flex-wrap gap-3">
-              {([
-                ["workout", "Treino"],
-                ["diet", "Dieta"],
-                ["supplements", "Suplementos"],
-              ] as [Section, string][]).map(([k, label]) => (
+              {(Object.keys(SECTION_LABELS) as CopySection[]).map((k) => (
                 <label key={k} className="flex items-center gap-2 text-sm cursor-pointer">
                   <Checkbox checked={sections[k]} onCheckedChange={() => toggle(k)} />
-                  {label}
+                  {SECTION_LABELS[k]}
                 </label>
               ))}
             </div>
+            {sections.diet && (
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer mt-2">
+                <Checkbox checked={copyMacros} onCheckedChange={() => setCopyMacros((v) => !v)} />
+                Copiar também calorias e macros do aluno de origem
+              </label>
+            )}
           </div>
 
           <div>

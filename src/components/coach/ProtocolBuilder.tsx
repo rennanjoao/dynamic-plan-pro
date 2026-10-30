@@ -77,6 +77,8 @@ import StudentProtocolPreview from "./StudentProtocolPreview";
 import ProtocolVersionHistoryDialog from "./ProtocolVersionHistoryDialog";
 import TemplateLibraryDialog from "./TemplateLibraryDialog";
 import CopyProtocolDialog from "./CopyProtocolDialog";
+import { buildSaveProtocolArgs } from "@/lib/protocolSave";
+import { pruneOrphanWeekDays } from "@/lib/weekDaysOps";
 import { MacrosTab } from "./protocol-builder/MacrosTab";
 import { GuidelinesTab } from "./protocol-builder/GuidelinesTab";
 import { WorkoutsTab } from "./protocol-builder/WorkoutsTab";
@@ -155,7 +157,8 @@ function mergeImportedPayload(prev: ProtocolPayload | null, imported: ProtocolPa
   if (inc.carbCycle && Object.keys(inc.carbCycle).length) next.carbCycle = inc.carbCycle;
   if (inc.carbCycleNotes && Object.keys(inc.carbCycleNotes).length) next.carbCycleNotes = inc.carbCycleNotes;
 
-  return next as ProtocolPayload;
+  // Importar troca `workouts` por inteiro: descarta dias da semana que apontam para treino que sumiu.
+  return pruneOrphanWeekDays(next) as ProtocolPayload;
 }
 
 function computeCompletion(payload: ProtocolPayload | null) {
@@ -470,24 +473,16 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       try {
       const parsed = ProtocolPayloadSchema.parse(current);
       if (!coachId) throw new Error("Coach não identificado");
-      const goalMap: Record<string, string> = { hipertrofia: "hipertrofia", emagrecimento: "emagrecer", emagrecer: "emagrecer", recomposicao: "recomposicao", performance: "manter", manter: "manter" };
-      const safeGoal = goalMap[(parsed.macros?.goal ?? "manter").toLowerCase()] ?? "manter";
-      const { data, error } = await sb.rpc("save_protocol_with_plan", {
-        p_protocol_id: protocolId,
-        p_student_id: studentId,
-        p_coach_id: coachId,
-        p_name: name,
-        p_payload: parsed as unknown as Record<string, unknown>,
-        p_active: active,
-        p_as_draft: true,
-        p_goal: safeGoal,
-        p_calories: parsed.macros?.calories ?? 0,
-        p_protein: parsed.macros?.protein ?? 0,
-        p_carbs: parsed.macros?.carbs ?? 0,
-        p_fat: parsed.macros?.fat ?? 0,
-        p_water: parsed.macros?.water ?? 0,
-        p_expected_revision: revision,
-      });
+      const { data, error } = await sb.rpc("save_protocol_with_plan", buildSaveProtocolArgs({
+        protocolId,
+        studentId,
+        coachId,
+        name,
+        payload: parsed,
+        active,
+        asDraft: true,
+        expectedRevision: revision,
+      }));
       if (error) throw error;
       const result = Array.isArray(data) ? data[0] : data;
       if (result?.revision != null) setRevision(result.revision);
@@ -766,24 +761,16 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       // (WorkoutPlan, DynamicRoutine, Supplements, useStudentData) ficava
       // desatualizado, sem nenhuma forma de reprocessar. O RPC garante que ou
       // as duas tabelas gravam, ou nenhuma grava.
-      const goalMap: Record<string, string> = { hipertrofia: "hipertrofia", emagrecimento: "emagrecer", emagrecer: "emagrecer", recomposicao: "recomposicao", performance: "manter", manter: "manter" };
-      const safeGoal = goalMap[(parsed.macros?.goal ?? "manter").toLowerCase()] ?? "manter";
-      const { data: savedId, error: rpcError } = await sb.rpc("save_protocol_with_plan", {
-        p_protocol_id: isEditMode && protocolId ? protocolId : null,
-        p_student_id:  studentId,
-        p_coach_id:    coachId,
-        p_name:        name,
-        p_payload:     parsed as unknown as Record<string, unknown>,
-        p_active:      publishActive,
-        p_as_draft:    !!opts.asDraft,
-        p_goal:        safeGoal,
-        p_calories:    parsed.macros?.calories ?? 0,
-        p_protein:     parsed.macros?.protein ?? 0,
-        p_carbs:       parsed.macros?.carbs ?? 0,
-        p_fat:         parsed.macros?.fat ?? 0,
-        p_water:       parsed.macros?.water ?? 0,
-        p_expected_revision: revision,
-      });
+      const { data: savedId, error: rpcError } = await sb.rpc("save_protocol_with_plan", buildSaveProtocolArgs({
+        protocolId: isEditMode && protocolId ? protocolId : null,
+        studentId,
+        coachId,
+        name,
+        payload: parsed,
+        active: publishActive,
+        asDraft: !!opts.asDraft,
+        expectedRevision: revision,
+      }));
       if (rpcError) throw rpcError;
       const savedResult = Array.isArray(savedId) ? savedId[0] : savedId;
       if (savedResult?.revision != null) setRevision(savedResult.revision);

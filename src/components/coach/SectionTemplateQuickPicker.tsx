@@ -10,7 +10,8 @@ import {
 } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, LayoutTemplate, Save, Check } from "lucide-react";
+import { Loader2, LayoutTemplate, Save, Check, Trash2 } from "lucide-react";
+import { useConfirm } from "@/components/ConfirmProvider";
 import { toast } from "sonner";
 
 type BaseTemplate = { id: string; name: string; isSystem: boolean };
@@ -24,6 +25,7 @@ export function SectionTemplateQuickPicker<T extends BaseTemplate>({
   onApply,
   searchValue,
   secondaryAction,
+  onDelete,
   canSave,
   saveLabel,
   savingHint,
@@ -46,6 +48,8 @@ export function SectionTemplateQuickPicker<T extends BaseTemplate>({
   searchValue?: (item: T) => string;
   /** Ação secundária opcional por item (ex.: "só estrutura" do treino). Mesma semântica de cancelamento de `onApply`. */
   secondaryAction?: { title: string; label: string; onSelect: (item: T) => void | boolean | Promise<void | boolean> };
+  /** Opcional: habilita o botão de excluir (só para templates do próprio coach, nunca os de sistema). */
+  onDelete?: (item: T) => Promise<void>;
   canSave: boolean;
   saveLabel: string;
   savingHint: string;
@@ -56,6 +60,7 @@ export function SectionTemplateQuickPicker<T extends BaseTemplate>({
   const [applyOpen, setApplyOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<T[]>([]);
+  const confirm = useConfirm();
 
   useEffect(() => {
     if (!applyOpen) return;
@@ -152,6 +157,31 @@ export function SectionTemplateQuickPicker<T extends BaseTemplate>({
                             }}
                           >
                             {secondaryAction.label}
+                          </button>
+                        )}
+                        {onDelete && !tpl.isSystem && (
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:text-destructive shrink-0 p-1"
+                            title="Excluir template"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (!(await confirm({
+                                title: "Excluir template",
+                                description: `"${tpl.name}" será excluído para todos os seus alunos. Protocolos já criados com ele não mudam.`,
+                                confirmLabel: "Excluir",
+                                destructive: true,
+                              }))) return;
+                              try {
+                                await onDelete(tpl);
+                                setItems((prev) => prev.filter((i) => i.id !== tpl.id));
+                                toast.success("Template excluído");
+                              } catch (err) {
+                                toast.error(err instanceof Error ? err.message : "Falha ao excluir");
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </CommandItem>

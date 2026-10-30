@@ -24,6 +24,7 @@ import {
   Wand2, GripVertical,
 } from "lucide-react";
 import { loadCoachProfile } from "@/lib/prescriptionMemory";
+import { toIndependentMeal } from "@/lib/mealCopy";
 import { DietTemplateQuickPicker } from "@/components/coach/DietTemplateQuickPicker";
 import {
   ProtocolPayload, makeEmptyMeal, MEAL_NAME_PRESETS, SUPPLEMENT_OBJECTIVES, genItemId,
@@ -175,16 +176,9 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
 
   function attachTemplate(tpl: any) {
     try {
-      const meal = JSON.parse(JSON.stringify(tpl.meal_data ?? {}));
-      // Um template anexado é uma refeição independente: não pode carregar o
-      // pairId de uma versão anterior e criar um par fantasma no aluno.
-      delete meal.pairId;
-      meal.day_type = "all";
-      meal.excludeFromDayTotal = false;
-      // __id novo: o template pode já ter um __id salvo de quando foi criado
-      // (ou já ter sido anexado antes) — sem isso, duas refeições da mesma
-      // origem colidiriam no drag-and-drop.
-      setPayload({ ...payload, meals: [...payload.meals, { ...meal, name: meal.name || tpl.name, __id: genItemId("meal") }] });
+      const meal = toIndependentMeal(tpl.meal_data);
+      meal.name = meal.name || tpl.name;
+      setPayload({ ...payload, meals: [...payload.meals, meal] });
       toast.success("Modelo adicionado");
       setLoadTplOpen(false);
     } catch { toast.error("Modelo inválido"); }
@@ -192,16 +186,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
 
   function duplicateMeal(mealIdx: number) {
     const orig = payload.meals[mealIdx];
-    const copy = JSON.parse(JSON.stringify(orig));
-    copy.name = `${orig.name || "Refeição"} (cópia)`;
-    // Duplicação comum cria uma refeição independente; o vínculo treino /
-    // descanso só é criado pelo botão dedicado abaixo.
-    delete copy.pairId;
-    copy.day_type = "all";
-    copy.excludeFromDayTotal = false;
-    // __id novo pra cópia — é um item distinto agora; manter o __id do
-    // original quebraria o drag-and-drop (dois itens com o mesmo id).
-    copy.__id = genItemId("meal");
+    const copy = toIndependentMeal(orig, { name: `${orig.name || "Refeição"} (cópia)` });
     const next = [...payload.meals];
     next.splice(mealIdx + 1, 0, copy);
     setPayload({ ...payload, meals: next });
