@@ -15,6 +15,13 @@
       "when": 1793193723886,
       "tag": "0001_app_announcements",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793384629705,
+      "tag": "0002_guidelines_block_versions",
+      "breakpoints": true
     }
   ]
 }

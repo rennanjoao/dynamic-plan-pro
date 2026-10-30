@@ -1225,6 +1225,41 @@ export type Database = {
         }
         Relationships: []
       }
+      guidelines_block_versions: {
+        Row: {
+          coach_id: string
+          created_at: string
+          id: string
+          payload: Json
+          template_id: string
+          version: number
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          id?: string
+          payload: Json
+          template_id: string
+          version: number
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          template_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guidelines_block_versions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "protocols"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meal_checkins: {
         Row: {
           checked: boolean
@@ -2803,6 +2838,15 @@ export type Database = {
       }
       revoke_access_code: { Args: { p_code_id: string }; Returns: undefined }
       save_diet_block_template: {
+        Args: {
+          p_coach_id: string
+          p_name: string
+          p_payload: Json
+          p_template_id: string
+        }
+        Returns: string
+      }
+      save_guidelines_block_template: {
         Args: {
           p_coach_id: string
           p_name: string
