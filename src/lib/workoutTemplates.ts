@@ -1,12 +1,9 @@
 // src/lib/workoutTemplates.ts
 //
-// Ponto único de leitura/escrita da biblioteca de "Templates de Treino"
-// (bloco isolado, sem dieta/macros/suplementos). Espelha o padrão já
-// estabelecido em protocolTemplates.ts para templates de protocolo
-// completo — mesma tabela (`protocols`), discriminada por
-// `template_kind = 'workout'`.
+// Templates de "Treino" (bloco isolado, sem dieta/macros/suplementos).
+// CRUD/histórico genéricos vivem em blockTemplates.ts; aqui ficam só o
+// schema, a validação pré-save e a injeção no payload.
 
-import { supabase } from "@/integrations/supabase/client";
 import {
   WorkoutBlockPayloadSchema,
   type WorkoutBlockPayload,
@@ -14,61 +11,38 @@ import {
   type ProtocolPayload,
 } from "@/lib/protocolSchema";
 import { remapDayOverrides } from "@/lib/workoutExerciseOps";
+import { pruneOrphanWeekDays } from "@/lib/weekDaysOps";
+import { assertTemplateIdentity, createBlockTemplateStore, type BlockTemplate, type BlockVersion } from "@/lib/blockTemplates";
 import { z } from "zod";
 
 type WorkoutDay = z.infer<typeof WorkoutDaySchema>;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const protocolsAny = () => supabase.from("protocols") as any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const supabaseAny = supabase as any;
-
-export type WorkoutBlockTemplate = {
-  id: string;
-  name: string;
-  createdAt: string;
-  payload: WorkoutBlockPayload;
-  isSystem: boolean;
+export type WorkoutBlockTemplate = BlockTemplate<WorkoutBlockPayload> & {
   division?: string;
   profile?: string;
 };
+export type WorkoutBlockVersion = BlockVersion<WorkoutBlockPayload>;
+
+const store = createBlockTemplateStore<WorkoutBlockPayload, { division?: string; profile?: string }>({
+  kind: "workout",
+  schema: WorkoutBlockPayloadSchema as z.ZodType<WorkoutBlockPayload>,
+  versionsTable: "workout_block_versions",
+  saveRpc: "save_workout_block_template",
+  extraSelect: "template_profile, template_division",
+  mapExtra: (row) => ({
+    division: row.template_division ?? undefined,
+    profile: row.template_profile ?? undefined,
+  }),
+});
 
 /** Lista os templates de treino visíveis para o coach: os dele + os de sistema (coach_id NULL). */
-export async function listWorkoutBlockTemplates(coachId: string | null): Promise<WorkoutBlockTemplate[]> {
-  let query = protocolsAny()
-    .select("id, name, payload, created_at, coach_id, template_profile, template_division")
-    .eq("is_template", true)
-    .eq("template_kind", "workout")
-    .order("created_at", { ascending: false })
-    .limit(150);
+export const listWorkoutBlockTemplates = (coachId: string | null): Promise<WorkoutBlockTemplate[]> => store.list(coachId);
 
-  query = coachId
-    ? query.or(`coach_id.eq.${coachId},coach_id.is.null`)
-    : query.is("coach_id", null);
+export const deleteWorkoutBlockTemplate = (id: string, coachId: string) => store.remove(id, coachId);
 
-  const { data, error } = await query;
-  if (error) throw error;
+export const listWorkoutBlockVersions = (templateId: string): Promise<WorkoutBlockVersion[]> => store.listVersions(templateId);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data ?? []).flatMap((row: any): WorkoutBlockTemplate[] => {
-    const parsed = WorkoutBlockPayloadSchema.safeParse(row.payload);
-    if (!parsed.success) return []; // registro corrompido — não derruba a lista inteira
-    return [{
-      id: row.id,
-      name: row.name,
-      createdAt: row.created_at ?? "",
-      payload: parsed.data,
-      isSystem: row.coach_id === null,
-      division: row.template_division ?? undefined,
-      profile: row.template_profile ?? undefined,
-    }];
-  });
-}
-
-/**
- * Salva (cria ou atualiza) um bloco de treino como template via RPC atômica
- * (snapshot da versão anterior + escrita, numa só transação).
- */
+/** Salva (cria ou atualiza) um bloco de treino como template via RPC atômica. */
 export async function saveWorkoutBlockAsTemplate(params: {
   coachId: string;
   name: string;
@@ -76,58 +50,16 @@ export async function saveWorkoutBlockAsTemplate(params: {
   periodization?: ProtocolPayload["periodization"];
   existingId?: string | null;
 }): Promise<string> {
-  const { coachId, existingId } = params;
-  if (!coachId) throw new Error("Coach não identificado");
-  const trimmed = params.name.trim();
-  if (!trimmed) throw new Error("Dê um nome ao template");
+  const name = assertTemplateIdentity(params.coachId, params.name);
   if (!params.workouts.some((d) => d.exercises.length > 0)) {
     throw new Error("Nenhum exercício para salvar — monte o treino primeiro");
   }
-
   const payload = WorkoutBlockPayloadSchema.parse({
     scope: "workouts",
     workouts: params.workouts,
     periodization: params.periodization,
   });
-
-  const { data, error } = await supabaseAny.rpc("save_workout_block_template", {
-    p_template_id: existingId ?? null,
-    p_coach_id: coachId,
-    p_name: trimmed,
-    p_payload: payload,
-  });
-  if (error) throw error;
-  return data as string;
-}
-
-export async function deleteWorkoutBlockTemplate(id: string, coachId: string): Promise<void> {
-  const { error } = await protocolsAny()
-    .delete()
-    .eq("id", id)
-    .eq("coach_id", coachId)
-    .eq("template_kind", "workout");
-  if (error) throw error;
-}
-
-export type WorkoutBlockVersion = {
-  id: string;
-  version: number;
-  payload: WorkoutBlockPayload;
-  createdAt: string;
-};
-
-export async function listWorkoutBlockVersions(templateId: string): Promise<WorkoutBlockVersion[]> {
-  const { data, error } = await supabaseAny.from("workout_block_versions")
-    .select("id, version, payload, created_at")
-    .eq("template_id", templateId)
-    .order("version", { ascending: false });
-  if (error) throw error;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data ?? []).flatMap((row: any): WorkoutBlockVersion[] => {
-    const parsed = WorkoutBlockPayloadSchema.safeParse(row.payload);
-    if (!parsed.success) return [];
-    return [{ id: row.id, version: row.version, payload: parsed.data, createdAt: row.created_at }];
-  });
+  return store.saveViaRpc({ coachId: params.coachId, name, payload, existingId: params.existingId });
 }
 
 /** Restaura uma versão antiga como o payload ATUAL do template (mantém o nome). */
@@ -182,5 +114,5 @@ export function injectWorkoutBlock(
     }
   }
 
-  return { ...payload, workouts: finalWorkouts, periodization };
+  return pruneOrphanWeekDays({ ...payload, workouts: finalWorkouts, periodization });
 }
