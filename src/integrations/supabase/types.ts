@@ -894,6 +894,48 @@ export type Database = {
         }
         Relationships: []
       }
+      coach_photo_annotations: {
+        Row: {
+          annotations: Json
+          coach_id: string
+          coach_note: string | null
+          created_at: string
+          id: string
+          pose: string
+          source_id: string
+          source_kind: string
+          student_id: string
+          updated_at: string
+          visual_degree: string
+        }
+        Insert: {
+          annotations?: Json
+          coach_id: string
+          coach_note?: string | null
+          created_at?: string
+          id?: string
+          pose: string
+          source_id: string
+          source_kind: string
+          student_id: string
+          updated_at?: string
+          visual_degree?: string
+        }
+        Update: {
+          annotations?: Json
+          coach_id?: string
+          coach_note?: string | null
+          created_at?: string
+          id?: string
+          pose?: string
+          source_id?: string
+          source_kind?: string
+          student_id?: string
+          updated_at?: string
+          visual_degree?: string
+        }
+        Relationships: []
+      }
       coach_plans: {
         Row: {
           base_calories: number | null

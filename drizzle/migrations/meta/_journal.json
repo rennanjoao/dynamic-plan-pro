@@ -29,6 +29,13 @@
       "when": 1793396564304,
       "tag": "0003_posture_assessments",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793409634831,
+      "tag": "0004_coach_photo_annotations",
+      "breakpoints": true
     }
   ]
 }
