@@ -5,3 +5,4 @@
 - Identify workout exercises by persisted `__id` and periodization overrides by `exerciseId`, retaining positional lookup only for legacy payloads.
 - Preserve food quantity units and calculate nutrition only from explicit, safely convertible quantities; never invent a default serving weight.
 - Partition load history (last-load prefill and the load-progression drawer) by `workout_sets.periodization_week` (0..3, the week position), never by `periodization_key` (the week type); week 2 and week 3 keep separate histories. History belongs to the exercise, not to the workout day. Without periodization, use the exercise's latest sessions overall.
+- Store posture assessments one row per session in `posture_assessments`, with photos only as private `student-media` paths (`<student_id>/posture-assessments/<id>/<view>`) resolved via signed URLs; suggestions come from the deterministic catalog and red flags block functional tests.
