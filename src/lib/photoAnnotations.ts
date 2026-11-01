@@ -11,7 +11,28 @@ export type PhotoSourceKind = "anamnesis" | "checkin";
 export type PhotoPose = "frente" | "lateral_dir" | "lateral_esq" | "costas";
 
 export interface Pt { x: number; y: number }
-export interface AnnotationLine { id: string; tool: AnnotationTool; a: Pt; b: Pt }
+/** Referência com intenção específica. Reaproveita a geometria de `tool`. */
+export type AnnotationRef = "shoulders" | "pelvis" | "knees" | "axis" | "free";
+export interface AnnotationLine { id: string; tool: AnnotationTool; a: Pt; b: Pt; ref?: AnnotationRef; notAssessable?: boolean }
+
+export const REF_TOOL: Record<AnnotationRef, AnnotationTool> = {
+  shoulders: "horizontal", pelvis: "horizontal", knees: "horizontal", axis: "vertical", free: "free",
+};
+export const REF_LABEL: Record<AnnotationRef, string> = {
+  shoulders: "Linha dos ombros", pelvis: "Linha da pelve", knees: "Linha dos joelhos", axis: "Eixo central", free: "Linha livre / ângulo",
+};
+export const REF_HINT: Record<AnnotationRef, string> = {
+  shoulders: "Use marcos equivalentes visíveis dos dois ombros.",
+  pelvis: "Use referências equivalentes visíveis dos quadris. Verifique se a roupa permite avaliar.",
+  knees: "Use pontos equivalentes dos joelhos, se a pose permitir.",
+  axis: "Centro aparente do corpo. Não use o chão ou o fundo como referência corporal.",
+  free: "Ligue dois pontos; mostra o ângulo visual da linha na imagem (não é grau anatômico).",
+};
+/** Cores fixas por referência (usadas também na exportação em canvas). */
+export const REF_COLOR: Record<AnnotationRef, string> = {
+  shoulders: "#E11D48", pelvis: "#F59E0B", knees: "#22C55E", axis: "#38BDF8", free: "#F5F5F5",
+};
+export const refOf = (l: AnnotationLine): AnnotationRef => l.ref ?? (l.tool === "vertical" ? "axis" : l.tool === "horizontal" ? "shoulders" : "free");
 
 export interface PhotoAnnotationRow {
   id: string;
@@ -65,7 +86,68 @@ export function createLine(tool: AnnotationTool, center: Pt = { x: 0.5, y: 0.5 }
 export function moveHandle(line: AnnotationLine, handle: "a" | "b", p: Pt): AnnotationLine {
   const q = { x: clamp01(p.x), y: clamp01(p.y) };
   if (line.tool === "vertical") return { ...line, a: { ...line.a, x: q.x }, b: { ...line.b, x: q.x }, [handle]: q } as AnnotationLine;
+  if (line.tool === "horizontal") return { ...line, a: { ...line.a, y: q.y }, b: { ...line.b, y: q.y }, [handle]: q } as AnnotationLine;
   return { ...line, [handle]: q };
+}
+
+/** Conversão explícita: só assim uma linha horizontal/vertical pode ser inclinada. */
+export function toFreeLine(line: AnnotationLine): AnnotationLine {
+  return { ...line, tool: "free", ref: "free" };
+}
+
+export function createRefLine(ref: AnnotationRef, center?: Pt, id?: string): AnnotationLine {
+  const y = { shoulders: 0.25, pelvis: 0.5, knees: 0.72, axis: 0.5, free: 0.5 }[ref];
+  return { ...createLine(REF_TOOL[ref], center ?? { x: 0.5, y }, id), ref };
+}
+
+/** Pilha de desfazer/refazer, pura. */
+export interface LineHistory { past: AnnotationLine[][]; present: AnnotationLine[]; future: AnnotationLine[][] }
+export const historyInit = (lines: AnnotationLine[]): LineHistory => ({ past: [], present: lines, future: [] });
+export const historyPush = (h: LineHistory, next: AnnotationLine[]): LineHistory => ({ past: [...h.past.slice(-40), h.present], present: next, future: [] });
+export const historyUndo = (h: LineHistory): LineHistory => (h.past.length ? { past: h.past.slice(0, -1), present: h.past[h.past.length - 1], future: [h.present, ...h.future] } : h);
+export const historyRedo = (h: LineHistory): LineHistory => (h.future.length ? { past: [...h.past, h.present], present: h.future[0], future: h.future.slice(1) } : h);
+
+/** Há alterações não salvas? Compara linhas (ordem/valores), grau e nota. */
+export function isDirty(
+  initial: { lines: AnnotationLine[]; degree: VisualDegree; note: string },
+  current: { lines: AnnotationLine[]; degree: VisualDegree; note: string },
+): boolean {
+  return initial.degree !== current.degree || initial.note.trim() !== current.note.trim() || JSON.stringify(initial.lines) !== JSON.stringify(current.lines);
+}
+
+/**
+ * Duplicação para outra foto: só entre mesma pose. Gera ids novos (rascunho independente);
+ * nota/grau NÃO são copiados aqui.
+ */
+export function duplicateLinesForTarget(
+  lines: AnnotationLine[], fromPose: PhotoPose, toPose: PhotoPose, newId: () => string = () => crypto.randomUUID(),
+): { ok: true; lines: AnnotationLine[] } | { ok: false; reason: string } {
+  if (fromPose !== toPose) return { ok: false, reason: "Vistas diferentes: a cópia automática entre poses incompatíveis está bloqueada." };
+  if (!lines.length) return { ok: false, reason: "Não há linhas para duplicar." };
+  return { ok: true, lines: lines.map((l) => ({ ...l, id: newId(), a: { ...l.a }, b: { ...l.b } })) };
+}
+
+/** Normalizado → pixels de uma imagem com tamanho natural w×h (exportação/overlay). */
+export function lineToPixels(l: AnnotationLine, w: number, h: number) {
+  return { x1: l.a.x * w, y1: l.a.y * h, x2: l.b.x * w, y2: l.b.y * h };
+}
+
+/** Nome de arquivo neutro: sem nome da aluna. */
+export function exportFileName(kind: PhotoSourceKind, dateIso: string, pose: PhotoPose): string {
+  const d = (dateIso || "").slice(0, 10) || "sem-data";
+  return `marcacao-${kind === "anamnesis" ? "anamnese" : "checkin"}-${d}-${pose}.png`;
+}
+
+/**
+ * Fotos de um check-in: prioriza `payload.fotos`; `photo_url` (formato antigo) entra
+ * só como frontal quando não existe uma frontal explícita.
+ */
+export function resolveCheckinPhotos(payload: Record<string, unknown> | null | undefined, photoUrl?: string | null): Record<string, string> {
+  const raw = (payload?.fotos && typeof payload.fotos === "object" ? payload.fotos : {}) as Record<string, unknown>;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw)) if (typeof v === "string" && v.trim()) out[k] = v;
+  if (!out.frente && typeof photoUrl === "string" && photoUrl.trim()) out.frente = photoUrl;
+  return out;
 }
 
 /** Ângulo (graus) em relação à horizontal, considerando a proporção real da imagem. */
@@ -85,7 +167,12 @@ export function sanitizeLines(raw: unknown): AnnotationLine[] {
   const ok = (p: any) => p && typeof p.x === "number" && typeof p.y === "number";
   return raw
     .filter((l: any) => l && ["horizontal", "vertical", "free"].includes(l.tool) && ok(l.a) && ok(l.b))
-    .map((l: any) => ({ id: String(l.id ?? crypto.randomUUID()), tool: l.tool, a: { x: clamp01(l.a.x), y: clamp01(l.a.y) }, b: { x: clamp01(l.b.x), y: clamp01(l.b.y) } }));
+    .map((l: any) => {
+      const line: AnnotationLine = { id: String(l.id ?? crypto.randomUUID()), tool: l.tool, a: { x: clamp01(l.a.x), y: clamp01(l.a.y) }, b: { x: clamp01(l.b.x), y: clamp01(l.b.y) } };
+      if (typeof l.ref === "string" && l.ref in REF_TOOL && REF_TOOL[l.ref as AnnotationRef] === l.tool) line.ref = l.ref;
+      if (l.notAssessable === true) line.notAssessable = true;
+      return line;
+    });
 }
 
 /** Relatos explícitos da aluna (sem inferência). */
