@@ -946,7 +946,7 @@ function QuantityFeedback({ it }: { it: any }) {
 
   const m = calcItemMacros({ ...it, rawWeight: q.grams });
   const gramsTxt = `${Math.round(q.grams * 10) / 10} g`;
-  const understood = q.isUnit && q.label ? `${q.value} ${q.label} = ${gramsTxt}` : gramsTxt;
+  const understood = q.isUnit && q.canonicalText ? `${q.canonicalText} = ${gramsTxt}` : q.isUnit && q.label ? `${q.value} ${q.label} = ${gramsTxt}` : gramsTxt;
   return (
     <p className="pl-[3.9rem] flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] tabular-nums text-muted-foreground">
       <span className="inline-flex items-center gap-1 text-emerald-600 font-medium"><CheckCircle2 className="w-3 h-3" />{understood}</span>
