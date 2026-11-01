@@ -53,7 +53,7 @@ export function toNormalized(clientX: number, clientY: number, rect: { left: num
 }
 
 /** Cria uma linha nova centrada no ponto informado, respeitando a ferramenta. */
-export function createLine(tool: AnnotationTool, center: Pt = { x: 0.5, y: 0.5 }, id = crypto.randomUUID()): AnnotationLine {
+export function createLine(tool: AnnotationTool, center: Pt = { x: 0.5, y: 0.5 }, id: string = crypto.randomUUID()): AnnotationLine {
   const c = { x: clamp01(center.x), y: clamp01(center.y) };
   if (tool === "vertical") return { id, tool, a: { x: c.x, y: 0.05 }, b: { x: c.x, y: 0.95 } };
   if (tool === "horizontal") return { id, tool, a: { x: clamp01(c.x - 0.25), y: c.y }, b: { x: clamp01(c.x + 0.25), y: c.y } };
