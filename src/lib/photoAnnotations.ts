@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- JSON vindo do banco é validado em sanitizeLines */
 /**
  * Marcação postural do Coach sobre fotos já existentes (anamnese/check-ins).
  * Coordenadas sempre normalizadas (0–1) em relação ao retângulo da IMAGEM,
@@ -53,7 +54,7 @@ export function toNormalized(clientX: number, clientY: number, rect: { left: num
 }
 
 /** Cria uma linha nova centrada no ponto informado, respeitando a ferramenta. */
-export function createLine(tool: AnnotationTool, center: Pt = { x: 0.5, y: 0.5 }, id = crypto.randomUUID()): AnnotationLine {
+export function createLine(tool: AnnotationTool, center: Pt = { x: 0.5, y: 0.5 }, id: string = crypto.randomUUID()): AnnotationLine {
   const c = { x: clamp01(center.x), y: clamp01(center.y) };
   if (tool === "vertical") return { id, tool, a: { x: c.x, y: 0.05 }, b: { x: c.x, y: 0.95 } };
   if (tool === "horizontal") return { id, tool, a: { x: clamp01(c.x - 0.25), y: c.y }, b: { x: clamp01(c.x + 0.25), y: c.y } };
@@ -75,7 +76,7 @@ export function lineAngleDeg(line: AnnotationLine, aspect = 1): number {
   let deg = (Math.atan2(-dy, dx) * 180) / Math.PI;
   if (deg > 90) deg -= 180;
   if (deg < -90) deg += 180;
-  return Math.round(deg * 10) / 10;
+  return Math.round(deg * 10) / 10 || 0;
 }
 
 /** Saneia JSON vindo do banco: descarta entradas inválidas. */

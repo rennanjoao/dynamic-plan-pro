@@ -21,6 +21,15 @@ import { estimateBF } from "@/lib/bfEstimate";
 import CheckinPayloadAnswers from "@/components/coach/CheckinPayloadAnswers";
 import { PrivateImg } from "@/components/coach/PrivacyMode";
 import { formatDatePtBR } from "@/lib/formatDate";
+import { PenLine, AlertTriangle } from "lucide-react";
+import { PhotoAnnotationEditor, AnnotationOverlay, type AnnotationTarget } from "@/components/coach/PhotoAnnotationEditor";
+import { usePhotoAnnotations, annotationKey } from "@/hooks/usePhotoAnnotations";
+import { DEGREE_LABEL, extractReportedAttention, type PhotoPose, type ReportedAttention } from "@/lib/photoAnnotations";
+
+const sourceOf = (p: { id: string; kind: "anamnese" | "checkin" }) => ({
+  kind: p.kind === "anamnese" ? ("anamnesis" as const) : ("checkin" as const),
+  id: p.id.replace(/^(anam|ci)-/, ""),
+});
 
 const POSE_KEYS = ["frente", "lateral_dir", "lateral_esq", "costas"] as const;
 const POSE_LABEL: Record<string, string> = {
@@ -59,6 +68,10 @@ export default function EvolutionComparison({
   const [anamneseOnly, setAnamneseOnly] = useState(false);
   const [feedbackOnlyId, setFeedbackOnlyId] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [annotTarget, setAnnotTarget] = useState<AnnotationTarget | null>(null);
+  const [naturalSizes, setNaturalSizes] = useState<Record<string, { w: number; h: number }>>({});
+  const [attention, setAttention] = useState<ReportedAttention[]>([]);
+  const { data: annotations } = usePhotoAnnotations(studentId);
   const [activePoseFilter, setActivePoseFilter] = useState<typeof POSE_KEYS[number] | null>(null);
   const [photoAnalysis, setPhotoAnalysis] = useState<{
     tags: { gordura_visual?: string; definicao?: string; volume_muscular?: string; simetria?: string };
@@ -152,6 +165,7 @@ export default function EvolutionComparison({
       });
 
       setPoints(list);
+      setAttention(extractReportedAttention(anam ? { submitted_at: anam.submitted_at, payload: anam.payload } : null, (cis || []).map((c: { submitted_at: string; payload: Record<string, unknown> | null }) => ({ submitted_at: c.submitted_at, payload: c.payload }))));
 
       // Defaults: RIGHT = latest checkin; LEFT = previous checkin or anamnese
       const checkins = list.filter((p) => p.kind === "checkin");
@@ -323,6 +337,26 @@ export default function EvolutionComparison({
         </div>
       </div>
 
+      {attention.length > 0 && (
+        <Card className="p-3 border-border/60">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold flex items-center gap-1 mb-1.5">
+            <AlertTriangle className="w-3 h-3 text-primary" /> Relatado pela aluna — conferir
+          </p>
+          <ul className="space-y-1">
+            {attention.map((a, i) => (
+              <li key={i} className="text-[11px] leading-snug">
+                <span className="text-muted-foreground">{a.origin} · {fmt(a.date)} · {a.question}:</span>{" "}
+                <span className="text-foreground">{a.answer}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <p className="text-[10px] text-muted-foreground">Sintoma relatado ≠ observação visual. Se houver dor, considerar encaminhamento a profissional de saúde.</p>
+            <Button variant="ghost" size="sm" className="h-7 text-[10px] ml-auto" onClick={() => setAnamneseOnly(true)}>Abrir anamnese</Button>
+          </div>
+        </Card>
+      )}
+
       {/* Fotos por pose — cada linha = 1 pose, cada coluna = 1 ponto */}
       <Card className="p-3">
         <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -357,16 +391,40 @@ export default function EvolutionComparison({
                 {[left, right].map((point, pi) => (
                   <div key={pi} className="space-y-1">
                     <p className="text-[9px] text-center text-muted-foreground">{point.label}</p>
-                    <div
-                      className="aspect-[3/4] rounded-md border border-border/50 overflow-hidden bg-muted/20 flex items-center justify-center cursor-zoom-in"
-                      onClick={() => point.fotos[k] && setZoomedImage(point.fotos[k])}
-                    >
-                      {point.fotos[k] ? (
-                        <PrivateImg src={point.fotos[k]} alt={POSE_LABEL[k]} className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-[9px] text-muted-foreground">—</span>
-                      )}
-                    </div>
+                    {(() => {
+                      const src = sourceOf(point);
+                      const ann = annotations?.get(annotationKey(src.kind, src.id, k as PhotoPose)) ?? null;
+                      const photo = point.fotos[k];
+                      return (
+                        <>
+                          <div
+                            className="relative aspect-[3/4] rounded-md border border-border/50 overflow-hidden bg-muted/20 flex items-center justify-center cursor-zoom-in"
+                            onClick={() => photo && setZoomedImage(photo)}
+                          >
+                            {photo ? (
+                              <>
+                                <PrivateImg src={photo} alt={POSE_LABEL[k]} className="w-full h-full object-cover"
+                                  onLoad={(e) => { const i = e.currentTarget; if (i.naturalWidth) setNaturalSizes((m) => m[photo] ? m : { ...m, [photo]: { w: i.naturalWidth, h: i.naturalHeight } }); }} />
+                                <AnnotationOverlay lines={ann?.annotations ?? []} natural={naturalSizes[photo] ?? null} />
+                              </>
+                            ) : (
+                              <span className="text-[9px] text-muted-foreground">—</span>
+                            )}
+                          </div>
+                          {photo && (
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-[9px] text-muted-foreground truncate" title={ann?.coach_note ?? undefined}>
+                                {ann ? DEGREE_LABEL[ann.visual_degree] : "Sem anotação"}
+                              </span>
+                              <button type="button" className="text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-border/50 text-muted-foreground hover:text-primary hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                onClick={() => setAnnotTarget({ studentId, sourceKind: src.kind, sourceId: src.id, pose: k as PhotoPose, photo, title: `${POSE_LABEL[k]} · ${point.label}`, existing: ann })}>
+                                <PenLine className="w-3 h-3" /> {ann ? "Editar" : "Anotar foto"}
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
@@ -438,6 +496,8 @@ export default function EvolutionComparison({
           </Card>
         </div>
       )}
+
+      <PhotoAnnotationEditor target={annotTarget} onClose={() => setAnnotTarget(null)} />
 
       {/* Lightbox Modal (Zoom Fullscreen) */}
       {zoomedImage && (

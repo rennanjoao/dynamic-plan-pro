@@ -110,8 +110,8 @@ export function PhotoAnnotationEditor({ target, onClose }: { target: AnnotationT
       await save.mutateAsync({ studentId: target.studentId, sourceKind: target.sourceKind, sourceId: target.sourceId, pose: target.pose, annotations: lines, visualDegree: degree, coachNote: note });
       toast.success("Marcação salva");
       onClose();
-    } catch (err: any) {
-      toast.error("Não foi possível salvar", { description: err?.message });
+    } catch (err) {
+      toast.error("Não foi possível salvar", { description: err instanceof Error ? err.message : undefined });
     }
   };
 
@@ -121,8 +121,8 @@ export function PhotoAnnotationEditor({ target, onClose }: { target: AnnotationT
       await del.mutateAsync({ id: target.existing.id, studentId: target.studentId });
       toast.success("Marcação apagada");
       onClose();
-    } catch (err: any) {
-      toast.error("Não foi possível apagar", { description: err?.message });
+    } catch (err) {
+      toast.error("Não foi possível apagar", { description: err instanceof Error ? err.message : undefined });
     }
   };
 
