@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- JSON vindo do banco é validado em sanitizeLines */
 /**
  * Marcação postural do Coach sobre fotos já existentes (anamnese/check-ins).
  * Coordenadas sempre normalizadas (0–1) em relação ao retângulo da IMAGEM,

@@ -165,7 +165,7 @@ export default function EvolutionComparison({
       });
 
       setPoints(list);
-      setAttention(extractReportedAttention(anam ? { submitted_at: anam.submitted_at, payload: anam.payload } : null, (cis || []).map((c: any) => ({ submitted_at: c.submitted_at, payload: c.payload }))));
+      setAttention(extractReportedAttention(anam ? { submitted_at: anam.submitted_at, payload: anam.payload } : null, (cis || []).map((c: { submitted_at: string; payload: Record<string, unknown> | null }) => ({ submitted_at: c.submitted_at, payload: c.payload }))));
 
       // Defaults: RIGHT = latest checkin; LEFT = previous checkin or anamnese
       const checkins = list.filter((p) => p.kind === "checkin");
