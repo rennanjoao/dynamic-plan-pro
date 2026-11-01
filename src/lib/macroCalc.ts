@@ -18,6 +18,7 @@
 import { TACO_FOODS, type TacoFood } from "@/data/tacoFoods";
 import { ENRICHED_FOODS } from "@/data/enrichedFoods";
 import { INDUSTRIAL_FOODS, industrialByName, type IndustrialFood } from "@/data/industrialFoods";
+import { LEGACY_TO_ENRICHED_FIBER, ZERO_FIBER_NAME_PATTERN } from "@/data/fiberEquivalents";
 
 // ─── Dicionário de aliases ─────────────────────────────────────────────────────
 // Mapeia variações informais → nome canônico TACO.
@@ -253,9 +254,14 @@ export interface Macros {
   carbs: number;
   fat: number;
   fiber: number;
+  /**
+   * Quantidade de itens (com peso válido) cuja fibra NÃO está cadastrada na base.
+   * Fibra = 0 com `fiberUnknown > 0` significa "sem dado", não "zero fibra".
+   */
+  fiberUnknown?: number;
 }
 
-const ZERO: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
+const ZERO: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, fiberUnknown: 0 };
 
 function tacoByName(name: string): TacoFood | undefined {
   if (!name) return undefined;
@@ -305,12 +311,113 @@ function readQuantity(t: string): { qty: number; rest: string } {
   return { qty: 0, rest: t };
 }
 
-const UNIT_WORDS = /^(un|und|unid|unidade|unidades|fatia|fatias|ovo|ovos|clara|claras|colher|colheres|col|cs|cc|copo|copos|porcao|porcoes|scoop|scoops|dosador|lata|latas|pote|potes|xicara|xicaras|pedaco|pedacos|file|files|bife|bifes|castanha|castanhas)\b/;
+/** Resultado da leitura do texto de quantidade. Campos extras (`status`, `label`, `hint`, `canonicalText`) alimentam o feedback ao vivo na tela. */
+export interface ParsedQuantity {
+  value: number;
+  grams: number;
+  isUnit: boolean;
+  unit: "g" | "ml" | "kg" | "l" | "unit" | "unknown";
+  original: string;
+  convertible: boolean;
+  /** ok = entendi e converti · no-weight = entendi a medida, mas não há peso cadastrado · unknown = não entendi · empty = vazio */
+  status?: "ok" | "no-weight" | "unknown" | "empty";
+  /** Medida reconhecida, já completa (ex.: "colher de sopa") — mostra o que o sistema entendeu. */
+  label?: string;
+  /** Mensagem curta para o coach quando status !== "ok". */
+  hint?: string;
+  /**
+   * Texto padronizado de uma medida caseira reconhecida (ex.: "2 uni" → "2 unidades").
+   * É o que deve ficar gravado, porque a visão do aluno exibe o texto digitado pelo coach.
+   */
+  canonicalText?: string;
+}
+
+type UnitKind = "g" | "kg" | "ml" | "l" | "measure";
+interface UnitCanon { kind: UnitKind; canon: string; qual?: string }
+
+// Medidas caseiras reconhecidas (forma canônica, singular, sem acento).
+const MEASURE_CANON = [
+  "unidade", "fatia", "ovo", "clara", "colher", "copo", "porcao", "scoop", "dosador",
+  "lata", "pote", "xicara", "pedaco", "file", "bife", "castanha",
+];
+// Abreviações curtas que não seguem a regra de prefixo.
+const SHORT_ALIASES: Record<string, UnitCanon> = {
+  un: { kind: "measure", canon: "unidade" }, und: { kind: "measure", canon: "unidade" },
+  unid: { kind: "measure", canon: "unidade" }, uni: { kind: "measure", canon: "unidade" },
+  cs: { kind: "measure", canon: "colher", qual: "sopa" }, cc: { kind: "measure", canon: "colher", qual: "cha" },
+  col: { kind: "measure", canon: "colher" }, colh: { kind: "measure", canon: "colher" },
+  cp: { kind: "measure", canon: "copo" },
+};
+
+/** Formas singulares possíveis de uma palavra no plural (colheres → colher, porcoes → porcao, files → file). */
+function singularForms(w: string): string[] {
+  const out = [w];
+  if (w.endsWith("oes") && w.length > 4) out.push(w.slice(0, -3) + "ao");
+  if (w.endsWith("ais") && w.length > 4) out.push(w.slice(0, -3) + "al");
+  if (w.endsWith("es") && w.length > 4) out.push(w.slice(0, -2));
+  if (w.endsWith("s") && w.length > 3) out.push(w.slice(0, -1));
+  return out;
+}
+
+/** Chave genérica de uma palavra de medida (para medidas cadastradas fora da lista fixa, ex.: "concha"). */
+function genericKey(w: string): string {
+  const t = w.replace(/[^a-z]/g, "");
+  return t.endsWith("s") && t.length > 3 ? t.slice(0, -1) : t;
+}
+
+/** Reconhece o que foi digitado (mesmo incompleto: "uni", "colh", "coelh", "fat") como unidade/medida. */
+function canonUnit(rawTok: string): UnitCanon | null {
+  let tok = rawTok.replace(/[^a-z]/g, "");
+  if (!tok) return null;
+  tok = tok.replace(/^coe?lh/, "colh"); // "coelher"/"coelh" (erro comum) → colher
+  if (/^(g|gr|grs|gra|gram|grama|gramas)$/.test(tok)) return { kind: "g", canon: "g" };
+  if (/^(kg|kgs|kilo|kilos|quilo|quilos)$/.test(tok) || (tok.length >= 3 && ("quilos".startsWith(tok) || "kilos".startsWith(tok)))) return { kind: "kg", canon: "kg" };
+  if (/^(ml|mls)$/.test(tok) || (tok.length >= 4 && "mililitros".startsWith(tok))) return { kind: "ml", canon: "ml" };
+  if (/^(l|lt|lts)$/.test(tok) || (tok.length >= 3 && "litros".startsWith(tok))) return { kind: "l", canon: "l" };
+  if (SHORT_ALIASES[tok]) return SHORT_ALIASES[tok];
+  const forms = singularForms(tok);
+  for (const c of MEASURE_CANON) {
+    if (forms.includes(c)) return { kind: "measure", canon: c };
+  }
+  if (tok.length >= 3) {
+    for (const c of MEASURE_CANON) {
+      if (forms.some((f) => c.startsWith(f))) return { kind: "measure", canon: c };
+    }
+  }
+  return null;
+}
+
+/** Qualificador de colher: "sopa" | "cha" | "sobremesa" | "cafe" (aceita parcial e pontuação: "sop", "(sopa)"). */
+function canonQualifier(words: string[]): string | null {
+  for (const raw of words) {
+    const w = raw.replace(/[^a-z]/g, "");
+    if (/^so?p/.test(w)) return "sopa";
+    if (w === "cha" || w === "ch") return "cha";
+    if (/^sobr/.test(w)) return "sobremesa";
+    if (/^caf/.test(w)) return "cafe";
+  }
+  return null;
+}
+
+const DISPLAY_NAME: Record<string, [string, string]> = {
+  unidade: ["unidade", "unidades"], fatia: ["fatia", "fatias"], ovo: ["ovo", "ovos"], clara: ["clara", "claras"],
+  colher: ["colher", "colheres"], copo: ["copo", "copos"], porcao: ["porção", "porções"], scoop: ["scoop", "scoops"],
+  dosador: ["dosador", "dosadores"], lata: ["lata", "latas"], pote: ["pote", "potes"], xicara: ["xícara", "xícaras"],
+  pedaco: ["pedaço", "pedaços"], file: ["filé", "filés"], bife: ["bife", "bifes"], castanha: ["castanha", "castanhas"],
+};
+const QUAL_DISPLAY: Record<string, string> = { sopa: "de sopa", cha: "de chá", sobremesa: "de sobremesa", cafe: "de café" };
+
+function measureLabel(canon: string, qual: string | null, plural = false): string {
+  const names = DISPLAY_NAME[canon];
+  const n = names ? names[plural ? 1 : 0] : canon;
+  return `${n}${qual ? " " + QUAL_DISPLAY[qual] : ""}`;
+}
 
 /**
- * Converte o texto digitado na prescrição em gramas.
- * Aceita "100g", "100 g", "100G", "100 G", "100 gramas", "1,5 kg", "250 ml", "1 l"
- * e medidas caseiras ("1 lata", "2 fatias", "1 scoop", "1 colher de sopa").
+ * Converte o texto digitado na prescrição em gramas — tolerante a digitação INCOMPLETA.
+ * Aceita "100g", "100 g", "100G", "100 gramas", "1,5 kg", "250 ml", "1 l" e medidas caseiras
+ * ("1 lata", "2 fatias", "1 scoop", "1 colher de sopa"), inclusive abreviadas ou em andamento:
+ * "2 uni", "1 colh", "1 coelh", "3 fat", "2 cs".
  * Medidas caseiras só convertem quando há peso cadastrado (porção ou unitWeight);
  * nunca inventa peso.
  */
@@ -318,40 +425,141 @@ export function parseWeightString(
   raw: unknown,
   unitWeight?: number,
   portions?: Array<{ label: string; grams: number }>,
-): { value: number; grams: number; isUnit: boolean; unit: "g" | "ml" | "kg" | "l" | "unit" | "unknown"; original: string; convertible: boolean } {
+): ParsedQuantity {
   const text = String(raw ?? "").trim();
-  const fail = (value = 0, isUnit = false) => ({ value, grams: 0, isUnit, unit: (isUnit ? "unit" : "unknown") as any, original: text, convertible: false });
-  if (!text) return fail();
+  const base = (over: Partial<ParsedQuantity>): ParsedQuantity => ({
+    value: 0, grams: 0, isUnit: false, unit: "unknown", original: text, convertible: false, ...over,
+  });
+  if (!text) return base({ status: "empty" });
 
   const t = normTxt(text);
   const { qty, rest: rest0 } = readQuantity(t);
+  const numberText = t.slice(0, t.length - rest0.length).trim(); // "2", "1,5", "1/2", "meia"…
   const rest = rest0.replace(/[.]+$/, "").trim();
-  if (!(qty > 0)) return fail();
-  const ok = (grams: number, unit: any, isUnit = false) => ({ value: qty, grams, isUnit, unit, original: text, convertible: grams > 0 });
+  if (!(qty > 0)) return base({ status: "unknown", hint: "Comece pelo número (ex.: 100g, 2 fatias)." });
+  const ok = (grams: number, unit: ParsedQuantity["unit"], isUnit = false, label?: string, canonicalText?: string): ParsedQuantity =>
+    ({ value: qty, grams, isUnit, unit, original: text, convertible: grams > 0, status: grams > 0 ? "ok" : "no-weight", label, canonicalText });
 
-  if (!rest || /^(g|gr|grs|grama|gramas)\b/.test(rest)) return ok(qty, "g");
-  if (/^(kg|kgs|quilo|quilos|kilo|kilos)\b/.test(rest)) return ok(qty * 1000, "kg");
-  if (/^(ml|mls|mililitro|mililitros)\b/.test(rest)) return ok(qty, "ml");
-  if (/^(l|lt|lts|litro|litros)\b/.test(rest)) return ok(qty * 1000, "l");
+  if (!rest) return ok(qty, "g");
 
-  // Medidas caseiras cadastradas para o alimento (ex.: "1 lata drenada" = 120 g).
+  const words = rest.split(" ").filter((w) => w && w !== "de" && w !== "da" && w !== "do" && w !== "d");
+  const unit = canonUnit(words[0] ?? "");
+
+  if (unit && unit.kind === "g") return ok(qty, "g");
+  if (unit && unit.kind === "kg") return ok(qty * 1000, "kg");
+  if (unit && unit.kind === "ml") return ok(qty, "ml");
+  if (unit && unit.kind === "l") return ok(qty * 1000, "l");
+
+  // ── Medida caseira ──
+  const qual = unit && unit.canon === "colher" ? (unit.qual ?? canonQualifier(words.slice(1))) : null;
+  const plural = qty > 1;
+  const label = unit ? measureLabel(unit.canon, qual) : words[0] ?? rest;
+  const canonicalFor = (canon: string, q: string | null) => `${numberText} ${measureLabel(canon, q, plural)}`;
+  const noWeight = (extra?: string): ParsedQuantity => ({
+    value: qty, grams: 0, isUnit: true, unit: "unit", original: text, convertible: false,
+    status: "no-weight", label,
+    hint: extra ?? `"${label}" não tem peso cadastrado para este alimento — digite em gramas.`,
+  });
+
+  // 1) Medidas caseiras cadastradas para o alimento (ex.: "1 lata drenada" = 120 g).
+  //    Aceita também palavras fora da lista fixa (ex.: "concha"), como o parser anterior aceitava.
   if (portions && portions.length) {
+    const userKey = unit ? unit.canon : genericKey(words[0] ?? "");
+    const cands: Array<{ p: { label: string; grams: number }; per: number; q: string | null; canon: string | null }> = [];
     for (const p of portions) {
-      const pl = normTxt(p.label);
-      const { qty: pq, rest: pr } = readQuantity(pl);
-      const base = pq > 0 ? pq : 1;
-      const word = (pr || pl).split(" ")[0];
-      if (pr && (rest === pr || rest.startsWith(pr) || pr.startsWith(rest) || (word && rest.startsWith(word)))) {
-        return ok((qty / base) * p.grams, "unit", true);
+      const { qty: pq, rest: pr } = readQuantity(normTxt(p.label));
+      const pw = (pr || "").split(" ").filter((w) => w && w !== "de" && w !== "da" && w !== "do");
+      const pu = canonUnit(pw[0] ?? "");
+      const pKey = pu && pu.kind === "measure" ? pu.canon : genericKey(pw[0] ?? "");
+      const matches = pKey === userKey || (!unit && userKey.length >= 3 && pKey.startsWith(userKey));
+      if (matches && pKey) {
+        cands.push({
+          p, per: p.grams / (pq > 0 ? pq : 1),
+          q: pu && pu.canon === "colher" ? (pu.qual ?? canonQualifier(pw.slice(1))) : null,
+          canon: pu && pu.kind === "measure" ? pu.canon : null,
+        });
       }
+    }
+    const pick = qual ? cands.find((c) => c.q === qual) : (cands.find((c) => c.p.grams > 0 && Math.abs(c.per - c.p.grams) < 1e-9) ?? cands[0]);
+    if (pick) {
+      const pickQ = pick.q ?? qual;
+      if (pick.canon) return ok(qty * pick.per, "unit", true, measureLabel(pick.canon, pickQ), canonicalFor(pick.canon, pickQ));
+      return ok(qty * pick.per, "unit", true, words[0]);
     }
   }
 
-  if (UNIT_WORDS.test(rest)) {
-    if (typeof unitWeight === "number" && unitWeight > 0) return ok(qty * unitWeight, "unit", true);
-    return fail(qty, true);
+  if (!unit) return base({ value: qty, status: "unknown", hint: `Não entendi "${rest}". Use g, kg, ml ou uma medida (unidade, fatia, colher…).` });
+
+  // 2) Peso unitário médio cadastrado. Colher "de chá/sobremesa/café" nunca herda peso de colher de sopa.
+  if (unit.canon === "colher" && qual && qual !== "sopa") return noWeight();
+  if (typeof unitWeight === "number" && unitWeight > 0) return ok(qty * unitWeight, "unit", true, label, canonicalFor(unit.canon, qual));
+  return noWeight();
+}
+
+/**
+ * Lê o texto de quantidade de um item já vinculado a um alimento (TACO ou industrializado),
+ * usando o peso unitário e as medidas caseiras DESTE alimento. Fonte única usada pela tela
+ * (feedback ao vivo + rawWeight) para não duplicar a regra em cada componente.
+ */
+export function resolveQuantity(item: any, text: string): ParsedQuantity {
+  const food: any = foodByName(String(item?.baseName || item?.name || ""));
+  const unitW = typeof food?.unitWeight === "number" ? food.unitWeight : undefined;
+  return parseWeightString(text, unitW, food?.portions);
+}
+
+/** Medidas caseiras que o alimento aceita (para o texto de ajuda quando o campo está vazio). */
+export function quantityHintsFor(item: any): string[] {
+  const food: any = foodByName(String(item?.baseName || item?.name || ""));
+  if (!food) return [];
+  const out: string[] = [];
+  if (Array.isArray(food.portions)) food.portions.forEach((p: any) => out.push(`${p.label} = ${p.grams} g`));
+  else if (typeof food.unitWeight === "number") out.push(`1 unidade = ${food.unitWeight} g`);
+  return out.slice(0, 3);
+}
+
+// ─── Fibra ─────────────────────────────────────────────────────────────────────
+export type FiberSource = "table" | "equivalent" | "zero" | "missing";
+
+function stripAccents(s: string): string {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+/**
+ * Fibra (g/100 g) de um alimento, com a origem do dado.
+ *  1. `fiber` cadastrado no próprio alimento (prioridade);
+ *  2. equivalente exato (mesmo alimento, mesmo estado) na base TACO enriquecida;
+ *  3. zero nutricional (carnes, ovos, laticínios, óleos);
+ *  4. "missing": sem dado — NUNCA tratado como zero silencioso.
+ */
+export function resolveFiberPer100(food: any): { value: number; source: FiberSource } {
+  if (!food) return { value: 0, source: "missing" };
+  const own = Number(food.fiber);
+  if (food.fiber != null && Number.isFinite(own) && own >= 0) return { value: own, source: "table" };
+
+  const key = String(food.name || "").trim().toLowerCase();
+  const eqName = LEGACY_TO_ENRICHED_FIBER[key];
+  if (eqName) {
+    const eq = ENRICHED_FOODS.find((f) => f.name === eqName);
+    if (eq && Number.isFinite(eq.fiber)) return { value: eq.fiber, source: "equivalent" };
   }
-  return fail(qty);
+
+  const n = stripAccents(String(food.name || ""));
+  const group = food.group as string | undefined;
+  const animalOrOilGroup = group === "protein" || group === "dairy" || group === "fat";
+  if (animalOrOilGroup && ZERO_FIBER_NAME_PATTERN.test(n) && !/soja|amendoim|castanha|coco ralado/.test(n)) {
+    return { value: 0, source: "zero" };
+  }
+  return { value: 0, source: "missing" };
+}
+
+/** Peso (g) de um item de alimento, usando rawWeight ou o texto digitado + medidas caseiras do alimento. */
+function itemGrams(item: any, food: any): number {
+  if (typeof item.rawWeight === "number" && item.rawWeight > 0) return item.rawWeight;
+  if (item.weight != null) {
+    const unitW = typeof food?.unitWeight === "number" ? food.unitWeight : undefined;
+    return parseWeightString(item.weight, unitW, food?.portions).grams;
+  }
+  return 0;
 }
 
 export function calcItemMacros(item: any): Macros {
@@ -364,22 +572,18 @@ export function calcItemMacros(item: any): Macros {
     const food = foodByName(item.baseName || item.name);
     if (!food) return { ...ZERO };
 
-    // Prioriza rawWeight numérico já gravado; senão, parseia weight string.
-    let grams = 0;
-    if (typeof item.rawWeight === "number" && item.rawWeight > 0) {
-      grams = item.rawWeight;
-    } else if (item.weight != null) {
-      const unitW = typeof (food as any).unitWeight === "number" ? (food as any).unitWeight : undefined;
-      grams = parseWeightString(item.weight, unitW).grams;
-    }
+    // Prioriza rawWeight numérico já gravado; senão, parseia o texto (com medidas caseiras do alimento).
+    const grams = itemGrams(item, food);
     if (!grams || !isFinite(grams) || grams <= 0) return { ...ZERO };
     const f = grams / 100;
+    const fib = resolveFiberPer100(food);
     return {
       kcal: food.kcal * f,
       protein: food.p * f,
       carbs: food.c * f,
       fat: food.g * f,
-      fiber: Number((food as any).fiber) * f || 0,
+      fiber: fib.source === "missing" ? 0 : fib.value * f,
+      fiberUnknown: fib.source === "missing" ? 1 : 0,
     };
   }
   if (item.manualMacros) {
@@ -388,12 +592,14 @@ export function calcItemMacros(item: any): Macros {
     const carbs = Number(m.carbs) || 0;
     const fat = Number(m.fat) || 0;
     const kcal = Number(m.kcal) || protein * 4 + carbs * 4 + fat * 9;
+    const hasFiber = m.fiber != null && Number.isFinite(Number(m.fiber));
     return {
       kcal,
       protein,
       carbs,
       fat,
-      fiber: 0,
+      fiber: hasFiber ? Math.max(0, Number(m.fiber)) : 0,
+      fiberUnknown: hasFiber || kcal <= 0 ? 0 : 1,
     };
   }
   return { ...ZERO };
@@ -429,6 +635,7 @@ export function calcMealMacros(meal: any): Macros {
       out.carbs   += m.carbs;
       out.fat     += m.fat;
       out.fiber   += m.fiber || 0;
+      out.fiberUnknown = (out.fiberUnknown || 0) + (m.fiberUnknown || 0);
     });
   });
   return out;
@@ -444,6 +651,7 @@ export function calcDayMacros(meals: any[]): Macros {
     out.carbs += r.carbs;
     out.fat += r.fat;
     out.fiber += r.fiber || 0;
+    out.fiberUnknown = (out.fiberUnknown || 0) + (r.fiberUnknown || 0);
   });
   return out;
 }
@@ -463,6 +671,7 @@ export function optionMacros(option: any): Macros {
     out.carbs   += m.carbs;
     out.fat     += m.fat;
     out.fiber   += m.fiber || 0;
+    out.fiberUnknown = (out.fiberUnknown || 0) + (m.fiberUnknown || 0);
   });
   return out;
 }
@@ -492,7 +701,7 @@ export function itemMacrosPerGram(item: any): Macros | null {
       protein: food.p / 100,
       carbs: food.c / 100,
       fat: food.g / 100,
-      fiber: Number((food as any).fiber) / 100 || 0,
+      fiber: resolveFiberPer100(food).value / 100,
     };
   }
   return null;
