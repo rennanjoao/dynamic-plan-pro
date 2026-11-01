@@ -16,12 +16,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   Plus, Trash2, ChevronDown, ChevronUp, Copy, BookmarkPlus, Library, UtensilsCrossed, Pill,
   ArrowUp, ArrowDown, Eye, AlertCircle, Sparkles, CheckCircle2, Loader2, TrendingUp,
-  Wand2, GripVertical,
+  Wand2, GripVertical, MoreHorizontal,
 } from "lucide-react";
 import { loadCoachProfile } from "@/lib/prescriptionMemory";
 import { toIndependentMeal } from "@/lib/mealCopy";
@@ -40,7 +41,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { DAY_KEYS } from "@/lib/weekCycle";
 import {
-  calcMealMacros, calcDayMacros, tacoGroupToKind, parseWeightString, calcItemMacros,
+  calcMealMacros, calcDayMacros, tacoGroupToKind, resolveQuantity, quantityHintsFor, calcItemMacros,
   optionMacros, compareOptions, suggestProportionalWeights, type SubstitutionSeverity,
 } from "@/lib/macroCalc";
 import { searchFoods, type FoodHit } from "@/lib/foodSearch";
@@ -235,6 +236,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
     { label: "Gord", cur: dayMacros.fat, goal: goals.fat || 1, color: "bg-rose-500" },
     { label: "Fibra", cur: dayMacros.fiber || 0, goal: Number((goals as any).fiber ?? 25) || 1, color: "bg-emerald-500" },
   ];
+  const fiberUnknown = dayMacros.fiberUnknown || 0;
 
   function updMealField(mealIdx: number, patch: Partial<ProtocolPayload["meals"][number]>) {
     const next = [...payload.meals];
@@ -341,9 +343,10 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
   }
 
   const KIND: Record<"carb" | "protein" | "fat", { label: string; color: string; bg: string; border: string }> = {
-    carb:    { label: "ESCOLHA UM CARBOIDRATO", color: "text-blue-600",   bg: "bg-blue-500/5",   border: "border-blue-500/20" },
-    protein: { label: "ESCOLHA UMA PROTEÍNA",   color: "text-rose-600",   bg: "bg-rose-500/5",   border: "border-rose-500/20" },
-    fat:     { label: "ESCOLHA UMA GORDURA",    color: "text-amber-600",  bg: "bg-amber-500/5",  border: "border-amber-500/20" },
+    // Cores iguais às do placar do dia e da visão do aluno: carbo = âmbar, proteína = azul, gordura = rosa.
+    carb:    { label: "ESCOLHA UM CARBOIDRATO", color: "text-amber-600",  bg: "bg-amber-500/5",  border: "border-amber-500/20" },
+    protein: { label: "ESCOLHA UMA PROTEÍNA",   color: "text-blue-600",   bg: "bg-blue-500/5",   border: "border-blue-500/20" },
+    fat:     { label: "ESCOLHA UMA GORDURA",    color: "text-rose-600",   bg: "bg-rose-500/5",   border: "border-rose-500/20" },
   };
 
   return (
@@ -377,7 +380,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                 <div key={b.label}>
                   <div className="flex items-baseline justify-between">
                     <span className="text-[10px] uppercase font-semibold text-muted-foreground">{b.label}</span>
-                    <span className={`text-[10px] font-bold ${over ? "text-rose-500" : "text-foreground"}`}>{Math.round(b.cur)}/{Math.round(b.goal)}</span>
+                    <span className={`text-[10px] font-bold ${over ? "text-rose-500" : "text-foreground"}`}>{Math.round(b.cur)}/{Math.round(b.goal)}{b.label === "Fibra" && fiberUnknown > 0 ? "*" : ""}</span>
                   </div>
                   <div className="h-1.5 mt-1 rounded-full bg-muted overflow-hidden">
                     <div className={`${over ? "bg-rose-500" : b.color} h-full transition-all`} style={{ width: `${Math.min(100, pct)}%` }} />
@@ -386,6 +389,15 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
               );
             })}
           </div>
+          {fiberUnknown > 0 && (
+            <p className="mt-2 flex items-start gap-1.5 text-[10px] leading-snug text-amber-600">
+              <AlertCircle className="w-3 h-3 mt-px shrink-0" />
+              <span>
+                * Fibra pode estar subestimada: {fiberUnknown} {fiberUnknown === 1 ? "alimento está" : "alimentos estão"} sem dado de fibra na base e {fiberUnknown === 1 ? "não entrou" : "não entraram"} na soma.
+                Procure o aviso <strong>“sem dado de fibra”</strong> abaixo do alimento.
+              </span>
+            </p>
+          )}
         </Card>
       </div>
 
@@ -398,6 +410,23 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
         const isCollapsed = !!collapsedMeals[mealIdx];
         const mealM = calcMealMacros(m);
         const mealId = (m as any).__id ?? `meal-${mealIdx}`;
+        const deleteMeal = () => {
+                const target = payload.meals[mealIdx] as any;
+                const targetPairId = typeof target?.pairId === "string" ? target.pairId : null;
+                const nextMeals = payload.meals
+                  .filter((_, idx) => idx !== mealIdx)
+                  .map((mm) => {
+                    // Se a refeição removida era metade de um par, a outra metade não
+                    // pode ficar órfã com pairId — senão o botão de alternar versão
+                    // continua aparecendo pro aluno numa refeição sem parceira.
+                    if (targetPairId && (mm as any).pairId === targetPairId) {
+                      const { pairId, excludeFromDayTotal, ...rest } = mm as any;
+                      return { ...rest, day_type: "all" };
+                    }
+                    return mm;
+                  });
+                setPayload({ ...payload, meals: nextMeals });
+        };
         return (
         <SortableMealCard key={mealId} id={mealId}>
         {({ attributes, listeners }) => (
@@ -471,9 +500,16 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
               className="h-8 text-sm font-bold text-primary flex-1 min-w-[140px]"
             />
             <Input value={m.time} onChange={(e) => updMealField(mealIdx, { time: e.target.value })} placeholder="07:00" className="h-8 text-sm w-20 shrink-0" />
-            {isCollapsed && mealM.kcal > 0 && (
-              <span className="text-[10px] font-bold tabular-nums text-muted-foreground shrink-0 px-1.5 py-0.5 rounded bg-muted/40 border border-border/40">
-                {Math.round(mealM.kcal)} kcal
+            {mealM.kcal > 0 && (
+              <span
+                className="text-[10px] font-semibold tabular-nums text-muted-foreground shrink-0 px-1.5 py-0.5 rounded bg-muted/40 border border-border/40 flex items-center gap-1.5"
+                title="Total desta refeição (primeira opção de cada grupo)"
+              >
+                <b className="text-foreground">{Math.round(mealM.kcal)} kcal</b>
+                <span className="text-blue-500">{Math.round(mealM.protein)}p</span>
+                <span className="text-amber-500">{Math.round(mealM.carbs)}c</span>
+                <span className="text-rose-500">{Math.round(mealM.fat)}g</span>
+                <span className="text-emerald-600">{mealM.fiber.toFixed(1)}f{mealM.fiberUnknown ? "*" : ""}</span>
               </span>
             )}
             {payload.setup.carbCycle && (
@@ -483,25 +519,14 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                 <TrendingUp className="w-3.5 h-3.5" /> Ciclo
               </button>
             )}
-            {(() => {
-              const excludedFromTotal = !!(m as any).excludeFromDayTotal;
-              return (
-                <button
-                  type="button"
-                  aria-pressed={excludedFromTotal}
-                  onClick={() => updMealField(mealIdx, { excludeFromDayTotal: !excludedFromTotal } as any)}
-                  className={`h-8 px-2.5 rounded-lg border text-[10px] font-semibold transition-colors flex items-center gap-1 shrink-0 whitespace-nowrap ${
-                    excludedFromTotal
-                      ? "bg-amber-500/15 border-amber-500/40 text-amber-600"
-                      : "border-border/50 text-muted-foreground hover:text-foreground"
-                  }`}
-                  title={excludedFromTotal ? "Voltar a contabilizar esta refeição nas kcal" : "Não contabilizar esta refeição nas kcal"}
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  {excludedFromTotal ? "Contabilizar" : "Não contabilizar"}
-                </button>
-              );
-            })()}
+            {(m as any).excludeFromDayTotal && (
+              <span
+                className="h-8 px-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-600 text-[10px] font-semibold flex items-center gap-1 shrink-0 whitespace-nowrap"
+                title="Esta refeição não entra nas kcal/macros do dia. Use o menu ⋯ para voltar a contabilizar."
+              >
+                <Eye className="w-3.5 h-3.5" /> Fora do total
+              </span>
+            )}
 
             {(() => {
               const myPairId = typeof (m as any).pairId === "string" ? (m as any).pairId : "";
@@ -526,18 +551,6 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
               );
             })()}
 
-            {!((m as any).pairId) && (
-              <button
-                type="button"
-                onClick={() => createDayTypeVersion(mealIdx)}
-                className="h-8 px-2 rounded-lg border border-sky-500/40 bg-sky-500/10 text-sky-600 text-[10px] font-semibold transition-colors flex items-center gap-1 shrink-0 hover:bg-sky-500/20"
-                title={(m as any).day_type === "rest" ? "Criar uma cópia desta refeição para dias de treino" : "Criar uma cópia desta refeição para dias sem treino"}
-              >
-                <Copy className="w-3 h-3" />
-                <span className="hidden sm:inline">{(m as any).day_type === "rest" ? "Criar com treino" : "Criar sem treino"}</span>
-                <span className="sm:hidden">{(m as any).day_type === "rest" ? "Com treino" : "Sem treino"}</span>
-              </button>
-            )}
             <button
               type="button"
               onClick={() => setCollapsedMeals((prev) => ({ ...prev, [mealIdx]: !isCollapsed }))}
@@ -546,30 +559,27 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
             >
               <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isCollapsed ? "" : "rotate-180"}`} />
             </button>
-            <button onClick={() => duplicateMeal(mealIdx)} className="text-muted-foreground hover:text-primary p-1.5 shrink-0" title="Duplicar refeição"><Copy className="w-3.5 h-3.5" /></button>
-            <button onClick={() => setSaveTplFor({ idx: mealIdx, name: m.name || "Modelo", kind: "mixed" })} className="text-muted-foreground hover:text-primary p-1.5 shrink-0" title="Salvar como modelo"><BookmarkPlus className="w-3.5 h-3.5" /></button>
-            <button
-              onClick={() => {
-                const target = payload.meals[mealIdx] as any;
-                const targetPairId = typeof target?.pairId === "string" ? target.pairId : null;
-                const nextMeals = payload.meals
-                  .filter((_, idx) => idx !== mealIdx)
-                  .map((mm) => {
-                    // Se a refeição removida era metade de um par, a outra metade não
-                    // pode ficar órfã com pairId — senão o botão de alternar versão
-                    // continua aparecendo pro aluno numa refeição sem parceira.
-                    if (targetPairId && (mm as any).pairId === targetPairId) {
-                      const { pairId, excludeFromDayTotal, ...rest } = mm as any;
-                      return { ...rest, day_type: "all" };
-                    }
-                    return mm;
-                  });
-                setPayload({ ...payload, meals: nextMeals });
-              }}
-              className="text-muted-foreground hover:text-destructive p-1.5 shrink-0"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" className="text-muted-foreground hover:text-primary p-1.5 shrink-0" title="Mais ações da refeição" aria-label="Mais ações da refeição">
+                  <MoreHorizontal className="w-4 h-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-60">
+                <DropdownMenuItem onClick={() => duplicateMeal(mealIdx)}><Copy className="w-3.5 h-3.5 mr-2" /> Duplicar refeição</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSaveTplFor({ idx: mealIdx, name: m.name || "Modelo", kind: "mixed" })}><BookmarkPlus className="w-3.5 h-3.5 mr-2" /> Salvar como modelo</DropdownMenuItem>
+                {!((m as any).pairId) && (
+                  <DropdownMenuItem onClick={() => createDayTypeVersion(mealIdx)}>
+                    <Copy className="w-3.5 h-3.5 mr-2" /> {(m as any).day_type === "rest" ? "Criar versão com treino" : "Criar versão sem treino"}
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => updMealField(mealIdx, { excludeFromDayTotal: !(m as any).excludeFromDayTotal } as any)}>
+                  <Eye className="w-3.5 h-3.5 mr-2" /> {(m as any).excludeFromDayTotal ? "Voltar a contabilizar nas kcal" : "Não contabilizar nas kcal"}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={deleteMeal}><Trash2 className="w-3.5 h-3.5 mr-2" /> Excluir refeição</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           {!isCollapsed && (
@@ -682,13 +692,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                                   onChangeWeight={(w) => {
                                     const patch: any = { weight: w };
                                     if (it.isTaco || it.isIndustrial) {
-                                      const tacoRef = FOOD_CATALOG.find(
-                                        (t) => t.name.toLowerCase() === String(it.baseName || it.name).toLowerCase()
-                                      );
-                                      const unitW = tacoRef && typeof (tacoRef as any).unitWeight === "number"
-                                        ? (tacoRef as any).unitWeight
-                                        : undefined;
-                                      const { grams } = parseWeightString(w, unitW, (tacoRef as any)?.portions);
+                                      const { grams } = resolveQuantity(it, w);
                                       patch.rawWeight = isFinite(grams) && grams > 0 ? grams : 0;
                                     }
                                     updItem(mealIdx, kind, optIdx, ii, patch);
@@ -738,11 +742,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                                         const sub = it.substitution || {};
                                         const patch: any = { weight: w };
                                         if (sub.isTaco || sub.isIndustrial) {
-                                          const tacoRef = FOOD_CATALOG.find(
-                                            (t) => t.name.toLowerCase() === String(sub.baseName || sub.name).toLowerCase()
-                                          );
-                                          const unitW = tacoRef && typeof (tacoRef as any).unitWeight === "number" ? (tacoRef as any).unitWeight : undefined;
-                                          const { grams } = parseWeightString(w, unitW, (tacoRef as any)?.portions);
+                                          const { grams } = resolveQuantity(sub, w);
                                           patch.rawWeight = isFinite(grams) && grams > 0 ? grams : 0;
                                         }
                                         updSubstitution(mealIdx, kind, optIdx, ii, patch);
@@ -765,13 +765,19 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
 
                           </div>
                           <button type="button" onClick={() => addItem(mealIdx, kind, optIdx)} className={`mt-1.5 text-[11px] flex items-center gap-1 px-1 ${cfg.color} opacity-60 hover:opacity-100`}><Plus className="w-3 h-3" /> alimento</button>
-                          {(optM.kcal > 0 || optM.protein > 0 || optM.carbs > 0 || optM.fat > 0) && (
+                          {(optM.kcal > 0 || optM.protein > 0 || optM.carbs > 0 || optM.fat > 0 || optM.fiber > 0) && (
                             <div className="mt-2 pt-2 border-t border-dashed border-border/40 flex items-center justify-between gap-2 flex-wrap">
                               <div className="flex items-center gap-2 text-[10px] tabular-nums" title="Cálculo automático — visível apenas para o coach">
                                 <span className="font-bold text-foreground">{Math.round(optM.kcal)} kcal</span>
                                 <span className="text-blue-500">{optM.protein.toFixed(1)}p</span>
                                 <span className="text-amber-500">{optM.carbs.toFixed(1)}c</span>
                                 <span className="text-rose-500">{optM.fat.toFixed(1)}g</span>
+                                <span
+                                  className={optM.fiberUnknown ? "text-muted-foreground" : "text-emerald-600"}
+                                  title={optM.fiberUnknown ? `${optM.fiberUnknown} alimento(s) desta opção sem dado de fibra na base — o valor pode estar subestimado` : "Fibra alimentar"}
+                                >
+                                  {optM.fiber.toFixed(1)}f{optM.fiberUnknown ? "*" : ""}
+                                </span>
                               </div>
                               {delta && (
                                 <span
@@ -890,6 +896,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                       <span>· {Math.round(mm.protein)}p</span>
                       <span>· {Math.round(mm.carbs)}c</span>
                       <span>· {Math.round(mm.fat)}g</span>
+                      <span>· {mm.fiber.toFixed(1)}f{mm.fiberUnknown ? "*" : ""}</span>
                     </div>
                   </button>
                 );
@@ -899,6 +906,60 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/**
+ * Retorno ao vivo da quantidade: mostra o que o sistema ENTENDEU do que o coach digitou
+ * ("2 uni" → 2 unidades = 100 g) e os macros do item, incluindo fibra. Substitui o antigo
+ * seletor de medida/unidade: a unidade é reconhecida pelo próprio texto.
+ */
+function QuantityFeedback({ it }: { it: any }) {
+  const linked = it.isTaco === true || it.isIndustrial === true;
+  const text = String(it.weight ?? "").trim();
+
+  if (!linked) {
+    if (!String(it.baseName || it.name || "").trim()) return null;
+    return <p className="pl-[3.9rem] text-[10px] text-muted-foreground">Alimento fora da tabela — não entra no cálculo de macros nem de fibra.</p>;
+  }
+  if (it.optional === true) {
+    return <p className="pl-[3.9rem] text-[10px] text-muted-foreground">Item opcional (legado) — não soma nos macros.</p>;
+  }
+  if (!text) {
+    const hints = quantityHintsFor(it);
+    return (
+      <p className="pl-[3.9rem] text-[10px] text-muted-foreground">
+        Digite g, kg, ml ou uma medida (uni, fatia, colher…){hints.length ? ` · cadastrado: ${hints.join(" · ")}` : ""}
+      </p>
+    );
+  }
+
+  const q = resolveQuantity(it, text);
+  if (q.status === "unknown" || q.status === "no-weight") {
+    return (
+      <p className="pl-[3.9rem] flex items-start gap-1 text-[10px] text-amber-600">
+        <AlertCircle className="w-3 h-3 mt-px shrink-0" />
+        <span>{q.hint}</span>
+      </p>
+    );
+  }
+
+  const m = calcItemMacros({ ...it, rawWeight: q.grams });
+  const gramsTxt = `${Math.round(q.grams * 10) / 10} g`;
+  const understood = q.isUnit && q.label ? `${q.value} ${q.label} = ${gramsTxt}` : gramsTxt;
+  return (
+    <p className="pl-[3.9rem] flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] tabular-nums text-muted-foreground">
+      <span className="inline-flex items-center gap-1 text-emerald-600 font-medium"><CheckCircle2 className="w-3 h-3" />{understood}</span>
+      <span>{Math.round(m.kcal)} kcal</span>
+      <span className="text-blue-500">{m.protein.toFixed(1)}p</span>
+      <span className="text-amber-500">{m.carbs.toFixed(1)}c</span>
+      <span className="text-rose-500">{m.fat.toFixed(1)}g</span>
+      {m.fiberUnknown ? (
+        <span className="text-amber-600" title="Este alimento não tem fibra cadastrada na base; a fibra do dia não inclui ele.">sem dado de fibra</span>
+      ) : (
+        <span className="text-emerald-600">{m.fiber.toFixed(1)}f</span>
+      )}
+    </p>
   );
 }
 
@@ -962,32 +1023,20 @@ function FoodRow({
           {(() => {
             const selectedName = String(it.baseName || it.name || "");
             const selectedFood = FOOD_CATALOG.find((food) => food.name.toLowerCase() === selectedName.toLowerCase());
-            const portions = selectedFood?.portions || (selectedFood?.unitWeight ? [{ label: "1 unidade", grams: selectedFood.unitWeight }] : selectedFood ? [{ label: "100 g", grams: 100 }] : []);
             const cutVariants = CUT_VARIANT_PAIRS.find((pair) => pair.some((name) => name.toLowerCase() === selectedName.toLowerCase()));
-            return selectedFood ? (
+            return selectedFood && cutVariants ? (
               <div className="flex gap-1 mt-1">
                 <select
-                  aria-label="Medida caseira"
-                  className="h-6 max-w-[58%] bg-background text-[10px] border border-border rounded px-1"
-                  value=""
-                  onChange={(e) => { const grams = Number(e.target.value); if (grams > 0) onChangeWeight(`${grams}g`); }}
+                  aria-label="Versão do corte"
+                  className="h-6 min-w-0 flex-1 bg-background text-[10px] border border-border rounded px-1"
+                  value={selectedFood.name}
+                  onChange={(e) => {
+                    const nextFood = TACO_DATA.find((food) => food.name === e.target.value);
+                    if (nextFood) onPickTaco({ ...nextFood, source: "taco" } as FoodHit);
+                  }}
                 >
-                  <option value="">Medida / porção</option>
-                  {portions.map((portion) => <option key={`${portion.label}-${portion.grams}`} value={portion.grams}>{portion.label} · {portion.grams}g</option>)}
+                  {cutVariants.map((name) => <option key={name} value={name}>{/sem gordura|s\/ gordura|sem pele/i.test(name) ? "Limpa / sem gordura" : "Comum / com gordura"}</option>)}
                 </select>
-                {cutVariants && (
-                  <select
-                    aria-label="Versão do corte"
-                    className="h-6 min-w-0 flex-1 bg-background text-[10px] border border-border rounded px-1"
-                    value={selectedFood.name}
-                    onChange={(e) => {
-                      const nextFood = TACO_DATA.find((food) => food.name === e.target.value);
-                      if (nextFood) onPickTaco({ ...nextFood, source: "taco" } as FoodHit);
-                    }}
-                  >
-                    {cutVariants.map((name) => <option key={name} value={name}>{/sem gordura|s\/ gordura|sem pele/i.test(name) ? "Limpa / sem gordura" : "Comum / com gordura"}</option>)}
-                  </select>
-                )}
               </div>
             ) : null;
           })()}
@@ -1036,10 +1085,19 @@ function FoodRow({
         <Input
           value={it.weight ?? ""}
           onChange={(e) => onChangeWeight(e.target.value)}
-          placeholder={it.isTaco ? "ex: 100g (cru) ou 8 unidades…" : "ex: 8 unidades, 200g, 2 fatias…"}
+          onBlur={() => {
+            // Ao sair do campo, padroniza a medida reconhecida ("2 uni" → "2 unidades"):
+            // a visão do aluno exibe o texto digitado pelo coach, então abreviação não pode vazar para lá.
+            if (!(it.isTaco || it.isIndustrial)) return;
+            const current = String(it.weight ?? "").trim();
+            const q = resolveQuantity(it, current);
+            if (q.status === "ok" && q.canonicalText && q.canonicalText !== current) onChangeWeight(q.canonicalText);
+          }}
+          placeholder={it.isTaco || it.isIndustrial ? "ex: 150g · 2 uni · 1 colher · 3 fatias" : "ex: 8 unidades, 200g, 2 fatias…"}
           className="h-7 text-xs flex-1"
         />
       </div>
+      <QuantityFeedback it={it} />
     </>
   );
 }
