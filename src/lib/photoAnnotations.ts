@@ -75,7 +75,7 @@ export function lineAngleDeg(line: AnnotationLine, aspect = 1): number {
   let deg = (Math.atan2(-dy, dx) * 180) / Math.PI;
   if (deg > 90) deg -= 180;
   if (deg < -90) deg += 180;
-  return Math.round(deg * 10) / 10;
+  return Math.round(deg * 10) / 10 || 0;
 }
 
 /** Saneia JSON vindo do banco: descarta entradas inválidas. */
