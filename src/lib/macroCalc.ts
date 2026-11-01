@@ -19,6 +19,7 @@ import { TACO_FOODS, type TacoFood } from "@/data/tacoFoods";
 import { ENRICHED_FOODS } from "@/data/enrichedFoods";
 import { INDUSTRIAL_FOODS, industrialByName, type IndustrialFood } from "@/data/industrialFoods";
 import { LEGACY_TO_ENRICHED_FIBER, ZERO_FIBER_NAME_PATTERN } from "@/data/fiberEquivalents";
+import { LEGACY_TACO_FIBER } from "@/data/tacoFiberData";
 
 // ─── Dicionário de aliases ─────────────────────────────────────────────────────
 // Mapeia variações informais → nome canônico TACO.
@@ -518,7 +519,7 @@ export function quantityHintsFor(item: any): string[] {
 }
 
 // ─── Fibra ─────────────────────────────────────────────────────────────────────
-export type FiberSource = "table" | "equivalent" | "zero" | "missing";
+export type FiberSource = "table" | "taco" | "equivalent" | "zero" | "missing";
 
 function stripAccents(s: string): string {
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -527,9 +528,10 @@ function stripAccents(s: string): string {
 /**
  * Fibra (g/100 g) de um alimento, com a origem do dado.
  *  1. `fiber` cadastrado no próprio alimento (prioridade);
- *  2. equivalente exato (mesmo alimento, mesmo estado) na base TACO enriquecida;
- *  3. zero nutricional (carnes, ovos, laticínios, óleos);
- *  4. "missing": sem dado — NUNCA tratado como zero silencioso.
+ *  2. item exato da TACO 4ª ed. ligado ao alimento legado (`tacoFiberData.ts`);
+ *  3. equivalente exato (mesmo alimento, mesmo estado) na base TACO enriquecida;
+ *  4. zero nutricional (carnes, ovos, laticínios, óleos);
+ *  5. "missing": sem dado — NUNCA tratado como zero silencioso.
  */
 export function resolveFiberPer100(food: any): { value: number; source: FiberSource } {
   if (!food) return { value: 0, source: "missing" };
@@ -537,6 +539,8 @@ export function resolveFiberPer100(food: any): { value: number; source: FiberSou
   if (food.fiber != null && Number.isFinite(own) && own >= 0) return { value: own, source: "table" };
 
   const key = String(food.name || "").trim().toLowerCase();
+  const taco = LEGACY_TACO_FIBER[key];
+  if (taco && Number.isFinite(taco.fiber)) return { value: taco.fiber, source: "taco" };
   const eqName = LEGACY_TO_ENRICHED_FIBER[key];
   if (eqName) {
     const eq = ENRICHED_FOODS.find((f) => f.name === eqName);
