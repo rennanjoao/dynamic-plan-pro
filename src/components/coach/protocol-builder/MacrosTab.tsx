@@ -143,8 +143,13 @@ export function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; s
                 <MacroDeltaBadge label="Carbo" value={macroDeltas.carbs} />
                 <MacroDeltaBadge label="Prot" value={macroDeltas.protein} />
                 <MacroDeltaBadge label="Gord" value={macroDeltas.fat} />
-                <MacroDeltaBadge label="Fibras" value={fiberDelta} />
+                <MacroDeltaBadge label="Fibras" value={fiberDelta} approx={(dayMacros.fiberUnknown || 0) > 0} />
               </div>
+              {(dayMacros.fiberUnknown || 0) > 0 && (
+                <p className="text-[10px] text-amber-600 mt-1">
+                  * Fibra incompleta: {dayMacros.fiberUnknown} {dayMacros.fiberUnknown === 1 ? "alimento sem dado de fibra" : "alimentos sem dado de fibra"} na base. O valor real tende a ser maior.
+                </p>
+              )}
             </div>
             <Button
               size="sm"
@@ -319,12 +324,12 @@ function DayTypeTotalsCard({
   );
 }
 
-function MacroDeltaBadge({ label, value }: { label: string; value: number }) {
+function MacroDeltaBadge({ label, value, approx = false }: { label: string; value: number; approx?: boolean }) {
   const r = Math.round(value);
   const cls = Math.abs(r) < 1 ? "text-muted-foreground" : r > 0 ? "text-emerald-500" : "text-rose-500";
   return (
-    <span>
-      {label}: <b className={cls}>{r >= 0 ? "+" : ""}{r}g</b>
+    <span title={approx ? "Valor aproximado: há alimentos sem dado de fibra na base" : undefined}>
+      {label}: <b className={cls}>{r >= 0 ? "+" : ""}{r}g{approx ? "*" : ""}</b>
     </span>
   );
 }
