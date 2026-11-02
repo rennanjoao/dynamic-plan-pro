@@ -1,50 +1,113 @@
 /**
- * fiberEquivalents.ts — Ponte de fibra entre a base legada e a base TACO enriquecida.
+ * fiberAndQuantity.test.ts — fibra: cobertura e coerência CRU × COZIDO.
  *
- * CONTEXTO
- * A base legada (`TACO_FOODS`, nomes como "Arroz branco (cru)") foi cadastrada sem o campo
- * `fiber`. Só os itens de `ENRICHED_FOODS` (nomes como "Arroz, tipo 1, cru"), que vieram da
- * planilha oficial TACO 4ª ed., têm fibra. Resultado: o coach escolhia "Arroz branco (cru)" e
- * a fibra do dia ficava em 0, sem nenhum aviso.
+ * (Este arquivo estava com o conteúdo de src/data/fiberEquivalents.ts, sem nenhum teste.)
  *
- * REGRA DESTA TABELA
- * Só entra aqui o par em que o alimento legado é, comprovadamente, o MESMO alimento no MESMO
- * estado (cru ↔ cru) de um item enriquecido. O valor NÃO é digitado aqui: é lido de
- * `ENRICHED_FOODS` em tempo de execução, então continua rastreável à planilha TACO.
- *
- * NÃO entram:
- *  - versões "cozido/grelhado/assado": converter fibra de cru para cozido por fator de
- *    cozimento NÃO é confiável (a TACO mede cada estado separadamente);
- *  - alimentos sem equivalente exato na base enriquecida;
- *  - "Batata doce (crua)": os valores do legado (77 kcal) são os da batata-doce COZIDA (a TACO crua tem 118 kcal),
- *    então a fibra da crua não vale para ele. Verificado por teste: kcal do par deve divergir no máx. 10%.
- * Esses ficam como "sem dado de fibra" e a interface avisa o coach (nunca assume 0).
- *
- * Para completar a base: preencha `fiber` direto em `tacoFoods.ts` (tem prioridade sobre esta
- * ponte) a partir da coluna "Fibra Alimentar" da planilha TACO.
+ * Regra de produto: o total de fibra é o MESMO seja o alimento prescrito cru ou cozido
+ *   fibra do cozido (por 100 g) = fibra do cru (por 100 g) ÷ cookFactor
  */
+import { describe, it, expect } from "vitest";
+import { TACO_FOODS } from "@/data/tacoFoods";
+import { ENRICHED_FOODS } from "@/data/enrichedFoods";
+import { INDUSTRIAL_FOODS } from "@/data/industrialFoods";
+import { LEGACY_FIBER_EXTRA } from "@/data/legacyFiberExtra";
+import { LEGACY_TACO_FIBER } from "@/data/tacoFiberData";
+import { calcItemMacros, resolveFiberPer100 } from "@/lib/macroCalc";
 
-/** nome legado (minúsculo) → nome exato em ENRICHED_FOODS */
-export const LEGACY_TO_ENRICHED_FIBER: Record<string, string> = {
-  "arroz branco (cru)": "Arroz, tipo 1, cru",
-  "arroz integral (cru)": "Arroz, integral, cru",
-  "macarrão de trigo comum (cru)": "Macarrão, trigo, cru",
-  "batata inglesa (crua)": "Batata, inglesa, crua",
-  "mandioca / aipim (crua)": "Mandioca, crua",
-  "inhame (cru)": "Inhame, cru",
-  "pão francês": "Pão, trigo, francês",
-  "pão de forma integral": "Pão, trigo, forma, integral",
-  "aveia em flocos": "Aveia, flocos, crua",
-  "feijão carioca (cru)": "Feijão, carioca, cru",
-  "feijão preto (cru)": "Feijão, preto, cru",
-  "lentilha (crua)": "Lentilha, crua",
-  "grão-de-bico (cru)": "Grão-de-bico, cru",
-};
+// Pendente conhecido (sem fonte confiável): preencher em legacyFiberExtra.ts quando houver o rótulo.
+const PENDING = new Set(["Rap10 / Tortilha de trigo"]);
 
-/**
- * Alimentos de origem animal / óleos / laticínios, nos quais fibra = 0 é um fato nutricional
- * (e não ausência de dado). Aplicado só aos grupos protein, dairy e (para óleos/manteiga/gema) fat.
- * Texto comparado sem acento e em minúsculas.
- */
-export const ZERO_FIBER_NAME_PATTERN =
-  /frango|\bovo\b|\bovos\b|clara|gema|patinho|file mignon|alcatra|coxao|lagarto|acem|musculo|contra-file|picanha|figado|costela|cupim|maminha|fraldinha|suin|tilapia|salmao|atum|sardinha|merluza|camarao|whey|albumina|azeite|oleo de coco|manteiga|\bleite de vaca|leite em po|iogurte|queijo|ricota|requeijao|cream cheese|creme de leite/;
+const food = (n: string) => TACO_FOODS.find((f) => f.name === n)!;
+
+describe("cobertura de fibra dos catálogos", () => {
+  it.each([
+    ["legado", TACO_FOODS],
+    ["TACO enriquecida", ENRICHED_FOODS],
+    ["industrializados", INDUSTRIAL_FOODS],
+  ] as const)("%s: nenhum alimento sem dado de fibra (além do pendente)", (_l, list) => {
+    const missing = (list as Array<{ name: string }>)
+      .filter((f) => resolveFiberPer100(f).source === "missing" && !PENDING.has(f.name))
+      .map((f) => f.name);
+    expect(missing).toEqual([]);
+  });
+
+  it("valores plausíveis (0–90 g/100 g; psyllium chega a 75)", () => {
+    for (const f of [...TACO_FOODS, ...ENRICHED_FOODS]) {
+      const v = resolveFiberPer100(f);
+      if (v.source === "missing") continue;
+      expect(v.value, f.name).toBeGreaterThanOrEqual(0);
+      expect(v.value, f.name).toBeLessThanOrEqual(90);
+    }
+  });
+
+  it("toda entrada de legacyFiberExtra aponta para um alimento que existe no legado", () => {
+    const names = new Set(TACO_FOODS.map((f) => f.name.toLowerCase()));
+    for (const key of Object.keys(LEGACY_FIBER_EXTRA)) expect(names.has(key), key).toBe(true);
+  });
+});
+
+describe("cru × cozido: mesmo total de fibra", () => {
+  const adjusted = Object.entries(LEGACY_FIBER_EXTRA).filter(([, e]) => e.kind === "ajustado");
+
+  it("há cozidos ajustados (arroz, massas, feijão, lentilha, quinoa, grão-de-bico, cuscuz, tapioca)", () => {
+    expect(adjusted.length).toBeGreaterThanOrEqual(13);
+  });
+
+  it.each(adjusted.map(([k]) => [k]))("%s = fibra do cru ÷ fator (tolerância 3%)", (key) => {
+    const e = LEGACY_FIBER_EXTRA[key];
+    const cooked = TACO_FOODS.find((f) => f.name.toLowerCase() === key)!;
+    const raw = TACO_FOODS.find((f) => f.name.toLowerCase() === e.rawTwin)!;
+    expect(cooked, key).toBeTruthy();
+    expect(raw, String(e.rawTwin)).toBeTruthy();
+    expect(raw.cookFactor, `${raw.name} precisa de cookFactor`).toBeGreaterThan(1);
+    const rawFiber = resolveFiberPer100(raw).value;
+    const expected = rawFiber / raw.cookFactor!;
+    const got = resolveFiberPer100(cooked).value;
+    expect(Math.abs(got - expected), `${cooked.name}: ${got} × ${expected.toFixed(3)}`).toBeLessThanOrEqual(Math.max(0.03 * expected, 0.006));
+  });
+
+  it("100 g crus e (100 × fator) g cozidos dão a MESMA fibra no cálculo do painel", () => {
+    for (const [key, e] of adjusted) {
+      const cooked = TACO_FOODS.find((f) => f.name.toLowerCase() === key)!;
+      const raw = TACO_FOODS.find((f) => f.name.toLowerCase() === e.rawTwin)!;
+      const fromRaw = calcItemMacros({ isTaco: true, baseName: raw.name, rawWeight: 100 }).fiber;
+      const fromCooked = calcItemMacros({ isTaco: true, baseName: cooked.name, rawWeight: 100 * raw.cookFactor! }).fiber;
+      expect(Math.abs(fromRaw - fromCooked), cooked.name).toBeLessThanOrEqual(Math.max(0.03 * fromRaw, 0.015));
+    }
+  });
+
+  it("exemplo do coach: 200 g de arroz cozido NÃO vira 3,1 g de fibra (era 2,6× o cru)", () => {
+    const m = calcItemMacros({ isTaco: true, baseName: "Arroz branco (cozido)", rawWeight: 200 });
+    expect(m.fiber).toBeCloseTo(1.2, 1);
+  });
+
+  it("o valor medido do cozido fica guardado e é diferente do usado (rastreável)", () => {
+    for (const [key, e] of adjusted) {
+      if (e.measured === undefined) continue;
+      expect(e.measured, key).toBeGreaterThan(0);
+    }
+    // onde a TACO tinha o número, ele é exatamente o `measured`
+    for (const [key, e] of adjusted) {
+      const t = LEGACY_TACO_FIBER[key];
+      if (t) expect(e.measured, key).toBe(t.fiber);
+    }
+  });
+
+  it("cru e cozido de legumes (fator 1) ficam na mesma ordem de grandeza (±50%)", () => {
+    const pairs: Array<[string, string]> = [
+      ["Brócolis (cru)", "Brócolis (cozido/vapor)"],
+      ["Couve-flor (crua)", "Couve-flor (cozida)"],
+      ["Cenoura (crua)", "Cenoura (cozida)"],
+      ["Abobrinha italiana (crua)", "Abobrinha italiana (cozida)"],
+      ["Abóbora cabotian (crua)", "Abóbora cabotian (cozida)"],
+      ["Chuchu (cru)", "Chuchu (cozido)"],
+    ];
+    for (const [r, c] of pairs) {
+      const fr = resolveFiberPer100(food(r)).value;
+      const fc = resolveFiberPer100(food(c)).value;
+      expect(food(r).cookFactor ?? 1, r).toBe(1);
+      expect(fc / fr, `${r} × ${c}`).toBeGreaterThan(0.5);
+      expect(fc / fr, `${r} × ${c}`).toBeLessThan(1.5);
+    }
+  });
+});

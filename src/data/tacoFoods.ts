@@ -26,21 +26,33 @@ export interface TacoFood {
   fiber?: number;
 }
 
+/**
+ * cookFactor = peso COZIDO ÷ peso CRU (só existe em alimento prescrito cru).
+ *  - Alimento já cozido (valuesArCooked) NÃO tem fator: o peso prescrito já é de alimento pronto.
+ *  - Frutas, folhas, laticínios, aveia, pão, farinhas: fator 1 (nada a converter).
+ *  - Legumes e verduras: fator 1 — cozidos na água/vapor mantêm o peso (TACO e USDA mostram
+ *    densidade calórica igual ou menor no cozido; os fatores 0,3–0,85 antigos reduziam o peso
+ *    exibido ao aluno sem base).
+ *  - Arroz, massas e leguminosas: fator reproduz o par cru/cozido desta base (kcal cru ÷ kcal cozido).
+ *    Feijão = grãos cozidos e ESCORRIDOS (USDA feijão-pinto: 347 → 143 kcal/100 g ≈ 2,4).
+ *  - O MESMO alimento tem o MESMO fator aqui e em enrichedFoods.ts (teste de integridade cobre isso).
+ *  - A FIBRA dos cozidos acompanha o cru: fibra do cru ÷ cookFactor (ver legacyFiberExtra.ts).
+ */
 export const TACO_FOODS: TacoFood[] = [
   // ─── CARBOIDRATOS & LEGUMINOSAS ──────────────────────────────────────────────
   { name: "Arroz branco (cru)",              kcal: 345, p: 7.0,  c: 77.4, g: 0.5, group: "carb", cookFactor: 2.7 },
   { name: "Arroz branco (cozido)",           kcal: 128, p: 2.5,  c: 28.1, g: 0.2, group: "carb", valuesArCooked: true },
   { name: "Arroz parboilizado (cru)",        kcal: 352, p: 7.3,  c: 76.8, g: 0.5, group: "carb", cookFactor: 2.8 },
   { name: "Arroz parboilizado (cozido)",     kcal: 124, p: 2.6,  c: 26.9, g: 0.2, group: "carb", valuesArCooked: true },
-  { name: "Arroz integral (cru)",            kcal: 352, p: 7.3,  c: 72.0, g: 1.9, group: "carb", cookFactor: 2.5 },
+  { name: "Arroz integral (cru)",            kcal: 352, p: 7.3,  c: 72.0, g: 1.9, group: "carb", cookFactor: 2.8 },
   { name: "Arroz integral (cozido)",         kcal: 124, p: 2.6,  c: 25.5, g: 1.0, group: "carb", valuesArCooked: true },
   { name: "Macarrão de trigo comum (cru)",   kcal: 371, p: 10.0, c: 78.5, g: 1.3, group: "carb", cookFactor: 2.5 },
   { name: "Macarrão de trigo comum (cozido)",kcal: 148, p: 4.0,  c: 31.4, g: 0.5, group: "carb", valuesArCooked: true },
   { name: "Macarrão integral (cru)",         kcal: 348, p: 13.0, c: 68.0, g: 1.5, group: "carb", cookFactor: 2.5 },
   { name: "Macarrão integral (cozido)",      kcal: 139, p: 5.2,  c: 27.2, g: 0.6, group: "carb", valuesArCooked: true },
-  { name: "Macarrão de arroz (cru)",         kcal: 357, p: 6.5,  c: 80.1, g: 1.0, group: "carb", cookFactor: 2.5 },
+  { name: "Macarrão de arroz (cru)",         kcal: 357, p: 6.5,  c: 80.1, g: 1.0, group: "carb", cookFactor: 2.7 },
   { name: "Macarrão de arroz (cozido)",      kcal: 131, p: 2.4,  c: 29.8, g: 0.4, group: "carb", valuesArCooked: true },
-  { name: "Batata doce (crua)",              kcal: 77,  p: 0.6,  c: 18.4, g: 0.1, group: "carb", cookFactor: 0.9 },
+  { name: "Batata doce (crua)",              kcal: 77,  p: 0.6,  c: 18.4, g: 0.1, group: "carb", cookFactor: 0.85 },
   { name: "Batata doce (cozida)",            kcal: 77,  p: 0.6,  c: 18.4, g: 0.1, group: "carb", valuesArCooked: true },
   { name: "Batata inglesa (crua)",           kcal: 64,  p: 1.2,  c: 14.7, g: 0.1, group: "carb", cookFactor: 0.85 },
   { name: "Batata inglesa (cozida)",         kcal: 52,  p: 1.2,  c: 11.9, g: 0.1, group: "carb", valuesArCooked: true },
@@ -61,14 +73,14 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Farelo de aveia",                 kcal: 360, p: 15.0, c: 60.0, g: 7.0, group: "carb" },
   { name: "Quinoa (crua)",                   kcal: 335, p: 12.1, c: 68.3, g: 6.1, group: "carb", cookFactor: 3.0 },
   { name: "Quinoa (cozida)",                 kcal: 120, p: 4.4,  c: 21.3, g: 1.9, group: "carb", valuesArCooked: true },
-  { name: "Feijão carioca (cru)",            kcal: 329, p: 20.0, c: 61.2, g: 1.3, group: "carb", cookFactor: 3.0 },
+  { name: "Feijão carioca (cru)",            kcal: 329, p: 20.0, c: 61.2, g: 1.3, group: "carb", cookFactor: 2.4 },
   { name: "Feijão carioca (cozido)",         kcal: 76,  p: 4.8,  c: 13.6, g: 0.5, group: "carb", valuesArCooked: true },
-  { name: "Feijão preto (cru)",              kcal: 324, p: 21.3, c: 58.8, g: 1.2, group: "carb", cookFactor: 3.0 },
+  { name: "Feijão preto (cru)",              kcal: 324, p: 21.3, c: 58.8, g: 1.2, group: "carb", cookFactor: 2.4 },
   { name: "Feijão preto (cozido)",           kcal: 77,  p: 4.5,  c: 14.0, g: 0.5, group: "carb", valuesArCooked: true },
   { name: "Feijão fradinho (cru)",           kcal: 338, p: 23.9, c: 59.8, g: 1.2, group: "carb", cookFactor: 3.0 },
   { name: "Lentilha (crua)",                 kcal: 339, p: 23.2, c: 60.1, g: 0.8, group: "carb", cookFactor: 3.0 },
   { name: "Lentilha (cozida)",               kcal: 116, p: 9.0,  c: 20.1, g: 0.5, group: "carb", valuesArCooked: true },
-  { name: "Grão-de-bico (cru)",              kcal: 355, p: 21.2, c: 57.8, g: 5.4, group: "carb", cookFactor: 2.5 },
+  { name: "Grão-de-bico (cru)",              kcal: 355, p: 21.2, c: 57.8, g: 5.4, group: "carb", cookFactor: 2.2 },
   { name: "Grão-de-bico (cozido)",           kcal: 164, p: 8.8,  c: 27.4, g: 2.5, group: "carb", valuesArCooked: true },
   { name: "Ervilha (crua)",                  kcal: 341, p: 24.6, c: 60.4, g: 1.2, group: "carb", cookFactor: 3.0 },
   { name: "Soja (crua)",                     kcal: 446, p: 36.5, c: 30.2, g: 19.9,group: "protein", cookFactor: 2.5 },
@@ -78,7 +90,7 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Mel de abelha",                   kcal: 320, p: 0.3,  c: 82.0, g: 0.0, group: "carb", unitWeight: 15 }, // colher
 
   // ─── PROTEÍNAS - AVES & OVOS ─────────────────────────────────────────────────
-  { name: "Frango peito s/ pele (cru)",      kcal: 119, p: 21.5, c: 0.0, g: 3.0, group: "protein", cookFactor: 0.65 },
+  { name: "Frango peito s/ pele (cru)",      kcal: 119, p: 21.5, c: 0.0, g: 3.0, group: "protein", cookFactor: 0.7 },
   { name: "Frango peito s/ pele (grelhado)", kcal: 159, p: 32.0,  c: 0.0, g: 2.5,  group: "protein", valuesArCooked: true },
   { name: "Frango peito s/ pele (desfiado)", kcal: 159, p: 32.0,  c: 0.0, g: 2.5,  group: "protein", valuesArCooked: true },
   { name: "Frango coxa+sobrecoxa (cru)",     kcal: 161, p: 19.2, c: 0.0,  g: 9.3,  group: "protein", cookFactor: 0.70 },
@@ -86,7 +98,7 @@ export const TACO_FOODS: TacoFood[] = [
   // Coxa+sobrecoxa — versões explícitas com e sem pele
   { name: "Frango coxa+sobrecoxa s/ pele (crua)",    kcal: 161, p: 19.2, c: 0.0, g:  9.3, group: "protein", cookFactor: 0.70 },
   { name: "Frango coxa+sobrecoxa s/ pele (cozida)",  kcal: 213, p: 25.8, c: 0.0, g: 12.2, group: "protein", valuesArCooked: true },
-  { name: "Frango coxa+sobrecoxa c/ pele (crua)",    kcal: 191, p: 16.0, c: 0.0, g: 14.1, group: "protein", cookFactor: 0.68 },
+  { name: "Frango coxa+sobrecoxa c/ pele (crua)",    kcal: 191, p: 16.0, c: 0.0, g: 14.1, group: "protein", cookFactor: 0.7 },
   { name: "Frango coxa+sobrecoxa c/ pele (assada)",  kcal: 282, p: 23.5, c: 0.0, g: 20.8, group: "protein", valuesArCooked: true },
   { name: "Ovo de galinha inteiro (cru)",    kcal: 143, p: 13.0, c: 1.6,  g: 9.5,  group: "protein", cookFactor: 0.92, unitWeight: 50 , portions: [{ label: "1 unidade", grams: 50 }]},
   { name: "Ovo de galinha inteiro (cozido)", kcal: 146, p: 13.3, c: 0.6,  g: 9.5,  group: "protein", valuesArCooked: true, unitWeight: 50 },
@@ -116,7 +128,7 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Contra-filé (grelhado)",          kcal: 236, p: 32.6, c: 0.0,  g: 11.7,  group: "protein", valuesArCooked: true },
   { name: "Picanha s/ gordura (crua)",       kcal: 149, p: 21.3, c: 0.0,  g: 6.5,  group: "protein", cookFactor: 0.68 },
   { name: "Picanha c/ gordura (grelhada)",   kcal: 304, p: 37.7, c: 0.0,  g: 16.4, group: "protein", valuesArCooked: true },
-  { name: "Picanha c/ gordura (crua)",       kcal: 244, p: 16.0, c: 0.0, g: 20.0, group: "protein", cookFactor: 0.68 },
+  { name: "Picanha c/ gordura (crua)",       kcal: 244, p: 16.0, c: 0.0, g: 20.0, group: "protein", cookFactor: 0.7 },
   { name: "Picanha s/ gordura (grelhada)",   kcal: 205, p: 30.4, c: 0.0, g:  9.3, group: "protein", valuesArCooked: true },
   { name: "Fígado bovino (cru)",             kcal: 141, p: 19.9, c: 1.1,  g: 5.4,  group: "protein", cookFactor: 0.67 },
   { name: "Fígado bovino (grelhado)",        kcal: 225, p: 29.9, c: 4.2,  g: 9.0,  group: "protein", valuesArCooked: true },
@@ -136,7 +148,7 @@ export const TACO_FOODS: TacoFood[] = [
   // ─── PROTEÍNAS - SUÍNO ───────────────────────────────────────────────────────
   { name: "Lombo suíno (cru)",               kcal: 143, p: 20.1, c: 0.0,  g: 7.0,  group: "protein", cookFactor: 0.70 },
   { name: "Lombo suíno (assado)",            kcal: 204, p: 28.7, c: 0.0,  g: 10.0, group: "protein", valuesArCooked: true },
-  { name: "Pernil suíno s/ osso (cru)",      kcal: 150, p: 18.5, c: 0.0,  g: 8.5,  group: "protein", cookFactor: 0.65 },
+  { name: "Pernil suíno s/ osso (cru)",      kcal: 150, p: 18.5, c: 0.0,  g: 8.5,  group: "protein", cookFactor: 0.7 },
   { name: "Pernil suíno (assado)",           kcal: 231, p: 28.4, c: 0.0,  g: 13.1, group: "protein", valuesArCooked: true },
   { name: "Bisteca suína (crua)",            kcal: 219, p: 18.3, c: 0.0,  g: 16.1, group: "protein", cookFactor: 0.70 },
   { name: "Bisteca suína (grelhada)",        kcal: 313, p: 26.1, c: 0.0,  g: 23.0, group: "protein", valuesArCooked: true },
@@ -149,7 +161,7 @@ export const TACO_FOODS: TacoFood[] = [
   // ─── PROTEÍNAS - PEIXES & FRUTOS DO MAR ──────────────────────────────────────
   { name: "Tilápia / St. Peters (crua)",     kcal: 96,  p: 20.1, c: 0.0,  g: 1.7,  group: "protein", cookFactor: 0.75 },
   { name: "Tilápia (grelhada/assada)",       kcal: 128, p: 26.8, c: 0.0,  g: 2.3,  group: "protein", valuesArCooked: true },
-  { name: "Salmão s/ pele (cru)",            kcal: 170, p: 19.3, c: 0.0,  g: 10.4, group: "protein", cookFactor: 0.80 },
+  { name: "Salmão s/ pele (cru)",            kcal: 170, p: 19.3, c: 0.0,  g: 10.4, group: "protein", cookFactor: 0.75 },
   { name: "Salmão s/ pele (grelhado)",       kcal: 213, p: 24.1, c: 0.0,  g: 13.0, group: "protein", valuesArCooked: true },
   { name: "Atum fresco (cru)",               kcal: 108, p: 23.4, c: 0.0,  g: 0.9,  group: "protein", cookFactor: 0.75 },
   { name: "Atum em lata (em água/drenado)",  kcal: 116, p: 25.5, c: 0.0,  g: 1.0,  group: "protein", valuesArCooked: true, cookFactor: 1, portions: [{ label: "1 lata drenada", grams: 120 }, { label: "1/2 lata", grams: 60 }]},
@@ -235,17 +247,17 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Maracujá (polpa)",                kcal: 97,  p: 2.2,  c: 23.3, g: 0.7, group: "fruit" },
 
   // ─── VEGETAIS & SALADAS ──────────────────────────────────────────────────────
-  { name: "Brócolis (cru)",                  kcal: 34,  p: 3.6,  c:  4.3, g: 0.4, group: "veg", cookFactor: 0.60 },
+  { name: "Brócolis (cru)",                  kcal: 34,  p: 3.6,  c:  4.3, g: 0.4, group: "veg", cookFactor: 1 },
   { name: "Brócolis (cozido/vapor)",         kcal: 25,  p: 2.1,  c:  4.0, g: 0.4, group: "veg", valuesArCooked: true },
-  { name: "Couve-flor (crua)",               kcal: 20,  p: 2.5,  c:  2.9, g: 0.3, group: "veg", cookFactor: 0.60 },
+  { name: "Couve-flor (crua)",               kcal: 20,  p: 2.5,  c:  2.9, g: 0.3, group: "veg", cookFactor: 1 },
   { name: "Couve-flor (cozida)",             kcal: 23,  p: 1.8,  c:  4.1, g: 0.4, group: "veg", valuesArCooked: true },
-  { name: "Espinafre (cru)",                 kcal: 22,  p: 2.9,  c:  1.3, g: 0.4, group: "veg", cookFactor: 0.30 },
+  { name: "Espinafre (cru)",                 kcal: 22,  p: 2.9,  c:  1.3, g: 0.4, group: "veg", cookFactor: 1 },
   { name: "Espinafre (refogado)",            kcal: 16,  p: 2.4,  c:  1.7, g: 0.2, group: "veg", valuesArCooked: true },
-  { name: "Cenoura (crua)",                  kcal: 34,  p: 1.3,  c:  7.7, g: 0.2, group: "veg", cookFactor: 0.80 },
+  { name: "Cenoura (crua)",                  kcal: 34,  p: 1.3,  c:  7.7, g: 0.2, group: "veg", cookFactor: 1 },
   { name: "Cenoura (cozida)",                kcal: 41,  p: 0.9,  c:  9.1, g: 0.2, group: "veg", valuesArCooked: true },
-  { name: "Abobrinha italiana (crua)",       kcal: 19,  p: 1.2,  c:  4.3, g: 0.3, group: "veg", cookFactor: 0.85 },
+  { name: "Abobrinha italiana (crua)",       kcal: 19,  p: 1.2,  c:  4.3, g: 0.3, group: "veg", cookFactor: 1 },
   { name: "Abobrinha italiana (cozida)",     kcal: 15,  p: 1.1,  c:  3.0, g: 0.2, group: "veg", valuesArCooked: true },
-  { name: "Abóbora cabotian (crua)",         kcal: 40,  p: 1.4,  c:  9.2, g: 0.1, group: "veg", cookFactor: 0.85 },
+  { name: "Abóbora cabotian (crua)",         kcal: 40,  p: 1.4,  c:  9.2, g: 0.1, group: "veg", cookFactor: 1 },
   { name: "Abóbora cabotian (cozida)",       kcal: 34,  p: 1.0,  c:  7.6, g: 0.1, group: "veg", valuesArCooked: true },
   { name: "Alface americana",                kcal: 14,  p: 1.4,  c:  2.4, g: 0.2, group: "veg" },
   { name: "Alface crespa",                   kcal: 11,  p: 1.3,  c:  1.7, g: 0.2, group: "veg" },
@@ -253,11 +265,11 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Tomate salada",                   kcal: 15,  p: 1.1,  c:  3.1, g: 0.2, group: "veg" },
   { name: "Tomate cereja",                   kcal: 18,  p: 1.0,  c:  4.0, g: 0.2, group: "veg" },
   { name: "Pepino (cru com casca)",          kcal: 10,  p: 0.9,  c:  2.0, g: 0.1, group: "veg" },
-  { name: "Chuchu (cru)",                    kcal: 20,  p: 0.9,  c:  4.5, g: 0.1, group: "veg", cookFactor: 0.80 },
+  { name: "Chuchu (cru)",                    kcal: 20,  p: 0.9,  c:  4.5, g: 0.1, group: "veg", cookFactor: 1 },
   { name: "Chuchu (cozido)",                 kcal: 17,  p: 0.6,  c:  3.9, g: 0.1, group: "veg", valuesArCooked: true },
-  { name: "Beterraba (crua)",                kcal: 43,  p: 1.6,  c:  9.6, g: 0.1, group: "veg", cookFactor: 0.80 },
+  { name: "Beterraba (crua)",                kcal: 43,  p: 1.6,  c:  9.6, g: 0.1, group: "veg", cookFactor: 1 },
   { name: "Beterraba (cozida)",              kcal: 32,  p: 1.3,  c:  7.2, g: 0.1, group: "veg", valuesArCooked: true },
-  { name: "Berinjela (crua)",                kcal: 24,  p: 1.0,  c:  5.9, g: 0.2, group: "veg", cookFactor: 0.70 },
+  { name: "Berinjela (crua)",                kcal: 24,  p: 1.0,  c:  5.9, g: 0.2, group: "veg", cookFactor: 1 },
   { name: "Repolho branco (cru)",            kcal: 25,  p: 1.3,  c:  5.8, g: 0.1, group: "veg" },
   { name: "Cebola (crua)",                   kcal: 40,  p: 1.1,  c:  9.3, g: 0.1, group: "veg" },
   { name: "Pimentão (cru)",                  kcal: 20,  p: 0.9,  c:  4.6, g: 0.2, group: "veg" },

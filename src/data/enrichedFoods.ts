@@ -7,22 +7,22 @@
 import type { TacoFood } from "./tacoFoods";
 
 export const ENRICHED_FOODS: Array<TacoFood & { fiber: number }> = [
-  { name: "Arroz, integral, cru", kcal: 359.678, p: 7.323, c: 77.451, g: 1.865, fiber: 4.819, group: "carb", cookFactor: 2.7 }, // TACO item 2
+  { name: "Arroz, integral, cru", kcal: 359.678, p: 7.323, c: 77.451, g: 1.865, fiber: 4.819, group: "carb", cookFactor: 2.8 }, // TACO item 2
   { name: "Arroz, tipo 1, cru", kcal: 357.789, p: 7.159, c: 78.76, g: 0.335, fiber: 1.639, group: "carb", cookFactor: 2.7 }, // TACO item 4
   { name: "Aveia, flocos, crua", kcal: 393.823, p: 13.921, c: 66.636, g: 8.497, fiber: 9.13, group: "carb", cookFactor: 1 }, // TACO item 7
-  { name: "Macarrão, trigo, cru", kcal: 371.123, p: 9.996, c: 77.944, g: 1.303, fiber: 2.927, group: "carb", cookFactor: 2.7 }, // TACO item 40
-  { name: "Macarrão, trigo, cru, com ovos", kcal: 370.567, p: 10.321, c: 76.623, g: 1.97, fiber: 2.297, group: "carb", cookFactor: 2.7 }, // TACO item 41
-  { name: "Farinha, de mandioca, torrada", kcal: 365.269, p: 1.229, c: 89.194, g: 0.287, fiber: 6.54, group: "carb", cookFactor: 0.85 }, // TACO item 122
+  { name: "Macarrão, trigo, cru", kcal: 371.123, p: 9.996, c: 77.944, g: 1.303, fiber: 2.927, group: "carb", cookFactor: 2.5 }, // TACO item 40
+  { name: "Macarrão, trigo, cru, com ovos", kcal: 370.567, p: 10.321, c: 76.623, g: 1.97, fiber: 2.297, group: "carb", cookFactor: 2.5 }, // TACO item 41
+  { name: "Farinha, de mandioca, torrada", kcal: 365.269, p: 1.229, c: 89.194, g: 0.287, fiber: 6.54, group: "carb", cookFactor: 1 }, // TACO item 122
   { name: "Farinha, de milho, amarela", kcal: 350.587, p: 7.188, c: 79.079, g: 1.467, fiber: 5.49, group: "carb", cookFactor: 1 }, // TACO item 33
   { name: "Milho, fubá, cru", kcal: 353.482, p: 7.214, c: 78.873, g: 1.903, fiber: 4.713, group: "carb", cookFactor: 1 }, // TACO item 43
   { name: "Batata, doce, crua", kcal: 118.241, p: 1.257, c: 28.196, g: 0.133, fiber: 2.573, group: "carb", cookFactor: 0.85 }, // TACO item 89
   { name: "Batata, inglesa, crua", kcal: 64.37, p: 1.772, c: 14.688, g: 0, fiber: 1.163, group: "carb", cookFactor: 0.85 }, // TACO item 92
   { name: "Mandioca, crua", kcal: 151.417, p: 1.13, c: 36.17, g: 0.3, fiber: 1.877, group: "carb", cookFactor: 0.85 }, // TACO item 130
   { name: "Inhame, cru", kcal: 96.7, p: 2.051, c: 23.233, g: 0.213, fiber: 1.653, group: "carb", cookFactor: 0.85 }, // TACO item 126
-  { name: "Feijão, carioca, cru", kcal: 329.027, p: 19.982, c: 61.221, g: 1.257, fiber: 18.42, group: "carb", cookFactor: 2.7 }, // TACO item 562
-  { name: "Feijão, preto, cru", kcal: 323.566, p: 21.344, c: 58.752, g: 1.24, fiber: 21.833, group: "carb", cookFactor: 2.7 }, // TACO item 568
-  { name: "Lentilha, crua", kcal: 339.141, p: 23.152, c: 62.004, g: 0.77, fiber: 16.937, group: "carb", cookFactor: 2.7 }, // TACO item 578
-  { name: "Grão-de-bico, cru", kcal: 354.703, p: 21.229, c: 57.884, g: 5.43, fiber: 12.357, group: "carb", cookFactor: 2.7 }, // TACO item 575
+  { name: "Feijão, carioca, cru", kcal: 329.027, p: 19.982, c: 61.221, g: 1.257, fiber: 18.42, group: "carb", cookFactor: 2.4 }, // TACO item 562
+  { name: "Feijão, preto, cru", kcal: 323.566, p: 21.344, c: 58.752, g: 1.24, fiber: 21.833, group: "carb", cookFactor: 2.4 }, // TACO item 568
+  { name: "Lentilha, crua", kcal: 339.141, p: 23.152, c: 62.004, g: 0.77, fiber: 16.937, group: "carb", cookFactor: 3 }, // TACO item 578
+  { name: "Grão-de-bico, cru", kcal: 354.703, p: 21.229, c: 57.884, g: 5.43, fiber: 12.357, group: "carb", cookFactor: 2.2 }, // TACO item 575
   { name: "Milho, verde, cru", kcal: 138.167, p: 6.59, c: 28.556, g: 0.609, fiber: 3.918, group: "carb", cookFactor: 1 }, // TACO item 44
   { name: "Milho, verde, enlatado, drenado", kcal: 97.565, p: 3.228, c: 17.135, g: 2.353, fiber: 4.643, group: "carb", cookFactor: 1 }, // TACO item 45
   { name: "Pão, trigo, forma, integral", kcal: 253.194, p: 9.425, c: 49.941, g: 3.653, fiber: 6.883, group: "carb", cookFactor: 1, portions: [{"label": "1 fatia", "grams": 25}] }, // TACO item 52

@@ -15,8 +15,7 @@ import { Clock, Flame, Dna, Wheat, Droplets, Salad, Check } from "lucide-react";
 import { type CarbMode } from "@/components/student/CarbCycleSelector";
 import StickyDietBar from "@/components/student/StickyDietBar";
 import { calcItemMacros } from "@/lib/macroCalc";
-import { TACO_FOODS } from "@/data/tacoFoods";
-import { ENRICHED_FOODS } from "@/data/enrichedFoods";
+import { cookInfo, displayFoodName } from "@/lib/cooking";
 import { buildWeekStrip, CARB_LABEL, CARB_COLOR, todayKey, tomorrowKey } from "@/lib/weekCycle";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -87,31 +86,12 @@ function getCurrentMealIndex(meals: any[]): number {
 }
 
 
+/**
+ * Fator cozido ÷ cru do alimento. Fonte única: src/lib/cooking.ts
+ * (catálogo → fallback por família; item já cozido sempre devolve 1).
+ */
 export function getCookedMultiplier(name: string): number {
-  const key = name.trim().toLowerCase();
-  const canonical = ENRICHED_FOODS.find((food) => food.name.toLowerCase() === key) || TACO_FOODS.find((food) => food.name.toLowerCase() === key);
-  if (canonical) return typeof canonical.cookFactor === "number" ? canonical.cookFactor : 1;
-  const s = name.toLowerCase();
-  if (/atum/.test(s) && /(lata|conserva|drenad)/.test(s)) return 1;
-  if (/p[aã]o|aveia/.test(s)) return 1;
-  if (/\barroz(?!\s+integral)/.test(s)) return 2.5;
-  if (/arroz\s+integral/.test(s)) return 2.4;
-  if (/(macarr[aã]o|massa|talharim|espaguete|penne|p[aã]o)/.test(s)) return 2.2;
-  if (/(cuscuz|quinoa)/.test(s)) return 2.4;
-  if (/aveia/.test(s)) return 2.5;
-  if (/feij[aã]o/.test(s)) return 2.3;
-  if (/lentilha|gr[aã]o[- ]de[- ]bico/.test(s)) return 2.4;
-  if (/(batata\s+doce|batata|mandioca|aipim|inhame|cará)/.test(s)) return 0.85;
-  if (/(frango|peito\s+de\s+frango|peru)/.test(s)) return 0.70;
-  if (/(patinho|alcatra|coxão|filé\s+mignon|carne\s+vermelha|carne\s+moída|carne\s+bovina|boi|suíno|porco|lombo)/.test(s)) return 0.70;
-  if (/(peixe|til[áa]pia|salm[ãa]o|atum|merluza|pescada|bacalhau)/.test(s)) return 0.75;
-  if (/(camar[ãa]o|fruto.*mar)/.test(s)) return 0.75;
-  if (/(ovo)/.test(s)) return 0.90;
-  if (/(coração|fígado|moela)/.test(s)) return 0.70;
-  if (/(m[uú]sculo\s+bovino|ac[eé]m|costela|bisteca)/.test(s)) return 0.68;
-  if (/(pernil|lombo\s+su[ií]no)/.test(s)) return 0.72;
-  if (/(sardinha|mussarela|queijo)/.test(s)) return 1;
-  return 1;
+  return cookInfo(name).factor;
 }
 
 export function applySmartMath(
@@ -131,7 +111,7 @@ export function applySmartMath(
       ? 1 - lowPct / 100
       : 1;
   const cookedMult = isCooked ? getCookedMultiplier(foodName || text) : 1;
-  let out = text.replace(
+  const out = text.replace(
     /(\d+(?:[.,]\d+)?)(\s*)(g|ml|kg)/gi,
     (_, num, sp, unit) => {
       let v = Number(String(num).replace(",", "."));
@@ -140,13 +120,6 @@ export function applySmartMath(
       return `${Math.round(v)}${sp}${unit}`;
     },
   );
-  if (isCooked) {
-    out = out
-      .replace(/\bcru(a)?\b/gi, "cozido")
-      .replace(/\b(grelhado|assado)\b/gi, "cozido");
-  } else {
-    out = out.replace(/\b(pronto|cozido|grelhado|assado)(a)?\b/gi, "cru");
-  }
   return out;
 }
 
@@ -159,20 +132,22 @@ function stripHtml(str: string): string {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const COOKABLE_REGEX =
-  /(arroz|macarr[aã]o|massa|cuscuz|aveia|mandioca|batata|frango|carne|patinho|peixe|til[áa]pia|salm[ãa]o|boi|su[ií]no|porco)/i;
+/** O alimento muda de peso ao passar de cru para cozido? (fator ≠ 1 e prescrito cru) */
+function isConvertible(item: any): boolean {
+  const n = stripHtml(item?.baseName || item?.name || "");
+  if (!n) return false;
+  const info = cookInfo(n);
+  return info.state === "raw" && info.factor !== 1;
+}
 
+/** A refeição tem pelo menos um item (ou substituição) cujo peso muda no modo Cozido? */
 function mealHasCookable(meal: any): boolean {
-  const opts: any[] = Array.isArray(meal.options) ? meal.options : [];
-  return opts
-    .filter((o: any) => o?.kind === "carb" || o?.kind === "protein")
-    .some(
-      (o: any) =>
-        Array.isArray(o.items) &&
-        o.items.some((it: any) =>
-          COOKABLE_REGEX.test(stripHtml(it?.baseName || it?.name || "")),
-        ),
-    );
+  const opts: any[] = Array.isArray(meal?.options) ? meal.options : [];
+  return opts.some(
+    (o: any) =>
+      Array.isArray(o?.items) &&
+      o.items.some((it: any) => isConvertible(it) || isConvertible(it?.substitution)),
+  );
 }
 
 function calculateRealTotals(
@@ -362,22 +337,27 @@ function MacroSection({
         if (!name) return null;
         // CORREÇÃO: prioriza o weight textual do coach (preserva 'unidades', 'fatias', etc.).
         // rawWeight (gramas internas TACO) é usado apenas quando weight está vazio ou é só número.
-        const resolveWeight = (src: any) => {
+        // CADA item (principal e substituição) converte com o PRÓPRIO fator — antes a
+        // substituição herdava o fator do item principal (ex.: batata doce × 2,7 do arroz).
+        const resolveWeight = (src: any, srcName: string) => {
           const weightStr = stripHtml(src?.weight || "");
           const hasUnitWord = /un|unid|fatia|ovo|colher|copo|porc/i.test(weightStr);
           const rawText = hasUnitWord
             ? weightStr
             : (src?.rawWeight ? `${src.rawWeight}g` : weightStr);
           return rawText
-            ? applySmartMath(rawText, mode, isCooked, isCarb, name, highPct, lowPct)
+            ? applySmartMath(rawText, mode, isCooked, isCarb, srcName, highPct, lowPct)
             : "";
         };
         const sub = it?.substitution;
         const subName = stripHtml(sub?.baseName || sub?.name || "");
         return {
-          name,
-          weight: resolveWeight(it),
-          sub: subName ? { name: subName, weight: resolveWeight(sub) } : null,
+          // No modo Cozido o nome acompanha o peso: "(cru)" → "(cozido)".
+          name: displayFoodName(name, isCooked),
+          weight: resolveWeight(it, name),
+          sub: subName
+            ? { name: displayFoodName(subName, isCooked), weight: resolveWeight(sub, subName) }
+            : null,
         };
       })
       .filter(Boolean) as { name: string; weight: string; sub: { name: string; weight: string } | null }[];

@@ -20,6 +20,8 @@ import { ENRICHED_FOODS } from "@/data/enrichedFoods";
 import { INDUSTRIAL_FOODS, industrialByName, type IndustrialFood } from "@/data/industrialFoods";
 import { LEGACY_TO_ENRICHED_FIBER, ZERO_FIBER_NAME_PATTERN } from "@/data/fiberEquivalents";
 import { LEGACY_TACO_FIBER } from "@/data/tacoFiberData";
+import { LEGACY_FIBER_EXTRA } from "@/data/legacyFiberExtra";
+import { hasCookedMarker, hasRawMarker, isCookedEntry } from "@/lib/cooking";
 
 // ─── Dicionário de aliases ─────────────────────────────────────────────────────
 // Mapeia variações informais → nome canônico TACO.
@@ -211,14 +213,20 @@ export function resolveAlias(rawName: string): string | null {
   // 1. Exato
   if (TACO_ALIASES[q]) return TACO_ALIASES[q];
 
-  // 2. Parcial: a query contém o alias ou o alias contém a query
+  // 2. Parcial. FIX: antes devolvia o PRIMEIRO alias que casasse na ordem do objeto, então
+  //    "arroz integral cozido" caía em "arroz" (→ arroz branco). Agora vence o alias mais
+  //    específico: o MAIOR alias contido na query; se nenhum, o menor alias que contém a query.
+  let best: { alias: string; canonical: string } | null = null;
   for (const [alias, canonical] of Object.entries(TACO_ALIASES)) {
-    if (q.includes(alias) || alias.includes(q)) {
-      return canonical;
-    }
+    if (q.includes(alias) && (!best || alias.length > best.alias.length)) best = { alias, canonical };
   }
+  if (best) return best.canonical;
 
-  return null;
+  let closest: { alias: string; canonical: string } | null = null;
+  for (const [alias, canonical] of Object.entries(TACO_ALIASES)) {
+    if (alias.includes(q) && (!closest || alias.length < closest.alias.length)) closest = { alias, canonical };
+  }
+  return closest ? closest.canonical : null;
 }
 
 /**
@@ -519,7 +527,13 @@ export function quantityHintsFor(item: any): string[] {
 }
 
 // ─── Fibra ─────────────────────────────────────────────────────────────────────
-export type FiberSource = "table" | "taco" | "equivalent" | "zero" | "missing";
+/**
+ * Origem do dado de fibra:
+ *  table      fiber no próprio cadastro · adjusted  cozido recalculado para bater com o cru
+ *  reference  USDA ou item parecido da TACO (legacyFiberExtra.ts) · taco  item idêntico da TACO
+ *  equivalent ponte para a TACO enriquecida · zero  zero nutricional · missing  sem dado
+ */
+export type FiberSource = "table" | "adjusted" | "reference" | "taco" | "equivalent" | "zero" | "missing";
 
 function stripAccents(s: string): string {
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -528,10 +542,12 @@ function stripAccents(s: string): string {
 /**
  * Fibra (g/100 g) de um alimento, com a origem do dado.
  *  1. `fiber` cadastrado no próprio alimento (prioridade);
- *  2. item exato da TACO 4ª ed. ligado ao alimento legado (`tacoFiberData.ts`);
- *  3. equivalente exato (mesmo alimento, mesmo estado) na base TACO enriquecida;
- *  4. zero nutricional (carnes, ovos, laticínios, óleos);
- *  5. "missing": sem dado — NUNCA tratado como zero silencioso.
+ *  2. `legacyFiberExtra.ts`: alimentos sem item na TACO (USDA/parecido) e COZIDOS ajustados para
+ *     bater com o cru (fibra do cru ÷ cookFactor) — o total de fibra não depende do estado;
+ *  3. item exato da TACO 4ª ed. ligado ao alimento legado (`tacoFiberData.ts`);
+ *  4. equivalente exato (mesmo alimento, mesmo estado) na base TACO enriquecida;
+ *  5. zero nutricional (carnes, ovos, laticínios, óleos);
+ *  6. "missing": sem dado — NUNCA tratado como zero silencioso.
  */
 export function resolveFiberPer100(food: any): { value: number; source: FiberSource } {
   if (!food) return { value: 0, source: "missing" };
@@ -539,6 +555,10 @@ export function resolveFiberPer100(food: any): { value: number; source: FiberSou
   if (food.fiber != null && Number.isFinite(own) && own >= 0) return { value: own, source: "table" };
 
   const key = String(food.name || "").trim().toLowerCase();
+  const extra = LEGACY_FIBER_EXTRA[key];
+  if (extra && Number.isFinite(extra.fiber)) {
+    return { value: extra.fiber, source: extra.kind === "ajustado" ? "adjusted" : "reference" };
+  }
   const taco = LEGACY_TACO_FIBER[key];
   if (taco && Number.isFinite(taco.fiber)) return { value: taco.fiber, source: "taco" };
   const eqName = LEGACY_TO_ENRICHED_FIBER[key];
@@ -991,27 +1011,16 @@ function normalize(s: string): string {
     .trim();
 }
 
-/**
- * Match fuzzy de nomes para TACO (usado no import).
- *
- * FIX: tenta resolveAlias() ANTES do fuzzy.
- * Se o alias resolver encontrar um nome canônico, faz lookup exato —
- * score 1.0, sem custo de varredura. O fuzzy só roda se o alias falhar.
- *
- * Score 0..1; ≥ 0.7 considera-se match.
- * Score entre 0.7 e 0.8 é considerado baixa confiança (zona cinza).
- */
-export function fuzzyFindTaco(rawName: string): { taco: TacoFood; score: number; lowConfidence?: boolean } | null {
-  if (!rawName) return null;
+export type TacoMatch = {
+  taco: TacoFood;
+  score: number;
+  lowConfidence?: boolean;
+  /** O texto fala de um estado (cru/cozido) e só havia entrada no estado oposto. Revisar o peso. */
+  stateMismatch?: boolean;
+};
 
-  // 1. Tenta alias exato primeiro (mais rápido e preciso)
-  const canonical = resolveAlias(rawName);
-  if (canonical) {
-    const found = TACO_FOODS.find((t) => t.name === canonical);
-    if (found) return { taco: found, score: 1.0, lowConfidence: false };
-  }
-
-  // 2. Fuzzy match clássico
+/** Pontua o fuzzy clássico contra o catálogo legado. */
+function fuzzyScan(rawName: string): { taco: TacoFood; score: number } | null {
   const q = normalize(rawName);
   if (!q) return null;
   const qTokens = q.split(" ").filter(Boolean);
@@ -1029,14 +1038,95 @@ export function fuzzyFindTaco(rawName: string): { taco: TacoFood; score: number;
     }
     if (!best || score > best.score) best = { taco: t, score };
   });
+  return best;
+}
 
-  if (!best || best.score < 0.7) return null;
+/** Match "clássico" (alias → fuzzy), sem olhar o estado cru/cozido do texto. */
+function baseFindTaco(rawName: string): TacoMatch | null {
+  if (!rawName) return null;
 
-  return {
-    taco: best.taco,
-    score: best.score,
-    lowConfidence: best.score < 0.8,
-  };
+  // 1. Alias EXATO (mais rápido e preciso)
+  const q = normalizeForAlias(rawName);
+  if (q && TACO_ALIASES[q]) {
+    const found = TACO_FOODS.find((t) => t.name === TACO_ALIASES[q]);
+    if (found) return { taco: found, score: 1.0, lowConfidence: false };
+  }
+
+  // 2. Nome idêntico ao da tabela (ignorando estado/pontuação) vence alias PARCIAL:
+  //    "macarrão integral cozido" é "Macarrão integral", não o alias genérico "macarrão".
+  const fz = fuzzyScan(rawName);
+  if (fz && fz.score === 1) return { taco: fz.taco, score: 1, lowConfidence: false };
+
+  // 3. Alias parcial (o mais específico)
+  const canonical = resolveAlias(rawName);
+  if (canonical) {
+    const found = TACO_FOODS.find((t) => t.name === canonical);
+    if (found) return { taco: found, score: 1.0, lowConfidence: false };
+  }
+
+  // 4. Fuzzy clássico
+  if (!fz || fz.score < 0.7) return null;
+  return { taco: fz.taco, score: fz.score, lowConfidence: fz.score < 0.8 };
+}
+
+/**
+ * Irmã de estado: mesma família de alimento, porém no estado pedido (cozido ↔ cru).
+ * "Patinho (cru)" → "Patinho (moído/cozido)"; "Arroz integral (cru)" → "Arroz integral (cozido)".
+ * `exact` = mesma chave normalizada (ex.: "arroz branco"); senão é só parente por prefixo.
+ */
+function findStateSibling(taco: TacoFood, wantCooked: boolean): { taco: TacoFood; exact: boolean } | null {
+  const key = normalize(taco.name);
+  if (!key) return null;
+  let best: { taco: TacoFood; exact: boolean; len: number } | null = null;
+  for (const t of TACO_FOODS) {
+    if (t.name === taco.name || t.group !== taco.group) continue;
+    if (isCookedEntry(t) !== wantCooked) continue;
+    const tn = normalize(t.name);
+    // "vapor / refogado / frito / desfiado" são só jeitos de cozinhar o MESMO alimento
+    const bare = (x: string) => x.replace(/\b(vapor|refogad[oa]|frit[oa]|desfiad[oa])\b/g, " ").replace(/\s+/g, " ").trim();
+    const exact = tn === key || bare(tn) === bare(key);
+    // parentesco por prefixo nos dois sentidos: "patinho" ↔ "patinho moido", "brocolis vapor" ↔ "brocolis"
+    if (!exact && !tn.startsWith(key + " ") && !key.startsWith(tn + " ")) continue;
+    if (!best || (exact && !best.exact) || (exact === best.exact && tn.length < best.len)) {
+      best = { taco: t, exact, len: tn.length };
+    }
+  }
+  return best ? { taco: best.taco, exact: best.exact } : null;
+}
+
+/**
+ * Match fuzzy de nomes para TACO (usado no import).
+ *
+ * FIX: tenta resolveAlias() ANTES do fuzzy.
+ * FIX (cru/cozido): o texto é lido pelo estado. "Arroz integral cozido 150g" vinculava
+ * "Arroz branco (cru)" e gravava 150 g COMO CRU (macros 2,7× maiores; aluno via 405 g no modo
+ * Cozido). Agora, se o texto diz cozido/cru, procura a entrada no MESMO estado; se só existir a
+ * oposta, devolve-a com lowConfidence + stateMismatch para o coach revisar o peso.
+ * Texto sem estado ("Arroz") continua caindo na entrada CRUA, como o coach prescreve.
+ *
+ * Score 0..1; ≥ 0.7 considera-se match.
+ * Score entre 0.7 e 0.8 é considerado baixa confiança (zona cinza).
+ */
+export function fuzzyFindTaco(rawName: string): TacoMatch | null {
+  const hit = baseFindTaco(rawName);
+  if (!hit) return null;
+
+  const wantCooked = hasCookedMarker(rawName) && !hasRawMarker(rawName);
+  const wantRaw = hasRawMarker(rawName) && !hasCookedMarker(rawName);
+  if (!wantCooked && !wantRaw) return hit;
+
+  const hitCooked = isCookedEntry(hit.taco);
+  if ((wantCooked && hitCooked) || (wantRaw && !hitCooked)) return hit;
+
+  const sibling = findStateSibling(hit.taco, wantCooked);
+  if (sibling) {
+    return {
+      taco: sibling.taco,
+      score: hit.score,
+      lowConfidence: hit.lowConfidence || !sibling.exact,
+    };
+  }
+  return { ...hit, lowConfidence: true, stateMismatch: true };
 }
 
 export function parseRawWeight(text: string): number {

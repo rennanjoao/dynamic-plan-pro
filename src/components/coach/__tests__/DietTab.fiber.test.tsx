@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { calcDayMacros, calcItemMacros, parseWeightString, resolveFiberPer100, resolveQuantity } from "../macroCalc";
+import { calcDayMacros, calcItemMacros, parseWeightString, resolveFiberPer100, resolveQuantity } from "@/lib/macroCalc";
 import { ENRICHED_FOODS } from "@/data/enrichedFoods";
 import { TACO_FOODS } from "@/data/tacoFoods";
 import { LEGACY_TO_ENRICHED_FIBER } from "@/data/fiberEquivalents";
 import { LEGACY_TACO_FIBER } from "@/data/tacoFiberData";
+import { LEGACY_FIBER_EXTRA } from "@/data/legacyFiberExtra";
 import { INDUSTRIAL_FOODS, industrialByName } from "@/data/industrialFoods";
 
 const SOPA = [{ label: "1 colher de sopa", grams: 10 }];
@@ -37,7 +38,7 @@ describe("fibra: nunca zero silencioso", () => {
   });
 
   it("alimento sem dado de fibra é sinalizado, não tratado como zero", () => {
-    const m = calcItemMacros({ isTaco: true, baseName: "Arroz parboilizado (cozido)", rawWeight: 100 });
+    const m = calcItemMacros({ isTaco: true, baseName: "Rap10 / Tortilha de trigo", rawWeight: 100 });
     expect(m.fiber).toBe(0);
     expect(m.fiberUnknown).toBe(1);
   });
@@ -45,15 +46,18 @@ describe("fibra: nunca zero silencioso", () => {
   it("carne, ovo e laticínio são zero real (sem alerta); soja e oleaginosas não", () => {
     expect(resolveFiberPer100({ name: "Frango peito s/ pele (grelhado)", group: "protein" })).toEqual({ value: 0, source: "zero" });
     expect(resolveFiberPer100({ name: "Queijo Minas Frescal", group: "dairy" }).source).toBe("zero");
-    expect(resolveFiberPer100({ name: "Soja (crua)", group: "protein" }).source).toBe("missing");
-    expect(resolveFiberPer100({ name: "Pasta de amendoim integral", group: "fat" }).source).toBe("missing");
+    expect(resolveFiberPer100({ name: "Soja (crua)", group: "protein" })).toEqual({ value: 9.3, source: "reference" });
+    expect(resolveFiberPer100({ name: "Pasta de amendoim integral", group: "fat" })).toEqual({ value: 5.7, source: "reference" });
+    // o padrão de nome nunca zera soja/oleaginosa que ainda não tenha dado
+    expect(resolveFiberPer100({ name: "Soja em grãos (teste)", group: "protein" }).source).toBe("missing");
+    expect(resolveFiberPer100({ name: "Amendoim moído (teste)", group: "fat" }).source).toBe("missing");
     expect(resolveFiberPer100({ name: "Chia (sementes)", group: "fat", fiber: 34 })).toEqual({ value: 34, source: "table" });
   });
 
   it("soma do dia carrega fibra e a contagem de itens sem dado", () => {
     const meal = {
       options: [
-        { kind: "carb", items: [{ isTaco: true, baseName: "Aveia em flocos", rawWeight: 50 }, { isTaco: true, baseName: "Arroz parboilizado (cozido)", rawWeight: 100 }] },
+        { kind: "carb", items: [{ isTaco: true, baseName: "Aveia em flocos", rawWeight: 50 }, { isTaco: true, baseName: "Rap10 / Tortilha de trigo", rawWeight: 100 }] },
         { kind: "protein", items: [{ isTaco: true, baseName: "Ovo de galinha inteiro (cru)", rawWeight: 100 }] },
       ],
     };
@@ -104,8 +108,7 @@ describe("fibra: dados lidos da TACO 4ª edição (tacoFiberData)", () => {
 
   it("valores de referência conferidos no PDF da TACO (g/100 g)", () => {
     const cases: Array<[string, number]> = [
-      ["Arroz branco (cozido)", 1.56], ["Arroz integral (cozido)", 2.75], ["Feijão carioca (cozido)", 8.51],
-      ["Feijão preto (cozido)", 8.4], ["Brócolis (cozido/vapor)", 3.42], ["Cenoura (crua)", 3.18],
+      ["Brócolis (cozido/vapor)", 3.42], ["Cenoura (crua)", 3.18],
       ["Goiaba", 6.22], ["Abacate (polpa)", 6.31], ["Banana prata (crua)", 2.04], ["Morango", 1.72],
       ["Batata inglesa (cozida)", 1.34], ["Mandioca / Aipim (cozida)", 1.56], ["Linhaça (sementes)", 33.5],
     ];
@@ -130,16 +133,30 @@ describe("fibra: dados lidos da TACO 4ª edição (tacoFiberData)", () => {
     }
   });
 
-  it("fibra do dia agora conta o arroz e o feijão cozidos (caso do coach)", () => {
-    const meal = { options: [{ kind: "carb", items: [{ isTaco: true, baseName: "Arroz branco (cozido)", rawWeight: 200 }, { isTaco: true, baseName: "Feijão carioca (cozido)", rawWeight: 100 }] }] };
-    const day = calcDayMacros([meal]);
-    expect(day.fiber).toBeCloseTo(1.56 * 2 + 8.51, 2);
-    expect(day.fiberUnknown).toBe(0);
+  it("fibra do dia conta arroz e feijão cozidos e BATE com o mesmo prato em cru (caso do coach)", () => {
+    const cozido = { options: [{ kind: "carb", items: [{ isTaco: true, baseName: "Arroz branco (cozido)", rawWeight: 200 }, { isTaco: true, baseName: "Feijão carioca (cozido)", rawWeight: 100 }] }] };
+    // mesmo prato prescrito cru: 200 g cozidos ÷ 2,7 de arroz e 100 g cozidos ÷ 2,4 de feijão
+    const cru = { options: [{ kind: "carb", items: [{ isTaco: true, baseName: "Arroz branco (cru)", rawWeight: 200 / 2.7 }, { isTaco: true, baseName: "Feijão carioca (cru)", rawWeight: 100 / 2.4 }] }] };
+    const a = calcDayMacros([cozido]);
+    const b = calcDayMacros([cru]);
+    expect(a.fiberUnknown).toBe(0);
+    expect(Math.abs(a.fiber - b.fiber) / b.fiber).toBeLessThanOrEqual(0.03);
   });
 
-  it("pendências restantes: só alimentos SEM equivalente na TACO (e nenhum de origem animal)", () => {
+  it("cozidos ajustados para bater com o cru: o valor medido na fonte fica guardado (rastreável)", () => {
+    for (const [key, e] of Object.entries(LEGACY_FIBER_EXTRA)) {
+      if (e.kind !== "ajustado") continue;
+      const tacoMeasured = LEGACY_TACO_FIBER[key]?.fiber;
+      if (tacoMeasured !== undefined) expect(e.measured, key).toBe(tacoMeasured);
+    }
+    const f = TACO_FOODS.find((x) => x.name === "Arroz branco (cozido)");
+    expect(resolveFiberPer100(f)).toEqual({ value: 0.61, source: "adjusted" });
+    expect(LEGACY_FIBER_EXTRA["arroz branco (cozido)"].measured).toBe(1.56);
+  });
+
+  it("pendência restante: só o Rap10 (precisa do rótulo) — nenhum de origem animal", () => {
     const missing = TACO_FOODS.filter((f) => resolveFiberPer100(f).source === "missing");
-    expect(missing.length).toBeLessThanOrEqual(32);
+    expect(missing.map((f) => f.name)).toEqual(["Rap10 / Tortilha de trigo"]);
     for (const f of missing) expect(["protein", "dairy"].includes(f.group) && !/soja/i.test(f.name), f.name).toBe(false);
   });
 });
