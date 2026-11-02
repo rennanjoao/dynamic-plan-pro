@@ -24,7 +24,7 @@ import { formatDatePtBR } from "@/lib/formatDate";
 import { PenLine, AlertTriangle } from "lucide-react";
 import { PhotoAnnotationEditor, AnnotationOverlay, type AnnotationTarget } from "@/components/coach/PhotoAnnotationEditor";
 import { usePhotoAnnotations, annotationKey } from "@/hooks/usePhotoAnnotations";
-import { DEGREE_LABEL, extractReportedAttention, type PhotoPose, type ReportedAttention } from "@/lib/photoAnnotations";
+import { DEGREE_LABEL, extractReportedAttention, resolveCheckinPhotos, type PhotoPose, type ReportedAttention } from "@/lib/photoAnnotations";
 
 const sourceOf = (p: { id: string; kind: "anamnese" | "checkin" }) => ({
   kind: p.kind === "anamnese" ? ("anamnesis" as const) : ("checkin" as const),
@@ -67,8 +67,7 @@ export default function EvolutionComparison({
   const [rightId, setRightId] = useState<string>("");
   const [anamneseOnly, setAnamneseOnly] = useState(false);
   const [feedbackOnlyId, setFeedbackOnlyId] = useState<string | null>(null);
-  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
-  const [annotTarget, setAnnotTarget] = useState<AnnotationTarget | null>(null);
+  const [viewer, setViewer] = useState<{ target: AnnotationTarget; siblings: AnnotationTarget[]; mode: "view" | "edit" } | null>(null);
   const [naturalSizes, setNaturalSizes] = useState<Record<string, { w: number; h: number }>>({});
   const [attention, setAttention] = useState<ReportedAttention[]>([]);
   const { data: annotations } = usePhotoAnnotations(studentId);
@@ -104,7 +103,7 @@ export default function EvolutionComparison({
       const [{ data: anam }, { data: cis }] = await Promise.all([
         sb.from("anamnesis").select("id, submitted_at, baseline_metrics, payload")
           .eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(1).maybeSingle(),
-        sb.from("check_ins").select("id, submitted_at, current_metrics, payload, coach_feedback")
+        sb.from("check_ins").select("id, submitted_at, current_metrics, payload, coach_feedback, photo_url")
           .eq("student_id", studentId).order("submitted_at", { ascending: false }),
       ]);
 
@@ -139,7 +138,7 @@ export default function EvolutionComparison({
 
       (cis || []).forEach((c: any, idx: number) => {
         const payload = (c.payload || {}) as Record<string, unknown>;
-        const fotos = (payload.fotos as Record<string, string>) || {};
+        const fotos = resolveCheckinPhotos(payload, c.photo_url);
         const metrics = { ...(c.current_metrics || {}) } as Record<string, number | undefined>;
         const bf = estimateBF({
           altura: metrics.altura ?? baselineAltura,
@@ -180,6 +179,28 @@ export default function EvolutionComparison({
   }, [studentId]);
 
   const left = useMemo(() => points.find((p) => p.id === leftId), [points, leftId]);
+
+  const makeTarget = (point: Timepoint, pose: PhotoPose): AnnotationTarget | null => {
+    const photo = point.fotos[pose];
+    if (!photo) return null;
+    const src = sourceOf(point);
+    return {
+      studentId, sourceKind: src.kind, sourceId: src.id, pose, photo, date: point.date,
+      title: `${point.kind === "anamnese" ? "Anamnese" : "Check-in"} · ${fmt(point.date)} · ${POSE_LABEL[pose]}`,
+      existing: annotations?.get(annotationKey(src.kind, src.id, pose)) ?? null,
+    };
+  };
+  const allTargets = points.flatMap((p) => POSE_KEYS.map((k) => makeTarget(p, k)).filter((t): t is AnnotationTarget => !!t));
+  const openViewer = (point: Timepoint, pose: PhotoPose, mode: "view" | "edit", pair: Timepoint[]) => {
+    const target = makeTarget(point, pose);
+    if (!target) return;
+    const siblings = pair.map((p) => makeTarget(p, pose)).filter((t): t is AnnotationTarget => !!t);
+    setViewer({ target, siblings, mode });
+  };
+  const viewerSiblings = viewer ? viewer.siblings.map((s) => allTargets.find((t) => t.sourceId === s.sourceId && t.pose === s.pose && t.sourceKind === s.sourceKind) ?? s) : [];
+  const viewerEl = (
+    <PhotoAnnotationEditor target={viewer?.target ?? null} initialMode={viewer?.mode} siblings={viewerSiblings} candidates={allTargets} onClose={() => setViewer(null)} />
+  );
   const right = useMemo(() => points.find((p) => p.id === rightId), [points, rightId]);
 
   if (loading) {
@@ -232,7 +253,7 @@ export default function EvolutionComparison({
             <div className="grid grid-cols-4 gap-2">
               {POSE_KEYS.map((k) => fb.fotos[k] ? (
                 <div key={k} className="aspect-[3/4] rounded-md overflow-hidden border border-border/50 cursor-zoom-in"
-                     onClick={() => setZoomedImage(fb.fotos[k])}>
+                     onClick={() => openViewer(fb, k, "view", [fb])}>
                   <PrivateImg src={fb.fotos[k]} alt={POSE_LABEL[k]} className="w-full h-full object-cover" />
                 </div>
               ) : null)}
@@ -261,14 +282,7 @@ export default function EvolutionComparison({
           )}
         </Card>
 
-        {zoomedImage && (
-          <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 cursor-zoom-out backdrop-blur-sm"
-            onClick={() => setZoomedImage(null)}
-          >
-            <PrivateImg src={zoomedImage} alt="Zoom" className="max-w-full max-h-full object-contain rounded-md shadow-2xl" />
-          </div>
-        )}
+        {viewerEl}
       </div>
     );
   }
@@ -399,7 +413,7 @@ export default function EvolutionComparison({
                         <>
                           <div
                             className="relative aspect-[3/4] rounded-md border border-border/50 overflow-hidden bg-muted/20 flex items-center justify-center cursor-zoom-in"
-                            onClick={() => photo && setZoomedImage(photo)}
+                            onClick={() => photo && openViewer(point, k as PhotoPose, "view", [left, right])}
                           >
                             {photo ? (
                               <>
@@ -408,7 +422,7 @@ export default function EvolutionComparison({
                                 <AnnotationOverlay lines={ann?.annotations ?? []} natural={naturalSizes[photo] ?? null} />
                               </>
                             ) : (
-                              <span className="text-[9px] text-muted-foreground">—</span>
+                              <span className="text-[9px] text-muted-foreground px-1 text-center">Sem foto nesta pose</span>
                             )}
                           </div>
                           {photo && (
@@ -417,7 +431,7 @@ export default function EvolutionComparison({
                                 {ann ? DEGREE_LABEL[ann.visual_degree] : "Sem anotação"}
                               </span>
                               <button type="button" className="text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-border/50 text-muted-foreground hover:text-primary hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                onClick={() => setAnnotTarget({ studentId, sourceKind: src.kind, sourceId: src.id, pose: k as PhotoPose, photo, title: `${POSE_LABEL[k]} · ${point.label}`, existing: ann })}>
+                                onClick={() => openViewer(point, k as PhotoPose, "edit", [left, right])}>
                                 <PenLine className="w-3 h-3" /> {ann ? "Editar" : "Anotar foto"}
                               </button>
                             </div>
@@ -497,18 +511,9 @@ export default function EvolutionComparison({
         </div>
       )}
 
-      <PhotoAnnotationEditor target={annotTarget} onClose={() => setAnnotTarget(null)} />
+      {viewerEl}
 
       {/* Lightbox Modal (Zoom Fullscreen) */}
-      {zoomedImage && (
-        <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 cursor-zoom-out backdrop-blur-sm transition-opacity"
-          onClick={() => setZoomedImage(null)}
-        >
-          <PrivateImg src={zoomedImage} alt="Zoom Visualização" className="max-w-full max-h-full object-contain rounded-md shadow-2xl" />
-          <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-white/70">Clique para fechar</p>
-        </div>
-      )}
     </div>
   );
 }
