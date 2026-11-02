@@ -238,7 +238,7 @@ export function PhotoAnnotationEditor({ target: initialTarget, siblings = [], ca
   const duplicateTo = (dest: AnnotationTarget) => {
     if (!target) return;
     const r = duplicateLinesForTarget(lines, target.pose, dest.pose);
-    if (!r.ok) { toast.error(r.reason); return; }
+    if (r.ok === false) { toast.error(r.reason); return; }
     setDupOpen(false);
     const destLines = [...(dest.existing?.annotations ?? []), ...r.lines];
     load(dest, { lines: destLines, note: dupNote && note.trim() ? (dest.existing?.coach_note ? dest.existing.coach_note + "\n" : "") + note : undefined, asDraft: true });

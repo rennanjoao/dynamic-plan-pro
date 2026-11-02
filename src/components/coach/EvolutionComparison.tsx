@@ -513,7 +513,6 @@ export default function EvolutionComparison({
 
       {viewerEl}
 
-      {/* Lightbox Modal (Zoom Fullscreen) */}
     </div>
   );
 }
