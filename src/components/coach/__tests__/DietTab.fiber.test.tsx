@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcDayMacros, calcItemMacros, parseWeightString, resolveFiberPer100, resolveQuantity } from "../macroCalc";
+import { calcDayMacros, calcItemMacros, parseWeightString, resolveFiberPer100, resolveQuantity } from "@/lib/macroCalc";
 import { ENRICHED_FOODS } from "@/data/enrichedFoods";
 import { TACO_FOODS } from "@/data/tacoFoods";
 import { LEGACY_TO_ENRICHED_FIBER } from "@/data/fiberEquivalents";
