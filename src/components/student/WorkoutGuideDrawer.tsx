@@ -1,25 +1,27 @@
 // src/components/student/WorkoutGuideDrawer.tsx
-// Guia rápido "Como ler o seu treino", acionado por um botão discreto no
-// topo da tela de rotina de treinos (WorkoutPlan.tsx). Autocontido (dono do
-// próprio estado de abertura), como TpmCravingsDialog/FoodmapsDialog.
+// Guia rápido "Como ler o seu treino" (Regras de Ouro), acionado por um botão
+// discreto no topo da tela de rotina de treinos (WorkoutPlan.tsx). Autocontido
+// (dono do próprio estado de abertura).
 //
-// Segue o padrão responsivo já estabelecido em ExerciseVideoSheet.tsx /
-// MobilitySuggestedDrawer.tsx (Drawer no mobile, Dialog no desktop) — não
-// introduz um terceiro tipo de overlay pra esse tipo de conteúdo.
+// Revelação progressiva: com o item fechado o aluno já vê o título e 2–3
+// selos com a essência da regra; ao tocar, abre a explicação, um mini-visual
+// e o callout "O óbvio que precisa ser dito". O conteúdo vive em
+// @/lib/periodizationCopy (GOLDEN_RULES).
 //
-// max-h-[85dvh] (não vh) + overflow-y-auto nativo numa área interna: mesmo
-// fix já validado no TpmCravingsDialog para conteúdo mais alto que a tela em
-// mobile (vh não desconta a barra de endereço do navegador; dvh desconta).
-// Nem ExerciseVideoSheet.tsx nem MobilitySuggestedDrawer.tsx têm esse fix
-// ainda — o conteúdo deles cabe sem rolar. Este guia é mais longo, então
-// aplica o fix por cima do padrão, em vez de herdar o bug junto com ele.
+// WorkoutRulesContent é reutilizado como aba "Regras" do guia unificado de
+// periodização (PeriodizationGuideDrawer).
 
 import { type ReactNode, useState } from "react";
+import { ArrowRight, BookOpenText, Check, Flame, RotateCcw, Target, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from "@/components/ui/drawer";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { BookOpenText, Flame, Target, RotateCcw, X, AlertTriangle } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { GuideCallout, GuideChip, GuideShell } from "@/components/student/GuideParts";
+import {
+  GOLDEN_RULES,
+  RULES_INTRO,
+  RULES_OBVIOUS_TITLE,
+  type GoldenRuleKey,
+} from "@/lib/periodizationCopy";
 
 interface WorkoutGuideDrawerProps {
   /** Substitui o botão-gatilho padrão (ex: pra usar um ícone em vez do texto). */
@@ -27,62 +29,121 @@ interface WorkoutGuideDrawerProps {
   className?: string;
 }
 
-/** As 4 regras gerais — reutilizadas no guia unificado de periodização. */
-export function WorkoutRulesContent() {
+const RULE_ICON = {
+  "serie-zero": Flame,
+  "falha-tecnica": Target,
+  faltou: RotateCcw,
+} as const;
+
+// ───────────────────────────── Mini-visuais ─────────────────────────────
+
+/** Série Zero (tracejada, "não conta") + as séries valendo da ficha. */
+function SetsVisual() {
   return (
-    <div className="space-y-5">
-      <p className="text-xs text-muted-foreground leading-relaxed">
-        Para extrair o máximo de resultado sem se machucar, siga estas 3 regras de ouro na sua rotina:
-      </p>
-
-      <section className="space-y-1.5">
-        <h3 className="flex items-center gap-2 text-sm font-bold">
-          <Flame className="w-4 h-4 text-primary shrink-0" />
-          1. O Primeiro Aquecimento (A "Série Zero")
-        </h3>
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          A sua <strong className="text-foreground">primeira série</strong> do{" "}
-          <strong className="text-foreground">primeiro exercício</strong> do dia deve ser sempre feita apenas com a
-          barra ou um peso muito leve (5 a 10kg). O objetivo aqui é apenas lubrificar as articulações e avisar seu
-          corpo que o treino começou.
-        </p>
-        <Callout>Esse aquecimento não conta nas séries escritas na sua ficha! Ele é feito totalmente por fora.</Callout>
-      </section>
-
-      <section className="space-y-1.5">
-        <h3 className="flex items-center gap-2 text-sm font-bold">
-          <Target className="w-4 h-4 text-primary shrink-0" />
-          2. O que é "Ir até a Falha"?
-        </h3>
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          Falhar não é desmaiar ou quebrar o equipamento. Buscamos a <strong className="text-foreground">Falha
-          Técnica</strong>: a série acaba no exato momento em que você não consegue mais fazer o movimento com a
-          postura perfeita. Começou a "roubar" ou entortar o corpo? O exercício acabou.
-        </p>
-      </section>
-
-      <section className="space-y-1.5">
-        <h3 className="flex items-center gap-2 text-sm font-bold">
-          <RotateCcw className="w-4 h-4 text-primary shrink-0" />
-          3. Faltou no treino? O que fazer
-        </h3>
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          Percebeu que não vai conseguir treinar hoje? Sem desespero. Faça desse um dia de descanso total ou, no
-          máximo, um aeróbico de baixa intensidade. No dia seguinte, simplesmente retome a rotina fazendo o treino
-          que você faltou — não pule treinos!
-        </p>
-        <Callout>Faça a dieta correspondente ao "Dia de Descanso".</Callout>
-      </section>
+    <div className="rounded-lg border border-border bg-muted/30 p-2.5 space-y-1.5">
+      <div className="flex items-center gap-1.5">
+        <span className="flex flex-col items-center justify-center rounded-md border border-dashed border-muted-foreground/50 px-2 py-1 text-center">
+          <span className="text-[10px] font-bold leading-tight">Série Zero</span>
+          <span className="text-[10px] text-muted-foreground leading-tight">leve · não conta</span>
+        </span>
+        <span className="text-xs font-bold text-muted-foreground" aria-hidden>+</span>
+        {[1, 2, 3].map((n) => (
+          <span
+            key={n}
+            className="flex flex-1 flex-col items-center justify-center rounded-md bg-primary px-1 py-1 text-primary-foreground"
+          >
+            <span className="text-[10px] font-bold leading-tight">Série {n}</span>
+            <span className="text-[10px] opacity-80 leading-tight">vale</span>
+          </span>
+        ))}
+      </div>
+      <p className="text-[10px] text-muted-foreground">Exemplo: a ficha pede 3 séries.</p>
     </div>
   );
 }
 
+/** Falta: a fila anda pela ficha, não pelo dia da semana. */
+function QueueVisual() {
+  return (
+    <div className="rounded-lg border border-border bg-muted/30 p-2.5 space-y-1.5">
+      <div className="flex items-center gap-2">
+        <span className="flex-1 rounded-md border border-red-500/40 bg-red-500/10 px-2 py-1.5 text-center">
+          <span className="flex items-center justify-center gap-1 text-[11px] font-bold text-red-500">
+            <X className="w-3 h-3" aria-hidden /> Hoje: Perna
+          </span>
+          <span className="block text-[10px] text-muted-foreground">faltou</span>
+        </span>
+        <ArrowRight className="w-4 h-4 shrink-0 text-muted-foreground" aria-hidden />
+        <span className="flex-1 rounded-md border border-primary/40 bg-primary/10 px-2 py-1.5 text-center">
+          <span className="flex items-center justify-center gap-1 text-[11px] font-bold">
+            <Check className="w-3 h-3 text-primary" aria-hidden /> Amanhã: Perna
+          </span>
+          <span className="block text-[10px] text-muted-foreground">segue a ficha</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function RuleVisual({ ruleKey }: { ruleKey: GoldenRuleKey }) {
+  if (ruleKey === "serie-zero") return <SetsVisual />;
+  if (ruleKey === "faltou") return <QueueVisual />;
+  return null;
+}
+
+// ───────────────────────────── Conteúdo ─────────────────────────────
+
+/** As 3 regras de ouro — reutilizadas na aba "Regras" do guia unificado. */
+export function WorkoutRulesContent() {
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground leading-relaxed">{RULES_INTRO}</p>
+
+      <Accordion type="single" collapsible className="space-y-2">
+        {GOLDEN_RULES.map((rule, index) => {
+          const Icon = RULE_ICON[rule.key];
+          return (
+            <AccordionItem
+              key={rule.key}
+              value={rule.key}
+              className="rounded-xl border border-border bg-card px-3"
+            >
+              <AccordionTrigger className="py-3 text-left hover:no-underline gap-2">
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Icon className="w-4 h-4" aria-hidden />
+                  </span>
+                  <div className="min-w-0 space-y-1.5">
+                    <p className="text-sm font-bold leading-tight">
+                      {index + 1}. {rule.title}
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {rule.chips.map((chip) => (
+                        <GuideChip key={chip}>{chip}</GuideChip>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-2.5">
+                <p className="text-xs text-foreground leading-relaxed">{rule.rule}</p>
+                <RuleVisual ruleKey={rule.key} />
+                <GuideCallout tone="warn" title={RULES_OBVIOUS_TITLE}>
+                  {rule.obvious}
+                </GuideCallout>
+              </AccordionContent>
+            </AccordionItem>
+          );
+        })}
+      </Accordion>
+    </div>
+  );
+}
+
+// ───────────────────────────── Gatilho + casca ─────────────────────────────
+
 export function WorkoutGuideDrawer({ trigger, className }: WorkoutGuideDrawerProps) {
   const [open, setOpen] = useState(false);
-  const isMobile = useIsMobile();
-  const title = "Guia Rápido: Como ler o seu treino";
-  const body = <WorkoutRulesContent />;
-
 
   const defaultTrigger = (
     <Button
@@ -95,58 +156,15 @@ export function WorkoutGuideDrawer({ trigger, className }: WorkoutGuideDrawerPro
     </Button>
   );
 
-  if (isMobile) {
-    return (
-      <Drawer open={open} onOpenChange={setOpen}>
-        <div onClick={() => setOpen(true)}>{trigger ?? defaultTrigger}</div>
-        <DrawerContent className="max-h-[85dvh] flex flex-col">
-          <DrawerHeader className="flex flex-row items-center justify-between gap-2 shrink-0 text-left">
-            <DrawerTitle className="text-left truncate min-w-0">{title}</DrawerTitle>
-            <DrawerClose asChild>
-              <button
-                type="button"
-                aria-label="Fechar guia"
-                className="rounded-full p-2 hover:bg-black/10 transition-colors focus:outline-none focus:ring-2 focus:ring-primary shrink-0"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </DrawerClose>
-          </DrawerHeader>
-          <div
-            className="flex-1 min-h-0 overflow-y-auto px-4 pb-6"
-            style={{ WebkitOverflowScrolling: "touch" }}
-          >
-            {body}
-          </div>
-        </DrawerContent>
-      </Drawer>
-    );
-  }
-
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <div onClick={() => setOpen(true)}>{trigger ?? defaultTrigger}</div>
-      <DialogContent className="sm:max-w-lg max-h-[85dvh] flex flex-col p-0 overflow-hidden">
-        <DialogHeader className="p-5 pb-3 shrink-0">
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription className="sr-only">
-            Guia rápido com as regras de aquecimento, séries de preparação, falha técnica e o que fazer ao faltar um treino.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex-1 min-h-0 overflow-y-auto px-5 pb-5">{body}</div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function Callout({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2">
-      <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-      <p className="text-[11px] text-amber-600 leading-relaxed">
-        <strong className="uppercase tracking-wide text-[10px] block mb-0.5">Atenção</strong>
-        {children}
-      </p>
-    </div>
+    <GuideShell
+      open={open}
+      onOpenChange={setOpen}
+      title="Guia Rápido: Como ler o seu treino"
+      description="Guia rápido com as regras de ouro: Série Zero, falha técnica e o que fazer ao faltar um treino."
+      trigger={trigger ?? defaultTrigger}
+    >
+      <WorkoutRulesContent />
+    </GuideShell>
   );
 }
