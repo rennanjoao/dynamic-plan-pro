@@ -103,7 +103,7 @@ export function PhotoAnnotationEditor({ target: initialTarget, siblings = [], ca
     setView({ s: 1, x: 0, y: 0 });
   };
 
-  useEffect(() => { load(initialTarget); setMode(initialMode); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [initialTarget, initialMode]);
+  useEffect(() => { load(initialTarget); setMode(initialMode); }, [initialTarget, initialMode]);
 
   // Mantém `existing` atualizado após salvar (cache invalidado).
   useEffect(() => {
