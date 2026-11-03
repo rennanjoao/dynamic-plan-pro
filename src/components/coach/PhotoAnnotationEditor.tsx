@@ -260,11 +260,13 @@ export function PhotoAnnotationEditor({ target: initialTarget, siblings = [], ca
 
   const close = () => guard(() => { onClose(); });
   const sibIndex = target ? siblings.findIndex((s) => sameTarget(s, target)) : -1;
+  // Outra foto da mesma pose no par comparado, exibida lado a lado.
+  const partner = target ? siblings.find((s) => !sameTarget(s, target) && s.pose === target.pose) ?? null : null;
 
   return (
     <>
       <Dialog open={!!target} onOpenChange={(o) => !o && close()}>
-        <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
+        <DialogContent className={`${partner ? "max-w-7xl" : "max-w-5xl"} max-h-[95vh] overflow-y-auto`}>
           <DialogHeader>
             <DialogTitle className="text-sm flex items-center gap-2">
               {mode === "edit" ? <PenLine className="w-4 h-4 text-primary" /> : <Eye className="w-4 h-4 text-primary" />}
@@ -291,14 +293,15 @@ export function PhotoAnnotationEditor({ target: initialTarget, siblings = [], ca
                   )}
                 </div>
 
-                <div ref={stageRef} className="relative h-[62vh] overflow-hidden rounded-md bg-muted/20 touch-none select-none flex items-center justify-center"
+                <div className={partner ? "grid grid-cols-2 gap-2" : undefined}>
+                <div ref={stageRef} className="relative h-[62vh] overflow-hidden rounded-md bg-muted/20 touch-none select-none flex items-center justify-center min-w-0"
                   style={{ cursor: view.s > 1 ? "grab" : "default" }}
                   onWheel={onWheel} onPointerDown={onStageDown} onPointerMove={onStageMove} onPointerUp={onStageUp} onPointerCancel={onStageUp}>
                   <div style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.s})`, transformOrigin: "center center" }}>
                     <div ref={boxRef} className="relative inline-block" data-testid="annotation-box">
                       <PrivateImg src={target.photo} alt={target.title} draggable={false}
                         onLoad={(e) => { const i = e.currentTarget; if (i.naturalHeight) { setAspect(i.naturalWidth / i.naturalHeight); setNaturalW(i.naturalWidth); setFitW(i.offsetWidth); } }}
-                        className="block max-h-[60vh] w-auto rounded" />
+                        className={`block max-h-[60vh] w-auto rounded ${partner ? "max-w-[38vw]" : ""}`} />
                       <svg className="absolute inset-0 w-full h-full" viewBox="0 0 1 1" preserveAspectRatio="none">
                         {lines.map((l) => (
                           <line key={l.id} x1={l.a.x} y1={l.a.y} x2={l.b.x} y2={l.b.y}
@@ -322,6 +325,28 @@ export function PhotoAnnotationEditor({ target: initialTarget, siblings = [], ca
                       ))}
                     </div>
                   </div>
+                </div>
+                {partner && (
+                  <div className="flex flex-col min-w-0 gap-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] text-muted-foreground truncate">{partner.title}</span>
+                      <Button size="sm" variant="outline" className="h-7 text-[11px] shrink-0" onClick={() => switchTo(partner)}>
+                        <PenLine className="w-3 h-3 mr-1" />Anotar esta
+                      </Button>
+                    </div>
+                    <div className="relative h-[62vh] overflow-hidden rounded-md bg-muted/20 flex items-center justify-center">
+                      <div className="relative inline-block">
+                        <PrivateImg src={partner.photo} alt={partner.title} draggable={false} className="block max-h-[60vh] max-w-full w-auto rounded" />
+                        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden>
+                          {(partner.existing?.annotations ?? []).map((l) => (
+                            <line key={l.id} x1={l.a.x} y1={l.a.y} x2={l.b.x} y2={l.b.y} stroke={REF_COLOR[refOf(l)]} strokeWidth={2}
+                              vectorEffect="non-scaling-stroke" strokeDasharray={l.tool === "vertical" || l.notAssessable ? "6 4" : undefined} />
+                          ))}
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 </div>
                 <p className="text-[10px] text-muted-foreground">Roda do mouse ou pinça para zoom; arraste para mover a imagem ampliada. Valor em graus = ângulo visual da linha na imagem.</p>
                 {lines.length > 0 && (
