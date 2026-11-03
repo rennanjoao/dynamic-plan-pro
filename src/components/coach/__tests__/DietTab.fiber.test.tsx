@@ -4,7 +4,7 @@ import { ENRICHED_FOODS } from "@/data/enrichedFoods";
 import { TACO_FOODS } from "@/data/tacoFoods";
 import { LEGACY_TO_ENRICHED_FIBER } from "@/data/fiberEquivalents";
 import { LEGACY_TACO_FIBER } from "@/data/tacoFiberData";
-import { LEGACY_FIBER_EXTRA } from "@/data/legacyFiberExtra";
+import { COOKED_TWINS } from "@/data/cookedTwins";
 import { INDUSTRIAL_FOODS, industrialByName } from "@/data/industrialFoods";
 
 const SOPA = [{ label: "1 colher de sopa", grams: 10 }];
@@ -93,6 +93,7 @@ describe("fibra: dados lidos da TACO 4ª edição (tacoFiberData)", () => {
 
   it("guarda de estado: energia do legado compatível com a do item TACO (±30% ou ±15 kcal)", () => {
     for (const [key, e] of Object.entries(LEGACY_TACO_FIBER)) {
+      if (COOKED_TWINS[key]) continue; // cozido com gêmeo cru: fibra e kcal derivados do cru (cookedTwins.ts)
       const f = [...TACO_FOODS, ...INDUSTRIAL_FOODS].find((x) => x.name.toLowerCase() === key)!;
       const tol = Math.max(0.3 * e.tacoKcal, 15);
       expect(Math.abs(f.kcal - e.tacoKcal), `${key} ↔ ${e.taco}`).toBeLessThanOrEqual(tol);
@@ -108,9 +109,9 @@ describe("fibra: dados lidos da TACO 4ª edição (tacoFiberData)", () => {
 
   it("valores de referência conferidos no PDF da TACO (g/100 g)", () => {
     const cases: Array<[string, number]> = [
-      ["Brócolis (cozido/vapor)", 3.42], ["Cenoura (crua)", 3.18],
+      ["Cenoura (crua)", 3.18],
       ["Goiaba", 6.22], ["Abacate (polpa)", 6.31], ["Banana prata (crua)", 2.04], ["Morango", 1.72],
-      ["Batata inglesa (cozida)", 1.34], ["Mandioca / Aipim (cozida)", 1.56], ["Linhaça (sementes)", 33.5],
+      ["Linhaça (sementes)", 33.5],
     ];
     for (const [name, fiber] of cases) {
       const f = TACO_FOODS.find((x) => x.name === name);
@@ -143,15 +144,10 @@ describe("fibra: dados lidos da TACO 4ª edição (tacoFiberData)", () => {
     expect(Math.abs(a.fiber - b.fiber) / b.fiber).toBeLessThanOrEqual(0.03);
   });
 
-  it("cozidos ajustados para bater com o cru: o valor medido na fonte fica guardado (rastreável)", () => {
-    for (const [key, e] of Object.entries(LEGACY_FIBER_EXTRA)) {
-      if (e.kind !== "ajustado") continue;
-      const tacoMeasured = LEGACY_TACO_FIBER[key]?.fiber;
-      if (tacoMeasured !== undefined) expect(e.measured, key).toBe(tacoMeasured);
-    }
+  it("cozido vale o cru ÷ fator: o valor medido da TACO fica guardado, mas não é o usado", () => {
     const f = TACO_FOODS.find((x) => x.name === "Arroz branco (cozido)");
     expect(resolveFiberPer100(f)).toEqual({ value: 0.61, source: "adjusted" });
-    expect(LEGACY_FIBER_EXTRA["arroz branco (cozido)"].measured).toBe(1.56);
+    expect(LEGACY_TACO_FIBER["arroz branco (cozido)"].fiber).toBe(1.56); // medido na TACO (2,6× o cru: inconsistente)
   });
 
   it("pendência restante: só o Rap10 (precisa do rótulo) — nenhum de origem animal", () => {

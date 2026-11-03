@@ -9,6 +9,8 @@
  * FONTE: TACO 4ª edição + USDA + Padrões de Suplementação Fitness
  */
 
+import { applyCookedTwins } from "./cookedTwins";
+
 export interface TacoFood {
   name: string;
   kcal: number;
@@ -36,9 +38,15 @@ export interface TacoFood {
  *  - Arroz, massas e leguminosas: fator reproduz o par cru/cozido desta base (kcal cru ÷ kcal cozido).
  *    Feijão = grãos cozidos e ESCORRIDOS (USDA feijão-pinto: 347 → 143 kcal/100 g ≈ 2,4).
  *  - O MESMO alimento tem o MESMO fator aqui e em enrichedFoods.ts (teste de integridade cobre isso).
- *  - A FIBRA dos cozidos acompanha o cru: fibra do cru ÷ cookFactor (ver legacyFiberExtra.ts).
+ *  - COZIDO = CRU ÷ cookFactor em kcal, macros E fibra (lista em cookedTwins.ts): cru e cozido só
+ *    servem para o aluno entender a pesagem, então os totais do coach não dependem do estado.
  */
-export const TACO_FOODS: TacoFood[] = [
+/**
+ * Linhas como MEDIDAS na TACO/USDA. Os alimentos COZIDOS que têm "gêmeo" cru (lista em
+ * cookedTwins.ts) são recalculados ao exportar: cru ÷ cookFactor. Assim kcal, macros e fibra
+ * NÃO mudam entre cru e cozido — o cru/cozido existe só para o aluno entender a pesagem.
+ */
+const TACO_FOODS_MEASURED: TacoFood[] = [
   // ─── CARBOIDRATOS & LEGUMINOSAS ──────────────────────────────────────────────
   { name: "Arroz branco (cru)",              kcal: 345, p: 7.0,  c: 77.4, g: 0.5, group: "carb", cookFactor: 2.7 },
   { name: "Arroz branco (cozido)",           kcal: 128, p: 2.5,  c: 28.1, g: 0.2, group: "carb", valuesArCooked: true },
@@ -66,7 +74,7 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Pão de forma integral",           kcal: 253, p: 9.4,  c: 49.9, g: 2.9, group: "carb", unitWeight: 25 , portions: [{ label: "1 fatia", grams: 25 }]},
   { name: "Rap10 / Tortilha de trigo",       kcal: 288, p: 8.0,  c: 50.0, g: 5.5, group: "carb", unitWeight: 40 },
   { name: "Tapioca (goma hidratada/pronta)", kcal: 130, p: 0.1,  c: 32.1, g: 0.2, group: "carb", unitWeight: 60 },
-  { name: "Tapioca (goma seca/polvilho)",    kcal: 358, p: 0.0,  c: 89.4, g: 0.1, group: "carb", cookFactor: 2.5 },
+  { name: "Tapioca (goma seca/polvilho)",    kcal: 358, p: 0.0,  c: 89.4, g: 0.1, group: "carb", cookFactor: 2.75 },
   { name: "Cuscuz de milho (flocos crus)",   kcal: 354, p: 7.1,  c: 77.5, g: 1.5, group: "carb", cookFactor: 3.0 },
   { name: "Cuscuz de milho (preparado)",     kcal: 113, p: 2.6,  c: 25.5, g: 0.4, group: "carb", valuesArCooked: true },
   { name: "Aveia em flocos",                 kcal: 394, p: 13.9, c: 66.6, g: 8.5, group: "carb" },
@@ -274,6 +282,8 @@ export const TACO_FOODS: TacoFood[] = [
   { name: "Cebola (crua)",                   kcal: 40,  p: 1.1,  c:  9.3, g: 0.1, group: "veg" },
   { name: "Pimentão (cru)",                  kcal: 20,  p: 0.9,  c:  4.6, g: 0.2, group: "veg" },
 ];
+
+export const TACO_FOODS: TacoFood[] = applyCookedTwins(TACO_FOODS_MEASURED);
 
 // ─── FUNÇÕES ──────────────────────────────────────────────────────────────────
 

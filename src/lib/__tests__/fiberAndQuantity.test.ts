@@ -1,9 +1,10 @@
 /**
- * fiberAndQuantity.test.ts — fibra: cobertura e coerência CRU × COZIDO.
+ * fiberAndQuantity.test.ts — fibra: cobertura dos catálogos e independência de cru × cozido.
  *
  * (Este arquivo estava com o conteúdo de src/data/fiberEquivalents.ts, sem nenhum teste.)
  *
- * Regra de produto: o total de fibra é o MESMO seja o alimento prescrito cru ou cozido
+ * Regra de produto: cru e cozido só servem para o aluno entender a pesagem. O total de fibra
+ * (como o de kcal e macros) é o MESMO seja o alimento prescrito cru ou cozido:
  *   fibra do cozido (por 100 g) = fibra do cru (por 100 g) ÷ cookFactor
  */
 import { describe, it, expect } from "vitest";
@@ -11,13 +12,11 @@ import { TACO_FOODS } from "@/data/tacoFoods";
 import { ENRICHED_FOODS } from "@/data/enrichedFoods";
 import { INDUSTRIAL_FOODS } from "@/data/industrialFoods";
 import { LEGACY_FIBER_EXTRA } from "@/data/legacyFiberExtra";
-import { LEGACY_TACO_FIBER } from "@/data/tacoFiberData";
+import { COOKED_TWINS } from "@/data/cookedTwins";
 import { calcItemMacros, resolveFiberPer100 } from "@/lib/macroCalc";
 
 // Pendente conhecido (sem fonte confiável): preencher em legacyFiberExtra.ts quando houver o rótulo.
 const PENDING = new Set(["Rap10 / Tortilha de trigo"]);
-
-const food = (n: string) => TACO_FOODS.find((f) => f.name === n)!;
 
 describe("cobertura de fibra dos catálogos", () => {
   it.each([
@@ -47,33 +46,18 @@ describe("cobertura de fibra dos catálogos", () => {
 });
 
 describe("cru × cozido: mesmo total de fibra", () => {
-  const adjusted = Object.entries(LEGACY_FIBER_EXTRA).filter(([, e]) => e.kind === "ajustado");
+  const twins = Object.entries(COOKED_TWINS);
 
-  it("há cozidos ajustados (arroz, massas, feijão, lentilha, quinoa, grão-de-bico, cuscuz, tapioca)", () => {
-    expect(adjusted.length).toBeGreaterThanOrEqual(13);
-  });
-
-  it.each(adjusted.map(([k]) => [k]))("%s = fibra do cru ÷ fator (tolerância 3%)", (key) => {
-    const e = LEGACY_FIBER_EXTRA[key];
-    const cooked = TACO_FOODS.find((f) => f.name.toLowerCase() === key)!;
-    const raw = TACO_FOODS.find((f) => f.name.toLowerCase() === e.rawTwin)!;
-    expect(cooked, key).toBeTruthy();
-    expect(raw, String(e.rawTwin)).toBeTruthy();
-    expect(raw.cookFactor, `${raw.name} precisa de cookFactor`).toBeGreaterThan(1);
-    const rawFiber = resolveFiberPer100(raw).value;
-    const expected = rawFiber / raw.cookFactor!;
-    const got = resolveFiberPer100(cooked).value;
-    expect(Math.abs(got - expected), `${cooked.name}: ${got} × ${expected.toFixed(3)}`).toBeLessThanOrEqual(Math.max(0.03 * expected, 0.006));
-  });
-
-  it("100 g crus e (100 × fator) g cozidos dão a MESMA fibra no cálculo do painel", () => {
-    for (const [key, e] of adjusted) {
-      const cooked = TACO_FOODS.find((f) => f.name.toLowerCase() === key)!;
-      const raw = TACO_FOODS.find((f) => f.name.toLowerCase() === e.rawTwin)!;
-      const fromRaw = calcItemMacros({ isTaco: true, baseName: raw.name, rawWeight: 100 }).fiber;
-      const fromCooked = calcItemMacros({ isTaco: true, baseName: cooked.name, rawWeight: 100 * raw.cookFactor! }).fiber;
-      expect(Math.abs(fromRaw - fromCooked), cooked.name).toBeLessThanOrEqual(Math.max(0.03 * fromRaw, 0.015));
-    }
+  it.each(twins)("%s: 100 g de cru e (100 × fator) g de cozido dão a mesma fibra", (cookedKey, rawName) => {
+    const cooked = TACO_FOODS.find((f) => f.name.toLowerCase() === cookedKey)!;
+    const raw = TACO_FOODS.find((f) => f.name === rawName)!;
+    expect(cooked, cookedKey).toBeTruthy();
+    expect(raw, rawName).toBeTruthy();
+    const cf = raw.cookFactor ?? 1;
+    const a = calcItemMacros({ isTaco: true, baseName: raw.name, rawWeight: 100 });
+    const b = calcItemMacros({ isTaco: true, baseName: cooked.name, rawWeight: 100 * cf });
+    expect(a.fiberUnknown, rawName).toBe(b.fiberUnknown);
+    expect(Math.abs(a.fiber - b.fiber), `${rawName} × ${cooked.name}`).toBeLessThanOrEqual(Math.max(0.02 * a.fiber, 0.02));
   });
 
   it("exemplo do coach: 200 g de arroz cozido NÃO vira 3,1 g de fibra (era 2,6× o cru)", () => {
@@ -81,33 +65,19 @@ describe("cru × cozido: mesmo total de fibra", () => {
     expect(m.fiber).toBeCloseTo(1.2, 1);
   });
 
-  it("o valor medido do cozido fica guardado e é diferente do usado (rastreável)", () => {
-    for (const [key, e] of adjusted) {
-      if (e.measured === undefined) continue;
-      expect(e.measured, key).toBeGreaterThan(0);
-    }
-    // onde a TACO tinha o número, ele é exatamente o `measured`
-    for (const [key, e] of adjusted) {
-      const t = LEGACY_TACO_FIBER[key];
-      if (t) expect(e.measured, key).toBe(t.fiber);
-    }
+  it("prato cozido (200 g arroz + 100 g feijão) = mesmo prato em cru, em fibra", () => {
+    const cozido = [
+      calcItemMacros({ isTaco: true, baseName: "Arroz branco (cozido)", rawWeight: 200 }),
+      calcItemMacros({ isTaco: true, baseName: "Feijão carioca (cozido)", rawWeight: 100 }),
+    ].reduce((s, m) => s + m.fiber, 0);
+    const cru = [
+      calcItemMacros({ isTaco: true, baseName: "Arroz branco (cru)", rawWeight: 200 / 2.7 }),
+      calcItemMacros({ isTaco: true, baseName: "Feijão carioca (cru)", rawWeight: 100 / 2.4 }),
+    ].reduce((s, m) => s + m.fiber, 0);
+    expect(Math.abs(cozido - cru) / cru).toBeLessThanOrEqual(0.02);
   });
 
-  it("cru e cozido de legumes (fator 1) ficam na mesma ordem de grandeza (±50%)", () => {
-    const pairs: Array<[string, string]> = [
-      ["Brócolis (cru)", "Brócolis (cozido/vapor)"],
-      ["Couve-flor (crua)", "Couve-flor (cozida)"],
-      ["Cenoura (crua)", "Cenoura (cozida)"],
-      ["Abobrinha italiana (crua)", "Abobrinha italiana (cozida)"],
-      ["Abóbora cabotian (crua)", "Abóbora cabotian (cozida)"],
-      ["Chuchu (cru)", "Chuchu (cozido)"],
-    ];
-    for (const [r, c] of pairs) {
-      const fr = resolveFiberPer100(food(r)).value;
-      const fc = resolveFiberPer100(food(c)).value;
-      expect(food(r).cookFactor ?? 1, r).toBe(1);
-      expect(fc / fr, `${r} × ${c}`).toBeGreaterThan(0.5);
-      expect(fc / fr, `${r} × ${c}`).toBeLessThan(1.5);
-    }
+  it("cozido cujo cru ainda não tem fibra herda 'sem dado' (nunca zero silencioso)", () => {
+    expect(resolveFiberPer100({ name: "Rap10 / Tortilha de trigo", group: "carb" }).source).toBe("missing");
   });
 });

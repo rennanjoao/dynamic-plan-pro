@@ -21,6 +21,7 @@ import { INDUSTRIAL_FOODS, industrialByName, type IndustrialFood } from "@/data/
 import { LEGACY_TO_ENRICHED_FIBER, ZERO_FIBER_NAME_PATTERN } from "@/data/fiberEquivalents";
 import { LEGACY_TACO_FIBER } from "@/data/tacoFiberData";
 import { LEGACY_FIBER_EXTRA } from "@/data/legacyFiberExtra";
+import { COOKED_TWINS, twinFactor } from "@/data/cookedTwins";
 import { hasCookedMarker, hasRawMarker, isCookedEntry } from "@/lib/cooking";
 
 // ─── Dicionário de aliases ─────────────────────────────────────────────────────
@@ -542,8 +543,9 @@ function stripAccents(s: string): string {
 /**
  * Fibra (g/100 g) de um alimento, com a origem do dado.
  *  1. `fiber` cadastrado no próprio alimento (prioridade);
- *  2. `legacyFiberExtra.ts`: alimentos sem item na TACO (USDA/parecido) e COZIDOS ajustados para
- *     bater com o cru (fibra do cru ÷ cookFactor) — o total de fibra não depende do estado;
+ *  2. COZIDO com "gêmeo" cru (`cookedTwins.ts`): fibra do cru ÷ cookFactor — o total de fibra não
+ *     depende do estado (100 g crus = 100 × fator g cozidos). Cru sem dado → cozido sem dado;
+ *  2b. `legacyFiberExtra.ts`: alimentos sem item na TACO (USDA ou item parecido da TACO);
  *  3. item exato da TACO 4ª ed. ligado ao alimento legado (`tacoFiberData.ts`);
  *  4. equivalente exato (mesmo alimento, mesmo estado) na base TACO enriquecida;
  *  5. zero nutricional (carnes, ovos, laticínios, óleos);
@@ -555,10 +557,20 @@ export function resolveFiberPer100(food: any): { value: number; source: FiberSou
   if (food.fiber != null && Number.isFinite(own) && own >= 0) return { value: own, source: "table" };
 
   const key = String(food.name || "").trim().toLowerCase();
-  const extra = LEGACY_FIBER_EXTRA[key];
-  if (extra && Number.isFinite(extra.fiber)) {
-    return { value: extra.fiber, source: extra.kind === "ajustado" ? "adjusted" : "reference" };
+
+  // Cozido com gêmeo cru: a fibra é a do cru dividida pelo fator (mesmo total em cru ou cozido).
+  const twinRawName = COOKED_TWINS[key];
+  if (twinRawName) {
+    const raw = TACO_FOODS.find((f) => f.name === twinRawName);
+    if (raw) {
+      const rf = resolveFiberPer100(raw);
+      if (rf.source === "missing" || rf.source === "zero") return rf;
+      return { value: Math.round((rf.value / twinFactor(raw)) * 100) / 100, source: "adjusted" };
+    }
   }
+
+  const extra = LEGACY_FIBER_EXTRA[key];
+  if (extra && Number.isFinite(extra.fiber)) return { value: extra.fiber, source: "reference" };
   const taco = LEGACY_TACO_FIBER[key];
   if (taco && Number.isFinite(taco.fiber)) return { value: taco.fiber, source: "taco" };
   const eqName = LEGACY_TO_ENRICHED_FIBER[key];
