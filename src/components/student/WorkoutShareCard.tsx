@@ -108,7 +108,7 @@ const FORMAT_CONFIG: Record<ShareFormat, FormatConfig> = {
 const FORMAT_ORDER: ShareFormat[] = ["story", "feed", "square"];
 
 export default function WorkoutShareCard({
-  studentName = "Membro Elite Prime Hub",
+  studentName = "Membro Elite Prime",
   workoutName,
   durationSec,
   totalSets,
@@ -241,7 +241,7 @@ export default function WorkoutShareCard({
       if (nav.canShare?.({ files: [file] })) {
         await (navigator as unknown as { share: (d: object) => Promise<void> }).share({
           files: [file],
-          title: `Treino concluído — Elite Prime Hub`,
+          title: `Protocolo concluído — Elite Prime · Rennan Gonçalves`,
         });
       } else {
         const url = URL.createObjectURL(blob);

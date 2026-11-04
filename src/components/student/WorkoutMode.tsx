@@ -767,7 +767,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
       <div className="fixed inset-0 z-50 bg-background overflow-y-auto flex flex-col items-center p-6">
         <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-md text-center space-y-6 py-12">
           <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4"><Trophy className="w-10 h-10 text-primary" /></div>
-          <h1 className="text-3xl font-black italic uppercase tracking-tighter">Elite Prime Hub</h1>
+          <h1 className="text-3xl font-black italic uppercase tracking-tighter">Elite Prime</h1>
           <p className="text-muted-foreground font-medium">Treino concluído com alta performance.</p>
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-card p-4 rounded-2xl border border-border"><p className="text-[10px] uppercase font-bold text-muted-foreground">Tempo</p><p className="text-xl font-black">{fmtMMSS(elapsedSec)}</p></div>

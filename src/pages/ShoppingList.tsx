@@ -940,7 +940,7 @@ export default function ShoppingList() {
       visibleItems.forEach((it) => lines.push(`• ${it.name} — ${formatQty(it.total, it.unit, it.isUnit, it.unitValue, it.name)}`));
       lines.push("");
     });
-    lines.push("_Quantidades em peso cru · Elite Prime Hub_");
+    lines.push("_Quantidades em peso cru · Elite Prime_");
     return lines.join("\n");
   }
 
@@ -1002,7 +1002,7 @@ export default function ShoppingList() {
     if (y < 275) {
       doc.setFontSize(8);
       doc.setTextColor(150, 150, 150);
-      doc.text("Quantidades em peso cru · Elite Prime Hub", 14, 287);
+      doc.text("Quantidades em peso cru · Elite Prime", 14, 287);
     }
 
     doc.save(`lista-${days}d-${new Date().toISOString().slice(0, 10)}.pdf`);
