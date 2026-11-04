@@ -152,9 +152,12 @@ function CoachDashboardInner() {
     <div className="min-h-screen bg-background">
       <header className="bg-card border-b border-border sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-foreground">Painel Coach</h1>
-            <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}</p>
+          <div className="flex items-center gap-4">
+            <ElitePrimeLogo variant="compact" className="hidden sm:flex" />
+            <div>
+              <h1 className="text-xl font-serif font-semibold text-foreground">Central de Prescrição · Elite Prime</h1>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-primary">Rennan Gonçalves · CREF 206788-G/SP</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <CoachNotificationBell />
