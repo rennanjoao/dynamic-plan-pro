@@ -1,3 +1,4 @@
+import { ElitePrimeLogo } from "@/components/shared/ElitePrimeLogo";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
 /**
  * CoachDashboard.tsx — Painel completo do Coach
