@@ -276,7 +276,7 @@ export default function EvolutionComparison({
 
           {fb.feedback && (
             <div className="border-t border-border pt-3">
-              <p className="text-[10px] font-bold uppercase text-primary mb-1">Feedback do Coach</p>
+              <p className="text-[10px] font-bold uppercase text-primary mb-1">Orientação Técnica</p>
               <p className="text-xs whitespace-pre-wrap text-foreground/85">{fb.feedback}</p>
             </div>
           )}

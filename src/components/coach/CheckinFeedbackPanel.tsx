@@ -530,7 +530,7 @@ export default function CheckinFeedbackPanel(props: Props) {
               </div>
               <div className="flex items-center justify-between gap-2">
                 <label className="text-xs font-semibold text-primary uppercase tracking-wider">
-                  {isEditingExisting ? "Editar feedback" : "Feedback do Coach"}
+                  {isEditingExisting ? "Editar feedback" : "Orientação Técnica"}
                 </label>
                 <Button
                   type="button"

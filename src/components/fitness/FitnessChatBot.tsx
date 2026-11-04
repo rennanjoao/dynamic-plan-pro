@@ -372,7 +372,7 @@ export const FitnessChatBot = ({ athleteContext, onOpen, proactiveMessage, whats
                 <Input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Pergunte ao Coach..."
+                  placeholder="Pergunte à Orientação Técnica..."
                   className="rounded-xl bg-secondary/30 border-border/20 text-sm"
                   disabled={isLoading}
                 />

@@ -139,7 +139,7 @@ export function CheckinHistoryDialog({
       <h2>Check-in — ${fmtDate(c.submitted_at)}</h2>
       ${rows}
       ${photoImgs ? `<h3>Fotos</h3><div class="photos">${photoImgs}</div>` : ""}
-      ${c.coach_feedback ? `<h3>Feedback do Coach</h3><p>${esc(c.coach_feedback)}</p>` : ""}
+      ${c.coach_feedback ? `<h3>Orientação Técnica</h3><p>${esc(c.coach_feedback)}</p>` : ""}
     `;
     return body;
   };
@@ -300,7 +300,7 @@ export function CheckinHistoryDialog({
                       <CheckinPayloadAnswers payload={c.payload as Record<string, unknown> | null} showPhotos />
                       {c.coach_feedback && (
                         <div className="mt-2 pt-2 border-t border-border">
-                          <p className="text-xs font-semibold text-primary mb-1">Feedback do Coach</p>
+                          <p className="text-xs font-semibold text-primary mb-1">Orientação Técnica</p>
                           <p className="text-xs whitespace-pre-wrap text-foreground/85">{c.coach_feedback}</p>
                         </div>
                       )}

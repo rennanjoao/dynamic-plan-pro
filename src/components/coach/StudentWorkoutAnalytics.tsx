@@ -261,7 +261,7 @@ function CoachInsightCard({ insight, loading, refreshing, onRefresh }: {
       <div className="px-4 py-3 flex items-center gap-2">
         <Sparkles className="w-4 h-4 shrink-0" style={{ color: meta.color }} />
         <p className="font-bold text-sm flex-1" style={{ color: meta.color }}>
-          {meta.emoji} {insight ? meta.label : "Coach Insights"}
+          {meta.emoji} {insight ? meta.label : "Insights Técnicos"}
         </p>
         <button
           type="button"
