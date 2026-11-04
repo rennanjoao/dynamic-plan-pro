@@ -272,7 +272,7 @@ export function PhotoAnnotationEditor({ target: initialTarget, siblings = [], ca
               {mode === "edit" ? <PenLine className="w-4 h-4 text-primary" /> : <Eye className="w-4 h-4 text-primary" />}
               {target?.title}
             </DialogTitle>
-            <DialogDescription className="text-xs">Referência visual privada do Coach. Câmera, distância, roupa e pose alteram a leitura — não é diagnóstico.</DialogDescription>
+            <DialogDescription className="text-xs">Referência visual privada do especialista. Câmera, distância, roupa e pose alteram a leitura — não é diagnóstico.</DialogDescription>
           </DialogHeader>
 
           {target && (
@@ -364,7 +364,7 @@ export function PhotoAnnotationEditor({ target: initialTarget, siblings = [], ca
                     <p className="text-muted-foreground">{target.existing ? `Grau visual: ${DEGREE_LABEL[target.existing.visual_degree]}` : "Sem marcação salva."}</p>
                     {target.existing?.coach_note && (
                       <div className="rounded border border-border/60 p-2">
-                        <p className="text-[10px] uppercase tracking-wider text-primary mb-1">Observação do Coach</p>
+                        <p className="text-[10px] uppercase tracking-wider text-primary mb-1">Observação técnica</p>
                         <p className="whitespace-pre-wrap">{target.existing.coach_note}</p>
                       </div>
                     )}
@@ -423,7 +423,7 @@ export function PhotoAnnotationEditor({ target: initialTarget, siblings = [], ca
                     </div>
 
                     <div className="space-y-1">
-                      <label htmlFor="coach-photo-note" className="text-[10px] uppercase tracking-wider text-muted-foreground">Observação do Coach (privada)</label>
+                      <label htmlFor="coach-photo-note" className="text-[10px] uppercase tracking-wider text-muted-foreground">Observação técnica (privada)</label>
                       <Textarea id="coach-photo-note" value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} className="min-h-[70px] text-xs" />
                     </div>
 

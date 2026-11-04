@@ -270,7 +270,7 @@ export function PostureAssessmentForm({ studentId, onDone }: { studentId: string
         </Field>
         {suggestion && (
           <div className="space-y-2 rounded-md border border-primary/40 bg-primary/5 p-3 text-sm">
-            <p className="flex items-center gap-1 text-xs font-semibold text-primary"><Sparkles className="h-3 w-3" /> Sugestão — confirmar/editar pelo Coach</p>
+            <p className="flex items-center gap-1 text-xs font-semibold text-primary"><Sparkles className="h-3 w-3" /> Sugestão — confirmar/editar pelo especialista</p>
             <p>{suggestion.hypothesis}</p>
             <ul className="list-disc pl-5 text-xs text-muted-foreground">{suggestion.strategies.map((s) => <li key={s}>{s}</li>)}</ul>
             <p className="text-xs text-muted-foreground">Cuidado: {suggestion.caution}</p>

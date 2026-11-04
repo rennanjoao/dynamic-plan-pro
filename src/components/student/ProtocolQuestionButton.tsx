@@ -181,7 +181,7 @@ function QuestionDialog({ open, setOpen, text, setText, send, sending, context }
         <Textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Descreva sua dúvida detalhadamente..." className="min-h-[120px] text-sm" />
         <div className="flex justify-end gap-2 mt-2">
           <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={sending}>Cancelar</Button>
-          <Button size="sm" onClick={send} disabled={sending || !text.trim()}>{sending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />} Enviar para o Coach</Button>
+          <Button size="sm" onClick={send} disabled={sending || !text.trim()}>{sending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />} Enviar para Rennan Gonçalves</Button>
         </div>
       </DialogContent>
     </Dialog>

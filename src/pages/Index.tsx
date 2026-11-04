@@ -108,7 +108,7 @@ const Index = () => {
           <Sparkles size={16} color="#B11226" /> Toque para começar <div style={{ width: "28px", height: "1px", backgroundColor: "#55555C" }} />
         </div>
         <div style={{ position: "absolute", bottom: "32px", fontSize: "10px", letterSpacing: "0.2em", textTransform: "uppercase", color: "#55555C" }}>
-          By Rennan João
+          By Rennan Gonçalves
         </div>
       </div>
       {/* ─── FIM DO SPLASH SCREEN ─── */}
@@ -123,7 +123,7 @@ const Index = () => {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }} className="text-center">
             <div className="inline-flex items-center gap-2 glass rounded-full px-4 py-1.5 mb-8">
               <Zap className="w-4 h-4 text-primary" />
-              <span className="text-xs font-medium text-foreground dark:text-white/80">Rennan João · Performance Coaching</span>
+              <span className="text-xs font-medium text-foreground dark:text-white/80">Rennan Gonçalves · CREF 206788-G/SP</span>
             </div>
 
             <h1 className="text-5xl md:text-7xl font-black text-foreground dark:text-white mb-10 tracking-tighter">
@@ -195,7 +195,7 @@ const Index = () => {
       </section>
 
       <footer className="border-t border-border/50 py-8 text-center">
-        <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} Elite Prime Hub — Rennan João</p>
+        <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} Elite Prime — Rennan Gonçalves · CREF 206788-G/SP</p>
       </footer>
 
       <InfoChatBot />
