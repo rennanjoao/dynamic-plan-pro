@@ -21,7 +21,7 @@ const ProtocolChangeHistoryDialog = lazyWithRetry(() => import("@/components/coa
  * [BUG] Busca no TACO não encontrava palavras sem acento (ex: FEIJAO) e tinha conflito de Z-Index interno
  * Fix: FoodRow agora utiliza fallback robusto com .normalize("NFD") e camadas z-[60]/z-[70] mapeadas.
  */
-import { loadCoachProfile } from "@/lib/prescriptionMemory";
+import { loadCoachProfile, reloadCoachProfile } from "@/lib/prescriptionMemory";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -841,7 +841,19 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
           console.error("[protocol_change_events] best-effort falhou", evtErr);
         }
       }
-      if (coachId) {         void sb.rpc("refresh_coach_ai_profile", { p_coach_id: coachId }).then(({ error }) => {           if (error) console.warn("refresh_coach_ai_profile falhou (não bloqueia o save)", error);         });       }       qc.invalidateQueries({ queryKey: ["protocol-builder", studentId] });
+      if (coachId) {
+        // Atualiza o DNA do coach no banco e, quando termina, recarrega o cache do
+        // autocompletar — sem isso o que acabou de ser prescrito só apareceria
+        // como sugestão depois de recarregar a página.
+        void sb.rpc("refresh_coach_ai_profile", { p_coach_id: coachId }).then(({ error }) => {
+          if (error) {
+            console.warn("refresh_coach_ai_profile falhou (não bloqueia o save)", error);
+            return;
+          }
+          void reloadCoachProfile(coachId);
+        });
+      }
+      qc.invalidateQueries({ queryKey: ["protocol-builder", studentId] });
       qc.invalidateQueries({ queryKey: queryKeys.studentProtocol(studentId) });
       setIsDirty(false);
     } catch (e) {

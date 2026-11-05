@@ -24,7 +24,6 @@ import {
   ArrowUp, ArrowDown, Eye, AlertCircle, Sparkles, CheckCircle2, Loader2, TrendingUp,
   Wand2, GripVertical, MoreHorizontal,
 } from "lucide-react";
-import { loadCoachProfile } from "@/lib/prescriptionMemory";
 import { toIndependentMeal } from "@/lib/mealCopy";
 import { DietTemplateQuickPicker } from "@/components/coach/DietTemplateQuickPicker";
 import {
@@ -100,7 +99,7 @@ function SortableMealCard({
 
 export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void; onOpenTemplateLibrary?: () => void }) {
   const [coachId, setCoachId] = useState<string | null>(null);
-  useEffect(() => { supabase.auth.getSession().then(({ data }) => {   const id = data.session?.user?.id ?? null;   setCoachId(id);   loadCoachProfile(id); }); }, []);
+  useEffect(() => { supabase.auth.getSession().then(({ data }) => { setCoachId(data.session?.user?.id ?? null); }); }, []);
 
   // Backfill de __id em refeições carregadas de protocolos antigos (sem esse
   // campo) — mesmo padrão do backfill de exercícios em WorkoutsTab.tsx.
@@ -364,7 +363,8 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
         )}
       </div>
 
-      <div className="sticky top-0 z-10 -mx-2 px-2 pb-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+      {/* Fica abaixo do cabeçalho fixo da tela de edição (--coach-header-h, definido no CoachDashboard). */}
+      <div className="sticky top-[var(--coach-header-h,0px)] z-10 -mx-2 px-2 pb-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <Card className="bg-card/80 border-border p-3">
           <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
             <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Macros do dia (auto) vs meta</p>

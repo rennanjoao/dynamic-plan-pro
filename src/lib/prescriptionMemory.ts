@@ -1,14 +1,18 @@
 /**
- * prescriptionMemory — memoriza a última prescrição usada pelo coach para
+ * prescriptionMemory — lembra a última prescrição usada pelo coach para
  * cada exercício, permitindo autocompletar Sets/Reps/Cadência/Descanso.
  * Escopo por coachId + nome de exercício (case/acento-insensitivo).
  *
- * Passo 8 (F6 — DNA do coach): a fonte deixou de ser localStorage (a escrita
- * nunca era chamada em nenhum lugar do app) e passou a ser coach_ai_profile,
- * agregada no banco a partir do histórico real de protocol_versions. O cache
- * em memória abaixo só evita repetir a mesma consulta várias vezes na mesma
- * sessão; getLastPrescription continua síncrona para não exigir nenhuma
- * mudança em ExercisePickerInput.tsx.
+ * Passo 8 (F6 — DNA do coach): a fonte é a tabela coach_ai_profile, agregada
+ * no banco (RPC refresh_coach_ai_profile) a partir do histórico real de
+ * protocol_versions. O cache em memória abaixo evita repetir a consulta na
+ * mesma sessão; getLastPrescription continua síncrona para não exigir
+ * nenhuma mudança em ExercisePickerInput.tsx.
+ *
+ * O cache é carregado 1x por sessão (loadCoachProfile). Depois que um
+ * protocolo é publicado e o RPC de refresh termina, o ProtocolBuilder chama
+ * reloadCoachProfile para o autocompletar já enxergar o que acabou de ser
+ * prescrito, sem precisar recarregar a página.
  */
 import { supabase } from "@/integrations/supabase/client";
 
@@ -28,23 +32,24 @@ function normalize(name: string): string {
     .toLowerCase();
 }
 
-function keyFor(coachId: string, exerciseName: string) {
-  return `rx_mem::${coachId}::${normalize(exerciseName)}`;
-}
-
 const profileCache: Record<string, Record<string, RememberedPrescription>> = {};
 const loadedFor = new Set<string>();
+// Número da leitura mais recente por coach: se uma leitura antiga terminar
+// depois de uma mais nova (ex.: reload logo após publicar), ela é descartada.
+const loadSeq: Record<string, number> = {};
 
 /** Carrega (1x por coachId, por sessão) o coach_ai_profile pro cache em memória. */
 export async function loadCoachProfile(coachId: string | null | undefined): Promise<void> {
   if (!coachId || loadedFor.has(coachId)) return;
   loadedFor.add(coachId);
+  const seq = (loadSeq[coachId] = (loadSeq[coachId] ?? 0) + 1);
   try {
     const { data, error } = await supabase
       .from("coach_ai_profile")
       .select("exercise_key, sets, reps, cadence, rest, updated_at")
       .eq("coach_id", coachId);
     if (error) throw error;
+    if (loadSeq[coachId] !== seq) return; // chegou uma leitura mais nova — esta é obsoleta
     const map: Record<string, RememberedPrescription> = {};
     for (const row of data ?? []) {
       map[row.exercise_key] = {
@@ -58,26 +63,19 @@ export async function loadCoachProfile(coachId: string | null | undefined): Prom
     profileCache[coachId] = map;
   } catch {
     // silencioso — picker continua funcionando, só sem sugestão
-    loadedFor.delete(coachId);
+    if (loadSeq[coachId] === seq) loadedFor.delete(coachId);
   }
 }
 
-export function saveLastPrescription(
-  coachId: string | null | undefined,
-  exerciseName: string,
-  data: RememberedPrescription,
-): void {
-  if (!coachId || !exerciseName) return;
-  try {
-    const clean: RememberedPrescription = {
-      sets: data.sets?.trim() || undefined,
-      reps: data.reps?.trim() || undefined,
-      cadence: data.cadence?.trim() || undefined,
-      rest: data.rest?.trim() || undefined,
-      updatedAt: Date.now(),
-    };
-    localStorage.setItem(keyFor(coachId, exerciseName), JSON.stringify(clean));
-  } catch { /* noop */ }
+/**
+ * Força uma nova leitura do coach_ai_profile (ex.: logo após publicar um
+ * protocolo e o refresh_coach_ai_profile concluir). Mantém o cache atual até a
+ * nova leitura chegar; se ela falhar, o cache antigo continua valendo.
+ */
+export async function reloadCoachProfile(coachId: string | null | undefined): Promise<void> {
+  if (!coachId) return;
+  loadedFor.delete(coachId);
+  await loadCoachProfile(coachId);
 }
 
 export function getLastPrescription(

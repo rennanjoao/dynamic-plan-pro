@@ -28,6 +28,12 @@ import { formatDatePtBR } from "@/lib/formatDate";
 interface Props {
   studentId: string;
   studentName?: string;
+  /**
+   * Mostra o gráfico "Evolução de Medidas" no topo da anamnese. Padrão: true.
+   * Telas que já exibem esse gráfico por conta própria (ex.: painel de feedback
+   * do check-in) passam false para o gráfico não aparecer duas vezes.
+   */
+  showProgressChart?: boolean;
 }
 
 // Campos que identificam o aluno — respeitam o Modo Privacidade do coach.
@@ -70,7 +76,7 @@ function fmt(val: unknown): string {
   return String(val);
 }
 
-export default function AnamnesisViewer({ studentId, studentName }: Props) {
+export default function AnamnesisViewer({ studentId, studentName, showProgressChart = true }: Props) {
   const { privacy } = usePrivacyMode();
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
@@ -302,7 +308,7 @@ export default function AnamnesisViewer({ studentId, studentName }: Props) {
       )}
 
       {/* Gráfico de evolução oculto durante a edição para focar no formulário */}
-      {!isEditing && <ProgressChart studentId={studentId} />}
+      {!isEditing && showProgressChart && <ProgressChart studentId={studentId} />}
 
       {/* BLOCO DE UPLOAD DE FOTOS (Visível apenas na edição) */}
       {isEditing && (

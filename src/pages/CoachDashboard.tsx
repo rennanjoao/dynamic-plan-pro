@@ -8,7 +8,7 @@ import { lazyWithRetry } from "@/lib/lazyWithRetry";
  * apenas roteamento, tabs, listagem de alunos e diálogos.
  */
 
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect, lazy, Suspense, type CSSProperties } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -52,6 +52,13 @@ const CheckinFeedbackPanel = lazyWithRetry(() => import("@/components/coach/Chec
 const StudentWorkoutAnalytics = lazyWithRetry(() => import("@/components/coach/StudentWorkoutAnalytics"));
 
 type CoachView = "list" | "protocol";
+
+/**
+ * Altura do cabeçalho fixo da tela de edição (protocolo). É exposta como a
+ * variável CSS --coach-header-h para que elementos "sticky" dentro do builder
+ * (ex.: barra de macros da dieta) grudem ABAIXO dele em vez de cobri-lo.
+ */
+const EDIT_HEADER_PX = 65;
 
 function CoachDashboardInner() {
   const coachId = useCoachId();
@@ -131,9 +138,12 @@ function CoachDashboardInner() {
 
   if (view !== "list" && selectedStudent) {
     return (
-      <div className="min-h-screen bg-background">
-        <header className="bg-card border-b border-border sticky top-0 z-10">
-          <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
+      <div
+        className="min-h-screen bg-background"
+        style={{ "--coach-header-h": `${EDIT_HEADER_PX}px` } as CSSProperties}
+      >
+        <header className="bg-card border-b border-border sticky top-0 z-10" style={{ height: EDIT_HEADER_PX }}>
+          <div className="max-w-4xl mx-auto px-4 h-full flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={goBack}><ArrowLeft className="w-4 h-4" /></Button>
             <h1 className="text-sm font-bold text-foreground">
               {view === "protocol" ? "Protocolo" : ""} — <Private>{selectedStudent.name || "Aluno"}</Private>

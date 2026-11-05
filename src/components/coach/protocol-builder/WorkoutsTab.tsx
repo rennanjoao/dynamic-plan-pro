@@ -12,8 +12,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import {
   Plus, Trash2, ArrowUp, ArrowDown, ChevronDown, CheckCircle2, GripVertical, Activity,
-  StretchHorizontal, Dumbbell, Library, CopyPlus,
+  StretchHorizontal, Dumbbell, Library, CopyPlus, Copy,
 } from "lucide-react";
+import { toast } from "sonner";
 import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
 import { ExerciseSubstitutesPopover } from "@/components/coach/ExerciseSubstitutesPopover";
 import { CoachExerciseLibraryDialog, type LibraryPickItem } from "@/components/coach/CoachExerciseLibraryDialog";
@@ -23,6 +24,7 @@ import WorkoutPeriodizationEditor from "../WorkoutPeriodizationEditor";
 import { WeeklyVolumeDashboard } from "./WeeklyVolumeDashboard";
 import { ProtocolPayload, makeEmptyExercise, isMobilityExercise, isLegacyMobilityExercise } from "@/lib/protocolSchema";
 import { applyDayExercisesChange, buildExercisesWithLibraryAdditions } from "@/lib/workoutExerciseOps";
+import { duplicateWorkoutDay, nextWorkoutKey } from "@/lib/workoutDayOps";
 import { normalizeCarb, cycleCarb, CARB_LABEL, DAY_KEYS } from "@/lib/weekCycle";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { WorkoutTemplateQuickPicker } from "@/components/coach/WorkoutTemplateQuickPicker";
@@ -161,22 +163,28 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
     setPayload({ ...payload, workouts: n });
   };
 
-  /** Gera uma key nova sem colidir com as existentes (nem com "REST"). */
-  const nextWorkoutKey = () => {
-    const used = new Set(payload.workouts.map((w) => w.key));
-    for (let i = 0; i < 26; i++) {
-      const k = String.fromCharCode(65 + i);
-      if (!used.has(k) && k !== "REST") return k;
-    }
-    return `W${Date.now().toString(36)}`;
-  };
-
   /** Acrescenta um bloco de treino no fim, preservando todo o resto do rascunho. */
   const addDay = () => {
     setPayload({
       ...payload,
-      workouts: [...payload.workouts, { key: nextWorkoutKey(), focus: "", exercises: [makeEmptyExercise()] }],
+      workouts: [...payload.workouts, { key: nextWorkoutKey(payload.workouts), focus: "", exercises: [makeEmptyExercise()] }],
     } as ProtocolPayload);
+  };
+
+  /** Duplica um treino (exercícios, overrides de periodização e aeróbicos dele) no fim da lista. */
+  const [scrollToKey, setScrollToKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (!scrollToKey) return;
+    document.getElementById(`workout-day-${scrollToKey}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setScrollToKey(null);
+  }, [scrollToKey, payload.workouts]);
+
+  const duplicateDay = (di: number) => {
+    const result = duplicateWorkoutDay(payload, di);
+    if (!result) return;
+    setPayload(result.payload);
+    setScrollToKey(result.newKey);
+    toast.success(`Treino ${positionLetter(di)} duplicado como Treino ${positionLetter(result.newIndex)}. Vincule os dias da semana dele.`);
   };
 
   /** Remove um bloco de treino + vínculos de dia da semana + overrides da periodização. */
@@ -246,6 +254,14 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
   };
 
   const positionLetter = (i: number) => String.fromCharCode(65 + i);
+
+  // Aeróbicos já exibidos dentro do card do treino não se repetem na lista geral.
+  // Os que apontam para um treino que não existe mais continuam aparecendo aqui,
+  // para o coach conseguir revisar ou excluir.
+  const workoutKeySet = new Set(payload.workouts.map((w) => w.key));
+  const generalCardio = (payload.cardio ?? [])
+    .map((c, ci) => ({ c, ci }))
+    .filter(({ c }) => !(c.associationType === "workout" && workoutKeySet.has(c.workoutKey)));
   const workoutKeyToLetter: Record<string, string> = {};
   payload.workouts.forEach((w, i) => { workoutKeyToLetter[w.key] = positionLetter(i); });
   const displayLetter = (workoutKey: string) => workoutKeyToLetter[workoutKey] ?? workoutKey;
@@ -309,11 +325,17 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
 
       <WeeklyVolumeDashboard workouts={payload.workouts} weekDays={weekDays} periodization={payload.periodization} />
 
+      {periodOn && payload.workouts.length > 0 && (
+        <p className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-[11px] text-foreground/80">
+          Periodização ativa: os campos de séries, reps, cadência e descanso exibirão os valores preenchidos na sua Semana 1.
+        </p>
+      )}
+
       {payload.workouts.map((day, di) => {
       const { strength: strengthList, mobility: mobilityList } = splitExercises(day);
       const isCollapsed = !!collapsedDays[day.key];
       return (
-        <Card key={day.key} className="bg-card/60 border-border p-4">
+        <Card key={day.key} id={`workout-day-${day.key}`} className="bg-card/60 border-border p-4 scroll-mt-20">
 
           <div className="flex items-center gap-3 mb-3 flex-wrap">
             <div className="flex flex-col -my-1 shrink-0">
@@ -388,6 +410,14 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
               </button>
               <button
                 type="button"
+                onClick={() => duplicateDay(di)}
+                className="text-muted-foreground hover:text-primary p-1.5"
+                title="Duplicar este treino (vai para o fim da lista)"
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
                 onClick={() => removeDay(di)}
                 className="text-muted-foreground hover:text-destructive p-1.5"
                 title="Excluir este treino"
@@ -404,16 +434,6 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
           )}
 
           {!isCollapsed && (<>
-          {periodOn && (
-            <div className="mb-2 flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
-              <p className="text-[11px] text-foreground/80">
-                Periodização ativa: os campos de séries, reps, cadência e descanso exibirão os valores preenchidos na sua Semana 1.
-              </p>
-            </div>
-          )}
-          
-
-          
           <div className="space-y-2">
             {/* ── Mobilidade / Alongamento ── */}
             {mobilityList.length > 0 && (
@@ -799,11 +819,11 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
       </Card>
       <div className="mt-4 space-y-2">
         <div className="flex items-center justify-between">
-          <Label className="text-sm font-semibold flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> Aeróbicos</Label>
+          <Label className="text-sm font-semibold flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> Aeróbicos gerais</Label>
           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setPayload({ ...payload, cardio: [...(payload.cardio ?? []), { type: "", duration: "", intensity: "", workoutKey: "", associationType: "workout", notes: "" }] })}><Plus className="w-3 h-3 mr-1" /> Aeróbico</Button>
         </div>
-        {(payload.cardio ?? []).length === 0 && <p className="text-xs text-muted-foreground italic text-center py-3 border border-dashed border-border/40 rounded-lg">Nenhum aeróbico cadastrado.</p>}
-        {(payload.cardio ?? []).map((c, ci) => (
+        {generalCardio.length === 0 && <p className="text-xs text-muted-foreground italic text-center py-3 border border-dashed border-border/40 rounded-lg">Nenhum aeróbico geral. O aeróbico de cada treino fica dentro do card do treino.</p>}
+        {generalCardio.map(({ c, ci }) => (
           <Card key={ci} className="bg-card/60 border-border p-3">
             <div className="grid grid-cols-[1fr_auto] gap-2 mb-2">
               <Select value={c.type || "Outro"} onValueChange={(v) => { const n = [...(payload.cardio ?? [])]; n[ci] = { ...n[ci], type: v }; setPayload({ ...payload, cardio: n }); }}>
