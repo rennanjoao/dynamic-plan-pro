@@ -640,7 +640,7 @@ export default function StudentArea() {
                     : `Mensalidade vence em ${billingAlert.diffDays} dias`}
                 </h3>
                 <div className="pt-2">
-                  <Button size="sm" onClick={dismissBillingAlert} disabled={notifyingCoach || !!previewAs} className="bg-primary/10 hover:bg-primary/10 text-primary-foreground text-xs h-8">
+                  <Button size="sm" onClick={dismissBillingAlert} disabled={notifyingCoach || !!previewAs} className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs h-8">
                     Já efetuei o pagamento / Ocultar
                   </Button>
                 </div>
@@ -705,7 +705,7 @@ export default function StudentArea() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-bold text-foreground">Treino</h3>
-                  {logsLoading ? <WorkoutBadgeSkeleton /> : trainedToday ? <Badge variant="success" className="text-[10px] px-2 py-0.5">✓ Feito hoje</Badge> : <Badge variant="secondary" className="text-[10px] px-2 py-0.5">Pendente</Badge>}
+                  {logsLoading ? <WorkoutBadgeSkeleton /> : trainedToday ? <Badge variant="default" className="text-[10px] px-2 py-0.5">✓ Feito hoje</Badge> : <Badge variant="secondary" className="text-[10px] px-2 py-0.5">Pendente</Badge>}
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">Séries, cadência e diretrizes biomecânicas.</p>
                 {protocolLoading ? <ProtocolHintSkeleton /> : hasProtocol === false && <p className="text-[11px] text-muted-foreground/80 italic mt-1">Aguardando protocolo.</p>}

@@ -512,7 +512,7 @@ function MealCard({
               className={cn(
                 "w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors cursor-pointer",
                 isChecked
-                  ? "bg-primary/10 border-primary/30 text-primary-foreground"
+                  ? "bg-primary border-primary text-primary-foreground"
                   : "border-border/60 text-muted-foreground hover:border-primary/60",
               )}
             >
