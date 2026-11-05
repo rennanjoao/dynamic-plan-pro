@@ -78,14 +78,15 @@ const FALLBACK_RULES: Array<[RegExp, number]> = [
   [/feijao/, 2.4],
   [/(lentilha|ervilha)/, 3],
   [/grao.de.bico/, 2.2],
-  [/(batata|mandioca|aipim|macaxeira|inhame|\bcara\b)/, 0.85],
+  [/(batata|mandioca|aipim|macaxeira|inhame|\bcara\b)/, 1], // peso cru é o contabilizado
   [/(frango|galinha)/, 0.7],
   [/\bperu\b/, 0], // 0 = tratar abaixo (peito de peru frio já vem pronto)
   [/(acem|musculo|costela)/, 0.65],
+  [/(patinho|alcatra|coxao|file mignon|contra.?file|lagarto)/, 0.65], // bife magro: a TACO mostra ~0,6–0,65
   [/(patinho|alcatra|coxao|file mignon|carne|\bboi\b|bovin|suin|porco|lombo|pernil|bisteca|picanha|maminha|fraldinha|contra.?file|lagarto|cupim)/, 0.7],
   [/(figado|coracao|moela)/, 0.7],
   [/(peixe|tilapia|merluza|pescada|bacalhau|salmao|atum|camarao|fruto.*mar)/, 0.75],
-  [/\bovos?\b/, 0.92],
+  [/\bovos?\b/, 0.98],
 ];
 
 export function fallbackCookFactor(name: string): number {

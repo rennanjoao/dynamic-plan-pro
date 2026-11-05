@@ -48,8 +48,8 @@ function buildPayload(): any {
           {
             kind: "carb",
             items: [
-              // principal: arroz cru (2,7×) com substituição batata doce crua (0,85×)
-              taco("Arroz branco (cru)", 100, { substitution: taco("Batata doce (crua)", 200) }),
+              // principal: arroz cru (2,7×) com substituição macarrão cru (2,5×)
+              taco("Arroz branco (cru)", 100, { substitution: taco("Macarrão de trigo comum (cru)", 100) }),
               // já cozido → nunca converte
               taco("Feijão carioca (cozido)", 100, { valuesArCooked: true }),
               // sem conversão real
@@ -115,7 +115,7 @@ describe("StructuredMealsViewer — Cru × Cozido", () => {
     // nada foi renomeado para cozido (o único "(cozido)" da tela é o feijão que o coach já prescreveu cozido)
     expect(screen.queryByText("Arroz branco (cozido)")).not.toBeInTheDocument();
     expect(screen.queryByText("Frango peito s/ pele (cozido)")).not.toBeInTheDocument();
-    expect(screen.queryByText("Batata doce (cozida)")).not.toBeInTheDocument();
+    expect(screen.queryByText("Macarrão de trigo comum (cozido)")).not.toBeInTheDocument();
   });
 
   it("modo Cozido: peso converte E o nome vira cozido — nunca '(cru)' ao lado de peso cozido", () => {
@@ -131,12 +131,21 @@ describe("StructuredMealsViewer — Cru × Cozido", () => {
     expect(rowText(/^Frango peito s\/ pele \(cozido\)$/)).toMatch(/105\s?g/);
   });
 
-  it("modo Cozido: a SUBSTITUIÇÃO usa o próprio fator (batata doce 200 g × 0,85 = 170 g, não × 2,7)", () => {
+  it("modo Cozido: a SUBSTITUIÇÃO usa o próprio fator (macarrão 100 g × 2,5 = 250 g, não × 2,7 do arroz)", () => {
     render(<StructuredMealsViewer payload={buildPayload()} />, { wrapper });
     fireEvent.click(screen.getByRole("button", { name: /^Cozido$/ }));
     const txt = document.body.textContent!.replace(/\s+/g, " ");
-    expect(txt).toMatch(/Batata doce \(cozida\)[^0-9]*170\s?g/);
-    expect(txt).not.toMatch(/540\s?g/);
+    expect(txt).toMatch(/Macarrão de trigo comum \(cozido\)[^0-9]*250\s?g/);
+    expect(txt).not.toMatch(/Macarrão de trigo comum \(cozido\)[^0-9]*270/);
+  });
+
+  it("modo Cozido: batata fica pelo peso CRU — nome e peso não mudam", () => {
+    const p = buildPayload();
+    p.meals[0].options[0].items.push(taco("Batata inglesa (crua)", 200));
+    render(<StructuredMealsViewer payload={p} />, { wrapper });
+    fireEvent.click(screen.getByRole("button", { name: /^Cozido$/ }));
+    expect(rowText(/^Batata inglesa \(crua\)$/)).toMatch(/200\s?g/);
+    expect(screen.queryByText(/Batata inglesa \(cozida\)/)).not.toBeInTheDocument();
   });
 
   it("modo Cozido: item já cozido e item sem conversão mantêm nome e peso", () => {

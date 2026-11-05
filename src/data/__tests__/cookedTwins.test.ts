@@ -3,7 +3,7 @@
  * kcal, proteína, carboidrato, gordura E fibra são iguais seja o alimento prescrito cru ou cozido.
  */
 import { describe, it, expect } from "vitest";
-import { TACO_FOODS } from "@/data/tacoFoods";
+import { TACO_FOODS, TACO_FOODS_MEASURED } from "@/data/tacoFoods";
 import { COOKED_TWINS, applyCookedTwins, twinFactor } from "@/data/cookedTwins";
 import { isCookedEntry } from "@/lib/cooking";
 import { calcItemMacros } from "@/lib/macroCalc";
@@ -84,6 +84,60 @@ describe("kcal e macros: cru × cozido dão o mesmo total", () => {
       const a = measured.find((f) => f.name === rawName)!;
       const b = byName(rawName);
       expect([a.kcal, a.p, a.c, a.g]).toEqual([b.kcal, b.p, b.c, b.g]);
+    }
+  });
+});
+
+// ─── Checagem de realidade ──────────────────────────────────────────────────────────────────────
+// O cozido derivado (cru ÷ fator) tem que ficar perto do cozido MEDIDO na TACO. Se alguém mexer num
+// cookFactor e o cozido se afastar >12% (kcal) ou >15% (proteína), o fator deixou de refletir a
+// realidade da TACO. Os desvios abaixo são conhecidos e têm motivo documentado.
+const KNOWN_DEVIATION: Record<string, string> = {
+  "feijão carioca (cozido)": "decisão do coach: pesa só os grãos escorridos; a TACO mediu o feijão COM caldo",
+  "feijão preto (cozido)": "idem (grãos escorridos × com caldo)",
+  "batata inglesa (cozida)": "decisão do coach: conta o peso cru (fator 1); a TACO tem cozido mais aguado que o cru",
+  "mandioca / aipim (cozida)": "idem batata (fator 1)",
+  "inhame (cozido)": "idem batata (fator 1); a linha cozida do legado é da USDA",
+  "picanha c/ gordura (grelhada)": "a gordura derrete no preparo: kcal e proteína não se conservam juntas",
+  "brócolis (cozido/vapor)": "legumes: fator 1; valores absolutos pequenos (<50 kcal/100 g)",
+  "couve-flor (cozida)": "legumes: fator 1",
+  "cenoura (cozida)": "legumes: fator 1",
+  "abobrinha italiana (cozida)": "legumes: fator 1",
+  "abóbora cabotian (cozida)": "legumes: fator 1",
+  "chuchu (cozido)": "legumes: fator 1",
+  "beterraba (cozida)": "legumes: fator 1",
+};
+
+describe("realidade: cozido derivado × cozido medido na TACO", () => {
+  it("todos os cozidos ficam a ≤12% (kcal) e ≤15% (proteína) do medido, exceto os desvios documentados", () => {
+    const bad: string[] = [];
+    for (const ck of Object.keys(COOKED_TWINS)) {
+      if (KNOWN_DEVIATION[ck]) continue;
+      const a = byKey(ck);
+      const m = TACO_FOODS_MEASURED.find((f) => f.name.toLowerCase() === ck)!;
+      const dk = Math.abs(a.kcal - m.kcal) / m.kcal;
+      const dp = m.p > 0.3 ? Math.abs(a.p - m.p) / m.p : 0;
+      if (dk > 0.12 || dp > 0.15) bad.push(`${a.name}: kcal ${(dk * 100).toFixed(0)}% · prot ${(dp * 100).toFixed(0)}%`);
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it("todo desvio conhecido tem motivo e aponta para um cozido que existe", () => {
+    for (const [k, why] of Object.entries(KNOWN_DEVIATION)) {
+      expect(COOKED_TWINS[k], k).toBeTruthy();
+      expect(why.length, k).toBeGreaterThan(8);
+    }
+  });
+
+  it("arroz, massas, quinoa, grão-de-bico e cuscuz reproduzem o cozido medido (±8% kcal)", () => {
+    for (const ck of [
+      "arroz branco (cozido)", "arroz parboilizado (cozido)", "arroz integral (cozido)",
+      "macarrão de trigo comum (cozido)", "macarrão integral (cozido)", "macarrão de arroz (cozido)",
+      "quinoa (cozida)", "grão-de-bico (cozido)", "cuscuz de milho (preparado)", "lentilha (cozida)",
+    ]) {
+      const a = byKey(ck);
+      const m = TACO_FOODS_MEASURED.find((f) => f.name.toLowerCase() === ck)!;
+      expect(Math.abs(a.kcal - m.kcal) / m.kcal, ck).toBeLessThanOrEqual(0.08);
     }
   });
 });

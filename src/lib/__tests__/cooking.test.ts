@@ -62,6 +62,15 @@ describe("cookInfo — itens digitados à mão (sem vínculo)", () => {
     expect(cookInfo("Macarrão").factor).toBe(2.5);
   });
 
+  it("batata, mandioca e inhame: peso cru é o contabilizado — nada a converter", () => {
+    for (const n of ["Batata inglesa (crua)", "Batata doce (crua)", "Mandioca / Aipim (crua)", "Inhame (cru)", "Batata, inglesa, crua", "Mandioca, crua"]) {
+      expect(cookInfo(n).factor, n).toBe(1);
+      expect(displayFoodName(n, true), n).toBe(n);
+    }
+    expect(fallbackCookFactor("Batata")).toBe(1);
+    expect(fallbackCookFactor("Mandioca")).toBe(1);
+  });
+
   it("peito de peru frio / frios não convertem", () => {
     expect(fallbackCookFactor("Peito de peru")).toBe(1);
     expect(fallbackCookFactor("Presunto")).toBe(1);

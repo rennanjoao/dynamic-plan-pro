@@ -15,10 +15,10 @@ export const ENRICHED_FOODS: Array<TacoFood & { fiber: number }> = [
   { name: "Farinha, de mandioca, torrada", kcal: 365.269, p: 1.229, c: 89.194, g: 0.287, fiber: 6.54, group: "carb", cookFactor: 1 }, // TACO item 122
   { name: "Farinha, de milho, amarela", kcal: 350.587, p: 7.188, c: 79.079, g: 1.467, fiber: 5.49, group: "carb", cookFactor: 1 }, // TACO item 33
   { name: "Milho, fubá, cru", kcal: 353.482, p: 7.214, c: 78.873, g: 1.903, fiber: 4.713, group: "carb", cookFactor: 1 }, // TACO item 43
-  { name: "Batata, doce, crua", kcal: 118.241, p: 1.257, c: 28.196, g: 0.133, fiber: 2.573, group: "carb", cookFactor: 0.85 }, // TACO item 89
-  { name: "Batata, inglesa, crua", kcal: 64.37, p: 1.772, c: 14.688, g: 0, fiber: 1.163, group: "carb", cookFactor: 0.85 }, // TACO item 92
-  { name: "Mandioca, crua", kcal: 151.417, p: 1.13, c: 36.17, g: 0.3, fiber: 1.877, group: "carb", cookFactor: 0.85 }, // TACO item 130
-  { name: "Inhame, cru", kcal: 96.7, p: 2.051, c: 23.233, g: 0.213, fiber: 1.653, group: "carb", cookFactor: 0.85 }, // TACO item 126
+  { name: "Batata, doce, crua", kcal: 118.241, p: 1.257, c: 28.196, g: 0.133, fiber: 2.573, group: "carb", cookFactor: 1 }, // TACO item 89
+  { name: "Batata, inglesa, crua", kcal: 64.37, p: 1.772, c: 14.688, g: 0, fiber: 1.163, group: "carb", cookFactor: 1 }, // TACO item 92
+  { name: "Mandioca, crua", kcal: 151.417, p: 1.13, c: 36.17, g: 0.3, fiber: 1.877, group: "carb", cookFactor: 1 }, // TACO item 130
+  { name: "Inhame, cru", kcal: 96.7, p: 2.051, c: 23.233, g: 0.213, fiber: 1.653, group: "carb", cookFactor: 1 }, // TACO item 126
   { name: "Feijão, carioca, cru", kcal: 329.027, p: 19.982, c: 61.221, g: 1.257, fiber: 18.42, group: "carb", cookFactor: 2.4 }, // TACO item 562
   { name: "Feijão, preto, cru", kcal: 323.566, p: 21.344, c: 58.752, g: 1.24, fiber: 21.833, group: "carb", cookFactor: 2.4 }, // TACO item 568
   { name: "Lentilha, crua", kcal: 339.141, p: 23.152, c: 62.004, g: 0.77, fiber: 16.937, group: "carb", cookFactor: 3 }, // TACO item 578
@@ -33,10 +33,10 @@ export const ENRICHED_FOODS: Array<TacoFood & { fiber: number }> = [
   { name: "Frango, sobrecoxa, sem pele, crua", kcal: 161.796, p: 17.57, c: 0.0, g: 9.62, fiber: 0, group: "protein", cookFactor: 0.7 }, // TACO item 414
   { name: "Frango, coxa, sem pele, crua", kcal: 119.947, p: 17.813, c: 0.02, g: 4.857, fiber: 0, group: "protein", cookFactor: 0.7 }, // TACO item 399
   { name: "Frango, sobrecoxa, com pele, crua", kcal: 254.532, p: 15.46, c: 0.0, g: 20.9, fiber: 0, group: "protein", cookFactor: 0.7 }, // TACO item 412
-  { name: "Ovo, de galinha, inteiro, cru", kcal: 143.112, p: 13.03, c: 1.637, g: 8.9, fiber: 0, group: "protein", cookFactor: 0.92, portions: [{"label": "1 unidade", "grams": 50}] }, // TACO item 489
-  { name: "Carne, bovina, patinho, sem gordura, cru", kcal: 133.469, p: 21.723, c: 0.0, g: 4.513, fiber: 0, group: "protein", cookFactor: 0.7 }, // TACO item 376
+  { name: "Ovo, de galinha, inteiro, cru", kcal: 143.112, p: 13.03, c: 1.637, g: 8.9, fiber: 0, group: "protein", cookFactor: 0.98, portions: [{"label": "1 unidade", "grams": 50}] }, // TACO item 489
+  { name: "Carne, bovina, patinho, sem gordura, cru", kcal: 133.469, p: 21.723, c: 0.0, g: 4.513, fiber: 0, group: "protein", cookFactor: 0.65 }, // TACO item 376
   { name: "Carne, bovina, acém, sem gordura, cru", kcal: 144.029, p: 20.817, c: 0.0, g: 6.113, fiber: 0, group: "protein", cookFactor: 0.65 }, // TACO item 329
-  { name: "Carne, bovina, contra-filé, sem gordura, cru", kcal: 156.616, p: 23.997, c: 0.0, g: 6.003, fiber: 0, group: "protein", cookFactor: 0.7 }, // TACO item 345
+  { name: "Carne, bovina, contra-filé, sem gordura, cru", kcal: 156.616, p: 23.997, c: 0.0, g: 6.003, fiber: 0, group: "protein", cookFactor: 0.65 }, // TACO item 345
   { name: "Carne, bovina, picanha, sem gordura, crua", kcal: 133.522, p: 21.25, c: 0.0, g: 4.743, fiber: 0, group: "protein", cookFactor: 0.68 }, // TACO item 382
   { name: "Carne, bovina, picanha, com gordura, crua", kcal: 212.879, p: 18.823, c: 0.0, g: 14.69, fiber: 0, group: "protein", cookFactor: 0.7 }, // TACO item 380
   { name: "Porco, lombo, cru", kcal: 175.625, p: 22.604, c: 0.0, g: 8.77, fiber: 0, group: "protein", cookFactor: 0.7 }, // TACO item 433
@@ -88,6 +88,6 @@ export const ENRICHED_FOODS: Array<TacoFood & { fiber: number }> = [
   { name: "Castanha-do-Brasil, crua", kcal: 642.963, p: 14.536, c: 15.079, g: 63.459, fiber: 7.931, group: "fat", cookFactor: 1 }, // TACO item 589
   { name: "Azeite, de oliva, extra virgem", kcal: 884.0, p: 0, c: 0, g: 100.0, fiber: 0, group: "fat", cookFactor: 1 }, // TACO item 260
   { name: "Óleo, de soja", kcal: 884.0, p: 0, c: 0, g: 100.0, fiber: 0, group: "fat", cookFactor: 1 }, // TACO item 272
-  { name: "Carne, bovina, coxão mole, sem gordura, cru", kcal: 169.066, p: 21.23, c: 0, g: 8.693, fiber: 0, group: "protein", cookFactor: 0.7 }, // TACO item 352
-  { name: "Carne, bovina, miolo de alcatra, sem gordura, cru", kcal: 162.871, p: 21.61, c: 0, g: 7.827, fiber: 0, group: "protein", cookFactor: 0.7 }, // TACO item 369
+  { name: "Carne, bovina, coxão mole, sem gordura, cru", kcal: 169.066, p: 21.23, c: 0, g: 8.693, fiber: 0, group: "protein", cookFactor: 0.65 }, // TACO item 352
+  { name: "Carne, bovina, miolo de alcatra, sem gordura, cru", kcal: 162.871, p: 21.61, c: 0, g: 7.827, fiber: 0, group: "protein", cookFactor: 0.6 }, // TACO item 369
 ];

@@ -35,6 +35,10 @@ export interface TacoFood {
  *  - Legumes e verduras: fator 1 — cozidos na água/vapor mantêm o peso (TACO e USDA mostram
  *    densidade calórica igual ou menor no cozido; os fatores 0,3–0,85 antigos reduziam o peso
  *    exibido ao aluno sem base).
+ *  - Carnes e ovos: fator da própria TACO (razão cru ÷ cozido, média de kcal e proteína). Bife magro
+ *    (patinho, filé, coxão, contra-filé) = 0,65, alcatra 0,60, lagarto 0,62; frango, suíno e peixe ≈ 0,70–0,75.
+ *  - Tubérculos (batata, batata doce, mandioca, inhame): fator 1 — o peso CRU é o contabilizado; cozidos
+ *    na água pesam praticamente o mesmo (assar perde ~20%, mas não é o preparo considerado).
  *  - Arroz, massas e leguminosas: fator reproduz o par cru/cozido desta base (kcal cru ÷ kcal cozido).
  *    Feijão = grãos cozidos e ESCORRIDOS (USDA feijão-pinto: 347 → 143 kcal/100 g ≈ 2,4).
  *  - O MESMO alimento tem o MESMO fator aqui e em enrichedFoods.ts (teste de integridade cobre isso).
@@ -46,7 +50,7 @@ export interface TacoFood {
  * cookedTwins.ts) são recalculados ao exportar: cru ÷ cookFactor. Assim kcal, macros e fibra
  * NÃO mudam entre cru e cozido — o cru/cozido existe só para o aluno entender a pesagem.
  */
-const TACO_FOODS_MEASURED: TacoFood[] = [
+export const TACO_FOODS_MEASURED: TacoFood[] = [
   // ─── CARBOIDRATOS & LEGUMINOSAS ──────────────────────────────────────────────
   { name: "Arroz branco (cru)",              kcal: 345, p: 7.0,  c: 77.4, g: 0.5, group: "carb", cookFactor: 2.7 },
   { name: "Arroz branco (cozido)",           kcal: 128, p: 2.5,  c: 28.1, g: 0.2, group: "carb", valuesArCooked: true },
@@ -60,14 +64,14 @@ const TACO_FOODS_MEASURED: TacoFood[] = [
   { name: "Macarrão integral (cozido)",      kcal: 139, p: 5.2,  c: 27.2, g: 0.6, group: "carb", valuesArCooked: true },
   { name: "Macarrão de arroz (cru)",         kcal: 357, p: 6.5,  c: 80.1, g: 1.0, group: "carb", cookFactor: 2.7 },
   { name: "Macarrão de arroz (cozido)",      kcal: 131, p: 2.4,  c: 29.8, g: 0.4, group: "carb", valuesArCooked: true },
-  { name: "Batata doce (crua)",              kcal: 77,  p: 0.6,  c: 18.4, g: 0.1, group: "carb", cookFactor: 0.85 },
+  { name: "Batata doce (crua)",              kcal: 77,  p: 0.6,  c: 18.4, g: 0.1, group: "carb", cookFactor: 1 },
   { name: "Batata doce (cozida)",            kcal: 77,  p: 0.6,  c: 18.4, g: 0.1, group: "carb", valuesArCooked: true },
-  { name: "Batata inglesa (crua)",           kcal: 64,  p: 1.2,  c: 14.7, g: 0.1, group: "carb", cookFactor: 0.85 },
+  { name: "Batata inglesa (crua)",           kcal: 64,  p: 1.2,  c: 14.7, g: 0.1, group: "carb", cookFactor: 1 },
   { name: "Batata inglesa (cozida)",         kcal: 52,  p: 1.2,  c: 11.9, g: 0.1, group: "carb", valuesArCooked: true },
-  { name: "Mandioca / Aipim (crua)",         kcal: 151, p: 1.1,  c: 36.2, g: 0.3, group: "carb", cookFactor: 0.85 },
+  { name: "Mandioca / Aipim (crua)",         kcal: 151, p: 1.1,  c: 36.2, g: 0.3, group: "carb", cookFactor: 1 },
   { name: "Mandioca / Aipim (cozida)",       kcal: 125, p: 0.9,  c: 29.9, g: 0.3, group: "carb", valuesArCooked: true },
   { name: "Mandioquinha / Chuchu (cozido)",  kcal: 24,  p: 0.8,  c: 5.5,  g: 0.1, group: "carb", valuesArCooked: true },
-  { name: "Inhame (cru)",                    kcal: 97,  p: 2.1,  c: 23.2, g: 0.2, group: "carb", cookFactor: 0.85 },
+  { name: "Inhame (cru)",                    kcal: 97,  p: 2.1,  c: 23.2, g: 0.2, group: "carb", cookFactor: 1 },
   { name: "Inhame (cozido)",                 kcal: 118, p: 1.5,  c: 27.9, g: 0.1, group: "carb", valuesArCooked: true },
   { name: "Pão francês",                     kcal: 300, p: 8.0,  c: 58.6, g: 3.1, group: "carb", unitWeight: 50 },
   { name: "Pão de forma tradicional",        kcal: 253, p: 8.5,  c: 49.9, g: 2.0, group: "carb", unitWeight: 25 },
@@ -108,7 +112,7 @@ const TACO_FOODS_MEASURED: TacoFood[] = [
   { name: "Frango coxa+sobrecoxa s/ pele (cozida)",  kcal: 213, p: 25.8, c: 0.0, g: 12.2, group: "protein", valuesArCooked: true },
   { name: "Frango coxa+sobrecoxa c/ pele (crua)",    kcal: 191, p: 16.0, c: 0.0, g: 14.1, group: "protein", cookFactor: 0.7 },
   { name: "Frango coxa+sobrecoxa c/ pele (assada)",  kcal: 282, p: 23.5, c: 0.0, g: 20.8, group: "protein", valuesArCooked: true },
-  { name: "Ovo de galinha inteiro (cru)",    kcal: 143, p: 13.0, c: 1.6,  g: 9.5,  group: "protein", cookFactor: 0.92, unitWeight: 50 , portions: [{ label: "1 unidade", grams: 50 }]},
+  { name: "Ovo de galinha inteiro (cru)",    kcal: 143, p: 13.0, c: 1.6,  g: 9.5,  group: "protein", cookFactor: 0.98, unitWeight: 50 , portions: [{ label: "1 unidade", grams: 50 }]},
   { name: "Ovo de galinha inteiro (cozido)", kcal: 146, p: 13.3, c: 0.6,  g: 9.5,  group: "protein", valuesArCooked: true, unitWeight: 50 },
   { name: "Ovo de galinha (frito s/ óleo)",  kcal: 146, p: 13.3, c: 0.6,  g: 9.5,  group: "protein", valuesArCooked: true, unitWeight: 50 },
   { name: "Clara de ovo (crua/líquida)",     kcal: 43,  p: 9.0,  c: 0.4,  g: 0.0,  group: "protein", cookFactor: 0.85, unitWeight: 35 , portions: [{ label: "1 clara", grams: 35 }]},
@@ -116,23 +120,23 @@ const TACO_FOODS_MEASURED: TacoFood[] = [
   { name: "Gema de ovo (crua)",              kcal: 322, p: 16.0, c: 3.6,  g: 28.0, group: "fat",     cookFactor: 0.9,  unitWeight: 15 },
 
   // ─── PROTEÍNAS - CARNE BOVINA ────────────────────────────────────────────────
-  { name: "Patinho (cru)",                   kcal: 133, p: 21.7, c: 0.0,  g: 4.5,  group: "protein", cookFactor: 0.70 },
+  { name: "Patinho (cru)",                   kcal: 133, p: 21.7, c: 0.0,  g: 4.5,  group: "protein", cookFactor: 0.65 },
   { name: "Patinho (moído/cozido)",          kcal: 219, p: 35.9, c: 0.0,  g: 7.3,  group: "protein", valuesArCooked: true },
-  { name: "Filé Mignon (cru)",               kcal: 143, p: 21.6, c: 0.0,  g: 5.6,  group: "protein", cookFactor: 0.70 },
+  { name: "Filé Mignon (cru)",               kcal: 143, p: 21.6, c: 0.0,  g: 5.6,  group: "protein", cookFactor: 0.65 },
   { name: "Filé Mignon (grelhado)",          kcal: 220, p: 32.8, c: 0.0,  g: 8.8,  group: "protein", valuesArCooked: true },
-  { name: "Alcatra (crua)",                  kcal: 134, p: 20.2, c: 0.0,  g: 5.7,  group: "protein", cookFactor: 0.70 },
+  { name: "Alcatra (crua)",                  kcal: 134, p: 20.2, c: 0.0,  g: 5.7,  group: "protein", cookFactor: 0.6 },
   { name: "Alcatra (grelhada)",              kcal: 236, p: 32.6, c: 0.0,  g: 11.7,  group: "protein", valuesArCooked: true },
-  { name: "Coxão mole (cru)",                kcal: 137, p: 22.0, c: 0.0,  g: 5.4,  group: "protein", cookFactor: 0.70 },
+  { name: "Coxão mole (cru)",                kcal: 137, p: 22.0, c: 0.0,  g: 5.4,  group: "protein", cookFactor: 0.65 },
   { name: "Coxão mole (cozido)",             kcal: 219, p: 32.4, c: 0.0,  g: 8.9,  group: "protein", valuesArCooked: true },
-  { name: "Coxão duro (cru)",                kcal: 131, p: 21.8, c: 0.0,  g: 4.7,  group: "protein", cookFactor: 0.68 },
+  { name: "Coxão duro (cru)",                kcal: 131, p: 21.8, c: 0.0,  g: 4.7,  group: "protein", cookFactor: 0.65 },
   { name: "Coxão duro (cozido)",             kcal: 217, p: 31.9, c: 0.0,  g: 8.9,  group: "protein", valuesArCooked: true },
-  { name: "Lagarto (cru)",                   kcal: 128, p: 21.5, c: 0.0,  g: 4.5,  group: "protein", cookFactor: 0.68 },
+  { name: "Lagarto (cru)",                   kcal: 128, p: 21.5, c: 0.0,  g: 4.5,  group: "protein", cookFactor: 0.62 },
   { name: "Lagarto (cozido)",                kcal: 222, p: 32.9, c: 0.0,  g: 9.1,  group: "protein", valuesArCooked: true },
   { name: "Acém (cru)",                      kcal: 189, p: 18.0, c: 0.0,  g: 12.7, group: "protein", cookFactor: 0.65 },
   { name: "Acém (cozido)",                   kcal: 291, p: 27.7, c: 0.0,  g: 19.5, group: "protein", valuesArCooked: true },
   { name: "Músculo (cru)",                   kcal: 134, p: 20.8, c: 0.0,  g: 5.4,  group: "protein", cookFactor: 0.65 },
   { name: "Músculo (cozido)",                kcal: 206, p: 32.0, c: 0.0,  g: 8.3,  group: "protein", valuesArCooked: true },
-  { name: "Contra-filé (cru)",               kcal: 145, p: 21.4, c: 0.0,  g: 6.5,  group: "protein", cookFactor: 0.70 },
+  { name: "Contra-filé (cru)",               kcal: 145, p: 21.4, c: 0.0,  g: 6.5,  group: "protein", cookFactor: 0.65 },
   { name: "Contra-filé (grelhado)",          kcal: 236, p: 32.6, c: 0.0,  g: 11.7,  group: "protein", valuesArCooked: true },
   { name: "Picanha s/ gordura (crua)",       kcal: 149, p: 21.3, c: 0.0,  g: 6.5,  group: "protein", cookFactor: 0.68 },
   { name: "Picanha c/ gordura (grelhada)",   kcal: 304, p: 37.7, c: 0.0,  g: 16.4, group: "protein", valuesArCooked: true },

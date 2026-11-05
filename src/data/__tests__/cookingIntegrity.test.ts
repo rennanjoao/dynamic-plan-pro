@@ -26,6 +26,11 @@ describe("catálogos — estado e fator", () => {
     expect(bad.map((f) => `${f.name}=${f.cookFactor}`)).toEqual([]);
   });
 
+  it("tubérculos não convertem: o peso CRU é o contabilizado (fator 1)", () => {
+    const bad = ALL.filter((f) => /^(batata|mandioca|inhame)/i.test(f.name) && !isCookedEntry(f) && (f.cookFactor ?? 1) !== 1);
+    expect(bad.map((f) => `${f.name}=${f.cookFactor}`)).toEqual([]);
+  });
+
   it("frutas, laticínios, gorduras e farinhas não convertem", () => {
     const bad = ALL.filter(
       (f) => (f.group === "fruit" || f.group === "dairy" || /farinha|aveia|p[aã]o|tapioca, com/i.test(f.name)) && f.cookFactor !== undefined && f.cookFactor !== 1,
