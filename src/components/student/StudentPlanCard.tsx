@@ -21,9 +21,9 @@ import { formatDatePtBR } from "@/lib/formatDate";
 import { useMyStudentSubscription, useStudentPlanCatalog } from "@/hooks/useStudentPlans";
 
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
-  active:   { label: "Em dia",    cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-  pending:  { label: "Pendente",  cls: "bg-amber-100 text-amber-700 border-amber-200" },
-  overdue:  { label: "Em atraso", cls: "bg-red-100 text-red-700 border-red-200" },
+  active:   { label: "Em dia",    cls: "bg-primary/10 text-primary border-primary/30" },
+  pending:  { label: "Pendente",  cls: "bg-primary/10 text-primary border-primary/30" },
+  overdue:  { label: "Em atraso", cls: "bg-destructive text-destructive border-destructive/30" },
   canceled: { label: "Cancelado", cls: "bg-muted text-muted-foreground border-border" },
   ended:    { label: "Encerrado", cls: "bg-muted text-muted-foreground border-border" },
   suspended:{ label: "Suspenso",  cls: "bg-muted text-muted-foreground border-border" },
@@ -194,7 +194,7 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
               </span>
             )}
             {pendingPlanCharge && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-amber-100 text-amber-700 border-amber-200">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-primary/10 text-primary border-primary/30">
                 Pagamento pendente
               </span>
             )}
@@ -239,9 +239,9 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
       </div>
 
       {showUpcoming && (
-        <div className="flex items-center gap-2 mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-          <Clock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-          <p className="text-xs font-medium text-amber-800">
+        <div className="flex items-center gap-2 mt-3 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2">
+          <Clock className="w-3.5 h-3.5 text-primary shrink-0" />
+          <p className="text-xs font-medium text-primary">
             Seu plano vence {dueSoonLabel}. Renove abaixo pra não perder o acesso.
           </p>
         </div>
@@ -301,7 +301,7 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
                     {formatCents(plan.price_cents)} · {plan.duration_months}{" "}
                     {plan.duration_months === 1 ? "mês" : "meses"}
                     {discountLabel(plan, availablePlans) && (
-                      <span className="ml-1 text-emerald-600 font-semibold">
+                      <span className="ml-1 text-primary font-semibold">
                         {discountLabel(plan, availablePlans)}
                       </span>
                     )}

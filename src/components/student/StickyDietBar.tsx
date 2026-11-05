@@ -45,9 +45,9 @@ interface StickyDietBarProps {
 }
 
 const CARB_OPTIONS = [
-  { id: "high" as CarbMode, label: "Alto", Icon: TrendingUp, activeClass: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" },
-  { id: "base" as CarbMode, label: "Base", Icon: Minus, activeClass: "bg-blue-500/20 text-blue-300 border-blue-500/40" },
-  { id: "off" as CarbMode, label: "Baixo", Icon: TrendingDown, activeClass: "bg-amber-500/20 text-amber-300 border-amber-500/40" },
+  { id: "high" as CarbMode, label: "Alto", Icon: TrendingUp, activeClass: "bg-primary/20 text-primary border-primary/40" },
+  { id: "base" as CarbMode, label: "Base", Icon: Minus, activeClass: "bg-primary/20 text-primary border-primary/40" },
+  { id: "off" as CarbMode, label: "Baixo", Icon: TrendingDown, activeClass: "bg-primary/20 text-primary border-primary/40" },
 ] as const;
 
 function CarbGroup({
@@ -72,7 +72,7 @@ function CarbGroup({
             className={[
               "flex-1 min-w-0 flex items-center justify-center gap-1",
               "h-9 rounded-xl text-[11px] font-bold border transition-all",
-              active ? activeClass : "border-white/10 glass text-muted-foreground hover:border-white/20",
+              active ? activeClass : "border-border/60 bg-card text-muted-foreground hover:border-border/60",
             ].join(" ")}
             aria-pressed={active}
           >
@@ -100,7 +100,7 @@ function CookedGroup({ isCooked, onCookedChange }: { isCooked: boolean; onCooked
             onClick={() => onCookedChange(value)}
             className={[
               "flex items-center gap-1 h-9 px-3 rounded-xl text-[11px] font-bold border transition-all",
-              active ? "gradient-primary text-white border-primary/40" : "glass border-white/10 text-muted-foreground hover:border-white/20",
+              active ? "bg-primary text-primary-foreground border-primary/40" : "bg-card border-border/60 text-muted-foreground hover:border-border/60",
             ].join(" ")}
             aria-pressed={active}
           >
@@ -135,11 +135,11 @@ function ProgressGroup({
           key={i}
           className={cn(
             "w-2 h-2 rounded-full border transition-colors shrink-0",
-            checked[i] ? "bg-emerald-500 border-emerald-500" : "bg-transparent border-white/25",
+            checked[i] ? "bg-primary/10 border-primary/30" : "bg-transparent border-border/60",
           )}
         />
       ))}
-      <span className="text-[10px] font-bold text-emerald-400 tabular-nums ml-1 shrink-0">
+      <span className="text-[10px] font-bold text-primary tabular-nums ml-1 shrink-0">
         {doneCount}/{totalMeals}
       </span>
     </div>
@@ -166,12 +166,11 @@ export default function StickyDietBar({
 
   return (
     <div
-      className="sticky top-0 z-20 w-full"
-      style={{ backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
+      className="sticky top-0 z-20 w-full backdrop-blur-md"
     >
       <div
         className={cn(
-          "glass-strong border-b border-white/[0.06] px-4 py-2.5",
+          "bg-card border border-border/60 shadow-none border-b border-border/60 px-4 py-2.5",
           // Mobile: grupos empilhados, cada um ocupando a largura toda.
           // sm+: volta a ser uma linha só, como era antes.
           "flex flex-col gap-2 sm:flex-row sm:items-center",
@@ -182,7 +181,7 @@ export default function StickyDietBar({
 
         {/* ── Divisor — só existe quando os dois grupos dividem a mesma linha (sm+) ── */}
         {hasCarbCycle && hasSecondaryRow && (
-          <div className="hidden sm:block w-px h-6 bg-white/10 shrink-0" />
+          <div className="hidden sm:block w-px h-6 bg-border shrink-0" />
         )}
 
         {/* ── Cru/Cozido + progresso — linha própria no mobile, sm:shrink-0 pra não competir com o carbo ── */}

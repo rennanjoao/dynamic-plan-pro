@@ -231,22 +231,22 @@ export default function CoachUpdatesCard() {
         <button
           type="button"
           onClick={handleOpenSheet}
-          className="w-full text-left bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 shadow-sm hover:bg-emerald-500/15 transition-colors flex items-center gap-3"
-          aria-label="Ver atualizações do coach"
+          className="w-full text-left bg-card border border-border/60 border-l-2 border-l-primary rounded-xl p-4 shadow-none hover:bg-muted/30 transition-colors flex items-center gap-3"
+          aria-label="Ver diretrizes técnicas de Rennan Gonçalves"
         >
-          <Sparkles className="w-5 h-5 text-emerald-500 shrink-0" />
+          <Sparkles className="w-5 h-5 text-primary shrink-0" />
           <div className="flex-1 space-y-0.5 min-w-0">
-            <h3 className="text-sm font-bold text-emerald-500">Seu coach preparou atualizações</h3>
-            <p className="text-xs text-emerald-500/80">Toque para ver o que mudou</p>
+            <h3 className="text-sm font-bold text-primary">Diretriz Técnica · Rennan Gonçalves</h3>
+            <p className="text-xs text-primary/80">Toque para ver o que mudou</p>
           </div>
-          <ChevronRight className="w-4 h-4 text-emerald-500 shrink-0" />
+          <ChevronRight className="w-4 h-4 text-primary shrink-0" />
         </button>
       )}
 
       <Sheet open={open} onOpenChange={handleSheetOpenChange}>
         <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
           <SheetHeader className="mb-4">
-            <SheetTitle>Atualizações do coach</SheetTitle>
+            <SheetTitle>Diretriz Técnica · Rennan Gonçalves</SheetTitle>
             {activeEvent && (
               <p className="text-xs text-muted-foreground mt-1">
                 {formatRelativeDateTime(activeEvent.created_at)}

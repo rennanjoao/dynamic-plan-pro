@@ -328,7 +328,7 @@ export default function WorkoutPlan() {
         <AccordionItem
           key={i}
           value={`workout-${i}`}
-          className={`bg-card border rounded-xl shadow-sm overflow-hidden ${isToday ? "border-primary/60 ring-1 ring-primary/30" : "border-border"}`}
+          className={`bg-card border rounded-xl shadow-none overflow-hidden ${isToday ? "border-primary/60 ring-1 ring-primary/30" : "border-border"}`}
         >
           <AccordionTrigger className="px-4 py-4 hover:no-underline hover:bg-muted/30">
             <div className="flex items-center gap-3 text-left flex-1 min-w-0">
@@ -456,7 +456,7 @@ export default function WorkoutPlan() {
   return (
     <div className="min-h-screen bg-background">
       <PreviewModeBar />
-      <header className={`bg-background border-b px-4 py-3 flex items-center gap-3 shadow-sm ${!previewAs ? "sticky top-0 z-40" : ""}`}>
+      <header className={`bg-background border-b px-4 py-3 flex items-center gap-3 shadow-none ${!previewAs ? "sticky top-0 z-40" : ""}`}>
         <Button variant="ghost" size="icon" onClick={() => navigate("/student-area")}>
           <ArrowLeft className="w-5 h-5" />
         </Button>
@@ -495,9 +495,9 @@ export default function WorkoutPlan() {
         {showGuidelines && trainingGuideline && (
           <div
             id="guideline-training"
-            className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl shadow-sm"
+            className="bg-primary/10 border border-primary/30 p-4 rounded-xl shadow-none"
           >
-            <h3 className="text-amber-600 font-bold flex items-center gap-2 mb-2">
+            <h3 className="text-primary font-bold flex items-center gap-2 mb-2">
               <AlertTriangle className="w-5 h-5" /> Atenção — Diretriz do Treinador
             </h3>
             <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">

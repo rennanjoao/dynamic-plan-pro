@@ -256,8 +256,8 @@ export default function WorkoutPeriodizationView({
 
           {/* Banner — exibido apenas quando Coach habilita Diretrizes */}
           {showGuidelines && (
-            <Alert className="border-amber-500/40 bg-amber-500/10">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <Alert className="border-primary/40 bg-primary/10">
+              <AlertTriangle className="h-4 w-4 text-primary" />
               <AlertDescription className="text-xs leading-relaxed text-foreground/90">
                 {BANNER_TEXT}
               </AlertDescription>
@@ -308,15 +308,14 @@ export default function WorkoutPeriodizationView({
                     {/* Fica fora do AccordionTrigger para não criar botão dentro de
                         botão e para manter uma largura estável em qualquer mobile. */}
                     {!allowEdit && onStartWorkout && (
-                      <button
+                      <Button
                         type="button"
                         onClick={() => onStartWorkout(day.key, activeWeek)}
-                        style={{ backgroundColor: "#CC0000" }}
-                        className="shrink-0 inline-flex items-center justify-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-full text-white text-[11px] font-bold whitespace-nowrap"
+                        className="shrink-0 inline-flex items-center justify-center gap-1 px-2.5 sm:px-3 py-1.5 h-auto bg-primary rounded-full text-primary-foreground text-[11px] font-bold whitespace-nowrap"
                       >
-                        <Play className="w-3 h-3 fill-white" />
+                        <Play className="w-3 h-3 fill-primary-foreground" />
                         <span>Iniciar</span>
-                      </button>
+                      </Button>
                     )}
                   </div>
 

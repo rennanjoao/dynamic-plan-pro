@@ -2,7 +2,7 @@ import { StretchHorizontal, ChevronRight, BookOpenText, AlertTriangle } from "lu
 import { PeriodizationGuideDrawer } from "@/components/student/PeriodizationGuideDrawer";
 import { PHASES, phaseFromFocus, isDeloadWeek, PERIODIZATION_LINK_LABEL, IMPORTANT_READ_ALERT } from "@/lib/periodizationCopy";
 import { buildWeekStrip, todayKey } from "@/lib/weekCycle";
-import { classifyWeekFocus, WEEK_FOCUS_COLOR, type WeekMeta } from "@/lib/periodizationDefaults";
+import { classifyWeekFocus, type WeekMeta } from "@/lib/periodizationDefaults";
 import { isMobilityExercise } from "@/lib/protocolSchema";
 
 function getGreeting(): string {
@@ -46,10 +46,10 @@ export default function WorkoutStrategyHeader({
 
   const weekMeta = periodizationEnabled ? weeks[currentWeek] : null;
   const focus = weekMeta ? classifyWeekFocus(weekMeta.reps) : null;
-  const cc = focus ? WEEK_FOCUS_COLOR[focus.key] : null;
+  const cc = focus ? { border: "border-border/60", bg: "bg-card", pill: focus.key === "resistencia" ? "bg-secondary/20 text-foreground border-secondary/40" : "bg-primary/10 text-primary border-primary/30" } : null;
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm space-y-3">
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-none space-y-3">
       <p className="text-sm text-muted-foreground">
         {getGreeting()}
         {studentName ? `, ${studentName}` : ""}! 👋
@@ -81,7 +81,7 @@ export default function WorkoutStrategyHeader({
         <button
           type="button"
           onClick={() => onOpenMobility(todayMobility)}
-          className="w-full -mt-1 flex items-center gap-1.5 text-xs font-medium text-sky-500 hover:text-sky-400 transition-colors"
+          className="w-full -mt-1 flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary transition-colors"
         >
           <StretchHorizontal className="w-3.5 h-3.5 shrink-0" />
           <span className="truncate">Mobilidade pré-treino</span>
@@ -117,13 +117,13 @@ export default function WorkoutStrategyHeader({
                 <div>
                   <button
                     type="button"
-                    className="w-full flex items-center gap-1.5 text-xs font-medium text-sky-500 hover:text-sky-400 transition-colors"
+                    className="w-full flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary transition-colors"
                   >
                     <BookOpenText className="w-3.5 h-3.5 shrink-0" />
                     <span className="truncate">{PERIODIZATION_LINK_LABEL}</span>
                     <ChevronRight className="w-3.5 h-3.5 shrink-0 ml-auto opacity-60" />
                   </button>
-                  <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-amber-500">
+                  <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-primary">
                     <AlertTriangle className="w-3 h-3 shrink-0" /> {IMPORTANT_READ_ALERT}
                   </span>
                 </div>
