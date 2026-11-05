@@ -146,35 +146,18 @@ export const TrainerAlert = ({ coachName }: { coachName?: string | null }) => {
 
   return (
     <>
-      <style>
-        {`
-          @keyframes softPulse {
-            0%, 100% { transform: translateY(0); box-shadow: 0 0 0 0 hsla(145, 63%, 50%, 0.35); }
-            50% { transform: translateY(-1px); box-shadow: 0 0 0 6px hsla(145, 63%, 50%, 0); }
-          }
-          .animate-soft-pulse {
-            animation: softPulse 2.2s ease-in-out infinite;
-          }
-        `}
-      </style>
-
       {/* ── Mensagem do coach — prévia pequena, expande ao tocar ── */}
       <Alert
-        className="mb-6 border backdrop-blur-md animate-fade-in-down relative cursor-pointer"
-        style={{
-          backgroundColor: "hsla(145, 63%, 42%, 0.1)",
-          borderColor: "hsla(145, 63%, 42%, 0.2)",
-        }}
+        className="mb-6 border border-border/60 border-l-2 border-l-primary bg-card animate-fade-in-down relative cursor-pointer"
         onClick={() => setExpanded(true)}
       >
-        <Info className="h-5 w-5 absolute left-4 top-4" style={{ color: "hsl(145, 63%, 49%)" }} />
+        <Info className="h-5 w-5 absolute left-4 top-4 text-primary" />
         {/* Botão fechar */}
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); handleDismissMessage(); }}
-          className="absolute top-3 right-3 opacity-60 hover:opacity-100 transition-opacity"
+          className="absolute top-3 right-3 text-primary opacity-60 hover:opacity-100 transition-opacity"
           aria-label={`Fechar ${alertLabel.toLowerCase()}`}
-          style={{ color: "hsl(145, 63%, 49%)" }}
         >
           <X className="w-4 h-4" />
         </button>
@@ -182,14 +165,12 @@ export const TrainerAlert = ({ coachName }: { coachName?: string | null }) => {
             evitando sobreposição do ícone absoluto sobre o texto em mobile */}
         <div className="pl-7 pr-8">
           <AlertTitle
-            className="font-bold tracking-wide mb-1 flex items-center gap-2"
-            style={{ color: "hsl(145, 63%, 49%)" }}
+            className="font-serif font-semibold tracking-wide mb-1 flex flex-wrap items-center gap-2 text-primary"
           >
             {alertLabel}
             {remaining > 0 && (
               <span
-                className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none"
-                style={{ backgroundColor: "hsla(145, 63%, 42%, 0.18)", color: "hsl(145, 63%, 49%)" }}
+                className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none bg-primary/10 text-primary"
                 title={`+${remaining} mensagem${remaining > 1 ? "s" : ""} após esta`}
               >
                 +{remaining}
@@ -197,14 +178,12 @@ export const TrainerAlert = ({ coachName }: { coachName?: string | null }) => {
             )}
           </AlertTitle>
           <AlertDescription
-            className="mt-1 text-sm break-words line-clamp-1"
-            style={{ color: "hsla(145, 63%, 90%, 0.8)" }}
+            className="mt-1 text-sm text-muted-foreground break-words line-clamp-1"
           >
             "{current.message}"
           </AlertDescription>
           <div
-            className="flex items-center gap-1 mt-1 text-[11px] font-medium"
-            style={{ color: "hsl(145, 63%, 49%)" }}
+            className="flex items-center gap-1 mt-1 text-[11px] font-medium text-primary"
           >
             Toque para ver completo <ChevronRight className="w-3 h-3" />
           </div>
@@ -215,8 +194,7 @@ export const TrainerAlert = ({ coachName }: { coachName?: string | null }) => {
         <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle
-              className="flex items-center gap-2"
-              style={{ color: "hsl(145, 63%, 42%)" }}
+              className="flex items-center gap-2 text-primary"
             >
               <Info className="w-4 h-4" /> {alertLabel}
             </DialogTitle>

@@ -16,7 +16,7 @@ import { type CarbMode } from "@/components/student/CarbCycleSelector";
 import StickyDietBar from "@/components/student/StickyDietBar";
 import { calcItemMacros } from "@/lib/macroCalc";
 import { cookInfo, displayFoodName } from "@/lib/cooking";
-import { buildWeekStrip, CARB_LABEL, CARB_COLOR, todayKey, tomorrowKey } from "@/lib/weekCycle";
+import { buildWeekStrip, CARB_LABEL, todayKey, tomorrowKey } from "@/lib/weekCycle";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useMealCheckins } from "@/hooks/useMealCheckins";
@@ -203,11 +203,16 @@ function calculateRealTotals(
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
+const CARB_COLOR = {
+  high: { text: "text-primary", bg: "bg-card", border: "border-border/60", pill: "bg-primary/10 text-primary border-primary/30" },
+  base: { text: "text-foreground", bg: "bg-card", border: "border-border/60", pill: "bg-secondary/20 text-foreground border-secondary/40" },
+  off: { text: "text-muted-foreground", bg: "bg-card", border: "border-border/60", pill: "bg-muted/30 text-muted-foreground border-border/60" },
+} as const;
 const KIND_META = {
-  carb:    { label: "CARBOIDRATO",       color: "text-amber-400",   border: "border-amber-500/20",   bg: "bg-amber-500/5"   },
-  protein: { label: "PROTEÍNA",          color: "text-blue-400",    border: "border-blue-500/20",    bg: "bg-blue-500/5"    },
-  fat:     { label: "GORDURA",           color: "text-rose-400",    border: "border-rose-500/20",    bg: "bg-rose-500/5"    },
-  veg:     { label: "LEGUMES E SALADAS", color: "text-emerald-400", border: "border-emerald-500/20", bg: "bg-emerald-500/5" },
+  carb:    { label: "CARBOIDRATO",       color: "text-primary",   border: "border-border/60",   bg: "bg-card"   },
+  protein: { label: "PROTEÍNA",          color: "text-primary",    border: "border-border/60",    bg: "bg-card"    },
+  fat:     { label: "GORDURA",           color: "text-foreground",    border: "border-border/60",    bg: "bg-card"    },
+  veg:     { label: "LEGUMES E SALADAS", color: "text-primary", border: "border-border/60", bg: "bg-card" },
 } as const;
 
 type Kind = keyof typeof KIND_META;
@@ -273,16 +278,16 @@ function NutritionStrategyHeader({
     : null;
 
   return (
-    <div className="glass-strong rounded-2xl overflow-hidden glow-primary mb-4">
-      <div className="gradient-primary-soft px-5 py-3 border-b border-white/5 flex items-center justify-between">
+    <div className="bg-card border border-border/60 shadow-none rounded-2xl overflow-hidden shadow-none mb-4">
+      <div className="bg-secondary/20 px-5 py-3 border-b border-border/60 flex items-center justify-between">
         <p className="text-[10px] uppercase tracking-[0.2em] text-primary/70 font-bold">
           Estratégia Nutricional
         </p>
         {modeLabel && (
-          <span className="text-[10px] font-bold text-amber-400">{modeLabel}</span>
+          <span className="text-[10px] font-bold text-primary">{modeLabel}</span>
         )}
       </div>
-      <div className="grid grid-cols-4 divide-x divide-white/5">
+      <div className="grid grid-cols-4 divide-x divide-border/60">
         {macros.map(({ icon: Icon, value, unit, label }) => (
           <div key={label} className="flex flex-col items-center py-4 px-2 min-w-0">
             <Icon className="w-3.5 h-3.5 text-primary/60 mb-1.5" />
@@ -381,7 +386,7 @@ function MacroSection({
           const optTitle = String(opt?.title || `Opção ${optIdx + 1}`);
           const anchorBase = `meal-${slug(mealName)}-${kind}-${slug(optTitle)}`;
           return (
-            <div key={optIdx} className={i > 0 ? "pt-3 border-t border-white/5" : ""}>
+            <div key={optIdx} className={i > 0 ? "pt-3 border-t border-border/60" : ""}>
               {hasAlternatives && (
                 <p className="text-[9px] uppercase tracking-[0.15em] text-muted-foreground font-bold mb-1.5">
                   {OPTION_LABELS[optIdx] ?? `OPÇÃO ${optIdx + 1}`}
@@ -401,13 +406,13 @@ function MacroSection({
                       )}
                     </div>
                     {item.sub && (
-                      <div className="mt-1 ml-4 pl-2.5 border-l-2 border-dashed border-amber-500/40 flex items-baseline justify-between gap-3">
+                      <div className="mt-1 ml-4 pl-2.5 border-l-2 border-dashed border-primary/40 flex items-baseline justify-between gap-3">
                         <span className="text-[11px] leading-snug text-muted-foreground break-words min-w-0 flex-1">
-                          <span className="text-amber-500 font-bold">↳ 🔁 Substituição opcional: </span>
+                          <span className="text-primary font-bold">↳ 🔁 Substituição opcional: </span>
                           {item.sub.name}
                         </span>
                         {item.sub.weight && (
-                          <span className="text-[11px] tabular-nums shrink-0 font-bold text-amber-500">
+                          <span className="text-[11px] tabular-nums shrink-0 font-bold text-primary">
                             {humanizeUnit(item.sub.weight)}
                           </span>
                         )}
@@ -487,7 +492,7 @@ function MealCard({
   const icon = MEAL_ICONS[index % MEAL_ICONS.length];
 
   return (
-    <div className="glass rounded-2xl overflow-hidden card-hover border border-white/[0.06]">
+    <div className="bg-card rounded-2xl overflow-hidden transition-colors hover:border-primary/30 border border-border/60">
       <div className="flex items-center gap-2 px-4 sm:px-5 py-4">
         <button
           type="button"
@@ -507,8 +512,8 @@ function MealCard({
               className={cn(
                 "w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors cursor-pointer",
                 isChecked
-                  ? "bg-emerald-500 border-emerald-500 text-black"
-                  : "border-white/20 text-white/40 hover:border-emerald-500/60",
+                  ? "bg-primary/10 border-primary/30 text-primary-foreground"
+                  : "border-border/60 text-muted-foreground hover:border-primary/60",
               )}
             >
               {isChecked ? <Check className="w-4 h-4" strokeWidth={3} /> : null}
@@ -560,7 +565,7 @@ function MealCard({
       </div>
 
       {open && (
-        <div className="px-4 pb-4 space-y-2.5 border-t border-white/5 pt-3">
+        <div className="px-4 pb-4 space-y-2.5 border-t border-border/60 pt-3">
           {!isHidden("carb") && (
             <MacroSection kind="carb" opts={carbOpts} mode={effectiveMode} isCooked={isCooked} highPct={highPct} lowPct={lowPct} mealName={mealName} />
           )}
@@ -590,7 +595,7 @@ function MealCard({
           )}
 
           {meal.notes && (
-            <div className="rounded-lg border border-white/10 bg-white/[0.02] p-2.5">
+            <div className="rounded-lg border border-border/60 bg-muted/20 p-2.5">
               <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1">
                 Observação
               </p>
@@ -770,7 +775,7 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
               key={d.key}
               className={cn(
                 "rounded-lg border bg-background/50 px-1 py-1 flex flex-col items-center gap-0.5",
-                d.isToday ? "border-[#CC0000]" : "border-border/40"
+                d.isToday ? "border-primary" : "border-border/40"
               )}
             >
               <span className="text-[9px] uppercase text-muted-foreground tracking-wider">{d.abbr}</span>

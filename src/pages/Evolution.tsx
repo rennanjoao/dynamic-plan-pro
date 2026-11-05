@@ -93,17 +93,17 @@ export default function Evolution() {
               <button
                 type="button"
                 onClick={() => setFeedbackOpen(true)}
-                className="w-full text-left rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 hover:bg-emerald-500/15 transition-colors"
+                className="w-full text-left rounded-xl border border-primary/20 bg-primary/10 p-4 hover:bg-primary/15 transition-colors"
               >
                 <div className="flex items-center gap-2">
-                  <MessageCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                  <p className="text-sm font-bold text-emerald-600 dark:text-emerald-500">Feedback do seu coach</p>
+                  <MessageCircle className="w-4 h-4 text-primary shrink-0" />
+                  <p className="text-sm font-bold text-primary dark:text-primary">Feedback de Rennan Gonçalves</p>
                   <span className="text-[11px] text-muted-foreground ml-auto shrink-0">{formatRelativePtBR(latestFeedback.submitted_at)}</span>
                 </div>
                 <p className="text-sm text-foreground/80 mt-1 line-clamp-1">
                   {latestFeedback.coach_feedback}
                 </p>
-                <div className="flex items-center gap-1 mt-1 text-[11px] text-emerald-600 dark:text-emerald-500">
+                <div className="flex items-center gap-1 mt-1 text-[11px] text-primary dark:text-primary">
                   Toque para ver completo <ChevronRight className="w-3 h-3" />
                 </div>
               </button>
@@ -111,8 +111,8 @@ export default function Evolution() {
               <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
                 <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
                   <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2 text-emerald-600 dark:text-emerald-500">
-                      <MessageCircle className="w-4 h-4" /> Feedback do seu coach
+                    <DialogTitle className="flex items-center gap-2 text-primary dark:text-primary">
+                      <MessageCircle className="w-4 h-4" /> Feedback de Rennan Gonçalves
                     </DialogTitle>
                     <p className="text-[11px] text-muted-foreground">{formatRelativePtBR(latestFeedback.submitted_at)}</p>
                   </DialogHeader>

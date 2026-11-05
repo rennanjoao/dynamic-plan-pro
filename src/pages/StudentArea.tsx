@@ -93,11 +93,11 @@ function greeting(name: string): string {
 
 // ─── Avatar com iniciais ────────────────────────────────────────────────────
 const AVATAR_COLORS = [
-  "bg-amber-500/20 text-amber-600",
-  "bg-blue-500/20 text-blue-600",
-  "bg-purple-500/20 text-purple-600",
-  "bg-emerald-500/20 text-emerald-600",
-  "bg-rose-500/20 text-rose-600",
+  "bg-primary/20 text-primary",
+  "bg-primary/20 text-primary",
+  "bg-secondary/20 text-foreground",
+  "bg-primary/20 text-primary",
+  "bg-secondary/20 text-foreground",
 ];
 function InitialsAvatar({ name }: { name: string }) {
   const initials = name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
@@ -130,9 +130,9 @@ function CoachUpdatesHistoryLink() {
 function StreakBadge({ streak }: { streak: number }) {
   if (streak < 2) return null;
   return (
-    <div className="flex items-center gap-1 bg-orange-500/10 border border-orange-500/20 rounded-full px-3 py-1">
-      <Flame className="w-3.5 h-3.5 text-orange-500" />
-      <span className="text-xs font-bold text-orange-600">{streak} dias seguidos</span>
+    <div className="flex items-center gap-1 bg-primary/10 border border-primary/20 rounded-full px-3 py-1">
+      <Flame className="w-3.5 h-3.5 text-primary" />
+      <span className="text-xs font-bold text-primary">{streak} dias seguidos</span>
     </div>
   );
 }
@@ -463,7 +463,7 @@ export default function StudentArea() {
   if (!userId) {
     return (
       <div className="min-h-screen bg-background pb-12">
-        <header className="bg-card border-b border-border/50 sticky top-0 z-10 shadow-sm">
+        <header className="bg-card border-b border-border/50 sticky top-0 z-10 shadow-none">
           <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
             <HeaderSkeleton />
           </div>
@@ -476,16 +476,16 @@ export default function StudentArea() {
   }
 
   const secondaryModules = [
-    { title: "Diretrizes & Suplementação", description: "Qualidade do sono e orientações do coach.",   icon: Pill,          color: "text-purple-500",  bg: "bg-purple-500/10",  border: "border-purple-500/20",  route: `/supplements${previewAs ? `?${previewQS}` : ''}`  },
-    { title: "Evolução",       description: "Fotos, gráficos e progresso.",      icon: TrendingUp,    color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", route: `/evolution${previewAs ? `?${previewQS}` : ''}`, showAnamnesisEdit: true },
-    { title: "Check-in",       description: "Feedback periódico ao treinador.",  icon: CheckCircle2,  color: "text-rose-500",    bg: "bg-rose-500/10",    border: "border-rose-500/20",    route: `/check-in${previewAs ? `?${previewQS}` : ''}`     },
-    { title: "Lista de Compras", description: "Compras agregadas e PDF.",        icon: ShoppingCart,  color: "text-orange-500",  bg: "bg-orange-500/10",  border: "border-orange-500/20",  route: `/shopping-list${previewAs ? `?${previewQS}` : ''}`},
+    { title: "Diretrizes & Suplementação", description: "Qualidade do sono e orientação técnica.",   icon: Pill,          color: "text-foreground",  bg: "bg-secondary/10",  border: "border-secondary/20",  route: `/supplements${previewAs ? `?${previewQS}` : ''}`  },
+    { title: "Evolução",       description: "Fotos, gráficos e progresso.",      icon: TrendingUp,    color: "text-primary", bg: "bg-primary/10", border: "border-primary/20", route: `/evolution${previewAs ? `?${previewQS}` : ''}`, showAnamnesisEdit: true },
+    { title: "Check-in",       description: "Feedback periódico ao treinador.",  icon: CheckCircle2,  color: "text-foreground",    bg: "bg-secondary/10",    border: "border-secondary/20",    route: `/check-in${previewAs ? `?${previewQS}` : ''}`     },
+    { title: "Lista de Compras", description: "Compras agregadas e PDF.",        icon: ShoppingCart,  color: "text-primary",  bg: "bg-primary/10",  border: "border-primary/20",  route: `/shopping-list${previewAs ? `?${previewQS}` : ''}`},
   ];
 
   if (partnerProfile?.status === "active") {
     secondaryModules.push({
       title: "Parcerias", description: "Seus indicados e comissões.", icon: Heart,
-      color: "text-fuchsia-500", bg: "bg-fuchsia-500/10", border: "border-fuchsia-500/20", route: "/parceria",
+      color: "text-foreground", bg: "bg-secondary/10", border: "border-secondary/20", route: "/parceria",
     });
   }
 
@@ -494,7 +494,7 @@ export default function StudentArea() {
       
       {/* MODO ESPELHO (IMPERSONATION) BAR */}
       {previewAs && (
-        <div className="bg-indigo-600/95 backdrop-blur shadow-md sticky top-0 z-50 text-white px-4 py-2.5 flex items-center justify-between border-b border-indigo-400/30">
+        <div className="bg-secondary/95 backdrop-blur shadow-none sticky top-0 z-50 text-primary-foreground px-4 py-2.5 flex items-center justify-between border-b border-secondary/30">
           <div className="flex items-center gap-2 min-w-0">
             <Eye className="w-4 h-4 shrink-0" />
             <span className="text-[11px] sm:text-xs font-medium truncate">
@@ -504,7 +504,7 @@ export default function StudentArea() {
           <Button
             size="sm"
             variant="secondary"
-            className="h-7 px-3 text-[10px] sm:text-xs bg-white text-indigo-600 hover:bg-white/90 shrink-0 font-bold"
+            className="h-7 px-3 text-[10px] sm:text-xs bg-primary text-foreground hover:bg-primary/90 shrink-0 font-bold"
             onClick={() => window.close()} // Fecha a aba do modo espelho e volta pro painel
           >
             Sair do Preview
@@ -517,7 +517,7 @@ export default function StudentArea() {
       <WhatsNewHost enabled={!previewAs} />
 
       {/* ── Header ── */}
-      <header className={`bg-card border-b border-border/50 shadow-sm ${!previewAs ? 'sticky top-0 z-10' : ''}`}>
+      <header className={`bg-card border-b border-border/50 shadow-none ${!previewAs ? 'sticky top-0 z-10' : ''}`}>
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             {profileLoading
@@ -602,7 +602,7 @@ export default function StudentArea() {
                 )}
                 {todayPlan?.tipo === "treino" && (
                   todayConfirmed ? (
-                    <p className="text-[11px] text-emerald-500 mt-2 flex items-center gap-1">
+                    <p className="text-[11px] text-primary mt-2 flex items-center gap-1">
                       <CheckCircle2 className="w-3 h-3" /> Treino de hoje registrado
                     </p>
                   ) : (
@@ -626,21 +626,21 @@ export default function StudentArea() {
         {(() => {
           const billingActive = !!billingAlert && !dismissedAlerts.includes(billingAlert.id);
           const billingNode = billingActive && billingAlert && (
-            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 relative shadow-sm">
-            <button onClick={dismissBillingAlert} disabled={notifyingCoach || !!previewAs} className="absolute top-3 right-3 text-amber-600 hover:text-amber-700 disabled:opacity-50">
+            <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 relative shadow-none">
+            <button onClick={dismissBillingAlert} disabled={notifyingCoach || !!previewAs} className="absolute top-3 right-3 text-primary hover:text-primary disabled:opacity-50">
               <X className="w-4 h-4" />
             </button>
             <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <AlertCircle className="w-5 h-5 text-primary shrink-0 mt-0.5" />
               <div className="space-y-1 w-full">
-                <h3 className="text-sm font-bold text-amber-700 dark:text-amber-500">
+                <h3 className="text-sm font-bold text-primary dark:text-primary">
                   {billingAlert.diffDays < 0
                     ? `Mensalidade atrasada há ${Math.abs(billingAlert.diffDays)} dia(s)`
                     : billingAlert.diffDays === 0 ? "Mensalidade vence hoje!"
                     : `Mensalidade vence em ${billingAlert.diffDays} dias`}
                 </h3>
                 <div className="pt-2">
-                  <Button size="sm" onClick={dismissBillingAlert} disabled={notifyingCoach || !!previewAs} className="bg-amber-600 hover:bg-amber-700 text-white text-xs h-8">
+                  <Button size="sm" onClick={dismissBillingAlert} disabled={notifyingCoach || !!previewAs} className="bg-primary/10 hover:bg-primary/10 text-primary-foreground text-xs h-8">
                     Já efetuei o pagamento / Ocultar
                   </Button>
                 </div>
@@ -688,9 +688,9 @@ export default function StudentArea() {
         <StudentPlanCard userId={userId} />
 
         <div className="space-y-3">
-          <Card className="card-hover bg-card/60 border border-amber-500/20 cursor-pointer" onClick={() => navigate(`/routine${previewAs ? `?${previewQS}` : ''}`)}>
+          <Card className="transition-colors hover:border-primary/30 bg-card/60 border border-primary/20 cursor-pointer" onClick={() => navigate(`/routine${previewAs ? `?${previewQS}` : ''}`)}>
             <CardContent className="p-5 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0"><Apple className="w-6 h-6 text-amber-500" /></div>
+              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0"><Apple className="w-6 h-6 text-primary" /></div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-bold text-foreground">Dieta</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">Plano alimentar, substituições e macros.</p>
@@ -699,9 +699,9 @@ export default function StudentArea() {
             </CardContent>
           </Card>
 
-          <Card className="card-hover bg-card/60 border border-blue-500/20 cursor-pointer" onClick={() => navigate(`/workout-plan${previewAs ? `?${previewQS}` : ''}`)}>
+          <Card className="transition-colors hover:border-primary/30 bg-card/60 border border-primary/20 cursor-pointer" onClick={() => navigate(`/workout-plan${previewAs ? `?${previewQS}` : ''}`)}>
             <CardContent className="p-5 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0"><Dumbbell className="w-6 h-6 text-blue-500" /></div>
+              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0"><Dumbbell className="w-6 h-6 text-primary" /></div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-bold text-foreground">Treino</h3>
@@ -716,7 +716,7 @@ export default function StudentArea() {
 
         <div className="grid grid-cols-2 gap-3">
           {secondaryModules.map((mod) => (
-            <Card key={mod.title} className={`card-hover bg-card/60 border ${mod.border} cursor-pointer ${(mod.title === "Evolução" && hasUnreadFeedback) || (mod.title === "Diretrizes & Suplementação" && guidelinesHighlight) ? "animate-pulse ring-2 ring-emerald-500/40" : ""}`} onClick={() => navigate(mod.route)}>
+            <Card key={mod.title} className={`transition-colors hover:border-primary/30 bg-card/60 border ${mod.border} cursor-pointer ${(mod.title === "Evolução" && hasUnreadFeedback) || (mod.title === "Diretrizes & Suplementação" && guidelinesHighlight) ? "animate-pulse ring-2 ring-primary/40" : ""}`} onClick={() => navigate(mod.route)}>
               <CardContent className="p-4">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${mod.bg}`}>
                   <mod.icon className={`w-5 h-5 ${mod.color}`} />
@@ -724,7 +724,7 @@ export default function StudentArea() {
                 <h3 className="font-bold text-foreground text-sm">{mod.title}</h3>
                 <p className="text-[11px] text-muted-foreground mt-0.5">{mod.description}</p>
                 {(mod as any).showAnamnesisEdit && anamnesisMeta?.submitted_at && canEditAnamnesis && (
-                  <button className="mt-2 flex items-center gap-1 text-[10px] text-rose-400 hover:text-rose-500" onClick={(e) => { e.stopPropagation(); navigate(`/anamnesis?mode=edit${previewAs ? `&${previewQS}` : ''}`); }}>
+                  <button className="mt-2 flex items-center gap-1 text-[10px] text-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); navigate(`/anamnesis?mode=edit${previewAs ? `&${previewQS}` : ''}`); }}>
                     <FileEdit className="w-3 h-3" />
                     Editar anamnese ({2 - anamnesisEdits}x restante)
                   </button>

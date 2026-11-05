@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { ArrowLeft, Lock, Mail, Zap, Loader2 } from "lucide-react";
+import { ArrowLeft, Lock, Mail, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { ElitePrimeLogo } from "@/components/shared/ElitePrimeLogo";
 
 // Registra o acesso na tabela access_logs (não bloqueia o login se falhar)
 async function registerAccessLog(userId: string) {
@@ -104,9 +105,7 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="absolute inset-0 gradient-hero" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,hsl(350_89%_50%/0.08),transparent_60%)]" />
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-background">
 
       <Link to="/" className="absolute left-6 top-6 z-20">
         <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
@@ -121,11 +120,9 @@ const Auth = () => {
         transition={{ duration: 0.5 }}
         className="relative z-10 w-full max-w-md"
       >
-        <div className="glass-strong rounded-2xl p-8">
+        <div className="bg-card border border-border/60 shadow-none rounded-2xl p-8">
           <div className="text-center mb-8">
-            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4 glow-primary">
-              <Zap className="w-7 h-7 text-primary" />
-            </div>
+            <ElitePrimeLogo variant="full" className="mb-6" />
             <h1 className="text-2xl font-bold text-foreground mb-1">
               {mode === "login" ? "Acesso do Aluno" : "Recuperar senha"}
             </h1>
@@ -156,7 +153,7 @@ const Auth = () => {
                   className="pl-10 rounded-xl bg-secondary/30 border-border/50 focus:border-primary/50" required />
               </div>
             </div>
-            <Button type="submit" className="w-full rounded-xl h-11 glow-primary mt-4" disabled={isLoading}>
+            <Button type="submit" className="w-full rounded-xl h-11 shadow-none mt-4" disabled={isLoading}>
               {isLoading ? (<><Loader2 className="w-4 h-4 animate-spin" /> Entrando...</>) : "Entrar"}
             </Button>
             <button type="button" onClick={() => setMode("recover")}
@@ -175,7 +172,7 @@ const Auth = () => {
                   className="pl-10 rounded-xl bg-secondary/30 border-border/50 focus:border-primary/50" required />
               </div>
             </div>
-            <Button type="submit" className="w-full rounded-xl h-11 glow-primary mt-4" disabled={isLoading}>
+            <Button type="submit" className="w-full rounded-xl h-11 shadow-none mt-4" disabled={isLoading}>
               {isLoading ? (<><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</>) : "Enviar link de redefinição"}
             </Button>
             <button type="button" onClick={() => setMode("login")}
