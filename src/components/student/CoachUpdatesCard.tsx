@@ -232,7 +232,7 @@ export default function CoachUpdatesCard() {
           type="button"
           onClick={handleOpenSheet}
           className="w-full text-left bg-card border border-border/60 border-l-2 border-l-primary rounded-xl p-4 shadow-none hover:bg-muted/30 transition-colors flex items-center gap-3"
-          aria-label="Ver atualizações do coach"
+          aria-label="Ver diretrizes técnicas de Rennan Gonçalves"
         >
           <Sparkles className="w-5 h-5 text-primary shrink-0" />
           <div className="flex-1 space-y-0.5 min-w-0">
