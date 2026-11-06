@@ -364,7 +364,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
       </div>
 
       {/* Fica abaixo do cabeçalho fixo da tela de edição (--coach-header-h, definido no CoachDashboard). */}
-      <div className="sticky top-[var(--coach-header-h,0px)] z-10 -mx-2 px-2 pb-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+      <div className="sticky top-[var(--coach-header-h,0px)] z-[60] -mx-2 px-2 pb-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <Card className="bg-card/80 border-border p-3">
           <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
             <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Macros do dia (auto) vs meta</p>
@@ -378,7 +378,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
               const over = b.cur > b.goal;
               return (
                 <div key={b.label}>
-                  <div className="flex items-baseline justify-between">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-1">
                     <span className="text-[10px] uppercase font-semibold text-muted-foreground">{b.label}</span>
                     <span className={`text-[10px] font-bold ${over ? "text-rose-500" : "text-foreground"}`}>{Math.round(b.cur)}/{Math.round(b.goal)}{b.label === "Fibra" && fiberUnknown > 0 ? "*" : ""}</span>
                   </div>
