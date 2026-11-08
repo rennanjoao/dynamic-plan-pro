@@ -105,7 +105,7 @@ describe("CoachUpdatesCard", () => {
       ],
     };
     await renderCard();
-    const trigger = await screen.findByRole("button", { name: /atualizações do coach/i });
+    const trigger = await screen.findByRole("button", { name: /diretrizes técnicas/i });
     await userEvent.click(trigger);
 
     // 3 botões-item dentro do sheet + o "Marcar tudo como visto"
@@ -128,7 +128,7 @@ describe("CoachUpdatesCard", () => {
       ],
     };
     const { container } = await renderCard();
-    await userEvent.click(await screen.findByRole("button", { name: /atualizações do coach/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /diretrizes técnicas/i }));
     await userEvent.click(await screen.findByRole("button", { name: /marcar tudo como visto/i }));
 
     await waitFor(() => {
@@ -161,14 +161,14 @@ describe("CoachUpdatesCard", () => {
       ],
     };
     await renderCard();
-    await userEvent.click(await screen.findByRole("button", { name: /atualizações do coach/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /diretrizes técnicas/i }));
     const itemBtn = await screen.findByRole("button", { name: /supino reto/i });
     await userEvent.click(itemBtn);
 
     // Detail aparece
     expect(await screen.findByText(/Antes: Supino Reto · Agora: Peck Deck/i)).toBeInTheDocument();
     // Sheet continua aberto (o título ainda está no DOM)
-    expect(screen.getByText(/Atualizações do coach/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Diretriz Técnica/i).length).toBeGreaterThan(0);
     // Nenhuma navegação até aqui
     expect(navigateSpy).not.toHaveBeenCalled();
     // Marcou como visto (index 0)
@@ -191,7 +191,7 @@ describe("CoachUpdatesCard", () => {
       ],
     };
     await renderCard();
-    await userEvent.click(await screen.findByRole("button", { name: /atualizações do coach/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /diretrizes técnicas/i }));
     await userEvent.click(await screen.findByRole("button", { name: /ceia/i }));
     await waitFor(() => expect(updateCalls.length).toBe(1));
 
@@ -226,7 +226,7 @@ describe("CoachUpdatesCard", () => {
       ],
     };
     await renderCard();
-    await userEvent.click(await screen.findByRole("button", { name: /atualizações do coach/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /diretrizes técnicas/i }));
 
     await userEvent.click(await screen.findByRole("button", { name: /item um/i }));
     expect(await screen.findByText(/Detalhe do item um/i)).toBeInTheDocument();
@@ -254,7 +254,7 @@ describe("CoachUpdatesCard", () => {
       ],
     };
     await renderCard();
-    await userEvent.click(await screen.findByRole("button", { name: /atualizações do coach/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /diretrizes técnicas/i }));
     const itemBtn = await screen.findByRole("button", { name: /protocolo foi liberado/i });
     // Não há chevron/aria-expanded — o item não é expansível
     expect(itemBtn).not.toHaveAttribute("aria-expanded");

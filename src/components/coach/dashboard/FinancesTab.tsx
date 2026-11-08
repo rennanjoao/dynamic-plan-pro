@@ -24,6 +24,7 @@ import { computeFinanceMetrics } from "@/lib/coachFinanceMetrics";
 import { Private } from "@/components/coach/PrivacyMode";
 import { PARTNER_PLAN_PRICING, previewFinalPrice, type PartnerPlanSlug } from "@/lib/partnerPricing";
 
+import { isPastDue, parseDateOnly } from "@/lib/dateOnly";
 function isPartnerPlan(slug: unknown): slug is PartnerPlanSlug {
   return typeof slug === "string" && slug in PARTNER_PLAN_PRICING;
 }
@@ -433,9 +434,9 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
               {students.map((student) => {
                 const activeFinance = finances
                   .filter((f) => f.student_id === student.id && f.status === "pending")
-                  .sort((a, b) => new Date(a.due_date || 0).getTime() - new Date(b.due_date || 0).getTime())[0];
+                  .sort((a, b) => (parseDateOnly(a.due_date)?.getTime() ?? 0) - (parseDateOnly(b.due_date)?.getTime() ?? 0))[0];
 
-                const isOverdue = activeFinance?.status === "pending" && activeFinance.due_date && new Date(activeFinance.due_date) < new Date();
+                const isOverdue = activeFinance?.status === "pending" && isPastDue(activeFinance.due_date);
 
                 return (
                   <TableRow key={student.id}>

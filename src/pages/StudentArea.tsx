@@ -39,6 +39,7 @@ import { usePartnerProfile } from "@/hooks/usePartnerships";
 import QRCode from "qrcode";
 import { formatDatePtBR } from "@/lib/formatDate";
 
+import { parseDateOnly } from "@/lib/dateOnly";
 // ─── localStorage helpers ───────────────────────────────────────────────────
 const DISMISSED_KEY = (uid: string) => `dismissed_alerts_${uid}`;
 function loadDismissed(uid: string): string[] {
@@ -355,7 +356,7 @@ export default function StudentArea() {
       const { data: finance } = await supabase.from("coach_finances").select("*").eq("student_id", userId).eq("status", "pending").not("due_date", "is", null).order("due_date", { ascending: true }).limit(1).maybeSingle();
       if (!finance?.due_date || Number(finance.amount ?? 0) <= 0) return null;
       const today = new Date(); today.setHours(0, 0, 0, 0);
-      const dueDate = new Date(finance.due_date); dueDate.setHours(0, 0, 0, 0);
+      const dueDate = parseDateOnly(finance.due_date) ?? new Date(finance.due_date);
       const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / 86400000);
       const alertThreshold = coachLink.billing_alert_days ?? 7;
       if (diffDays <= alertThreshold) {

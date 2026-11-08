@@ -37,7 +37,7 @@ const SESSION_KEY = "fitness-chat-session";
 
 const STUDENT_QUICK_ACTIONS = [
   { label: "Check-in pendente?", prompt: "Verifique no meu histórico se tenho check-in pendente ou atrasado e me diga o que está faltando." },
-  { label: "Ajustar Macros", prompt: "Me ajude a ajustar meus macronutrientes com base no meu perfil e objetivo atual." },
+  { label: "Entender meus macros", prompt: "Explique como estão definidos meus macros e calorias no meu plano e como posso bater essas metas no dia a dia. Se eu precisar de algum ajuste, me diga como pedir ao meu coach." },
   { label: "Minha Evolução", prompt: "Gere um resumo da minha evolução com base nas minhas medidas e check-ins." },
   { label: "Técnica Agachamento", prompt: "Explique a técnica correta do agachamento com barra, incluindo cadência e RPE ideal." },
 ];

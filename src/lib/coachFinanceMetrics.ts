@@ -4,6 +4,8 @@
  * Considera apenas cobranças dos ALUNOS (`coach_finances`).
  * NUNCA inclui `platform_billing_charges` (assinatura da plataforma).
  */
+import { isPastDue } from "./dateOnly";
+
 
 export interface FinanceLike {
   id: string;
@@ -54,7 +56,7 @@ export function computeFinanceMetrics(
     .reduce((s, f) => s + num(f.amount), 0);
 
   const overdue = studentCharges.filter(
-    (f) => f.status !== "paid" && !isCanceled(f.status) && f.due_date && new Date(f.due_date) < now,
+    (f) => f.status !== "paid" && !isCanceled(f.status) && isPastDue(f.due_date, now),
   );
   const atrasado = overdue.reduce((s, f) => s + num(f.amount), 0);
 

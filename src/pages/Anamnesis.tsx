@@ -45,6 +45,18 @@ const ANAMNESIS_DRAFT_KEY = (uid: string) => `anamnesis_draft_${uid}`;
 // para não perder o que o aluno já preencheu antes de enviar.
 const ANAMNESIS_ANON_DRAFT_KEY = "anamnesis_draft_anon";
 
+/** Chama uma edge function e tenta de novo se falhar (rede instável). Devolve o erro final, ou null se deu certo. */
+async function invokeWithRetry(name: string, body: Record<string, unknown>, tries = 3): Promise<unknown> {
+  let lastErr: unknown = null;
+  for (let i = 0; i < tries; i++) {
+    const { error } = await supabase.functions.invoke(name, { body });
+    if (!error) return null;
+    lastErr = error;
+    if (i < tries - 1) await new Promise((r) => setTimeout(r, 700 * (i + 1)));
+  }
+  return lastErr;
+}
+
 const Anamnesis = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -70,6 +82,9 @@ const Anamnesis = () => {
   const [validating, setValidating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
+  // Avisos mostrados na tela final (o toast some em 3,5 s e não aparece nessa tela).
+  const [postWarnings, setPostWarnings] = useState<string[]>([]);
+  const [vinculoOk, setVinculoOk] = useState(true);
 
   const [gender, setGender] = useState<"F" | "M" | "">("");
   const [tpm, setTpm] = useState<string[]>([]);
@@ -362,8 +377,17 @@ const Anamnesis = () => {
           if (url && (url.startsWith("http") || isStoragePath(url))) fotos[k] = url;
         }
       }
+      const avisos: string[] = [];
+      let vinculoFalhou = false;
+      const fotosComFalha: string[] = [];
       for (const [key, file] of Object.entries(fotoFiles)) {
-        if (file) { try { fotos[key] = await uploadStudentPhoto(studentId, file); } catch { fotos[key] = ""; } }
+        if (file) {
+          try { fotos[key] = await uploadStudentPhoto(studentId, file); }
+          catch (photoErr) { console.warn("upload de foto falhou", key, photoErr); fotos[key] = ""; fotosComFalha.push(key); }
+        }
+      }
+      if (fotosComFalha.length) {
+        avisos.push(`${fotosComFalha.length} foto(s) não foram enviadas. Reenvie pelo seu próximo check-in ou avise o seu coach.`);
       }
 
       const coachIdOrNull = coach.id || null;
@@ -393,16 +417,19 @@ const Anamnesis = () => {
       // porque o resgate exige usuário autenticado e roda 100% no backend.
       const codeToRedeem = (resolvedAccessCode || g("access_code")).trim().toUpperCase();
       if (!isEditMode && codeToRedeem) {
-        const { error: redeemErr } = await supabase.functions.invoke("redeem-access-code", {
-          body: { code: codeToRedeem },
-        });
-        if (redeemErr) console.warn("redeem-access-code falhou", redeemErr);
+        const redeemErr = await invokeWithRetry("redeem-access-code", { code: codeToRedeem }, 2);
+        if (redeemErr) {
+          console.warn("redeem-access-code falhou", redeemErr);
+          avisos.push("Não conseguimos confirmar o seu código de acesso agora. Se a sua parceria não aparecer, avise o seu coach.");
+        }
       }
+      const SAVE_ERR = "Não foi possível salvar a sua anamnese agora. Seus dados continuam preenchidos — tente enviar novamente em instantes.";
       let finalAnamnesisId: string | null = null;
       if (isEditMode && editingAnamnesisId) {
         anamnesisRow.student_edit_count = studentEditCount + 1;
         anamnesisRow.updated_at = new Date().toISOString();
-        await (supabase.from("anamnesis") as any).update(anamnesisRow).eq("id", editingAnamnesisId);
+        const { error: updErr } = await (supabase.from("anamnesis") as any).update(anamnesisRow).eq("id", editingAnamnesisId);
+        if (updErr) throw new Error(SAVE_ERR);
         finalAnamnesisId = editingAnamnesisId;
       } else {
         const { data: prior } = await supabase
@@ -411,14 +438,16 @@ const Anamnesis = () => {
           .eq("student_id", studentId!)
           .maybeSingle();
         if (prior?.id) {
-          await (supabase.from("anamnesis") as any).update(anamnesisRow).eq("id", prior.id);
+          const { error: updErr2 } = await (supabase.from("anamnesis") as any).update(anamnesisRow).eq("id", prior.id);
+          if (updErr2) throw new Error(SAVE_ERR);
           finalAnamnesisId = prior.id;
         } else {
-          const { data: inserted } = await (supabase.from("anamnesis") as any)
+          const { data: inserted, error: insErr } = await (supabase.from("anamnesis") as any)
             .insert(anamnesisRow)
             .select("id")
             .single();
-          finalAnamnesisId = inserted?.id ?? null;
+          if (insErr || !inserted?.id) throw new Error(SAVE_ERR);
+          finalAnamnesisId = inserted.id;
         }
       }
 
@@ -436,10 +465,12 @@ const Anamnesis = () => {
 
       // Vincula aluno→coach
       if (coachIdOrNull && !isEditMode) {
-        const { error: linkErr } = await supabase.functions.invoke("link-coach-student", {
-          body: { coachId: coachIdOrNull },
-        });
-        if (linkErr) console.warn("link-coach-student falhou", linkErr);
+        const linkErr = await invokeWithRetry("link-coach-student", { coachId: coachIdOrNull }, 3);
+        if (linkErr) {
+          console.warn("link-coach-student falhou", linkErr);
+          vinculoFalhou = true;
+          avisos.push("Sua ficha foi salva, mas não conseguimos concluir o vínculo com o seu coach. Avise-o pelo WhatsApp para liberar o seu acesso.");
+        }
 
         // ── Atribuição de indicação aluno→aluno (efeito rede do WorkoutShareCard) ──
         // Só roda no primeiro cadastro (nunca em edição) e só se havia um código
@@ -489,9 +520,11 @@ const Anamnesis = () => {
         photos: fotos,
       });
 
+      setPostWarnings(avisos);
+      setVinculoOk(!vinculoFalhou);
       if (isEditMode) {
-        showToast("Anamnese atualizada com sucesso.");
-        setTimeout(() => navigate("/student-area"), 800);
+        showToast(avisos.length ? `Anamnese atualizada. Atenção: ${avisos.join(" ")}` : "Anamnese atualizada com sucesso.");
+        setTimeout(() => navigate("/student-area"), avisos.length ? 4500 : 800);
       } else {
         setStep("done");
       }
@@ -588,8 +621,16 @@ const Anamnesis = () => {
         <div className="w-20 h-20 rounded-full border-4 border-primary bg-primary/10 flex items-center justify-center text-4xl text-primary glow-primary">✓</div>
         <h2 className="text-3xl font-black text-foreground mt-4">Conta e Ficha Criadas!</h2>
         <p className="text-muted-foreground text-base max-w-sm leading-relaxed">
-          Obrigado(a), <span className="text-primary font-bold">{g("nome").split(" ")[0]}</span>. Seu vínculo com <span className="text-foreground font-bold">{coach?.name}</span> foi estabelecido.
+          Obrigado(a), <span className="text-primary font-bold">{g("nome").split(" ")[0]}</span>.{" "}
+          {vinculoOk
+            ? <>Seu vínculo com <span className="text-foreground font-bold">{coach?.name}</span> foi estabelecido.</>
+            : <>Sua ficha foi salva.</>}
         </p>
+        {postWarnings.length > 0 && (
+          <div className="max-w-sm w-full rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-left space-y-2 text-foreground">
+            {postWarnings.map((w) => <p key={w}>⚠️ {w}</p>)}
+          </div>
+        )}
         <Button size="lg" className="mt-4 px-8 h-14 rounded-xl text-base font-bold" onClick={() => navigate("/student-area")}>Acessar Área do Aluno</Button>
       </div>
     );

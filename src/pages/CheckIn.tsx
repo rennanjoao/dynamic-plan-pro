@@ -382,22 +382,25 @@ export default function CheckIn() {
         console.warn("notifyCoach falhou (check-in)", notifyErr);
       }
 
+      // Resumo do check-in por IA: roda em segundo plano (com 1 retentativa). O aluno NÃO espera por ele —
+      // antes, a confirmação "enviado" ficava presa até a IA responder (vários segundos em 4G fraco).
       try {
         const checkInIdForInsight = mode === "update" && lastCheckin ? lastCheckin.id : newCheckInId;
         if (checkInIdForInsight) {
-          let ok = false;
-          for (let attempt = 1; attempt <= 2 && !ok; attempt++) {
-            try {
-              const { error: insightErr } = await supabase.functions.invoke("checkin-insight", {
-                body: { checkInId: checkInIdForInsight },
-              });
-              if (!insightErr) ok = true;
-              else console.warn(`checkin-insight falhou (tentativa ${attempt}/2)`, insightErr);
-            } catch (e) {
-              console.warn(`checkin-insight exceção (tentativa ${attempt}/2)`, e);
+          void (async () => {
+            for (let attempt = 1; attempt <= 2; attempt++) {
+              try {
+                const { error: insightErr } = await supabase.functions.invoke("checkin-insight", {
+                  body: { checkInId: checkInIdForInsight },
+                });
+                if (!insightErr) return;
+                console.warn(`checkin-insight falhou (tentativa ${attempt}/2)`, insightErr);
+              } catch (e) {
+                console.warn(`checkin-insight exceção (tentativa ${attempt}/2)`, e);
+              }
+              if (attempt < 2) await new Promise((r) => setTimeout(r, 800));
             }
-            if (!ok && attempt < 2) await new Promise((r) => setTimeout(r, 800));
-          }
+          })();
         }
       } catch (insightOuterErr) {
         console.warn("Disparo de checkin-insight falhou (não bloqueia o check-in)", insightOuterErr);
