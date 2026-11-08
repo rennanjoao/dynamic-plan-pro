@@ -47,14 +47,13 @@ function renderDataTable(data?: Record<string, unknown>): string {
 
 function renderPhotos(photos?: Record<string, string>): string {
   if (!photos) return "";
-  const imgs = Object.entries(photos)
-    .filter(([, url]) => !!url)
-    .map(
-      ([label, url]) =>
-        `<div style="display:inline-block;margin:4px;text-align:center;font-size:12px;color:#666;"><img src="${esc(url)}" alt="${esc(label)}" style="max-width:140px;border-radius:8px;display:block;"/>${esc(label)}</div>`
-    )
-    .join("");
-  return imgs ? `<div style="margin-top:12px;">${imgs}</div>` : "";
+  const labels = Object.entries(photos)
+    .filter(([, v]) => !!v)
+    .map(([label]) => esc(label));
+  if (!labels.length) return "";
+  // As fotos ficam em armazenamento privado (são dado sensível) e o e-mail não recebe link nem imagem:
+  // antes ele montava <img> com o caminho interno, que chegava como imagem quebrada.
+  return `<p style="margin-top:12px;font-size:13px;color:#555;">📷 ${labels.length} foto(s) enviada(s): ${labels.join(", ")}. Abra o painel do aluno para ver.</p>`;
 }
 
 serve(async (req: Request) => {

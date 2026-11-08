@@ -50,7 +50,7 @@ serve(async (req) => {
       });
     }
 
-    const [{ data: protocolo }, { data: logs }, { data: anamnese }] = await Promise.all([
+    const [{ data: protocolo }, { data: logs }] = await Promise.all([
       adminClient
         .from("protocols")
         .select("payload")
@@ -66,13 +66,6 @@ serve(async (req) => {
         .eq("completed", true)
         .order("completed_at", { ascending: false })
         .limit(14),
-      adminClient
-        .from("anamnesis")
-        .select("ai_summary")
-        .eq("student_id", studentId)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
     ]);
 
     const payload = (protocolo?.payload as Record<string, unknown>) || {};
@@ -100,13 +93,13 @@ Regras:
 - Se for dia de descanso, não sugira treinar — reforce a importância do descanso.
 - Tom direto e caloroso, nunca performático ou dramático.
 - Nunca dê conselho médico ou diagnóstico.
+- Nunca mencione dor, lesão, saúde, medicação, peso, corpo ou aparência — fale só do plano de hoje e da constância.
 - Não invente números ou fatos que não estejam no contexto fornecido.`;
 
     const userContent = JSON.stringify({
       planoHoje,
       treinouHoje,
       ultimoTreinoRegistrado: ultimoTreino,
-      resumoAnamnese: anamnese?.ai_summary ?? null,
     });
 
     const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {

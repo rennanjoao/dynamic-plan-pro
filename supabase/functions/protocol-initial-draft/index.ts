@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCorsHeaders } from "../_shared/cors.ts";
+import { reconcileDraft } from "../_shared/macroReconcile.ts";
 
 const GOALS = ["hipertrofia", "emagrecer", "recomposicao", "manter"] as const;
 
@@ -214,7 +215,7 @@ Responda SOMENTE com um JSON válido, sem markdown, exatamente neste formato:
       sugestao: typeof m?.sugestao === "string" ? m.sugestao.trim() : "",
     }));
 
-    const result = {
+    const draft = {
       ok: true,
       calories: Math.round(clamp(parsed.calories, 1200, 6000, 2200)),
       protein: Math.round(clamp(parsed.protein, proteinMin, proteinMax, peso ? Math.round(peso * 1.8) : 160)),
@@ -233,6 +234,8 @@ Responda SOMENTE com um JSON válido, sem markdown, exatamente neste formato:
         mealsCount, split,
       },
     };
+    // A IA sugere; a conta é fechada por fórmula (kcal = 4P + 4C + 9G, refeições somando o dia).
+    const result = reconcileDraft(draft);
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
