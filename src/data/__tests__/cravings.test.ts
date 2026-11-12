@@ -30,7 +30,7 @@ const GOLDEN: Record<string, [number, number, number, number][]> = {
   "palitos-pepino-cenoura": [[44, 2.2, 9.7, 0.3]],
   "doce-banana-zero": [[64, 0.8, 16.5, 0.2]],
   "cafe-leite-mel": [[64, 4.1, 11.6, 0.2]],
-  "uva-congelada": [[68, 0.6, 17.3, 0.1]],
+  "uva-congelada": [[53, 0.7, 13.6, 0.2]],
   "picole-caseiro": [[45, 0.9, 11.3, 0.2], [45, 1.4, 10.2, 0.5], [72, 1.4, 18.5, 0.2]],
   "maca-assada": [[73, 0.4, 19.8, 0.0]],
   "ameixa-seca": [[84, 0.8, 22.4, 0.1]],
@@ -70,17 +70,17 @@ const GOLDEN: Record<string, [number, number, number, number][]> = {
   "minis-chocolate": [[85, 1.5, 11.0, 4.0], [113, 2.0, 14.7, 5.3], [142, 2.5, 18.3, 6.7]],
   "crepioca-doce": [[238, 9.4, 26.9, 11.7]],
   "panqueca-proteica": [[389, 28.7, 48.9, 10.0]],
-  "bife-pao-frances": [[464, 40.5, 31.6, 19.2], [456, 42.0, 30.6, 18.0]],
+  "bife-pao-frances": [[482, 44.4, 31.6, 18.5], [474, 45.9, 30.6, 17.3]],
   "hamburguer-artesanal": [[456, 48.6, 32.3, 14.1], [492, 48.7, 34.1, 17.4]],
   "panqueca-banana": [[239, 10.6, 37.9, 6.6]],
-  "doce-fit-uva-whey": [[330, 38.8, 40.1, 2.2], [398, 39.4, 57.4, 2.3], [446, 39.9, 63.7, 5.3]],
+  "doce-fit-uva-whey": [[315, 38.9, 36.4, 2.3], [368, 39.6, 50.0, 2.5], [416, 40.1, 56.3, 5.5]],
 };
 
 const ORDEM_ESPERADA: Record<string, string[]> = {
-  natural: ["cha-mel", "palitos-pepino-cenoura", "picole-caseiro", "cafe-leite-mel", "doce-banana-zero", "uva-congelada", "maca-assada", "ameixa-seca", "tamaras", "abacaxi-grelhado", "chocolate-quente-fit", "melancia-gelada", "batata-airfryer", "sorvete-banana-morango", "morango-leite-moca", "queijo-goiabada-zero", "pipoca-agua", "iogurte-gelado-morango"],
+  natural: ["cha-mel", "palitos-pepino-cenoura", "picole-caseiro", "uva-congelada", "cafe-leite-mel", "doce-banana-zero", "maca-assada", "ameixa-seca", "tamaras", "abacaxi-grelhado", "chocolate-quente-fit", "melancia-gelada", "batata-airfryer", "sorvete-banana-morango", "morango-leite-moca", "queijo-goiabada-zero", "pipoca-agua", "iogurte-gelado-morango"],
   caseiro: ["doce-leite", "pessego-calda", "pao-integral-doce-leite", "doce-abobora", "doce-batata", "goiabada-cascao", "brigadeiro-proteico", "doce-mocoto", "tapioca-geleia", "morango-chocolate-70", "torrada-tomate", "beijinho-coco"],
   industrializado: ["gelatina-zero", "picole-fruta", "minis-chocolate", "pacoca-zero", "bombom", "suspiro", "chocolate-ao-leite", "sobremesa-proteica", "chocolate-70", "whey-chocolate-gelado", "barrinha-proteina", "biscoito-arroz-geleia"],
-  troca: ["crepioca-doce", "panqueca-banana", "doce-fit-uva-whey", "panqueca-proteica", "bife-pao-frances", "hamburguer-artesanal"],
+  troca: ["crepioca-doce", "panqueca-banana", "doce-fit-uva-whey", "panqueca-proteica", "hamburguer-artesanal", "bife-pao-frances"],
 };
 
 const textoDe = (c: Craving) =>
@@ -222,7 +222,7 @@ describe("S.O.S TPM — lista de opções", () => {
   it("doce fit de uva com whey e panqueca de banana têm a receita e a kcal base", () => {
     const u = porId("doce-fit-uva-whey");
     expect(u.grupo).toBe("troca");
-    expect(u.macros.map((m) => m.kcal)).toEqual([330, 398, 446]);
+    expect(u.macros.map((m) => m.kcal)).toEqual([315, 368, 416]);
     expect(u.preparo.length).toBe(5);
     const p = porId("panqueca-banana");
     expect(p.grupo).toBe("troca");
@@ -291,7 +291,7 @@ describe("S.O.S TPM — versões zero lactose e sem glúten", () => {
     const muda: Record<string, number[]> = {
       "whey-chocolate-gelado": [110],
       "panqueca-proteica": [383],
-      "doce-fit-uva-whey": [320, 388, 436],
+      "doce-fit-uva-whey": [305, 358, 406],
     };
     for (const c of CRAVINGS) {
       const padrao = c.macros.map((m) => m.kcal);

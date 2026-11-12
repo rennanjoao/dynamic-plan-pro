@@ -16,8 +16,8 @@
  *  - versões "cozido/grelhado/assado": converter fibra de cru para cozido por fator de
  *    cozimento NÃO é confiável (a TACO mede cada estado separadamente);
  *  - alimentos sem equivalente exato na base enriquecida;
- *  - "Batata doce (crua)": os valores do legado (77 kcal) são os da batata-doce COZIDA (a TACO crua tem 118 kcal),
- *    então a fibra da crua não vale para ele. Verificado por teste: kcal do par deve divergir no máx. 10%.
+ *  - "Batata doce (crua)": já tem os valores da TACO crua (118 kcal) e a fibra direto em tacoFoods.ts,
+ *    então não precisa desta ponte.
  * Esses ficam como "sem dado de fibra" e a interface avisa o coach (nunca assume 0).
  *
  * Para completar a base: preencha `fiber` direto em `tacoFoods.ts` (tem prioridade sobre esta

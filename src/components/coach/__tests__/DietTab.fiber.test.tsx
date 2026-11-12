@@ -25,10 +25,11 @@ describe("fibra: nunca zero silencioso", () => {
     }
   });
 
-  it("batata doce (crua) legada usa a fibra da COZIDA (os valores do legado são os da cozida), nunca a da crua", () => {
+  it("batata doce (crua) usa os valores e a fibra da TACO CRUA (118 kcal, 2,573 g de fibra)", () => {
     const f = TACO_FOODS.find((x) => x.name === "Batata doce (crua)");
-    expect(resolveFiberPer100(f)).toEqual({ value: 2.21, source: "taco" });
-    expect(LEGACY_TACO_FIBER["batata doce (crua)"].taco).toBe("Batata, doce, cozida");
+    expect(f.kcal).toBe(118);
+    expect(resolveFiberPer100(f)).toEqual({ value: 2.573, source: "table" });
+    expect(LEGACY_TACO_FIBER["batata doce (crua)"].taco).toBe("Batata, doce, crua");
   });
 
   it("alimento legado com equivalente exato passa a contar fibra (arroz branco cru, 100 g)", () => {

@@ -49,11 +49,9 @@ import { ENRICHED_FOODS } from "@/data/enrichedFoods";
 
 const FOOD_CATALOG = [...ENRICHED_FOODS, ...TACO_FOODS];
 const CUT_VARIANT_PAIRS = [
-  ["Acém (cru)", "Carne, bovina, acém, sem gordura, cru"],
-  ["Contra-filé (cru)", "Carne, bovina, contra-filé, sem gordura, cru"],
-  ["Alcatra (crua)", "Carne, bovina, miolo de alcatra, sem gordura, cru"],
-  ["Coxão mole (cru)", "Carne, bovina, coxão mole, sem gordura, cru"],
   ["Carne, bovina, picanha, com gordura, crua", "Carne, bovina, picanha, sem gordura, crua"],
+  // Nomes que a busca mostra hoje (a base enriquecida é trocada pelo equivalente com parênteses).
+  ["Picanha c/ gordura (crua)", "Picanha s/ gordura (crua)"],
   ["Frango, sobrecoxa, com pele, crua", "Frango, sobrecoxa, sem pele, crua"],
   ["Bisteca suína c/ gordura (crua)", "Bisteca suína s/ gordura (crua)"],
 ];
@@ -976,35 +974,10 @@ function FoodRow({
   const [focused, setFocused] = useState(false);
   const rawQ = (it.baseName || it.name || "").toString().trim();
   
-  const matches = useMemo<FoodHit[]>(() => {
-    if (rawQ.length < 2) return [];
-    
-    // Texto limpo sem acentos e em minúsculas
-    const normalizedQ = rawQ.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    
-    // 1. Força a busca varrendo 100% da tabela TACO localmente (ignora acentos)
-    const tacoMatches = TACO_DATA.filter(t => 
-      t.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(normalizedQ)
-    ).map(t => ({ ...t, source: "taco" as const }));
-    
-    // 2. Puxa a busca do sistema para não perdermos os Industrializados
-    const sysMatches = searchFoods(rawQ, 15) || [];
-    
-    // 3. Mescla tudo, priorizando a TACO e removendo duplicatas
-    const merged = [...tacoMatches, ...sysMatches];
-    const unique: FoodHit[] = [];
-    const seen = new Set();
-    
-    for (const item of merged) {
-      if (!seen.has(item.name)) {
-        seen.add(item.name);
-        unique.push(item);
-      }
-    }
-    
-    // Aumentamos para 15 para exibir todas as variações (ex: Feijão carioca, preto, cru, cozido...)
-    return unique.slice(0, 15);
-  }, [rawQ]);
+  // Busca única (lib/foodSearch.ts): ignora acento e pontuação, ranqueia por correspondência,
+  // inclui industrializados e já troca "Banana, prata, crua" por "Banana prata (crua)".
+  // 20 resultados para caber todas as variações (ex.: feijão carioca/preto, cru/cozido…).
+  const matches = useMemo<FoodHit[]>(() => (rawQ.length < 2 ? [] : searchFoods(rawQ, 20)), [rawQ]);
 
   const showSuggestions = focused && matches.length > 0 && !it.isTaco && !it.isIndustrial;
 
@@ -1065,7 +1038,7 @@ function FoodRow({
                       <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-violet-500/10 text-violet-500 border border-violet-500/30" title={`Industrializado · ${taco.brand}`}>IND</span>
                     )}
                     <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${badgeCls}`}>{badgeLabel}</span>
-                    {taco.cookFactor !== 1 && <span className="text-[9px] text-muted-foreground">×{taco.cookFactor}</span>}
+                    {typeof taco.cookFactor === "number" && taco.cookFactor !== 1 && <span className="text-[9px] text-muted-foreground">×{taco.cookFactor}</span>}
                   </button>
                 );
               })}

@@ -11,7 +11,7 @@
  * A base legada foi cadastrada sem o campo `fiber`. Em vez de reescrever `tacoFoods.ts`, cada
  * alimento fica ligado aqui ao item EXATO da TACO (`taco`), com a energia dele (`tacoKcal`).
  * Um teste confere que o legado e o item da TACO têm energia compatível, para impedir que um
- * alimento seja ligado ao estado errado (cru ↔ cozido), como no caso da batata-doce (crua), cujos valores legados são os da cozida.
+ * alimento seja ligado ao estado errado (cru ↔ cozido) — foi o que aconteceu com a batata-doce (crua), cujos valores legados eram os da cozida (corrigido).
  *
  * REGRAS
  *  - Só entra o MESMO alimento no MESMO estado. Sem item equivalente na TACO → fica de fora
@@ -34,7 +34,7 @@ export interface TacoFiberEntry {
 export const LEGACY_TACO_FIBER: Record<string, TacoFiberEntry> = {
   "arroz branco (cozido)": { fiber: 1.56, taco: "Arroz, tipo 1, cozido", tacoKcal: 128 },
   "arroz integral (cozido)": { fiber: 2.75, taco: "Arroz, integral, cozido", tacoKcal: 124 },
-  "batata doce (crua)": { fiber: 2.21, taco: "Batata, doce, cozida", tacoKcal: 77, note: "Valores do legado (77 kcal, 18,4 g de carbo) são os da batata-doce COZIDA na TACO; a fibra segue os mesmos valores para manter a linha coerente. Confira o cadastro." },
+  "batata doce (crua)": { fiber: 2.573, taco: "Batata, doce, crua", tacoKcal: 118 },
   "batata doce (cozida)": { fiber: 2.21, taco: "Batata, doce, cozida", tacoKcal: 77 },
   "batata inglesa (cozida)": { fiber: 1.34, taco: "Batata, inglesa, cozida", tacoKcal: 52 },
   "mandioca / aipim (cozida)": { fiber: 1.56, taco: "Mandioca, cozida", tacoKcal: 125 },

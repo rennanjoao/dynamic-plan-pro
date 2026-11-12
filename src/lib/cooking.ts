@@ -78,6 +78,7 @@ const FALLBACK_RULES: Array<[RegExp, number]> = [
   [/feijao/, 2.4],
   [/(lentilha|ervilha)/, 3],
   [/grao.de.bico/, 2.2],
+  [/batata.?doce/, 1.5], // TACO: 118 kcal crua × 77 kcal cozida → mesmas kcal, ~150 g cozida por 100 g crua
   [/(batata|mandioca|aipim|macaxeira|inhame|\bcara\b)/, 1], // peso cru é o contabilizado
   [/(frango|galinha)/, 0.7],
   [/\bperu\b/, 0], // 0 = tratar abaixo (peito de peru frio já vem pronto)

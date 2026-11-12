@@ -106,6 +106,14 @@ const KNOWN_DEVIATION: Record<string, string> = {
   "abóbora cabotian (cozida)": "legumes: fator 1",
   "chuchu (cozido)": "legumes: fator 1",
   "beterraba (cozida)": "legumes: fator 1",
+  "batata doce (cozida)": "kcal bate (118 ÷ 1,5 ≈ 79 × 77 medido); a proteína medida da TACO cozida (0,6 g) é menor que cru ÷ 1,5 (0,9 g)",
+  // Cru alinhado à TACO; a linha cozida MEDIDA do legado vem de outra fonte (USDA) e não é usada nos cálculos.
+  "alcatra (grelhada)": "cru alinhado à TACO; a linha grelhada medida do legado é de outra fonte e não entra nos cálculos",
+  "coxão mole (cozido)": "idem alcatra (cru TACO × cozido medido de outra fonte)",
+  "acém (cozido)": "idem alcatra (cru TACO × cozido medido de outra fonte)",
+  "lombo suíno (assado)": "idem alcatra (cru TACO × assado medido de outra fonte)",
+  "pernil suíno (assado)": "idem alcatra (cru TACO × assado medido de outra fonte)",
+  "bisteca suína (grelhada)": "idem alcatra (cru TACO × grelhado medido de outra fonte)",
 };
 
 describe("realidade: cozido derivado × cozido medido na TACO", () => {

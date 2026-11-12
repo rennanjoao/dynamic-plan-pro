@@ -26,9 +26,17 @@ describe("catálogos — estado e fator", () => {
     expect(bad.map((f) => `${f.name}=${f.cookFactor}`)).toEqual([]);
   });
 
-  it("tubérculos não convertem: o peso CRU é o contabilizado (fator 1)", () => {
-    const bad = ALL.filter((f) => /^(batata|mandioca|inhame)/i.test(f.name) && !isCookedEntry(f) && (f.cookFactor ?? 1) !== 1);
+  it("tubérculos não convertem: o peso CRU é o contabilizado (fator 1), exceto batata-doce", () => {
+    const bad = ALL.filter(
+      (f) => /^(batata|mandioca|inhame)/i.test(f.name) && !/batata,? doce/i.test(f.name) && !isCookedEntry(f) && (f.cookFactor ?? 1) !== 1,
+    );
     expect(bad.map((f) => `${f.name}=${f.cookFactor}`)).toEqual([]);
+  });
+
+  it("batata-doce: TACO crua 118 kcal → cozida 77 kcal por 100 g, então 100 g crua = 150 g cozida (fator 1,5)", () => {
+    const doce = ALL.filter((f) => /^batata,? doce,? \(?crua/i.test(f.name));
+    expect(doce.length).toBe(2); // uma em cada catálogo
+    expect(doce.map((f) => f.cookFactor)).toEqual([1.5, 1.5]);
   });
 
   it("frutas, laticínios, gorduras e farinhas não convertem", () => {

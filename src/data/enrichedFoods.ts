@@ -15,7 +15,7 @@ export const ENRICHED_FOODS: Array<TacoFood & { fiber: number }> = [
   { name: "Farinha, de mandioca, torrada", kcal: 365.269, p: 1.229, c: 89.194, g: 0.287, fiber: 6.54, group: "carb", cookFactor: 1 }, // TACO item 122
   { name: "Farinha, de milho, amarela", kcal: 350.587, p: 7.188, c: 79.079, g: 1.467, fiber: 5.49, group: "carb", cookFactor: 1 }, // TACO item 33
   { name: "Milho, fubá, cru", kcal: 353.482, p: 7.214, c: 78.873, g: 1.903, fiber: 4.713, group: "carb", cookFactor: 1 }, // TACO item 43
-  { name: "Batata, doce, crua", kcal: 118.241, p: 1.257, c: 28.196, g: 0.133, fiber: 2.573, group: "carb", cookFactor: 1 }, // TACO item 89
+  { name: "Batata, doce, crua", kcal: 118.241, p: 1.257, c: 28.196, g: 0.133, fiber: 2.573, group: "carb", cookFactor: 1.5 }, // TACO item 89
   { name: "Batata, inglesa, crua", kcal: 64.37, p: 1.772, c: 14.688, g: 0, fiber: 1.163, group: "carb", cookFactor: 1 }, // TACO item 92
   { name: "Mandioca, crua", kcal: 151.417, p: 1.13, c: 36.17, g: 0.3, fiber: 1.877, group: "carb", cookFactor: 1 }, // TACO item 130
   { name: "Inhame, cru", kcal: 96.7, p: 2.051, c: 23.233, g: 0.213, fiber: 1.653, group: "carb", cookFactor: 1 }, // TACO item 126

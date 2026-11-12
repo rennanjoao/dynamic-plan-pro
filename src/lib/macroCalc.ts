@@ -22,13 +22,14 @@ import { LEGACY_TO_ENRICHED_FIBER, ZERO_FIBER_NAME_PATTERN } from "@/data/fiberE
 import { LEGACY_TACO_FIBER } from "@/data/tacoFiberData";
 import { LEGACY_FIBER_EXTRA } from "@/data/legacyFiberExtra";
 import { COOKED_TWINS, twinFactor } from "@/data/cookedTwins";
+import { ENRICHED_TO_LEGACY } from "@/data/foodTwins";
 import { hasCookedMarker, hasRawMarker, isCookedEntry } from "@/lib/cooking";
 
 // ─── Dicionário de aliases ─────────────────────────────────────────────────────
 // Mapeia variações informais → nome canônico TACO.
 // Usado em resolveAlias() antes do fuzzy match para garantir vínculo exato.
 // Sempre lowercase e sem acento (normalizados).
-const TACO_ALIASES: Record<string, string> = {
+export const TACO_ALIASES: Record<string, string> = {
   // Frango
   "frango grelhado":                         "Frango peito s/ pele (grelhado)",
   "frango peito grelhado":                   "Frango peito s/ pele (grelhado)",
@@ -168,22 +169,22 @@ const TACO_ALIASES: Record<string, string> = {
   // Vegetais
   "brocolis":                                "Brócolis (cozido/vapor)",
   "espinafre":                               "Espinafre (cru)",
-  "couve":                                   "Couve-manteiga (crua)",
-  "abobrinha":                               "Abobrinha (crua)",
+  "couve":                                   "Couve, manteiga, crua", // só existe na base enriquecida (ver canonicalFood)
+  "abobrinha":                               "Abobrinha italiana (crua)",
   "cenoura":                                 "Cenoura (crua)",
-  "tomate":                                  "Tomate (cru)",
-  "pepino":                                  "Pepino (cru)",
-  "alface":                                  "Alface (crua)",
+  "tomate":                                  "Tomate salada",
+  "pepino":                                  "Pepino (cru com casca)",
+  "alface":                                  "Alface americana",
   // Frutas
   "banana":                                  "Banana prata (crua)",
   "banana nanica":                           "Banana nanica (crua)",
   "maca":                                    "Maçã fuji (com casca)",
   "mamao":                                   "Mamão papaia",
-  "laranja":                                 "Laranja pera (sem casca)",
-  "morango":                                 "Morango (cru)",
-  "uva":                                     "Uva Itália (com casca)",
-  "manga":                                   "Manga (polpa)",
-  "melancia":                                "Melancia (polpa)",
+  "laranja":                                 "Laranja pera",
+  "morango":                                 "Morango",
+  "uva":                                     "Uva itália / rubi",
+  "manga":                                   "Manga palmer / tommy",
+  "melancia":                                "Melancia",
 };
 
 /** Normaliza string para lookup de alias: remove acentos, lowercase, sem pontuação. */
@@ -974,41 +975,6 @@ export function compareOptions(main: Macros, alt: Macros): SubstitutionDelta {
 export { INDUSTRIAL_FOODS };
 
 /**
- * Sugere substituições TACO para um item — mesmo kind/grupo, macro dominante
- * similar (±15%), com gramagem recalculada para equivalência. Máx. 4 itens.
- */
-export function suggestTacoSubstitutes(item: any, kind: "carb" | "protein" | "fat"): Array<{ name: string; grams: number; baseName: string; cookFactor: number }> {
-  const group: TacoFood["group"] = kind === "carb" ? "carb" : kind === "protein" ? "protein" : "fat";
-  const macroField: keyof TacoFood = kind === "carb" ? "c" : kind === "protein" ? "p" : "g";
-
-  if (!item) return [];
-  const target = tacoByName(item.baseName || item.name);
-  if (!target || !item.rawWeight) return [];
-
-  const targetMacro = (target[macroField] as number) * (item.rawWeight / 100);
-  if (!targetMacro) return [];
-
-  const candidates = TACO_FOODS.filter((t) => {
-    if (t.group !== group) return false;
-    if (t.name === target.name) return false;
-    const v = t[macroField] as number;
-    return v > 0;
-  });
-
-  return candidates
-    .map((t) => {
-      const v = t[macroField] as number;
-      const grams = (targetMacro / v) * 100;
-      const refDiff = Math.abs(v - (target[macroField] as number)) / (target[macroField] as number);
-      return { name: t.name, grams: Math.round(grams), baseName: t.name, cookFactor: t.cookFactor ?? 1, refDiff };
-    })
-    .filter((s) => s.refDiff <= 0.5 && s.grams > 0 && s.grams < 1500)
-    .sort((a, b) => a.refDiff - b.refDiff)
-    .slice(0, 4)
-    .map(({ refDiff: _r, ...rest }) => rest);
-}
-
-/**
  * Normaliza string para o fuzzy match: remove acentos, prep cooking state words,
  * lowercase, apenas alfanumérico + espaço.
  */
@@ -1031,14 +997,21 @@ export type TacoMatch = {
   stateMismatch?: boolean;
 };
 
-/** Pontua o fuzzy clássico contra o catálogo legado. */
+/**
+ * Itens que só existem na base enriquecida (sem equivalente com parênteses): Vagem, Agrião,
+ * Tangerina, Milho verde, Fubá, Óleo de soja… Entram no fuzzy depois do legado, então só ganham
+ * quando casam MELHOR; antes, "vagem" e "óleo de soja" ficavam sem vínculo (ou viravam "Soja crua").
+ */
+const ENRICHED_ONLY: TacoFood[] = ENRICHED_FOODS.filter((f) => !(f.name in ENRICHED_TO_LEGACY));
+
+/** Pontua o fuzzy clássico contra o catálogo (legado primeiro, depois a base enriquecida exclusiva). */
 function fuzzyScan(rawName: string): { taco: TacoFood; score: number } | null {
   const q = normalize(rawName);
   if (!q) return null;
   const qTokens = q.split(" ").filter(Boolean);
 
   let best: { taco: TacoFood; score: number } | null = null;
-  TACO_FOODS.forEach((t) => {
+  [...TACO_FOODS, ...ENRICHED_ONLY].forEach((t) => {
     const tn = normalize(t.name);
     let score = 0;
     if (tn === q) score = 1;
@@ -1053,14 +1026,39 @@ function fuzzyScan(rawName: string): { taco: TacoFood; score: number } | null {
   return best;
 }
 
+/** Nome canônico → registro. Legado primeiro; a base enriquecida cobre os poucos alimentos que só existem lá (ex.: couve). */
+function canonicalFood(name: string): TacoFood | undefined {
+  return TACO_FOODS.find((t) => t.name === name) || ENRICHED_FOODS.find((t) => t.name === name);
+}
+
+/**
+ * Nome IDÊNTICO a um item do catálogo (ignora só maiúsculas e espaços nas pontas). Se for um nome
+ * da base enriquecida que tem equivalente com parênteses, devolve o equivalente (mesma regra da
+ * busca). Sem isto, "Farinha, de mandioca, torrada" virava "Mandioca (crua)", "Couve, manteiga,
+ * crua" virava "Manteiga integral" e "Óleo, de soja" virava "Soja (crua)".
+ */
+function exactCatalogFood(rawName: string): TacoFood | undefined {
+  const n = rawName.trim().toLowerCase();
+  const enriched = ENRICHED_FOODS.find((t) => t.name.toLowerCase() === n);
+  if (enriched) {
+    const twin = ENRICHED_TO_LEGACY[enriched.name];
+    return (twin && TACO_FOODS.find((t) => t.name === twin)) || enriched;
+  }
+  return TACO_FOODS.find((t) => t.name.toLowerCase() === n);
+}
+
 /** Match "clássico" (alias → fuzzy), sem olhar o estado cru/cozido do texto. */
 function baseFindTaco(rawName: string): TacoMatch | null {
   if (!rawName) return null;
 
+  // 0. Nome idêntico ao do catálogo (inclui nomes da base enriquecida)
+  const exact = exactCatalogFood(rawName);
+  if (exact) return { taco: exact, score: 1.0, lowConfidence: false };
+
   // 1. Alias EXATO (mais rápido e preciso)
   const q = normalizeForAlias(rawName);
   if (q && TACO_ALIASES[q]) {
-    const found = TACO_FOODS.find((t) => t.name === TACO_ALIASES[q]);
+    const found = canonicalFood(TACO_ALIASES[q]);
     if (found) return { taco: found, score: 1.0, lowConfidence: false };
   }
 
@@ -1072,7 +1070,7 @@ function baseFindTaco(rawName: string): TacoMatch | null {
   // 3. Alias parcial (o mais específico)
   const canonical = resolveAlias(rawName);
   if (canonical) {
-    const found = TACO_FOODS.find((t) => t.name === canonical);
+    const found = canonicalFood(canonical);
     if (found) return { taco: found, score: 1.0, lowConfidence: false };
   }
 

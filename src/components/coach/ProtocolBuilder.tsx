@@ -103,8 +103,6 @@ import { CSS } from "@dnd-kit/utilities";
 
 import { TACO_FOODS } from "@/data/tacoFoods";
 import { ENRICHED_FOODS } from "@/data/enrichedFoods";
-const TACO_DATA = TACO_FOODS.map((t, i) => ({ ...t, id: String(i), cookFactor: t.cookFactor ?? 1 }));
-import { searchFoods, type FoodHit } from "@/lib/foodSearch";
 import { Private } from "@/components/coach/PrivacyMode";
 import { triageClasses, triageLabel } from "@/lib/protocolRenewalTriage";
 
