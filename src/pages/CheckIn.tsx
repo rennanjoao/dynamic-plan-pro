@@ -6,7 +6,7 @@
  * ALTERAÇÃO: FotoSlot local removido e substituído por @/components/shared/FotoSlot
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,6 +29,10 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatDatePtBR } from "@/lib/formatDate";
 import PreviewModeBar from "@/components/student/PreviewModeBar";
+import {
+  checkinDraftKey, clearCheckinDrafts, clearDraftPhotos, loadCheckinDraft, loadDraftPhotos,
+  removeDraftPhoto, saveCheckinDraft, saveDraftPhoto,
+} from "@/lib/checkinDraft";
 
 const FOTO_KEYS = ["frente", "lateral_dir", "lateral_esq", "costas"] as const;
 const FOTO_LABELS: Record<string, string> = {
@@ -189,6 +193,79 @@ export default function CheckIn() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anamnesis, mode]);
 
+  // ─── Rascunho automático (ver src/lib/checkinDraft.ts) ────────────────────
+  // Desligado no Modo Espelho do coach: ele não pode criar/ler rascunho do aluno.
+  const draftKey =
+    studentId && !previewAs && mode !== "choose"
+      ? checkinDraftKey(studentId, mode, mode === "update" ? lastCheckin?.id : null)
+      : null;
+  const restoredKeyRef = useRef<string | null>(null);
+  const [draftReady, setDraftReady] = useState(false);
+
+  // Voltar para a escolha (novo/atualizar) zera o estado da tela; ao entrar de
+  // novo, o rascunho precisa ser reaplicado antes de voltar a salvar.
+  useEffect(() => {
+    if (mode === "choose") {
+      restoredKeyRef.current = null;
+      setDraftReady(false);
+    }
+  }, [mode]);
+
+  // Recupera o rascunho uma vez por "modo" (novo / atualização daquele check-in).
+  useEffect(() => {
+    if (!draftKey || restoredKeyRef.current === draftKey) return;
+    restoredKeyRef.current = draftKey;
+    setDraftReady(false);
+    const draft = loadCheckinDraft(draftKey);
+    if (draft) {
+      setData((prev) => ({ ...prev, ...draft.data }));
+      setMetrics((prev) => ({ ...prev, ...draft.metrics }));
+      setStep(draft.step);
+    }
+    let cancelled = false;
+    loadDraftPhotos(draftKey, FOTO_KEYS).then((files) => {
+      if (cancelled) return;
+      const keys = Object.keys(files);
+      if (keys.length) {
+        setFotoFiles((p) => ({ ...p, ...files }));
+        setFotoPreviews((p) => {
+          const next = { ...p };
+          keys.forEach((k) => { next[k] = URL.createObjectURL(files[k]); });
+          return next;
+        });
+      }
+      if (draft || keys.length) {
+        const key = draftKey;
+        toast.info("Recuperamos o check-in que você estava preenchendo.", {
+          duration: 8000,
+          action: {
+            label: "Começar do zero",
+            onClick: () => {
+              saveCheckinDraft(key, { data: {}, metrics: {}, step: 1 }); // remove o rascunho
+              void clearDraftPhotos(key, FOTO_KEYS);
+              setFotoFiles({ frente: null, lateral_dir: null, lateral_esq: null, costas: null });
+              if (mode === "update") startUpdate();
+              else startNew();
+              setStep(1);
+            },
+          },
+        });
+      }
+      setDraftReady(true);
+    });
+    return () => { cancelled = true; };
+  // `mode`/`startUpdate` só são lidos no clique do toast, já dentro do modo
+  // que gerou este draftKey (draftKey muda junto com mode).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey]);
+
+  // Salva respostas/medidas/etapa enquanto o aluno preenche (debounce curto).
+  useEffect(() => {
+    if (!draftKey || !draftReady) return;
+    const t = setTimeout(() => saveCheckinDraft(draftKey, { data, metrics, step }), 500);
+    return () => clearTimeout(t);
+  }, [draftKey, draftReady, data, metrics, step]);
+
   // Contexto usado para decidir quais campos condicionais aparecem: a
   // Anamnese como referência estática (protocolo, gênero) + as respostas já
   // dadas neste próprio check-in (ex.: "descreva o colateral" só depois de
@@ -224,11 +301,13 @@ export default function CheckIn() {
     setFotoFiles((p) => ({ ...p, [key]: file }));
     const url = URL.createObjectURL(file);
     setFotoPreviews((p) => ({ ...p, [key]: url }));
+    if (draftKey) void saveDraftPhoto(draftKey, key, file);
   }
 
   function handleFotoRemove(key: string) {
     setFotoFiles((p) => ({ ...p, [key]: null }));
     setFotoPreviews((p) => ({ ...p, [key]: null }));
+    if (draftKey) void removeDraftPhoto(draftKey, key);
   }
 
   function handleExameAdd(files: FileList | null) {
@@ -443,6 +522,13 @@ export default function CheckIn() {
           : "Check-in enviado com sucesso."
       );
       qc.invalidateQueries({ queryKey: queryKeys.studentCheckIns(studentId) });
+      // Enviado com sucesso: descarta o rascunho (texto e fotos) deste aparelho.
+      if (draftKey) {
+        restoredKeyRef.current = null;
+        setDraftReady(false);
+        void clearDraftPhotos(draftKey, FOTO_KEYS);
+      }
+      clearCheckinDrafts(studentId);
       setTimeout(() => navigate("/evolution"), 1000);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Erro ao enviar";
