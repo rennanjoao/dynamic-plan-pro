@@ -4,6 +4,17 @@ import { Loader2, Ban } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCoachBlocked } from "@/lib/coachAccessStatus";
 
+const ANA_DONE_KEY = (uid: string) => `anamnesis_done_${uid}`;
+export function readAnamnesisDone(uid: string): boolean | undefined {
+  try {
+    const v = localStorage.getItem(ANA_DONE_KEY(uid));
+    return v === "1" ? true : v === "0" ? false : undefined;
+  } catch { return undefined; }
+}
+function writeAnamnesisDone(uid: string, done: boolean) {
+  try { localStorage.setItem(ANA_DONE_KEY(uid), done ? "1" : "0"); } catch { /* noop */ }
+}
+
 export const AnamnesisGuard = ({ children }: { children: React.ReactNode }) => {
   const [coachBlocked, setCoachBlocked] = useState(false);
   const [checkingCoach, setCheckingCoach] = useState(true);
@@ -22,19 +33,30 @@ export const AnamnesisGuard = ({ children }: { children: React.ReactNode }) => {
           if (!cancelled) { setHasAnamnesis(true); setCoachBlocked(false); }
           return;
         }
-        const { data: auth } = await supabase.auth.getUser();
-        const userId = auth.user?.id;
+        // getSession lê a sessão do aparelho (funciona sem internet);
+        // getUser ia ao servidor e falhava offline.
+        const { data: sess } = await supabase.auth.getSession();
+        const userId = sess.session?.user?.id;
         if (!userId) {
           if (!cancelled) setCoachBlocked(false);
           return;
         }
         // Verifica se o aluno já submeteu a anamnese
-        const { data: ana } = await supabase
+        const { data: ana, error: anaErr } = await supabase
           .from("anamnesis")
           .select("submitted_at")
           .eq("student_id", userId)
           .maybeSingle();
-        if (!cancelled) setHasAnamnesis(!!ana?.submitted_at);
+        if (anaErr) {
+          // Sem internet/erro do servidor: NÃO mandar para a anamnese (antes a
+          // aluna sem sinal na academia caía no formulário de cadastro).
+          // Usa o que este aparelho já sabe; sem histórico, deixa seguir.
+          if (!cancelled) setHasAnamnesis(readAnamnesisDone(userId) ?? null);
+        } else {
+          const done = !!ana?.submitted_at;
+          writeAnamnesisDone(userId, done);
+          if (!cancelled) setHasAnamnesis(done);
+        }
 
         // Vínculo oficial (coach_students ativo) + último status conhecido em
         // caso de falha de rede — ver src/lib/coachAccessStatus.ts.
