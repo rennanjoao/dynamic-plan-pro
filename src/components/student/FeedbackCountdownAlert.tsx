@@ -22,6 +22,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { Clock, CalendarCheck, AlertTriangle, TrendingUp, ArrowRight, X, Flame } from "lucide-react";
+import { localDateKey } from "@/lib/dateOnly";
 
 interface Props {
   userId: string;
@@ -112,7 +113,7 @@ export default function FeedbackCountdownAlert({ userId, dismissed, onDismiss, w
     days === preDay ? "pre" : days === warning ? "today" : days <= critical ? "late" : "critical";
 
   // ID por bucket + dia para o dismiss ser "do dia"
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = localDateKey();
   const id = `fb-countdown-${bucket}-${todayKey}`;
   if (dismissed.includes(id)) return null;
 
@@ -216,7 +217,7 @@ function StreakEncouragement({
   });
 
   if (!streak || streak < 2 || days < retaFinalThreshold) return null;
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = localDateKey();
   const id = `fb-streak-${todayKey}`;
   if (dismissed.includes(id)) return null;
 

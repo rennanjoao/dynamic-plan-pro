@@ -27,6 +27,7 @@ import {
   WHATS_NEW_ICON_LABELS, normalizeSlides, slugify, validateAnnouncementForm,
   type Announcement, type WhatsNewIconKey, type WhatsNewSlide,
 } from "@/lib/whatsNew";
+import { localDateKey } from "@/lib/dateOnly";
 
 interface SlideForm {
   icon: string;
@@ -64,7 +65,7 @@ function toForm(a: Announcement): FormState {
     slug: a.slug,
     slugTouched: true,
     audience: a.audience === "all" ? "all" : "student",
-    expires: a.expires_at ? a.expires_at.slice(0, 10) : "",
+    expires: a.expires_at ? localDateKey(a.expires_at) : "",
     publish: a.is_active,
     slides: slides.length ? slides : [emptySlide()],
   };

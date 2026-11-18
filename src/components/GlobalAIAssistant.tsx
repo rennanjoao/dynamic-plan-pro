@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import { supabase } from "@/integrations/supabase/client";
 import { sortPriorityQueue, AI_QUEUE_LIMIT, buildOpenAlerts } from "@/lib/coachPriorityQueue";
+import { localDateKey } from "@/lib/dateOnly";
 
 // FitnessChatBot puxa framer-motion + react-markdown — só quem realmente usa
 // o chat de IA deveria pagar esse peso. Como esse componente monta em toda
@@ -161,7 +162,7 @@ async function fetchAthleteContext() {
     .order("created_at", { ascending: false })
     .limit(5);
   const recentCoachUpdates = (updatesRes.data ?? []).flatMap((row: any) => {
-    const date = row.created_at ? row.created_at.slice(0, 10) : null;
+    const date = row.created_at ? localDateKey(row.created_at) : null;
     const changes = Array.isArray(row.changes) ? row.changes : [];
     return changes.map((c: any) => ({
       date,

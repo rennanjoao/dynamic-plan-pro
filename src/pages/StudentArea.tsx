@@ -39,7 +39,7 @@ import { usePartnerProfile } from "@/hooks/usePartnerships";
 import QRCode from "qrcode";
 import { formatDatePtBR } from "@/lib/formatDate";
 
-import { parseDateOnly } from "@/lib/dateOnly";
+import { localDateKey, parseDateOnly } from "@/lib/dateOnly";
 // ─── localStorage helpers ───────────────────────────────────────────────────
 const DISMISSED_KEY = (uid: string) => `dismissed_alerts_${uid}`;
 function loadDismissed(uid: string): string[] {
@@ -143,11 +143,12 @@ function calcStreak(logs: { completed_at: string | null }[]): number {
   const days = [...new Set(
     logs
       .filter((l) => l.completed_at)
-      .map((l) => new Date(l.completed_at!).toISOString().slice(0, 10))
+      .map((l) => localDateKey(l.completed_at!))
   )].sort().reverse();
 
-  const today     = new Date().toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const today     = localDateKey();
+  const yesterdayDate = new Date(); yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const yesterday = localDateKey(yesterdayDate);
   if (days[0] !== today && days[0] !== yesterday) return 0;
 
   let streak = 0;
@@ -309,7 +310,7 @@ export default function StudentArea() {
   });
 
   const queryClientSA = useQueryClient();
-  const todayKeyStr = new Date().toISOString().slice(0, 10);
+  const todayKeyStr = localDateKey();
   const { data: todayConfirmed } = useQuery({
     queryKey: ["student-today-session", userId, todayKeyStr],
     enabled: !!userId && todayPlan?.tipo === "treino",
@@ -336,7 +337,7 @@ export default function StudentArea() {
     },
   });
 
-  const todayStrForNudge = new Date().toISOString().slice(0, 10);
+  const todayStrForNudge = localDateKey();
   const { data: dailyNudge } = useQuery({
     queryKey: ["student-daily-nudge", userId, todayStrForNudge],
     enabled: !!userId && !previewAs, // Impede gerar nudge pra IA no modo espelho do coach
@@ -402,8 +403,8 @@ export default function StudentArea() {
     setEmptySlots((prev) => (prev[key] === empty ? prev : { ...prev, [key]: empty }));
   }, []);
   const streak = calcStreak(workoutLogs ?? []);
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const trainedToday = (workoutLogs ?? []).some((l) => l.completed_at?.slice(0, 10) === todayStr);
+  const todayStr = localDateKey();
+  const trainedToday = (workoutLogs ?? []).some((l) => !!l.completed_at && localDateKey(l.completed_at) === todayStr);
 
   const dismissAlert = (id: string) => {
     if (!userId) return;

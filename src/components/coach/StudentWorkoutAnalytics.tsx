@@ -47,6 +47,7 @@ import { classifyExerciseByName, MUSCLE_GROUP_LABELS, type MuscleGroup } from "@
 import { VOLUME_LANDMARKS, VOLUME_STATUS_META, classifyWeeklyVolume } from "@/lib/volumeLandmarks";
 import { isMobilityExercise } from "@/lib/protocolSchema";
 import { INSIGHT_META, type CoachInsightSituacao } from "@/lib/coachInsights";
+import { localDateKey, parseDateOnly } from "@/lib/dateOnly";
 
 /* ── Constantes ─────────────────────────────────────────────────────────────── */
 
@@ -667,12 +668,12 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
   // Volume semanal (últimos 7 dias)
   const last7 = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(); d.setDate(d.getDate() - (6 - i));
-    return d.toISOString().slice(0, 10);
+    return localDateKey(d);
   });
   const volumeWeekData = last7.map((dateStr) => {
-    const daySets = completedSets.filter((s) => s.executed_at.slice(0, 10) === dateStr);
+    const daySets = completedSets.filter((s) => localDateKey(s.executed_at) === dateStr);
     return {
-      date:   new Date(dateStr).toLocaleDateString("pt-BR", { weekday: "short" }),
+      date:   (parseDateOnly(dateStr) ?? new Date(dateStr)).toLocaleDateString("pt-BR", { weekday: "short" }),
       séries: daySets.length,
       falhas: daySets.filter((s) => s.perceived_effort === 3).length,
     };

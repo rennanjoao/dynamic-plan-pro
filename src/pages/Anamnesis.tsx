@@ -306,7 +306,17 @@ const Anamnesis = () => {
     setValidating(true);
     try {
       const { data, error } = await supabase.functions.invoke('validate-invite-code', { body: { code } });
-      if (error || !data?.coach_id) throw new Error(data?.error || "Código inválido ou inexistente.");
+      if (error || !data?.coach_id) {
+        // Respostas não-2xx (ex.: 429 "muitas tentativas") chegam em error.context.
+        let serverMsg: string | undefined = data?.error;
+        if (!serverMsg && error) {
+          try {
+            const body = await (error as { context?: { json?: () => Promise<{ error?: string }> } }).context?.json?.();
+            serverMsg = body?.error;
+          } catch { /* corpo ilegível */ }
+        }
+        throw new Error(serverMsg || "Código inválido ou inexistente.");
+      }
       
       setCoach({ id: data.coach_id, name: data.coach_name, email: data.notification_email });
       if (data.access_code) setResolvedAccessCode(String(data.access_code).toUpperCase());

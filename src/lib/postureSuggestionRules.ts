@@ -5,6 +5,7 @@ import type {
   RedFlags,
 } from "@/types/postureAssessment";
 import { FUNCTIONAL_TESTS } from "@/types/postureAssessment";
+import { localDateKey } from "@/lib/dateOnly";
 
 export interface PostureSuggestion {
   label: string;
@@ -146,7 +147,7 @@ export const EMPTY_RED_FLAGS: RedFlags = {
 
 export function emptyPostureForm(now = new Date()): PostureAssessmentFormValues {
   return {
-    assessedAt: now.toISOString().slice(0, 10),
+    assessedAt: localDateKey(now),
     complaint: "",
     painScore: null,
     painLocation: "",

@@ -20,6 +20,7 @@ import { toExerciseKey } from "@/lib/workoutTypes";
 import type { ExerciseHistory, ExerciseSessionLoad } from "@/lib/workoutTypes";
 import { workoutDraftStorageKey } from "@/lib/periodizationKey";
 import { groupSetRowsIntoSessions, type SetRowLike } from "@/lib/loadProgression";
+import { localDateKey } from "@/lib/dateOnly";
 
 /* ── Parâmetros ──────────────────────────────────────────────────────────────── */
 
@@ -685,7 +686,7 @@ export function useWorkoutSession() {
       // Compatibilidade: salva também em workout_progress (tabela legada)
       if (userIdRef.current) {
         const dayKey = effectiveId.startsWith("local_") ? "X" : effectiveId;
-        const today  = new Date().toISOString().slice(0, 10);
+        const today  = localDateKey();
         try {
           await (supabase as any)
             .from("workout_progress")
@@ -873,16 +874,16 @@ export function useWorkoutSession() {
     if (error || !data?.length) return 0;
 
     const daySet = new Set(
-      (data as any[]).map((s) => new Date(s.ended_at).toISOString().slice(0, 10))
+      (data as any[]).map((s) => localDateKey(s.ended_at))
     );
 
     let streak = 0;
     const cursor = new Date();
     // Se ainda não treinou hoje, o streak conta a partir de ontem
-    if (!daySet.has(cursor.toISOString().slice(0, 10))) {
+    if (!daySet.has(localDateKey(cursor))) {
       cursor.setDate(cursor.getDate() - 1);
     }
-    while (daySet.has(cursor.toISOString().slice(0, 10))) {
+    while (daySet.has(localDateKey(cursor))) {
       streak++;
       cursor.setDate(cursor.getDate() - 1);
     }

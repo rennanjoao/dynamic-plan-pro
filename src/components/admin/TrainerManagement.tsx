@@ -14,6 +14,7 @@ import {
   Ban, BanIcon, Clock, Copy, Link2, RefreshCw, CheckCircle2, Loader2,
   Award, DollarSign
 } from "lucide-react";
+import { localDateKey } from "@/lib/dateOnly";
 
 interface Trainer {
   id: string;
@@ -539,7 +540,7 @@ function TrainerRow({ trainer, onDelete, onUpdateEmail, onUpdateCode, onUpdateTr
         setPlanType("lifetime");
       } else {
         setPlanType("trial");
-        setTrialDate(new Date(trainer.trial_ends_at).toISOString().split('T')[0]);
+        setTrialDate(localDateKey(trainer.trial_ends_at));
       }
     }
   };

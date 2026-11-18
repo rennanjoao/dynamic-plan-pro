@@ -21,6 +21,22 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const admin = createClient(supabaseUrl, serviceRoleKey);
 
+    // Function pública por design (chamada antes do login). Sem limite ela
+    // permitia testar códigos em massa. Mesmo padrão de resolve-referral-coach:
+    // 15 tentativas/minuto por IP. Se o limitador falhar, não bloqueia o aluno.
+    const ip = (req.headers.get("x-forwarded-for") ?? "unknown").split(",")[0].trim();
+    const { data: allowed, error: rateErr } = await admin.rpc("check_rate_limit", {
+      _bucket: `validate-invite-code:${ip}`,
+      _max_hits: 15,
+      _window_seconds: 60,
+    });
+    if (!rateErr && allowed === false) {
+      return new Response(JSON.stringify({ valid: false, error: "Muitas tentativas. Aguarde um minuto e tente novamente." }), {
+        status: 429,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Variantes toleradas: com/sem hífen, com/sem prefixo ELT-
     const bare = normalizedCode.replace(/[^A-Z0-9]/g, "");
     const withoutPrefix = bare.startsWith("ELT") ? bare.slice(3) : bare;
@@ -43,7 +59,9 @@ serve(async (req) => {
         valid: true,
         coach_id: coach.coach_id,
         coach_name: coach.coach_name,
-        notification_email: coach.notification_email,
+        // E-mail do coach não é mais exposto nesta rota pública: o aviso ao
+        // coach é resolvido no servidor (notify-coach). Mantido null por compat.
+        notification_email: null,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -80,7 +98,7 @@ serve(async (req) => {
 
     const { data: coachProfile } = await admin
       .from("profiles")
-      .select("full_name, notification_email")
+      .select("full_name")
       .eq("user_id", access.coach_id)
       .maybeSingle();
 
@@ -88,7 +106,7 @@ serve(async (req) => {
       valid: true,
       coach_id: access.coach_id,
       coach_name: coachProfile?.full_name ?? "Seu Treinador",
-      notification_email: coachProfile?.notification_email ?? null,
+      notification_email: null,
       access_code: access.code,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

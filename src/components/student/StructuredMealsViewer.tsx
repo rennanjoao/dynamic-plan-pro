@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useMealCheckins } from "@/hooks/useMealCheckins";
 import { slug } from "@/lib/slug";
+import { localDateKey } from "@/lib/dateOnly";
 
 // ─── Math engine ──────────────────────────────────────────────────────────────
 /** Retorna saudação de acordo com o horário local do dispositivo */
@@ -615,7 +616,7 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setUid(data.session?.user?.id ?? null));
   }, []);
-  const dayKey = new Date().toISOString().slice(0, 10);
+  const dayKey = localDateKey();
   const { checked, toggle } = useMealCheckins(uid, dayKey, meals.length);
 
   // ── Contexto do dia ─────────────────────────────────────────────────────
