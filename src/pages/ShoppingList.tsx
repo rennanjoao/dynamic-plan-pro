@@ -43,6 +43,7 @@ import {
   type AggItem,
 } from "@/lib/shoppingListAgg";
 import { formatDatePtBR } from "@/lib/formatDate";
+import { localDateKey } from "@/lib/dateOnly";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -1005,7 +1006,7 @@ export default function ShoppingList() {
       doc.text("Quantidades em peso cru · Elite Prime", 14, 287);
     }
 
-    doc.save(`lista-${days}d-${new Date().toISOString().slice(0, 10)}.pdf`);
+    doc.save(`lista-${days}d-${localDateKey()}.pdf`);
   };
 
   // ── Navegação de choices ──────────────────────────────────────────────────────

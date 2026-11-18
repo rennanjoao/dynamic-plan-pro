@@ -21,6 +21,7 @@ import { useStudentData } from "@/hooks/useStudentData";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Info, X, ChevronRight } from "lucide-react";
+import { localDateKey } from "@/lib/dateOnly";
 
 interface DailyAlertRow {
   id: string;
@@ -58,7 +59,7 @@ function shouldShowAlert(alert: DailyAlertRow, now: Date): boolean {
       const daysSince = Math.floor((now.getTime() - createdAt.getTime()) / 86_400_000);
       return daysSince >= 0 && daysSince <= 7;
     }
-    const todayString = now.toISOString().split("T")[0];
+    const todayString = localDateKey(now);
     return alert.target_date === todayString;
   }
 

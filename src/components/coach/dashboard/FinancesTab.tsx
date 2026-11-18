@@ -24,7 +24,7 @@ import { computeFinanceMetrics } from "@/lib/coachFinanceMetrics";
 import { Private } from "@/components/coach/PrivacyMode";
 import { PARTNER_PLAN_PRICING, previewFinalPrice, type PartnerPlanSlug } from "@/lib/partnerPricing";
 
-import { isPastDue, parseDateOnly } from "@/lib/dateOnly";
+import { isPastDue, localDateKey, parseDateOnly } from "@/lib/dateOnly";
 function isPartnerPlan(slug: unknown): slug is PartnerPlanSlug {
   return typeof slug === "string" && slug in PARTNER_PLAN_PRICING;
 }
@@ -133,7 +133,7 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
         body: {
           studentId: payDialog.studentId,
           planSlug: payDialog.planSlug,
-          startedOn: new Date().toISOString().slice(0, 10),
+          startedOn: localDateKey(),
           paymentMethod: payMethod,
         },
       });
@@ -278,7 +278,7 @@ export function FinancesTab({ coachId, students }: { coachId: string; students: 
     if (!quickBilling || creatingBilling) return;
     setCreatingBilling(true);
     try {
-      const startISO = quickForm.due_date || new Date().toISOString().slice(0, 10);
+      const startISO = quickForm.due_date || localDateKey();
       let subscriptionId: string | null = null;
       let cycleMonths: number | null = null;
       let cycleNumber: number | null = null;

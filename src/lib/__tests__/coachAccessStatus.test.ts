@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const rpc = vi.fn();
+const rpc = vi.fn((_fn: string): unknown => undefined);
 const maybeSingle = vi.fn();
 const chain: Record<string, unknown> = {};
 for (const m of ["select", "eq", "order", "limit"]) chain[m] = vi.fn(() => chain);
 chain.maybeSingle = maybeSingle;
-const from = vi.fn(() => chain);
+const from = vi.fn((_table: string) => chain);
 
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { rpc: (...a: unknown[]) => rpc(...a), from: (...a: unknown[]) => from(...a) },
+  supabase: { rpc: (fn: string) => rpc(fn), from: (t: string) => from(t) },
 }));
 
 import {
