@@ -835,6 +835,8 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       // Só roda em UPDATE (protocolo já existia), publicação real (não rascunho),
       // e com o protocolo efetivamente ativo depois do save. Falhas aqui não
       // desfazem o UPDATE em `protocols` e não bloqueiam o fluxo.
+      // Resumo das mudanças para o e-mail ao aluno (preenchido abaixo).
+      let changeLabelsForEmail: string[] = [];
       if (isEditMode && protocolId && coachId && !opts.asDraft && publishActive) {
         try {
           const wasInactive = previousActiveRef.current === false;
@@ -845,6 +847,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             wasInactive,
             changes: raw,
           });
+          changeLabelsForEmail = changes.map((c) => c.label);
           if (changes.length > 0) {
             const { data: openRow } = await sb
               .from("protocol_change_events")
@@ -881,6 +884,15 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         } catch (evtErr) {
           console.error("[protocol_change_events] best-effort falhou", evtErr);
         }
+      }
+      // Aviso ao aluno pelo e-mail cadastrado (além do card no app). O servidor
+      // limita a 1 e-mail a cada 6 h por aluno; falha nunca bloqueia o coach.
+      if (!opts.asDraft && publishActive && studentId) {
+        void supabase.functions
+          .invoke("notify-protocol-published", {
+            body: { studentId, isFirst: !isEditMode, changes: changeLabelsForEmail },
+          })
+          .then(({ error }) => { if (error) console.warn("notify-protocol-published falhou (não bloqueia)", error); });
       }
       if (coachId) {
         // Atualiza o DNA do coach no banco e, quando termina, recarrega o cache do

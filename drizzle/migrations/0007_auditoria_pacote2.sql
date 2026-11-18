@@ -118,6 +118,11 @@ $$;
 REVOKE ALL ON FUNCTION public.get_my_coach_public_info() FROM public, anon;
 GRANT EXECUTE ON FUNCTION public.get_my_coach_public_info() TO authenticated, service_role;
 
+-- ─── 3b) Aviso por e-mail ao publicar protocolo (notify-protocol-published) ─
+-- Guarda quando o último e-mail foi enviado para segurar a 1 a cada 6 h
+-- (o limitador genérico check_rate_limit limpa janelas com mais de 1 h).
+ALTER TABLE public.coach_students ADD COLUMN IF NOT EXISTS last_protocol_email_at timestamptz;
+
 -- ─── 4) GIFs de exercício: listagem só para admin (alerta do Lovable) ──────
 -- O bucket continua PÚBLICO: os GIFs abrem normalmente pelo link público
 -- (getPublicUrl), que não passa por estas regras. O app nunca lista o bucket.
