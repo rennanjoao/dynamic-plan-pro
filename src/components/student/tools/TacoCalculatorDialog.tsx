@@ -97,7 +97,7 @@ function Picker({
                 <span className="flex items-center gap-1.5 min-w-0">
                   <span className="truncate">{f.name}</span>
                   {f.source === "industrial" && (
-                    <span className="text-[9px] px-1 py-0.5 rounded bg-violet-500/10 text-violet-500 border border-violet-500/30 shrink-0">IND</span>
+                    <span className="text-[11px] px-1 py-0.5 rounded bg-violet-500/10 text-violet-500 border border-violet-500/30 shrink-0">IND</span>
                   )}
                 </span>
                 <span className="text-muted-foreground shrink-0">{Math.round(f.kcal)} kcal</span>
@@ -184,7 +184,7 @@ export default function TacoCalculatorDialog({ trigger }: Props) {
             <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 mt-2">
               <p className="text-xs text-muted-foreground">Equivalente em {to?.name}</p>
               <p className="text-2xl font-bold text-primary">{result.toFixed(0)} g</p>
-              <p className="text-[10px] text-muted-foreground mt-1">
+              <p className="text-[11px] text-muted-foreground mt-1">
                 Base: {grams} g de {from?.name} · {MODE_LABEL[mode]}
               </p>
             </div>

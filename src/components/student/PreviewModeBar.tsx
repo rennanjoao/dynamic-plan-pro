@@ -23,7 +23,7 @@ export default function PreviewModeBar() {
       <Button
         size="sm"
         variant="secondary"
-        className="h-7 px-3 text-[10px] sm:text-xs bg-white text-indigo-600 hover:bg-white/90 shrink-0 font-bold"
+        className="h-7 px-3 text-[11px] sm:text-xs bg-white text-indigo-600 hover:bg-white/90 shrink-0 font-bold"
         onClick={() => window.close()}
       >
         Sair do Preview

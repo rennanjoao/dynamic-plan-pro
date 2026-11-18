@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, AlertTriangle, Activity, Info, History, StretchHorizontal } from "lucide-react";
+import { ArrowLeft, AlertTriangle, Activity, Info, History, StretchHorizontal, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -80,7 +80,7 @@ function MobilityBlock({ exercises }: { exercises: any[] }) {
           <span className="flex items-center gap-2 text-sm font-bold text-primary">
             <StretchHorizontal className="w-4 h-4" />
             Mobilidade pré-treino
-            <Badge variant="outline" className="text-[10px] border-primary/40 text-primary">{mobility.length}</Badge>
+            <Badge variant="outline" className="text-[11px] border-primary/40 text-primary">{mobility.length}</Badge>
           </span>
         </AccordionTrigger>
         <AccordionContent className="pb-2 space-y-2">
@@ -292,6 +292,9 @@ export default function WorkoutPlan() {
     const k = weekDays[WEEKDAY_ORDER[new Date().getDay()]];
     return k && k !== "REST" ? k : null;
   })();
+  // Só afirma "descanso" se o coach marcou explicitamente (sem dias configurados, não diz nada).
+  const todayIsRest: boolean =
+    ((safePayload?.weekDays as Record<string, string>) || {})[WEEKDAY_ORDER[new Date().getDay()]] === "REST";
   const todayIndex = todayWorkoutKey
     ? workouts.findIndex((w: any) => String(w.key) === todayWorkoutKey)
     : -1;
@@ -339,7 +342,7 @@ export default function WorkoutPlan() {
                 <h3 className="font-bold text-base flex items-center gap-2">
                   Treino {letter}
                   {isToday && (
-                    <Badge className="text-[10px] px-1.5 py-0 h-4">Hoje</Badge>
+                    <Badge className="text-[11px] px-1.5 py-0 h-4">Hoje</Badge>
                   )}
                 </h3>
                 <p className="text-xs text-muted-foreground">{day.focus || "Geral"}</p>
@@ -371,31 +374,31 @@ export default function WorkoutPlan() {
                     return (
                       <>
                         {wm && (
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-primary/80 mb-1">
+                          <p className="text-[11px] font-bold uppercase tracking-wide text-primary/80 mb-1">
                             Semana {currentWeek + 1} de {weeks.length}
                           </p>
                         )}
                         <div className={`grid gap-2 mb-2 ${vCadence ? "grid-cols-4" : "grid-cols-3"}`}>
                           <div className="bg-muted/50 p-2 rounded text-center">
-                            <p className="text-[10px] text-muted-foreground uppercase">Séries</p>
+                            <p className="text-[11px] text-muted-foreground uppercase">Séries</p>
                             <p className="font-semibold text-sm">{vSets || "-"}</p>
                           </div>
                           <div className="bg-muted/50 p-2 rounded text-center">
-                            <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
+                            <p className="text-[11px] text-muted-foreground uppercase flex items-center justify-center gap-1">
                               Reps <InfoPopover termKey="reps" />
                             </p>
                             <p className="font-semibold text-sm">{vReps || "-"}</p>
                           </div>
                           {vCadence && (
                             <div className="bg-muted/50 p-2 rounded text-center">
-                              <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
+                              <p className="text-[11px] text-muted-foreground uppercase flex items-center justify-center gap-1">
                                 Cadência <InfoPopover termKey="cadence" />
                               </p>
                               <p className="font-semibold text-sm">{vCadence}</p>
                             </div>
                           )}
                           <div className="bg-muted/50 p-2 rounded text-center">
-                            <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
+                            <p className="text-[11px] text-muted-foreground uppercase flex items-center justify-center gap-1">
                               Descanso <InfoPopover termKey="rest" />
                             </p>
                             <p className="font-semibold text-sm">{vRest || "-"}</p>
@@ -472,6 +475,31 @@ export default function WorkoutPlan() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+
+        {/* Atalho no TOPO: antes o "Iniciar" ficava no fim do treino aberto,
+            depois de guia, estratégia, diretriz, progressão e exercícios. */}
+        {todayIndex >= 0 && workouts[todayIndex] && (
+          <button
+            type="button"
+            onClick={() => handleStartWorkout(todayWorkoutKey as string)}
+            className="w-full flex items-center gap-3 rounded-xl bg-primary text-primary-foreground px-4 py-4 text-left shadow-sm active:scale-[0.99] transition-transform"
+          >
+            <span className="w-11 h-11 rounded-full bg-primary-foreground/15 flex items-center justify-center shrink-0">
+              <Play className="w-5 h-5" />
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-base font-bold">Iniciar treino de hoje</span>
+              <span className="block text-sm opacity-90 truncate">
+                Treino {String.fromCharCode(65 + todayIndex)} · {(workouts[todayIndex] as { focus?: string })?.focus || "Geral"}
+              </span>
+            </span>
+          </button>
+        )}
+        {todayIsRest && workouts.length > 0 && (
+          <p className="text-sm text-muted-foreground bg-muted/40 rounded-xl px-4 py-3">
+            Hoje está marcado como descanso. Se for treinar mesmo assim, escolha o treino abaixo e toque em "Iniciar".
+          </p>
+        )}
 
         {/* Com periodização, o guia unificado fica na faixa da semana. */}
         {!(periodizationEnabled && weeks.length > 0) && (

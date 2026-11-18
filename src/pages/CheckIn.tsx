@@ -708,7 +708,7 @@ export default function CheckIn() {
             Medidas atuais
           </h2>
           <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 mb-4 space-y-1 text-[11px] text-muted-foreground">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-1">📏 Como medir</p>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-primary mb-1">📏 Como medir</p>
             <p>• <span className="text-foreground font-medium">Pescoço:</span> logo abaixo do "gogó".</p>
             <p>• <span className="text-foreground font-medium">Cintura:</span> no ponto médio entre a última costela e a crista ilíaca.</p>
             <p>• <span className="text-foreground font-medium">Quadril:</span> na maior protuberância dos glúteos.</p>
@@ -762,7 +762,7 @@ export default function CheckIn() {
             Fotos de Progresso
           </h2>
           <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 mb-4 space-y-1 text-[11px] text-muted-foreground">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-1">📸 Como tirar a foto correta</p>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-primary mb-1">📸 Como tirar a foto correta</p>
             {[
               "Mesmo ambiente e fundo de sempre",
               "Mesma iluminação (evite sombras e contraluz)",
@@ -789,7 +789,7 @@ export default function CheckIn() {
         {/* Exames (PDF) — opcional, até 3 arquivos de 10MB */}
         <Card className="bg-card/60 border-border p-5">
           <h2 className="text-sm font-bold text-primary uppercase tracking-wider mb-2">
-            Exames (PDF) <span className="text-[10px] font-normal text-muted-foreground normal-case">— opcional</span>
+            Exames (PDF) <span className="text-[11px] font-normal text-muted-foreground normal-case">— opcional</span>
           </h2>
           <p className="text-[11px] text-muted-foreground mb-3">
             Anexe até 3 arquivos PDF (10MB cada) para seu coach revisar junto com o check-in.
@@ -801,7 +801,7 @@ export default function CheckIn() {
                 <button type="button" onClick={() => openMedia(ex.url)} className="flex-1 truncate text-left hover:underline">
                   {ex.nome}
                 </button>
-                <span className="text-muted-foreground text-[10px]">{ex.tamanho_kb}KB</span>
+                <span className="text-muted-foreground text-[11px]">{ex.tamanho_kb}KB</span>
                 <button type="button" onClick={() => removeExistingExame(i)} className="text-muted-foreground hover:text-destructive" aria-label="Remover">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -811,7 +811,7 @@ export default function CheckIn() {
               <div key={`new-${i}`} className="flex items-center gap-2 text-xs bg-primary/5 border border-primary/30 rounded-lg px-3 py-2">
                 <FileText className="w-4 h-4 text-primary shrink-0" />
                 <span className="flex-1 truncate">{f.name}</span>
-                <span className="text-muted-foreground text-[10px]">{Math.round(f.size / 1024)}KB</span>
+                <span className="text-muted-foreground text-[11px]">{Math.round(f.size / 1024)}KB</span>
                 <button type="button" onClick={() => removePendingExame(i)} className="text-muted-foreground hover:text-destructive" aria-label="Remover">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>

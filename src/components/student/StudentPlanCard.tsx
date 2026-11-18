@@ -189,12 +189,12 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
               {sub ? `Plano ${sub.plan_name}` : "Meu Plano"}
             </h3>
             {status && (
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${status.cls}`}>
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${status.cls}`}>
                 {status.label}
               </span>
             )}
             {pendingPlanCharge && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-primary/10 text-primary border-primary/30">
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full border bg-primary/10 text-primary border-primary/30">
                 Pagamento pendente
               </span>
             )}
@@ -318,7 +318,7 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
               </div>
             ))
           )}
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground">
             A troca de plano só é aplicada após a confirmação do pagamento pelo Mercado Pago.
           </p>
         </div>

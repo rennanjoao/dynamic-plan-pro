@@ -9,8 +9,10 @@ import { sb } from "@/integrations/supabase/untyped";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { CalendarClock, MessageCircle, HelpCircle } from "lucide-react";
+import { useStudentViewCoachIdentity } from "@/hooks/useCoachIdentity";
 
 export function StudentOnboardingCard({ userId }: { userId: string | null }) {
+  const coach = useStudentViewCoachIdentity();
   const [open, setOpen] = useState(false);
   const checked = useRef(false);
 
@@ -52,7 +54,7 @@ export function StudentOnboardingCard({ userId }: { userId: string | null }) {
           <div className="flex gap-3">
             <HelpCircle className="w-4 h-4 text-primary shrink-0 mt-0.5" />
             <p className="text-sm text-muted-foreground">
-              Para falar direto com Rennan Gonçalves, use o botão <strong className="text-foreground">“Tenho uma dúvida”</strong> nas telas de
+              Para falar direto com {coach.known ? coach.name : "seu coach"}, use o botão <strong className="text-foreground">“Tenho uma dúvida”</strong> nas telas de
               Treino, Dieta e Suplementos.
             </p>
           </div>

@@ -117,7 +117,7 @@ export default function PreviousProtocolButton({
                   <div key={i} className="rounded-lg border border-border/60 p-3">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-bold text-foreground">{meal?.name || `Refeição ${i + 1}`}</p>
-                      {meal?.time && <Badge variant="secondary" className="text-[10px]">{meal.time}</Badge>}
+                      {meal?.time && <Badge variant="secondary" className="text-[11px]">{meal.time}</Badge>}
                     </div>
                     <ul className="mt-2 space-y-1">
                       {(meal?.options ?? []).map((opt: any, oi: number) => {

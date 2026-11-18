@@ -139,7 +139,7 @@ function ProgressGroup({
           )}
         />
       ))}
-      <span className="text-[10px] font-bold text-primary tabular-nums ml-1 shrink-0">
+      <span className="text-[11px] font-bold text-primary tabular-nums ml-1 shrink-0">
         {doneCount}/{totalMeals}
       </span>
     </div>

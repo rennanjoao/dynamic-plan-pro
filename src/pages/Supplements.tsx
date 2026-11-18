@@ -322,10 +322,10 @@ export default function Supplements() {
                             {c.name || "Combo"}
                           </Badge>
                           {c.timing && (
-                            <span className="text-[10px] text-muted-foreground mt-1">{c.timing}</span>
+                            <span className="text-[11px] text-muted-foreground mt-1">{c.timing}</span>
                           )}
                         </div>
-                        <span className="text-[10px] text-muted-foreground shrink-0">{items.length} item(ns)</span>
+                        <span className="text-[11px] text-muted-foreground shrink-0">{items.length} item(ns)</span>
                       </div>
 
                       <ul className="space-y-2 pt-1">
@@ -342,7 +342,7 @@ export default function Supplements() {
                       <Badge variant="outline" className="text-xs border-primary/40 text-primary bg-primary/5">
                         {timing}
                       </Badge>
-                      <span className="text-[10px] text-muted-foreground">{groups[timing].length} item(ns)</span>
+                      <span className="text-[11px] text-muted-foreground">{groups[timing].length} item(ns)</span>
                     </div>
                     <ul className="space-y-2 pt-1">
                       {groups[timing].map((s: any, i: number) => renderItem(s, i))}

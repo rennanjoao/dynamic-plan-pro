@@ -77,7 +77,7 @@ function HereBadge({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground whitespace-nowrap",
+        "inline-flex items-center rounded-full bg-primary px-2 py-0.5 text-[11px] font-bold text-primary-foreground whitespace-nowrap",
         className,
       )}
     >
@@ -109,9 +109,9 @@ function LoadLadder({ activeKey }: { activeKey: PhaseKey | null }) {
               {active && <HereBadge className="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5" />}
               <LoadMeter level={p.load.level} label={p.load.label} barClass={PHASE_BAR[k]} />
               <p className="text-xs font-bold leading-tight">{p.name}</p>
-              <p className="text-[10px] text-muted-foreground leading-tight">{p.load.label}</p>
+              <p className="text-[11px] text-muted-foreground leading-tight">{p.load.label}</p>
               {k !== "forca" && (
-                <p className="flex items-center gap-0.5 text-[10px] font-semibold leading-tight text-foreground/80">
+                <p className="flex items-center gap-0.5 text-[11px] font-semibold leading-tight text-foreground/80">
                   <ArrowDown className="w-2.5 h-2.5 shrink-0" aria-hidden /> {LADDER_BELOW_FORCE}
                 </p>
               )}
@@ -174,7 +174,7 @@ function ActivePhaseCard({ phaseKey, onGoToLoad }: { phaseKey: PhaseKey; onGoToL
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
           <LoadMeter level={p.load.level} label={p.load.label} barClass={PHASE_BAR[phaseKey]} />
-          <span className={cn("text-[10px] font-bold", cc.text)}>Peso: {p.load.label}</span>
+          <span className={cn("text-[11px] font-bold", cc.text)}>Peso: {p.load.label}</span>
         </div>
       </div>
 
@@ -254,7 +254,7 @@ function WeeksPanel({
                     </div>
                     <span className="flex shrink-0 items-center gap-1.5">
                       <LoadMeter level={p.load.level} label={p.load.label} barClass={PHASE_BAR[k]} />
-                      <span className="text-[10px] font-semibold text-muted-foreground">{p.load.label}</span>
+                      <span className="text-[11px] font-semibold text-muted-foreground">{p.load.label}</span>
                     </span>
                   </div>
                 </AccordionTrigger>
@@ -296,12 +296,12 @@ function ProgressionTimeline() {
           return (
             <li key={s.label}>
               <div className="grid grid-cols-[3.25rem_1fr] items-center gap-2.5">
-                <span className="text-[10px] font-bold uppercase leading-tight text-muted-foreground">{s.label}</span>
+                <span className="text-[11px] font-bold uppercase leading-tight text-muted-foreground">{s.label}</span>
                 <div className={cn("space-y-1.5 rounded-lg border p-2", tone.box)}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-black leading-none">{s.load}</span>
                     {s.badge && (
-                      <span className="rounded-full bg-foreground/10 px-1.5 py-0.5 text-[10px] font-bold uppercase">
+                      <span className="rounded-full bg-foreground/10 px-1.5 py-0.5 text-[11px] font-bold uppercase">
                         {s.badge}
                       </span>
                     )}
@@ -317,7 +317,7 @@ function ProgressionTimeline() {
           );
         })}
       </ol>
-      <p className="text-[10px] text-muted-foreground">
+      <p className="text-[11px] text-muted-foreground">
         Os quadradinhos mostram as repetições da última série; os contornados são a faixa da ficha ({ex.rangeStart} a {ex.total}).
       </p>
     </div>

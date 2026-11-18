@@ -108,7 +108,7 @@ return [...checkIns].sort((a, b) => new Date(a.submitted_at).getTime() - new Dat
                             {(c as unknown as { coach_reaction?: string }).coach_reaction}
                           </span>
                         )}
-                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                        <span className="text-[11px] text-muted-foreground uppercase tracking-wider">
                           Check-in #{checkIns.length - i}
                         </span>
                       </div>
@@ -121,12 +121,12 @@ return [...checkIns].sort((a, b) => new Date(a.submitted_at).getTime() - new Dat
                         const d = typeof v === "number" && typeof pv === "number" ? v - pv : null;
                         return (
                           <div key={m.key} className="bg-background/50 rounded-lg p-2 text-center">
-                            <div className="text-[10px] uppercase text-muted-foreground">{m.label}</div>
+                            <div className="text-[11px] uppercase text-muted-foreground">{m.label}</div>
                             <div className="text-sm font-bold text-foreground tabular-nums">
                               {typeof v === "number" ? `${v}${m.unit}` : "—"}
                             </div>
                             {d != null && Math.abs(d) >= 0.05 && (
-                              <div className={`text-[10px] tabular-nums ${colorForDelta(d, m.key === "peso" ? weightPolarityForGoal(goal) : undefined)}`}>
+                              <div className={`text-[11px] tabular-nums ${colorForDelta(d, m.key === "peso" ? weightPolarityForGoal(goal) : undefined)}`}>
                                 {d > 0 ? "+" : ""}{d.toFixed(1)}
                               </div>
                             )}
@@ -177,7 +177,7 @@ return [...checkIns].sort((a, b) => new Date(a.submitted_at).getTime() - new Dat
                       {entries.map(([key, url]) => (
                         <div key={key} className="space-y-1">
                           <MediaImg src={url} alt={key} className="w-full aspect-[3/4] object-cover rounded-xl border border-border/40" />
-                          <p className="text-[10px] text-center text-muted-foreground">{LABELS[key] ?? key}</p>
+                          <p className="text-[11px] text-center text-muted-foreground">{LABELS[key] ?? key}</p>
                         </div>
                       ))}
                     </div>

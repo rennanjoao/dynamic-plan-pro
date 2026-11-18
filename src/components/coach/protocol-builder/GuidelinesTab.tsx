@@ -47,8 +47,8 @@ export function GuidelinesTab({ payload, setPayload, coachId = null }: { payload
       {/* Controle de visibilidade para o aluno */}
       <div className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/20 px-3 py-2.5">
         <div>
-          <p className="text-xs font-semibold">Exibir Diretrizes para o aluno</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">Quando ativo, o aluno verá as diretrizes e a Regra de Ouro no Plano de Treino, com o card "Diretrizes" piscando em verde.</p>
+          <p className="text-xs font-semibold">Mostrar a Diretriz de treino (Regra de Ouro) no Plano de Treino</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Só controla a Diretriz de treino (e o destaque verde do card "Diretrizes"). Dieta, Organização da semana, Sono e Suplementos aparecem SEMPRE para o aluno na tela "Diretrizes & Suplementação".</p>
         </div>
         <Switch checked={showToStudent} onCheckedChange={setShowToStudent} />
       </div>

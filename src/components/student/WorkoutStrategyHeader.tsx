@@ -56,7 +56,7 @@ export default function WorkoutStrategyHeader({
       </p>
 
       <div className="flex items-center gap-3">
-        <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
+        <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-bold">
           Hoje · Treino
         </p>
         {todayWorkout ? (
@@ -123,7 +123,7 @@ export default function WorkoutStrategyHeader({
                     <span className="truncate">{PERIODIZATION_LINK_LABEL}</span>
                     <ChevronRight className="w-3.5 h-3.5 shrink-0 ml-auto opacity-60" />
                   </button>
-                  <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-primary">
+                  <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-semibold text-primary">
                     <AlertTriangle className="w-3 h-3 shrink-0" /> {IMPORTANT_READ_ALERT}
                   </span>
                 </div>

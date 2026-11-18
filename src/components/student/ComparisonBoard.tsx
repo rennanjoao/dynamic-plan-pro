@@ -65,7 +65,7 @@ export default function ComparisonBoard({ anamnesis, latestCheckIn, goal }: Prop
     <>
     {(anamFront || checkFront) && (
       <Card className="bg-card/60 border-border p-4 mb-3">
-        <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground mb-3 text-center">
+        <p className="text-[11px] uppercase tracking-widest font-bold text-muted-foreground mb-3 text-center">
           Comparativo Visual — Frente
         </p>
         <div className="grid grid-cols-2 gap-4">
@@ -73,28 +73,28 @@ export default function ComparisonBoard({ anamnesis, latestCheckIn, goal }: Prop
             {anamFront ? (
               <MediaImg src={anamFront} alt="Anamnese — frente" className="w-full aspect-[3/4] object-cover rounded-xl border border-border/40" />
             ) : (
-              <div className="w-full aspect-[3/4] rounded-xl border border-dashed border-border/40 flex items-center justify-center text-[10px] text-muted-foreground">Sem foto</div>
+              <div className="w-full aspect-[3/4] rounded-xl border border-dashed border-border/40 flex items-center justify-center text-[11px] text-muted-foreground">Sem foto</div>
             )}
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-muted-foreground">Partida</span>
               {anamBF.value != null ? <BFDisplay value={anamBF.value} /> : <span className="text-muted-foreground">—</span>}
             </div>
             {anamBF.value == null && anamBF.missing.length > 0 && (
-              <p className="text-[10px] text-amber-500">Faltam: {anamBF.missing.join(", ")}</p>
+              <p className="text-[11px] text-amber-500">Faltam: {anamBF.missing.join(", ")}</p>
             )}
           </div>
           <div className="space-y-2">
             {checkFront ? (
               <MediaImg src={checkFront} alt="Check-in — frente" className="w-full aspect-[3/4] object-cover rounded-xl border border-border/40" />
             ) : (
-              <div className="w-full aspect-[3/4] rounded-xl border border-dashed border-border/40 flex items-center justify-center text-[10px] text-muted-foreground">Sem check-in</div>
+              <div className="w-full aspect-[3/4] rounded-xl border border-dashed border-border/40 flex items-center justify-center text-[11px] text-muted-foreground">Sem check-in</div>
             )}
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-muted-foreground">Hoje</span>
               {checkBF.value != null ? <BFDisplay value={checkBF.value} /> : <span className="text-muted-foreground">—</span>}
             </div>
             {checkBF.value == null && checkBF.missing.length > 0 && latestCheckIn && (
-              <p className="text-[10px] text-amber-500">Faltam: {checkBF.missing.join(", ")}</p>
+              <p className="text-[11px] text-amber-500">Faltam: {checkBF.missing.join(", ")}</p>
             )}
           </div>
         </div>
@@ -105,7 +105,7 @@ export default function ComparisonBoard({ anamnesis, latestCheckIn, goal }: Prop
         <h2 className="text-sm font-bold text-primary uppercase tracking-wider">
           Sua evolução
         </h2>
-        <div className="text-[10px] text-muted-foreground uppercase tracking-widest">
+        <div className="text-[11px] text-muted-foreground uppercase tracking-widest">
           Partida → Hoje
         </div>
       </div>

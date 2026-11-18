@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { MessageCircle, Send, Loader2, Bot } from "lucide-react";
 import { toast } from "sonner";
 import { notifyCoach } from "@/lib/notifyCoach";
+import { useStudentViewCoachIdentity } from "@/hooks/useCoachIdentity";
 
 type Context = "exercise" | "meal" | "supplement" | "general";
 
@@ -169,6 +170,7 @@ export default function ProtocolQuestionButton({ context, itemRef, studentName, 
 }
 
 function QuestionDialog({ open, setOpen, text, setText, send, sending, context }: any) {
+  const coach = useStudentViewCoachIdentity();
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-[400px]">
@@ -181,7 +183,7 @@ function QuestionDialog({ open, setOpen, text, setText, send, sending, context }
         <Textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Descreva sua dúvida detalhadamente..." className="min-h-[120px] text-sm" />
         <div className="flex justify-end gap-2 mt-2">
           <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={sending}>Cancelar</Button>
-          <Button size="sm" onClick={send} disabled={sending || !text.trim()}>{sending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />} Enviar para Rennan Gonçalves</Button>
+          <Button size="sm" onClick={send} disabled={sending || !text.trim()}>{sending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />} Enviar para {coach.known ? coach.name : "seu coach"}</Button>
         </div>
       </DialogContent>
     </Dialog>

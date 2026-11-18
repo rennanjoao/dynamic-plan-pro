@@ -207,7 +207,7 @@ export default function WorkoutHistory({ userId, periodizationKey = null }: { us
                     {session.workout_label ? ` · ${session.workout_label}` : ""}
                   </p>
                   {session.is_deload_week && (
-                    <span className="text-[10px] font-bold uppercase text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                    <span className="text-[11px] font-bold uppercase text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded">
                       deload
                     </span>
                   )}
@@ -220,7 +220,7 @@ export default function WorkoutHistory({ userId, periodizationKey = null }: { us
                 {session.sleep_quality != null && SLEEP_META[session.sleep_quality] && (
                   <Badge
                     variant="outline"
-                    className={`gap-1 text-[10px] font-bold px-2 py-0.5 ${SLEEP_META[session.sleep_quality].cls}`}
+                    className={`gap-1 text-[11px] font-bold px-2 py-0.5 ${SLEEP_META[session.sleep_quality].cls}`}
                     title={`Sono: ${SLEEP_META[session.sleep_quality].label}`}
                   >
                     <Moon className="w-3 h-3" /> {SLEEP_META[session.sleep_quality].label}
@@ -229,7 +229,7 @@ export default function WorkoutHistory({ userId, periodizationKey = null }: { us
                 {session.general_feeling != null && FEELING_META[session.general_feeling] && (
                   <Badge
                     variant="outline"
-                    className={`gap-1 text-[10px] font-bold px-2 py-0.5 ${FEELING_META[session.general_feeling].cls}`}
+                    className={`gap-1 text-[11px] font-bold px-2 py-0.5 ${FEELING_META[session.general_feeling].cls}`}
                     title={`Sensação: ${FEELING_META[session.general_feeling].label}`}
                   >
                     <Activity className="w-3 h-3" /> {FEELING_META[session.general_feeling].label}
@@ -264,7 +264,7 @@ export default function WorkoutHistory({ userId, periodizationKey = null }: { us
                     <p className="text-xs font-bold text-foreground">
                       {bestSet.weight_kg}kg
                     </p>
-                    <p className="text-[9px] text-muted-foreground truncate">
+                    <p className="text-[11px] text-muted-foreground truncate">
                       {bestSet.exercise_name.split(" ").slice(0, 2).join(" ")}
                     </p>
                   </div>
@@ -291,7 +291,7 @@ export default function WorkoutHistory({ userId, periodizationKey = null }: { us
                           </span>
                         )}
                         {lastEffort && (
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-[11px] text-muted-foreground">
                             {effortLabel(lastEffort as 1 | 2 | 3)}
                           </span>
                         )}
@@ -300,7 +300,7 @@ export default function WorkoutHistory({ userId, periodizationKey = null }: { us
                   );
                 })}
                 {exercises.length > 4 && (
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-[11px] text-muted-foreground">
                     +{exercises.length - 4} exercícios
                   </p>
                 )}

@@ -241,7 +241,7 @@ export default function WorkoutShareCard({
       if (nav.canShare?.({ files: [file] })) {
         await (navigator as unknown as { share: (d: object) => Promise<void> }).share({
           files: [file],
-          title: `Protocolo concluído — Elite Prime · Rennan Gonçalves`,
+          title: `Protocolo concluído — Elite Prime · ${coachName}`,
         });
       } else {
         const url = URL.createObjectURL(blob);

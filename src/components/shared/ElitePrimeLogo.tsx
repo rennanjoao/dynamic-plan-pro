@@ -3,7 +3,15 @@ import { cn } from "@/lib/utils";
 interface Props {
   variant?: "full" | "compact";
   className?: string;
+  /**
+   * Linha de assinatura (nome/CREF). Nas telas de coach e aluno, passe a do
+   * coach certo; `null` esconde. Sem a prop, usa a assinatura da plataforma
+   * (páginas públicas: login e home).
+   */
+  signature?: string | null;
 }
+
+const PLATFORM_SIGNATURE = "Rennan Gonçalves · CREF 206788-G/SP";
 
 function Monogram({ size = 40 }: { size?: number }) {
   return (
@@ -20,16 +28,19 @@ function Monogram({ size = 40 }: { size?: number }) {
   );
 }
 
-export function ElitePrimeLogo({ variant = "full", className }: Props) {
+export function ElitePrimeLogo({ variant = "full", className, signature }: Props) {
+  const sig = signature === undefined ? PLATFORM_SIGNATURE : signature;
   if (variant === "compact") {
     return (
       <div className={cn("flex items-center gap-3", className)}>
         <Monogram size={34} />
         <div className="flex flex-col leading-none">
           <span className="font-serif text-lg tracking-[0.2em] uppercase text-foreground">Elite Prime</span>
-          <span className="mt-1 w-fit rounded-sm border border-primary/30 px-1.5 py-0.5 text-[9px] font-sans tracking-[0.16em] uppercase text-primary">
-            CREF 206788-G/SP
-          </span>
+          {sig && (
+            <span className="mt-1 w-fit rounded-sm border border-primary/30 px-1.5 py-0.5 text-[9px] font-sans tracking-[0.16em] uppercase text-primary">
+              {signature === undefined ? "CREF 206788-G/SP" : sig}
+            </span>
+          )}
         </div>
       </div>
     );
@@ -39,9 +50,11 @@ export function ElitePrimeLogo({ variant = "full", className }: Props) {
       <Monogram size={56} />
       <span className="mt-4 font-serif text-2xl tracking-[0.24em] uppercase text-foreground">Elite Prime</span>
       <span className="my-3 h-px w-16 bg-primary/60" />
-      <span className="text-[10px] font-sans tracking-[0.2em] uppercase text-muted-foreground">
-        Rennan Gonçalves · CREF 206788-G/SP
-      </span>
+      {sig && (
+        <span className="text-[10px] font-sans tracking-[0.2em] uppercase text-muted-foreground">
+          {sig}
+        </span>
+      )}
     </div>
   );
 }

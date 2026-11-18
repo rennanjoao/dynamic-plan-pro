@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ArrowLeft, Lock, KeyRound, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { translateAuthError } from "@/lib/authErrors";
 
 const ResetPassword = () => {
   const navigate = useNavigate();
@@ -38,8 +39,7 @@ const ResetPassword = () => {
       await supabase.auth.signOut();
       navigate("/auth", { replace: true });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Erro ao redefinir senha";
-      toast.error(msg);
+      toast.error(translateAuthError(err as { message?: string; code?: string }, "Erro ao redefinir senha.").message);
     } finally {
       setIsLoading(false);
     }

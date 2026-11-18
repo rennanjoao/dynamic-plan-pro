@@ -179,7 +179,7 @@ export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
               : '—'}
           </p>
           {!ultimaMedidaComGordura && (
-            <p className="text-[10px] text-muted-foreground mt-1">Informe cintura e pescoço nos check-ins</p>
+            <p className="text-[11px] text-muted-foreground mt-1">Informe cintura e pescoço nos check-ins</p>
           )}
         </div>
       </div>

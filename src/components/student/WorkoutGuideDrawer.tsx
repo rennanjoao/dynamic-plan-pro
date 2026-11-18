@@ -43,8 +43,8 @@ function SetsVisual() {
     <div className="rounded-lg border border-border bg-muted/30 p-2.5 space-y-1.5">
       <div className="flex items-center gap-1.5">
         <span className="flex flex-col items-center justify-center rounded-md border border-dashed border-muted-foreground/50 px-2 py-1 text-center">
-          <span className="text-[10px] font-bold leading-tight">Série Zero</span>
-          <span className="text-[10px] text-muted-foreground leading-tight">leve · não conta</span>
+          <span className="text-[11px] font-bold leading-tight">Série Zero</span>
+          <span className="text-[11px] text-muted-foreground leading-tight">leve · não conta</span>
         </span>
         <span className="text-xs font-bold text-muted-foreground" aria-hidden>+</span>
         {[1, 2, 3].map((n) => (
@@ -52,12 +52,12 @@ function SetsVisual() {
             key={n}
             className="flex flex-1 flex-col items-center justify-center rounded-md bg-primary px-1 py-1 text-primary-foreground"
           >
-            <span className="text-[10px] font-bold leading-tight">Série {n}</span>
-            <span className="text-[10px] opacity-80 leading-tight">vale</span>
+            <span className="text-[11px] font-bold leading-tight">Série {n}</span>
+            <span className="text-[11px] opacity-80 leading-tight">vale</span>
           </span>
         ))}
       </div>
-      <p className="text-[10px] text-muted-foreground">Exemplo: a ficha pede 3 séries.</p>
+      <p className="text-[11px] text-muted-foreground">Exemplo: a ficha pede 3 séries.</p>
     </div>
   );
 }
@@ -71,14 +71,14 @@ function QueueVisual() {
           <span className="flex items-center justify-center gap-1 text-[11px] font-bold text-red-500">
             <X className="w-3 h-3" aria-hidden /> Hoje: Perna
           </span>
-          <span className="block text-[10px] text-muted-foreground">faltou</span>
+          <span className="block text-[11px] text-muted-foreground">faltou</span>
         </span>
         <ArrowRight className="w-4 h-4 shrink-0 text-muted-foreground" aria-hidden />
         <span className="flex-1 rounded-md border border-primary/40 bg-primary/10 px-2 py-1.5 text-center">
           <span className="flex items-center justify-center gap-1 text-[11px] font-bold">
             <Check className="w-3 h-3 text-primary" aria-hidden /> Amanhã: Perna
           </span>
-          <span className="block text-[10px] text-muted-foreground">segue a ficha</span>
+          <span className="block text-[11px] text-muted-foreground">segue a ficha</span>
         </span>
       </div>
     </div>

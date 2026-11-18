@@ -171,7 +171,7 @@ export const TrainerAlert = ({ coachName }: { coachName?: string | null }) => {
             {alertLabel}
             {remaining > 0 && (
               <span
-                className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none bg-primary/10 text-primary"
+                className="text-[11px] font-semibold px-1.5 py-0.5 rounded-full leading-none bg-primary/10 text-primary"
                 title={`+${remaining} mensagem${remaining > 1 ? "s" : ""} após esta`}
               >
                 +{remaining}

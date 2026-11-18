@@ -204,7 +204,9 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [consultOpen, setConsultOpen] = useState(false);
   const [changeHistoryOpen, setChangeHistoryOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"macros" | "guidelines" | "workouts" | "diet">("macros");
+  // Ordem do trabalho: Treino → Macros → Dieta → Diretrizes (as diretrizes
+  // explicam o que já foi montado). Abre no Treino.
+  const [activeTab, setActiveTab] = useState<"macros" | "guidelines" | "workouts" | "diet">("workouts");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
@@ -723,7 +725,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       }
     }
     updatePayload(next);
-    toast.success(`${count} alteração(ões) aplicada(s) — revise e clique em Salvar/Atualizar protocolo.`);
+    toast.success(`${count} alteração(ões) aplicada(s) — revise e clique em "Publicar para o aluno".`);
     setRenewalOpen(false);
   }
 
@@ -833,6 +835,8 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       // Só roda em UPDATE (protocolo já existia), publicação real (não rascunho),
       // e com o protocolo efetivamente ativo depois do save. Falhas aqui não
       // desfazem o UPDATE em `protocols` e não bloqueiam o fluxo.
+      // Resumo das mudanças para o e-mail ao aluno (preenchido abaixo).
+      let changeLabelsForEmail: string[] = [];
       if (isEditMode && protocolId && coachId && !opts.asDraft && publishActive) {
         try {
           const wasInactive = previousActiveRef.current === false;
@@ -843,6 +847,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             wasInactive,
             changes: raw,
           });
+          changeLabelsForEmail = changes.map((c) => c.label);
           if (changes.length > 0) {
             const { data: openRow } = await sb
               .from("protocol_change_events")
@@ -879,6 +884,15 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         } catch (evtErr) {
           console.error("[protocol_change_events] best-effort falhou", evtErr);
         }
+      }
+      // Aviso ao aluno pelo e-mail cadastrado (além do card no app). O servidor
+      // limita a 1 e-mail a cada 6 h por aluno; falha nunca bloqueia o coach.
+      if (!opts.asDraft && publishActive && studentId) {
+        void supabase.functions
+          .invoke("notify-protocol-published", {
+            body: { studentId, isFirst: !isEditMode, changes: changeLabelsForEmail },
+          })
+          .then(({ error }) => { if (error) console.warn("notify-protocol-published falhou (não bloqueia)", error); });
       }
       if (coachId) {
         // Atualiza o DNA do coach no banco e, quando termina, recarrega o cache do
@@ -1082,10 +1096,10 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
               {(() => {
                 const c = computeCompletion(payload);
                 const tabs: Array<{ v: "macros"|"guidelines"|"workouts"|"diet"; label: string; icon: JSX.Element; done: boolean }> = [
-                  { v: "macros",     label: "Macros",     icon: <BarChart3 className="w-3.5 h-3.5 mr-1" />,        done: c.macros },
-                  { v: "guidelines", label: "Diretrizes", icon: <FileText className="w-3.5 h-3.5 mr-1" />,         done: c.guidelines },
-                  { v: "workouts",   label: "Treino",     icon: <Dumbbell className="w-3.5 h-3.5 mr-1" />,         done: c.workouts },
-                  { v: "diet",       label: "Dieta",      icon: <UtensilsCrossed className="w-3.5 h-3.5 mr-1" />,  done: c.diet },
+                  { v: "workouts",   label: "1 · Treino",     icon: <Dumbbell className="w-3.5 h-3.5 mr-1" />,         done: c.workouts },
+                  { v: "macros",     label: "2 · Macros",     icon: <BarChart3 className="w-3.5 h-3.5 mr-1" />,        done: c.macros },
+                  { v: "diet",       label: "3 · Dieta",      icon: <UtensilsCrossed className="w-3.5 h-3.5 mr-1" />,  done: c.diet },
+                  { v: "guidelines", label: "4 · Diretrizes", icon: <FileText className="w-3.5 h-3.5 mr-1" />,         done: c.guidelines },
                 ];
                 return tabs.map((t) => (
                   <TabsTrigger key={t.v} value={t.v} className="shrink-0">
@@ -1135,9 +1149,25 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                 )}
               </Card>
             )}
+            {/* C1: deixa explícito o que o aluno está vendo. Antes era uma
+                legenda de 10px — origem do "minhas observações sumiram". */}
+            {isEditMode && (hasDraft || isDirty) && saveStatus !== "saving" && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800 px-3 py-2 text-sm text-amber-900 dark:text-amber-200 flex items-start gap-2 shadow-sm" role="status">
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>
+                  <strong>O aluno ainda NÃO vê estas mudanças.</strong> Elas estão guardadas como rascunho — toque em <strong>Publicar para o aluno</strong> quando terminar.
+                </span>
+              </div>
+            )}
+            {!active && (
+              <div className="rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm text-foreground flex items-start gap-2" role="status">
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />
+                <span>Protocolo marcado como <strong>Inativo</strong> (no topo). Ative para poder publicar.</span>
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-2">
               {isEditMode && (
-                <span className="text-[10px] text-muted-foreground px-1" aria-live="polite">
+                <span className="text-xs text-muted-foreground px-1" aria-live="polite">
                   {saveStatus === "saving" || isAutosaving ? "Salvando…"
                     : saveStatus === "conflict" ? "Conflito: recarregue a versão mais recente"
                     : saveStatus === "error" ? "Erro ao salvar"
@@ -1146,9 +1176,10 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                     : "Publicado"}
                 </span>
               )}
-              <Button onClick={() => save()} disabled={saving || !active} size="lg" className="shadow-lg">
+              {/* Não desativa quando "Inativo": o clique explica o motivo (antes nada acontecia). */}
+              <Button onClick={() => save()} disabled={saving} size="lg" className="shadow-lg">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                {isEditMode ? "Atualizar protocolo" : "Criar protocolo"}
+                {isEditMode ? "Publicar para o aluno" : "Criar e publicar"}
               </Button>
             </div>
           </div>
