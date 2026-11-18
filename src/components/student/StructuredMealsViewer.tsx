@@ -17,6 +17,10 @@ import StickyDietBar from "@/components/student/StickyDietBar";
 import { calcItemMacros } from "@/lib/macroCalc";
 import { cookInfo, displayFoodName } from "@/lib/cooking";
 import { buildWeekStrip, CARB_LABEL, CARB_COLOR, todayKey, tomorrowKey } from "@/lib/weekCycle";
+import {
+  availableDayAction, readCookedPref, readDayOverride, resolveDayPlan, writeCookedPref, writeDayOverride,
+  type DayOverride,
+} from "@/lib/dietDayMode";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useMealCheckins } from "@/hooks/useMealCheckins";
@@ -630,15 +634,47 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
 
   // ── Estado dos controles da tela ───────────────────────────────────────
   const [carbMode, setCarbMode] = useState<CarbMode>(todayInfo.carb as CarbMode);
-  const [isCooked, setIsCooked] = useState(false);
+  const [isCooked, setIsCookedState] = useState(false);
   const [selectedDayTypeByPair, setSelectedDayTypeByPair] = useState<Record<string, "training" | "rest">>({});
+
+  // ── "Hoje não vou treinar" / "Hoje vou treinar" (ver src/lib/dietDayMode.ts)
+  // Só muda por ação explícita da aluna e só vale para hoje.
+  const [dayOverride, setDayOverride] = useState<DayOverride | null>(null);
+  const plannedTraining = !!todayWorkout;
+  const dayPlan = resolveDayPlan({ plannedTraining, plannedCarb: todayInfo.carb, override: dayOverride });
+
+  // Ao identificar a aluna: recupera a escolha de hoje e a preferência cru/cozido.
+  useEffect(() => {
+    if (!uid) return;
+    const saved = readDayOverride(uid, dayKey);
+    if (saved) {
+      setDayOverride(saved);
+      setCarbMode(resolveDayPlan({ plannedTraining, plannedCarb: todayInfo.carb, override: saved }).carb as CarbMode);
+    }
+    const cooked = readCookedPref(uid);
+    if (cooked !== null) setIsCookedState(cooked);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, dayKey]);
+
+  const setIsCooked = (v: boolean) => {
+    setIsCookedState(v);
+    if (uid) writeCookedPref(uid, v);
+  };
+
+  const applyDayOverride = (value: DayOverride | null) => {
+    setDayOverride(value);
+    if (uid) writeDayOverride(uid, dayKey, value);
+    // Todas as refeições com par voltam a seguir o dia (descarta trocas manuais).
+    setSelectedDayTypeByPair({});
+    setCarbMode(resolveDayPlan({ plannedTraining, plannedCarb: todayInfo.carb, override: value }).carb as CarbMode);
+  };
 
   // ── Refeições de Treino vs Descanso ────────────────────────────────────
   // CRÍTICO: nunca reindexar `meals`. O índice posicional original
   // (originalIndex) é a chave usada em meal_checkins.meal_index.
   const dayTypeOf = (meal: any): "all" | "training" | "rest" =>
     (meal?.day_type === "training" || meal?.day_type === "rest") ? meal.day_type : "all";
-  const defaultDayType: "training" | "rest" = todayWorkout ? "training" : "rest";
+  const defaultDayType: "training" | "rest" = dayPlan.dayType;
 
   // Um pairId só é válido se existir de fato uma refeição parceira com o
   // mesmo pairId. Se a outra perna foi apagada no coach (ou perdida num
@@ -714,10 +750,18 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
     return visibleMeals[localIdx]?.originalIndex ?? idx;
   }, [meals, visibleMeals]);
 
+  const dayAction = availableDayAction({
+    plannedTraining,
+    plannedCarb: todayInfo.carb,
+    hasPairs: validPairIds.size > 0,
+    hasCarbCycle,
+  });
+
   if (meals.length === 0) return null;
 
 
-  const carbCfg = CARB_COLOR[todayInfo.carb];
+  // O card do dia mostra o carbo EFETIVO (muda quando a aluna marca "não vou treinar").
+  const carbCfg = CARB_COLOR[dayPlan.carb];
   const carbCfgT = CARB_COLOR[tomorrowInfo.carb];
 
   return (
@@ -739,7 +783,7 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
               Hoje · Carbo
             </p>
             <p className={cn("text-3xl font-black leading-none mt-0.5", carbCfg.text)}>
-              {CARB_LABEL[todayInfo.carb]}
+              {CARB_LABEL[dayPlan.carb]}
             </p>
           </div>
           <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
@@ -748,7 +792,22 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
         </div>
 
         {/* Linha 3 — Treino ou mensagem de descanso */}
-        {todayWorkout ? (
+        {dayPlan.adjusted ? (
+          <div className="rounded-xl bg-background/70 border border-border/60 px-3 py-2 flex items-center justify-between gap-2">
+            <p className="text-[13px] text-foreground leading-snug">
+              {dayOverride === "rest"
+                ? <>Você marcou: <strong>hoje sem treino</strong>. Refeições na versão descanso e carbo Baixo.</>
+                : <>Você marcou: <strong>treino hoje</strong>. Refeições na versão treino.</>}
+            </p>
+            <button
+              type="button"
+              onClick={() => applyDayOverride(null)}
+              className="shrink-0 text-[13px] font-semibold text-primary underline underline-offset-2 px-1 py-1"
+            >
+              Desfazer
+            </button>
+          </div>
+        ) : todayWorkout ? (
           <p className="text-[12px] text-muted-foreground">
             Dia de treino{" "}
             <span className="text-foreground font-semibold">{todayWorkout.key}</span>
@@ -759,6 +818,15 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
           <p className="text-[12px] text-muted-foreground italic">
             Dia de descanso — recuperação é parte do processo. Hidrate-se bem e durma cedo 🌙
           </p>
+        )}
+        {!dayPlan.adjusted && dayAction && (
+          <button
+            type="button"
+            onClick={() => applyDayOverride(dayAction === "skip" ? "rest" : "training")}
+            className="self-start mt-1 inline-flex items-center gap-1.5 rounded-full border border-border bg-background/80 px-3 py-1.5 text-[13px] font-semibold text-foreground active:scale-[0.98]"
+          >
+            {dayAction === "skip" ? "Hoje não vou treinar" : "Hoje vou treinar"}
+          </button>
         )}
       </div>
 
