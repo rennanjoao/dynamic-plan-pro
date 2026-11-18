@@ -55,7 +55,7 @@ export default function ProtocolVersionHistoryDialog({
   async function handleRestore(v: Version) {
     const ok = await confirm({
       title: "Restaurar versão",
-      description: `Carregar a versão ${v.version} para edição? Isso substitui o conteúdo atual em tela. O aluno só verá a mudança depois que você clicar em "Atualizar protocolo".`,
+      description: `Carregar a versão ${v.version} para edição? Isso substitui o conteúdo atual em tela. O aluno só verá a mudança depois que você clicar em "Publicar para o aluno".`,
       confirmLabel: "Restaurar",
     });
     if (!ok) return;

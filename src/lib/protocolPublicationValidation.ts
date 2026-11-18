@@ -29,5 +29,12 @@ export function validateProtocolForPublication(payload: ProtocolPayload): Public
     if (delta > 0.15) warnings.push("As calorias das refeições diferem mais de 15% da meta diária.");
   }
 
+  // A chave "Mostrar a Diretriz de treino" vem desligada: o coach escrevia a
+  // diretriz e o aluno nunca via, sem nenhum aviso.
+  const trainingGuideline = String(payload.guidelines?.training ?? "").trim();
+  if (trainingGuideline && !(payload as { showGuidelines?: boolean }).showGuidelines) {
+    warnings.push('A Diretriz de treino está escrita, mas oculta para o aluno (aba Diretrizes → "Mostrar a Diretriz de treino").');
+  }
+
   return { errors, warnings };
 }
