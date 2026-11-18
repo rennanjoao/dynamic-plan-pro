@@ -43,6 +43,13 @@
       "when": 1794964571343,
       "tag": "0005_auditoria_acesso_e_cobranca",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794965173238,
+      "tag": "0006_protocol_new_drafts",
+      "breakpoints": true
     }
   ]
 }

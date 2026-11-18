@@ -105,6 +105,10 @@ import { TACO_FOODS } from "@/data/tacoFoods";
 import { ENRICHED_FOODS } from "@/data/enrichedFoods";
 import { Private } from "@/components/coach/PrivacyMode";
 import { triageClasses, triageLabel } from "@/lib/protocolRenewalTriage";
+import {
+  deleteRemoteNewDraft, fetchRemoteNewDraft, pickNewestDraft, saveRemoteNewDraft, withTimeout,
+  type NewProtocolDraft,
+} from "@/lib/protocolNewDraft";
 
 interface Props {
   studentId: string;
@@ -260,6 +264,11 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [localDraftOpen, setLocalDraftOpen] = useState(false);
   const localDraftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localDraftDecidedRef = useRef(false);
+  // Rascunho do protocolo novo também no banco (protocol_new_drafts), para
+  // continuar em outro aparelho. `remoteDraftClosedRef` fica true depois do
+  // 1º salvar/descartar: impede que um autosave atrasado recrie o rascunho.
+  const remoteDraftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const remoteDraftClosedRef = useRef(false);
 
   // [FIX] Limpeza restrita: SÓ é chamada dentro do callback de sucesso da
   // mutação do Supabase (ver `save()`), nunca em cleanup de useEffect/unmount.
@@ -272,6 +281,13 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       localStorage.removeItem(legacyLocalDraftKey);
     } catch { /* quota/privado */ }
     setLocalDraft(null);
+    // Mesmo destino para a cópia no banco.
+    remoteDraftClosedRef.current = true;
+    if (remoteDraftTimerRef.current) { clearTimeout(remoteDraftTimerRef.current); remoteDraftTimerRef.current = null; }
+    void supabase.auth.getSession().then(({ data }) => {
+      const uid = data.session?.user?.id;
+      if (uid && studentId) void deleteRemoteNewDraft(uid, studentId);
+    });
   };
 
   const tabLabel: Record<typeof activeTab, string> = {
@@ -386,27 +402,37 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       if (localDraftDecidedRef.current) return;
       localDraftDecidedRef.current = true;
 
-      let saved: { name?: string; payload: unknown; savedAt?: number } | null = null;
+      let localSaved: NewProtocolDraft | null = null;
       try {
         // Lê a chave estável atual; se não houver nada, tenta a chave legada
         // (versões anteriores do app) e migra para a chave nova.
         const raw = localStorage.getItem(localDraftKey) ?? localStorage.getItem(legacyLocalDraftKey);
         if (raw) {
-          saved = JSON.parse(raw);
+          localSaved = JSON.parse(raw);
           localStorage.setItem(localDraftKey, raw);
           localStorage.removeItem(legacyLocalDraftKey);
         }
-      } catch { saved = null; }
+      } catch { localSaved = null; }
 
-      if (saved?.payload) {
-        // Rascunho encontrado: bloqueia a renderização do formulário limpo
-        // (payload continua `null`) e exibe o modal de recuperação.
-        setLocalDraft(saved);
-        setLocalDraftOpen(true);
-        return;
-      }
-      // Sem rascunho: abre o setup do zero (só desta vez).
-      setSetupOpen(true);
+      // Também procura o rascunho salvo no banco (outro aparelho) e fica com o
+      // mais recente. Espera no máximo 4s; sem resposta, segue só com o local.
+      void (async () => {
+        const { data: sess } = await supabase.auth.getSession();
+        const uid = sess.session?.user?.id ?? null;
+        const remote = uid && studentId
+          ? await withTimeout(fetchRemoteNewDraft(uid, studentId), 4000, null)
+          : null;
+        const saved = pickNewestDraft(localSaved, remote);
+        if (saved?.payload) {
+          // Rascunho encontrado: bloqueia a renderização do formulário limpo
+          // (payload continua `null`) e exibe o modal de recuperação.
+          setLocalDraft(saved);
+          setLocalDraftOpen(true);
+          return;
+        }
+        // Sem rascunho: abre o setup do zero (só desta vez).
+        setSetupOpen(true);
+      })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existing, isLoading, studentName]);
@@ -429,8 +455,20 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         localStorage.setItem(localDraftKey, JSON.stringify({ name, payload, savedAt: Date.now() }));
       } catch { /* quota/privado */ }
     }, 1000);
+    // Cópia no banco com intervalo maior (menos requisições enquanto digita).
+    remoteDraftClosedRef.current = false;
+    if (remoteDraftTimerRef.current) clearTimeout(remoteDraftTimerRef.current);
+    remoteDraftTimerRef.current = setTimeout(() => {
+      remoteDraftTimerRef.current = null;
+      if (!coachId || !studentId || remoteDraftClosedRef.current) return;
+      void saveRemoteNewDraft(coachId, studentId, { name, payload }).then(() => {
+        // Salvou/descartou enquanto a gravação estava em voo → apaga de novo.
+        if (remoteDraftClosedRef.current) void deleteRemoteNewDraft(coachId, studentId);
+      });
+    }, 2500);
     return () => {
       if (localDraftTimerRef.current) clearTimeout(localDraftTimerRef.current);
+      if (remoteDraftTimerRef.current) { clearTimeout(remoteDraftTimerRef.current); remoteDraftTimerRef.current = null; }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payload, name, isDirty, isEditMode]);
