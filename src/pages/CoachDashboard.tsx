@@ -17,7 +17,7 @@ import {
 } from "@/hooks/useCoachStudents";
 import {
   AlertTriangle, CheckCircle2, Search, Filter, Users,
-  ArrowLeft, Loader2, DollarSign, User, LogOut, Activity, Sparkles,
+  ArrowLeft, Loader2, DollarSign, User, LogOut, Activity, Sparkles, UserPlus,
 } from "lucide-react";
 import CoachNotificationBell from "@/components/coach/CoachNotificationBell";
 import { Input } from "@/components/ui/input";
@@ -47,6 +47,7 @@ import { ProfileDialog } from "@/components/coach/dashboard/ProfileDialog";
 import { usePlatformBilling, worstPlatformStatus } from "@/hooks/usePlatformBilling";
 import { PrivacyProvider, PrivacyToggle, Private } from "@/components/coach/PrivacyMode";
 import { coachSignature, useOwnCoachIdentity } from "@/hooks/useCoachIdentity";
+import { InviteStudentDialog } from "@/components/coach/dashboard/InviteStudentDialog";
 
 const ProtocolBuilder = lazyWithRetry(() => import("@/components/coach/ProtocolBuilder"));
 const CheckinFeedbackPanel = lazyWithRetry(() => import("@/components/coach/CheckinFeedbackPanel"));
@@ -64,6 +65,7 @@ const EDIT_HEADER_PX = 65;
 function CoachDashboardInner() {
   const coachId = useCoachId();
   const ownIdentity = useOwnCoachIdentity(coachId);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | AlertLevel>("all");
   const [view, setView] = useState<CoachView>("list");
@@ -258,6 +260,9 @@ function CoachDashboardInner() {
                   <SelectItem value="ok">Em dia</SelectItem>
                 </SelectContent>
               </Select>
+              <Button size="sm" onClick={() => setInviteOpen(true)} className="h-9 gap-1.5" disabled={!coachId}>
+                <UserPlus className="w-4 h-4" /> Convidar aluno
+              </Button>
               <Button
                 size="sm"
                 variant="outline"
@@ -275,8 +280,13 @@ function CoachDashboardInner() {
               <div className="text-center py-12">
                 <Users className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
                 <p className="text-sm text-muted-foreground">
-                  {stats.total === 0 ? "Nenhum aluno vinculado ainda. Compartilhe seu código de convite." : "Nenhum aluno encontrado com os filtros atuais."}
+                  {stats.total === 0 ? "Nenhum aluno vinculado ainda." : "Nenhum aluno encontrado com os filtros atuais."}
                 </p>
+                {stats.total === 0 && coachId && (
+                  <Button className="mt-4 gap-1.5" onClick={() => setInviteOpen(true)}>
+                    <UserPlus className="w-4 h-4" /> Convidar meu primeiro aluno
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="space-y-2">
@@ -362,6 +372,14 @@ function CoachDashboardInner() {
           </TabsContent>
         </Tabs>
 
+        {coachId && (
+          <InviteStudentDialog
+            open={inviteOpen}
+            onOpenChange={setInviteOpen}
+            coachId={coachId}
+            coachName={ownIdentity.known ? ownIdentity.name : undefined}
+          />
+        )}
         {coachId && (
           <ProfileDialog
             coachId={coachId}

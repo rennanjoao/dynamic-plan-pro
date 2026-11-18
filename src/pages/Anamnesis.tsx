@@ -71,7 +71,9 @@ const Anamnesis = () => {
   // deixa de existir e o autosave continua igual.
   const [formStep, setFormStep] = useState(1);
   const TOTAL_FORM_STEPS = 4;
-  const [inviteCode, setInviteCode] = useState("");
+  // Link do convite do coach (InviteStudentDialog): /anamnesis?codigo=XXXX já
+  // chega com o código preenchido — a aluna só confirma.
+  const [inviteCode, setInviteCode] = useState(() => (searchParams.get("codigo") ?? "").trim().toUpperCase());
   // Código de parceria (ELT-…) já validado na etapa 1 — quando presente, o
   // aluno NÃO precisa digitar o código de indicação de novo no formulário.
   const [resolvedAccessCode, setResolvedAccessCode] = useState<string | null>(null);
