@@ -50,6 +50,13 @@
       "when": 1794965173238,
       "tag": "0006_protocol_new_drafts",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794998185733,
+      "tag": "0007_auditoria_pacote2",
+      "breakpoints": true
     }
   ]
 }

@@ -46,6 +46,7 @@ import { PartnersTab } from "@/components/coach/dashboard/PartnersTab";
 import { ProfileDialog } from "@/components/coach/dashboard/ProfileDialog";
 import { usePlatformBilling, worstPlatformStatus } from "@/hooks/usePlatformBilling";
 import { PrivacyProvider, PrivacyToggle, Private } from "@/components/coach/PrivacyMode";
+import { coachSignature, useOwnCoachIdentity } from "@/hooks/useCoachIdentity";
 
 const ProtocolBuilder = lazyWithRetry(() => import("@/components/coach/ProtocolBuilder"));
 const CheckinFeedbackPanel = lazyWithRetry(() => import("@/components/coach/CheckinFeedbackPanel"));
@@ -62,6 +63,7 @@ const EDIT_HEADER_PX = 65;
 
 function CoachDashboardInner() {
   const coachId = useCoachId();
+  const ownIdentity = useOwnCoachIdentity(coachId);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | AlertLevel>("all");
   const [view, setView] = useState<CoachView>("list");
@@ -164,10 +166,12 @@ function CoachDashboardInner() {
       <header className="bg-card border-b border-border sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <ElitePrimeLogo variant="compact" className="hidden sm:flex" />
+            <ElitePrimeLogo variant="compact" signature={ownIdentity.cref ? `CREF ${ownIdentity.cref.replace(/^CREF\s*/i, "")}` : null} className="hidden sm:flex" />
             <div>
               <h1 className="text-xl font-serif font-semibold text-foreground">Central de Prescrição · Elite Prime</h1>
-              <p className="text-[11px] uppercase tracking-[0.18em] text-primary">Rennan Gonçalves · CREF 206788-G/SP</p>
+              {ownIdentity.known && (
+                <p className="text-[11px] uppercase tracking-[0.18em] text-primary">{coachSignature(ownIdentity)}</p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">

@@ -41,6 +41,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { formatDatePtBR } from "@/lib/formatDate";
+import { useStudentViewCoachIdentity } from "@/hooks/useCoachIdentity";
 
 export interface CoachChangeItem {
   category: "treino" | "dieta" | "suplemento" | "diretriz" | "geral";
@@ -103,6 +104,7 @@ function formatRelativeDateTime(iso: string): string {
 }
 
 export default function CoachUpdatesCard() {
+  const coach = useStudentViewCoachIdentity();
   const { studentId } = useStudentData();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -232,11 +234,11 @@ export default function CoachUpdatesCard() {
           type="button"
           onClick={handleOpenSheet}
           className="w-full text-left bg-card border border-border/60 border-l-2 border-l-primary rounded-xl p-4 shadow-none hover:bg-muted/30 transition-colors flex items-center gap-3"
-          aria-label="Ver diretrizes técnicas de Rennan Gonçalves"
+          aria-label={`Ver diretrizes técnicas de ${coach.name}`}
         >
           <Sparkles className="w-5 h-5 text-primary shrink-0" />
           <div className="flex-1 space-y-0.5 min-w-0">
-            <h3 className="text-sm font-bold text-primary">Diretriz Técnica · Rennan Gonçalves</h3>
+            <h3 className="text-sm font-bold text-primary">Diretriz Técnica · {coach.name}</h3>
             <p className="text-xs text-primary/80">Toque para ver o que mudou</p>
           </div>
           <ChevronRight className="w-4 h-4 text-primary shrink-0" />
@@ -246,7 +248,7 @@ export default function CoachUpdatesCard() {
       <Sheet open={open} onOpenChange={handleSheetOpenChange}>
         <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
           <SheetHeader className="mb-4">
-            <SheetTitle>Diretriz Técnica · Rennan Gonçalves</SheetTitle>
+            <SheetTitle>Diretriz Técnica · {coach.name}</SheetTitle>
             {activeEvent && (
               <p className="text-xs text-muted-foreground mt-1">
                 {formatRelativeDateTime(activeEvent.created_at)}

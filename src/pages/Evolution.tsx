@@ -20,11 +20,13 @@ import { ArrowLeft, Plus, MessageCircle, ChevronRight } from "lucide-react";
 import { formatRelativePtBR } from "@/lib/formatDate";
 import { queryKeys } from "@/lib/queryKeys";
 import PreviewModeBar from "@/components/student/PreviewModeBar";
+import { useStudentViewCoachIdentity } from "@/hooks/useCoachIdentity";
 
 export default function Evolution() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const previewAs = searchParams.get("previewAs");
+  const coach = useStudentViewCoachIdentity();
   const { anamnesis, checkIns, goal, loading, studentId } = useStudentData();
   const qc = useQueryClient();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -97,7 +99,7 @@ export default function Evolution() {
               >
                 <div className="flex items-center gap-2">
                   <MessageCircle className="w-4 h-4 text-primary shrink-0" />
-                  <p className="text-sm font-bold text-primary dark:text-primary">Feedback de Rennan Gonçalves</p>
+                  <p className="text-sm font-bold text-primary dark:text-primary">Feedback de {coach.name}</p>
                   <span className="text-[11px] text-muted-foreground ml-auto shrink-0">{formatRelativePtBR(latestFeedback.submitted_at)}</span>
                 </div>
                 <p className="text-sm text-foreground/80 mt-1 line-clamp-1">
@@ -112,7 +114,7 @@ export default function Evolution() {
                 <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-primary dark:text-primary">
-                      <MessageCircle className="w-4 h-4" /> Feedback de Rennan Gonçalves
+                      <MessageCircle className="w-4 h-4" /> Feedback de {coach.name}
                     </DialogTitle>
                     <p className="text-[11px] text-muted-foreground">{formatRelativePtBR(latestFeedback.submitted_at)}</p>
                   </DialogHeader>
