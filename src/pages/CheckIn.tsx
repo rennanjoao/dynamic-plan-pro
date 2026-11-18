@@ -86,6 +86,15 @@ function CheckinSectionCard({
   );
 }
 
+/** JSON com chaves ordenadas — compara estados independentemente da ordem dos campos. */
+function stableStringify(value: unknown): string {
+  return JSON.stringify(value, (_k, v) =>
+    v && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(Object.keys(v as Record<string, unknown>).sort().map((k) => [k, (v as Record<string, unknown>)[k]]))
+      : v,
+  );
+}
+
 const STEP1_SECTION_IDS = ["identificacao", "dieta", "protocolo", "treino_sono"];
 
 export default function CheckIn() {
@@ -153,6 +162,10 @@ export default function CheckIn() {
     setMode("new");
   }
 
+  // Estado inicial de "atualizar último check-in" (respostas já enviadas). Se o
+  // aluno não mudou nada, não há rascunho a guardar.
+  const updateBaselineRef = useRef<string | null>(null);
+
   function startUpdate() {
     if (!lastCheckin) return;
     const p = (lastCheckin.payload ?? {}) as Record<string, unknown>;
@@ -165,6 +178,7 @@ export default function CheckIn() {
       if (typeof cur === "number") m[`cur_${cm.key}`] = String(cur);
     });
     setMetrics(m);
+    updateBaselineRef.current = stableStringify({ data: { ...p }, metrics: m });
     // Fotos existentes vão como previews; só substituem se o aluno carregar arquivo novo
     const fotos = (p.fotos as Record<string, string>) ?? {};
     setFotoPreviews({
@@ -262,8 +276,14 @@ export default function CheckIn() {
   // Salva respostas/medidas/etapa enquanto o aluno preenche (debounce curto).
   useEffect(() => {
     if (!draftKey || !draftReady) return;
-    const t = setTimeout(() => saveCheckinDraft(draftKey, { data, metrics, step }), 500);
+    const t = setTimeout(() => {
+      const unchanged =
+        mode === "update" && updateBaselineRef.current === stableStringify({ data, metrics });
+      // Sem alteração em relação ao que já foi enviado → apaga em vez de guardar.
+      saveCheckinDraft(draftKey, unchanged ? { data: {}, metrics: {}, step: 1 } : { data, metrics, step });
+    }, 500);
     return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftKey, draftReady, data, metrics, step]);
 
   // Contexto usado para decidir quais campos condicionais aparecem: a
