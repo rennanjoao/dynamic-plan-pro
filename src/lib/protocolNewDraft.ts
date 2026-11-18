@@ -74,7 +74,8 @@ export async function saveRemoteNewDraft(
 export async function deleteRemoteNewDraft(coachId: string, studentId: string): Promise<void> {
   if (remoteUnavailable) return;
   try {
-    await sb.from(TABLE).delete().eq("coach_id", coachId).eq("student_id", studentId);
+    const { error } = await sb.from(TABLE).delete().eq("coach_id", coachId).eq("student_id", studentId);
+    markIfMissing(error);
   } catch { /* best-effort */ }
 }
 

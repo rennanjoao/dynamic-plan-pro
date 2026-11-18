@@ -284,10 +284,13 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
     // Mesmo destino para a cópia no banco.
     remoteDraftClosedRef.current = true;
     if (remoteDraftTimerRef.current) { clearTimeout(remoteDraftTimerRef.current); remoteDraftTimerRef.current = null; }
-    void supabase.auth.getSession().then(({ data }) => {
-      const uid = data.session?.user?.id;
-      if (uid && studentId) void deleteRemoteNewDraft(uid, studentId);
-    });
+    // Só existe rascunho remoto de protocolo NOVO; em edição não há o que apagar.
+    if (!protocolId) {
+      void supabase.auth.getSession().then(({ data }) => {
+        const uid = data.session?.user?.id;
+        if (uid && studentId) void deleteRemoteNewDraft(uid, studentId);
+      });
+    }
   };
 
   const tabLabel: Record<typeof activeTab, string> = {
