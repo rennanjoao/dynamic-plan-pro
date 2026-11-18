@@ -134,7 +134,7 @@ export function GuideCallout({
     <div className={cn("flex items-start gap-2 rounded-lg border p-2.5", s.box, className)}>
       <Icon className={cn("w-4 h-4 shrink-0 mt-0.5", s.icon)} aria-hidden />
       <div className={cn("min-w-0 text-xs leading-relaxed", s.text)}>
-        {title && <p className="mb-0.5 text-[10px] font-bold uppercase tracking-wide">{title}</p>}
+        {title && <p className="mb-0.5 text-[11px] font-bold uppercase tracking-wide">{title}</p>}
         <div>{children}</div>
       </div>
     </div>
@@ -147,7 +147,7 @@ export function GuideChip({ children, className }: { children: ReactNode; classN
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[10px] font-semibold text-foreground/80 leading-tight",
+        "inline-flex items-center rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-semibold text-foreground/80 leading-tight",
         className,
       )}
     >

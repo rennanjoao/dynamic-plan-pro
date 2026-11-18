@@ -506,7 +506,7 @@ export default function StudentArea() {
           <Button
             size="sm"
             variant="secondary"
-            className="h-7 px-3 text-[10px] sm:text-xs bg-primary text-foreground hover:bg-primary/90 shrink-0 font-bold"
+            className="h-7 px-3 text-[11px] sm:text-xs bg-primary text-foreground hover:bg-primary/90 shrink-0 font-bold"
             onClick={() => window.close()} // Fecha a aba do modo espelho e volta pro painel
           >
             Sair do Preview
@@ -707,7 +707,7 @@ export default function StudentArea() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-bold text-foreground">Treino</h3>
-                  {logsLoading ? <WorkoutBadgeSkeleton /> : trainedToday ? <Badge variant="default" className="text-[10px] px-2 py-0.5">✓ Feito hoje</Badge> : <Badge variant="secondary" className="text-[10px] px-2 py-0.5">Pendente</Badge>}
+                  {logsLoading ? <WorkoutBadgeSkeleton /> : trainedToday ? <Badge variant="default" className="text-[11px] px-2 py-0.5">✓ Feito hoje</Badge> : <Badge variant="secondary" className="text-[11px] px-2 py-0.5">Pendente</Badge>}
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">Séries, cadência e diretrizes biomecânicas.</p>
                 {protocolLoading ? <ProtocolHintSkeleton /> : hasProtocol === false && <p className="text-[11px] text-muted-foreground/80 italic mt-1">Aguardando protocolo.</p>}
@@ -726,7 +726,7 @@ export default function StudentArea() {
                 <h3 className="font-bold text-foreground text-sm">{mod.title}</h3>
                 <p className="text-[11px] text-muted-foreground mt-0.5">{mod.description}</p>
                 {(mod as any).showAnamnesisEdit && anamnesisMeta?.submitted_at && canEditAnamnesis && (
-                  <button className="mt-2 flex items-center gap-1 text-[10px] text-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); navigate(`/anamnesis?mode=edit${previewAs ? `&${previewQS}` : ''}`); }}>
+                  <button className="mt-2 flex items-center gap-1 text-[11px] text-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); navigate(`/anamnesis?mode=edit${previewAs ? `&${previewQS}` : ''}`); }}>
                     <FileEdit className="w-3 h-3" />
                     Editar anamnese ({2 - anamnesisEdits}x restante)
                   </button>

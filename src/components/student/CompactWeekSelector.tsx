@@ -78,8 +78,8 @@ export function CompactWeekSelector({
             <div className="grid grid-cols-4 gap-2 px-1 pt-2 border-t border-white/10">
               {["sets", "reps", "rest", "cadence"].map((k) => (
                 <div key={k} className="text-center">
-                  <p className="text-[8px] uppercase text-white/40 font-bold">{k}</p>
-                  <p className="text-[10px] font-bold text-white mt-1">{(currentWeek as any)[k] || "—"}</p>
+                  <p className="text-[11px] uppercase text-white/40 font-bold">{k}</p>
+                  <p className="text-[11px] font-bold text-white mt-1">{(currentWeek as any)[k] || "—"}</p>
                 </div>
               ))}
             </div>

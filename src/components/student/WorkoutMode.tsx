@@ -770,8 +770,8 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
           <h1 className="text-3xl font-black italic uppercase tracking-tighter">Elite Prime</h1>
           <p className="text-muted-foreground font-medium">Treino concluído com alta performance.</p>
           <div className="grid grid-cols-2 gap-4">
-            <div className="bg-card p-4 rounded-2xl border border-border"><p className="text-[10px] uppercase font-bold text-muted-foreground">Tempo</p><p className="text-xl font-black">{fmtMMSS(elapsedSec)}</p></div>
-            <div className="bg-card p-4 rounded-2xl border border-border"><p className="text-[10px] uppercase font-bold text-muted-foreground">Sets</p><p className="text-xl font-black">{Object.values(completed).flat().length}</p></div>
+            <div className="bg-card p-4 rounded-2xl border border-border"><p className="text-[11px] uppercase font-bold text-muted-foreground">Tempo</p><p className="text-xl font-black">{fmtMMSS(elapsedSec)}</p></div>
+            <div className="bg-card p-4 rounded-2xl border border-border"><p className="text-[11px] uppercase font-bold text-muted-foreground">Sets</p><p className="text-xl font-black">{Object.values(completed).flat().length}</p></div>
           </div>
           <Button onClick={() => setShowShare(true)} className="w-full h-14 rounded-2xl gap-2 text-lg font-black uppercase italic shadow-[0_0_20px_rgba(201,168,76,0.3)] border-2 border-primary/50"><Zap className="w-5 h-5" /> Compartilhar</Button>
           <Button onClick={onClose} variant="ghost" className="w-full text-white/40">Fechar</Button>
@@ -807,7 +807,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
           <p className="text-xs text-primary font-bold flex items-center gap-1"><Flame className="w-3 h-3" /> {fmtMMSS(elapsedSec)}</p>
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0">
-          <span className="text-[10px] font-black text-white/70 tabular-nums">{Object.values(completed).flat().length}/{exercises.reduce((acc: number, ex: any) => acc + parseSetsMin(ex.sets), 0)} séries</span>
+          <span className="text-[11px] font-black text-white/70 tabular-nums">{Object.values(completed).flat().length}/{exercises.reduce((acc: number, ex: any) => acc + parseSetsMin(ex.sets), 0)} séries</span>
           <div className="h-2 w-20 bg-white/10 rounded-full overflow-hidden">
             <motion.div className="h-full bg-primary" animate={{ width: `${progressPct}%` }} />
           </div>
@@ -824,10 +824,10 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
             <div className={`bg-neutral-900 rounded-3xl p-6 border-2 transition-all duration-500 ${restRunning ? (isWindowOpen ? "border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]" : "border-primary shadow-[0_0_15px_rgba(201,168,76,0.2)]") : "border-white/5"} relative overflow-hidden`}>
               <div className="text-center space-y-1 relative z-10">
                 <div className="flex items-center justify-center gap-2 mb-2">
-                  <Badge variant="outline" className={`text-[9px] uppercase font-black ${isWindowOpen ? "bg-green-500/10 text-green-500 border-green-500/20" : "bg-primary/10 text-primary border-primary/20"}`}>
+                  <Badge variant="outline" className={`text-[11px] uppercase font-black ${isWindowOpen ? "bg-green-500/10 text-green-500 border-green-500/20" : "bg-primary/10 text-primary border-primary/20"}`}>
                     {restRunning ? (isWindowOpen ? "Janela Aberta" : "Recuperando") : "Aguardando Série"}
                   </Badge>
-                  <span className="text-[10px] text-white/60 font-bold uppercase tracking-widest">{restDisplay}</span>
+                  <span className="text-[11px] text-white/60 font-bold uppercase tracking-widest">{restDisplay}</span>
                 </div>
                 <h3 className={`text-7xl font-black tabular-nums tracking-tighter transition-colors ${restRunning && (maxRest - restElapsed <= 5) ? "text-red-500 animate-pulse" : "text-white"}`}>{fmtMMSS(restElapsed)}</h3>
                 {restRunning && (
@@ -858,12 +858,12 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                   <h2 className="text-xl font-black leading-tight uppercase italic">{currentEx.name}</h2>
                   <p className="text-[11px] text-white/60 font-bold uppercase tracking-[0.2em] mt-1">{currentEx.sets} · {currentEx.reps} · {currentEx.rest}</p>
                   {currentEx.swappedFrom && (
-                    <p className="text-[10px] text-amber-400 mt-1">Substituindo: {currentEx.swappedFrom}</p>
+                    <p className="text-[11px] text-amber-400 mt-1">Substituindo: {currentEx.swappedFrom}</p>
                   )}
                   <button
                     type="button"
                     onClick={openSwapDialog}
-                    className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-white/70 hover:text-white border border-white/10 rounded-full px-2.5 py-1"
+                    className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-white/70 hover:text-white border border-white/10 rounded-full px-2.5 py-1"
                   >
                     <Repeat className="w-3 h-3" /> Trocar exercício
                   </button>
@@ -949,7 +949,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
               <div className="bg-neutral-900 rounded-3xl p-5 border border-white/5 space-y-4">
               <div className="flex gap-3">
                   <div className="flex-1 space-y-1">
-                    <label className="text-[10px] uppercase font-black text-white/60 ml-1">Carga (kg)</label>
+                    <label className="text-[11px] uppercase font-black text-white/60 ml-1">Carga (kg)</label>
                     <div className="flex items-stretch gap-1.5">
                       <button
                         type="button"
@@ -971,7 +971,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                     </div>
                   </div>
                   <div className="flex-1 space-y-1">
-                    <label className="text-[10px] uppercase font-black text-white/60 ml-1">Reps</label>
+                    <label className="text-[11px] uppercase font-black text-white/60 ml-1">Reps</label>
                     <div className="flex items-stretch gap-1.5">
                       <button type="button" onClick={() => setActiveReps(r => Math.max(0, r - 1))} className="w-12 h-14 shrink-0 rounded-2xl bg-white/5 border border-white/10 text-xl font-black text-white/70 active:bg-white/10 active:scale-95 transition-all">–</button>
                       <input type="text" inputMode="numeric" value={activeReps || ""} onChange={e => setActiveReps(parseFloat(e.target.value.replace(/[^0-9.]/g, "")) || 0)} className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl text-center text-2xl font-black outline-none focus:border-primary/50" />
@@ -983,11 +983,11 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                   const lastSets = (historyMap[currentEx.name]?.[0]?.sets ?? []).filter(st => st.weightKg > 0 || st.reps > 0);
                   if (lastSets.length === 0) return null;
                   const label = weekSlot != null ? `Último treino (Sem. ${weekSlot + 1})` : "Último treino";
-                  return <p data-testid="last-load-ref" className="text-center text-[10px] font-bold text-muted-foreground -mt-1">{label}: {lastSets.map(st => st.weightKg > 0 ? `${st.weightKg}kg×${st.reps}` : `${st.reps} reps`).join(" · ")}</p>;
+                  return <p data-testid="last-load-ref" className="text-center text-[11px] font-bold text-muted-foreground -mt-1">{label}: {lastSets.map(st => st.weightKg > 0 ? `${st.weightKg}kg×${st.reps}` : `${st.reps} reps`).join(" · ")}</p>;
                 })()}
                 <div className="grid grid-cols-3 gap-2">
                   {EFFORT_OPTIONS.map(opt => (
-                    <button key={opt.value} onClick={() => handleFizASerie(opt.value)} disabled={isRegisteringSet || isFinishing} className="flex flex-col items-center justify-center min-h-20 rounded-2xl border-2 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none" style={{ borderColor: opt.color, backgroundColor: opt.bg, color: opt.color }}><span className="text-2xl">{opt.emoji}</span><span className="text-[10px] font-black uppercase mt-1">{opt.label}</span></button>
+                    <button key={opt.value} onClick={() => handleFizASerie(opt.value)} disabled={isRegisteringSet || isFinishing} className="flex flex-col items-center justify-center min-h-20 rounded-2xl border-2 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none" style={{ borderColor: opt.color, backgroundColor: opt.bg, color: opt.color }}><span className="text-2xl">{opt.emoji}</span><span className="text-[11px] font-black uppercase mt-1">{opt.label}</span></button>
                   ))}
                 </div>
                 <button
@@ -999,7 +999,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                   <SkipForward className="w-4 h-4" /> Pular série
                 </button>
                 {currentExIdx === 0 && doneSets.length === 0 && (
-                  <p className="text-center text-[10px] text-white/40 font-medium -mt-1">Ajuste carga e reps, depois toque em como foi a série</p>
+                  <p className="text-center text-[11px] text-white/40 font-medium -mt-1">Ajuste carga e reps, depois toque em como foi a série</p>
                 )}
               </div>
             )}
@@ -1017,7 +1017,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
           <div className="space-y-3 mt-2">
             <div className="flex gap-3">
               <div className="flex-1 space-y-1">
-                <label className="text-[10px] uppercase font-black text-white/60">Carga (kg)</label>
+                <label className="text-[11px] uppercase font-black text-white/60">Carga (kg)</label>
                 <input
                   type="number"
                   step="0.5"
@@ -1027,7 +1027,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                 />
               </div>
               <div className="flex-1 space-y-1">
-                <label className="text-[10px] uppercase font-black text-white/60">Reps</label>
+                <label className="text-[11px] uppercase font-black text-white/60">Reps</label>
                 <input
                   type="number"
                   value={editReps || ""}
@@ -1128,7 +1128,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
               return (
                 <button key={i} onClick={() => { setCurrentExIdx(i); setShowExList(false); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all ${isCurrent ? "bg-primary/10 border-primary" : "bg-white/5 border-white/5"}`}>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 font-bold text-xs ${status === "done" ? "bg-green-500 text-black" : status === "partial" ? "bg-primary/20 text-primary" : "bg-white/10 text-white/40"}`}>{status === "done" ? <Check className="w-4 h-4" /> : i + 1}</div>
-                  <div className="flex-1 text-left min-w-0"><p className={`font-black text-sm truncate uppercase italic ${isCurrent ? "text-primary" : "text-white"}`}>{ex.name}</p><p className="text-[9px] text-white/40 uppercase font-bold tracking-widest">{ex.sets} · {ex.reps}</p></div>
+                  <div className="flex-1 text-left min-w-0"><p className={`font-black text-sm truncate uppercase italic ${isCurrent ? "text-primary" : "text-white"}`}>{ex.name}</p><p className="text-[11px] text-white/40 uppercase font-bold tracking-widest">{ex.sets} · {ex.reps}</p></div>
                 </button>
               );
             })}
@@ -1149,7 +1149,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
               disabled={isFinishing}
               className="w-full h-12 rounded-2xl font-black uppercase italic tracking-tighter bg-primary text-black hover:bg-primary/90"
             >{isFinishing ? "Salvando..." : "Finalizar Treino Agora"}</Button>
-            <Button onClick={() => setShowExList(false)} variant="ghost" className="w-full font-bold uppercase text-[10px] tracking-widest">Fechar Mapa</Button>
+            <Button onClick={() => setShowExList(false)} variant="ghost" className="w-full font-bold uppercase text-[11px] tracking-widest">Fechar Mapa</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -1164,7 +1164,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
           </DialogHeader>
           <div className="space-y-6 mt-2">
             <div className="space-y-3">
-              <p className="text-[10px] uppercase tracking-widest font-black text-white/50">Qualidade do sono</p>
+              <p className="text-[11px] uppercase tracking-widest font-black text-white/50">Qualidade do sono</p>
               <div className="grid grid-cols-2 gap-2">
                 {[
                   { v: 1, emoji: "🔴", label: "Ruim",      color: "#ef4444", bg: "rgba(239,68,68,0.10)" },
@@ -1193,7 +1193,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
               </div>
             </div>
             <div className="space-y-3">
-              <p className="text-[10px] uppercase tracking-widest font-black text-white/50">Sensação no treino</p>
+              <p className="text-[11px] uppercase tracking-widest font-black text-white/50">Sensação no treino</p>
               <div className="grid grid-cols-2 gap-2">
                 {[
                   { v: 1, emoji: "🥱", label: "Cansado",  color: "#eab308", bg: "rgba(234,179,8,0.10)" },
@@ -1235,7 +1235,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
       <Dialog open={showGifDialog} onOpenChange={setShowGifDialog}>
         <DialogContent className="max-w-sm p-2 bg-black border-white/10 rounded-3xl overflow-hidden">
           {gifUrl && <img src={gifUrl} className="w-full h-auto rounded-2xl shadow-2xl" />}
-          <div className="p-4 text-center"><h3 className="font-black text-lg italic uppercase">{currentEx?.name}</h3><Button onClick={() => setShowGifDialog(false)} variant="secondary" className="w-full mt-4 rounded-xl font-bold uppercase text-[10px]">Fechar</Button></div>
+          <div className="p-4 text-center"><h3 className="font-black text-lg italic uppercase">{currentEx?.name}</h3><Button onClick={() => setShowGifDialog(false)} variant="secondary" className="w-full mt-4 rounded-xl font-bold uppercase text-[11px]">Fechar</Button></div>
         </DialogContent>
       </Dialog>
 

@@ -80,7 +80,7 @@ function MobilityBlock({ exercises }: { exercises: any[] }) {
           <span className="flex items-center gap-2 text-sm font-bold text-primary">
             <StretchHorizontal className="w-4 h-4" />
             Mobilidade pré-treino
-            <Badge variant="outline" className="text-[10px] border-primary/40 text-primary">{mobility.length}</Badge>
+            <Badge variant="outline" className="text-[11px] border-primary/40 text-primary">{mobility.length}</Badge>
           </span>
         </AccordionTrigger>
         <AccordionContent className="pb-2 space-y-2">
@@ -342,7 +342,7 @@ export default function WorkoutPlan() {
                 <h3 className="font-bold text-base flex items-center gap-2">
                   Treino {letter}
                   {isToday && (
-                    <Badge className="text-[10px] px-1.5 py-0 h-4">Hoje</Badge>
+                    <Badge className="text-[11px] px-1.5 py-0 h-4">Hoje</Badge>
                   )}
                 </h3>
                 <p className="text-xs text-muted-foreground">{day.focus || "Geral"}</p>
@@ -374,31 +374,31 @@ export default function WorkoutPlan() {
                     return (
                       <>
                         {wm && (
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-primary/80 mb-1">
+                          <p className="text-[11px] font-bold uppercase tracking-wide text-primary/80 mb-1">
                             Semana {currentWeek + 1} de {weeks.length}
                           </p>
                         )}
                         <div className={`grid gap-2 mb-2 ${vCadence ? "grid-cols-4" : "grid-cols-3"}`}>
                           <div className="bg-muted/50 p-2 rounded text-center">
-                            <p className="text-[10px] text-muted-foreground uppercase">Séries</p>
+                            <p className="text-[11px] text-muted-foreground uppercase">Séries</p>
                             <p className="font-semibold text-sm">{vSets || "-"}</p>
                           </div>
                           <div className="bg-muted/50 p-2 rounded text-center">
-                            <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
+                            <p className="text-[11px] text-muted-foreground uppercase flex items-center justify-center gap-1">
                               Reps <InfoPopover termKey="reps" />
                             </p>
                             <p className="font-semibold text-sm">{vReps || "-"}</p>
                           </div>
                           {vCadence && (
                             <div className="bg-muted/50 p-2 rounded text-center">
-                              <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
+                              <p className="text-[11px] text-muted-foreground uppercase flex items-center justify-center gap-1">
                                 Cadência <InfoPopover termKey="cadence" />
                               </p>
                               <p className="font-semibold text-sm">{vCadence}</p>
                             </div>
                           )}
                           <div className="bg-muted/50 p-2 rounded text-center">
-                            <p className="text-[10px] text-muted-foreground uppercase flex items-center justify-center gap-1">
+                            <p className="text-[11px] text-muted-foreground uppercase flex items-center justify-center gap-1">
                               Descanso <InfoPopover termKey="rest" />
                             </p>
                             <p className="font-semibold text-sm">{vRest || "-"}</p>

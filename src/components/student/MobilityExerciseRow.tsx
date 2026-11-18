@@ -47,8 +47,8 @@ export function MobilityExerciseRow({ ex }: { ex: any }) {
           {ex.name}
         </button>
         <div className="flex flex-wrap gap-1.5 mt-1">
-          {ex.sets && <Badge variant="secondary" className="text-[10px]">{ex.sets} séries</Badge>}
-          {ex.reps && <Badge variant="secondary" className="text-[10px]">{ex.reps}</Badge>}
+          {ex.sets && <Badge variant="secondary" className="text-[11px]">{ex.sets} séries</Badge>}
+          {ex.reps && <Badge variant="secondary" className="text-[11px]">{ex.reps}</Badge>}
         </div>
         {ex.notes && <p className="text-[11px] text-muted-foreground italic mt-1.5">{ex.notes}</p>}
       </div>

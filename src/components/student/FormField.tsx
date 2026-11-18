@@ -44,7 +44,7 @@ export function FormField({ field, value, onChange }: Props) {
               }}
             />
             <Camera className="text-muted-foreground mb-2" size={24} />
-            <span className="text-[10px] uppercase font-bold text-muted-foreground">
+            <span className="text-[11px] uppercase font-bold text-muted-foreground">
               {field.label}
             </span>
           </>
@@ -60,9 +60,9 @@ export function FormField({ field, value, onChange }: Props) {
     return (
       <div className="space-y-1">
         <div className="flex justify-between items-center">
-          <span className="text-[10px] text-muted-foreground">0 = muito baixo</span>
+          <span className="text-[11px] text-muted-foreground">0 = muito baixo</span>
           <span className="text-primary text-xs font-bold">{val}/10</span>
-          <span className="text-[10px] text-muted-foreground">10 = excelente</span>
+          <span className="text-[11px] text-muted-foreground">10 = excelente</span>
         </div>
         <input
           type="range"

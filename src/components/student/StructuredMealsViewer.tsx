@@ -276,11 +276,11 @@ function NutritionStrategyHeader({
   return (
     <div className="glass-strong rounded-2xl overflow-hidden glow-primary mb-4">
       <div className="gradient-primary-soft px-5 py-3 border-b border-white/5 flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-[0.2em] text-primary/70 font-bold">
+        <p className="text-[11px] uppercase tracking-[0.2em] text-primary/70 font-bold">
           Estratégia Nutricional
         </p>
         {modeLabel && (
-          <span className="text-[10px] font-bold text-amber-400">{modeLabel}</span>
+          <span className="text-[11px] font-bold text-amber-400">{modeLabel}</span>
         )}
       </div>
       <div className="grid grid-cols-4 divide-x divide-white/5">
@@ -288,8 +288,8 @@ function NutritionStrategyHeader({
           <div key={label} className="flex flex-col items-center py-4 px-2 min-w-0">
             <Icon className="w-3.5 h-3.5 text-primary/60 mb-1.5" />
             <span className="text-xl font-black text-foreground leading-none">{value}</span>
-            <span className="text-[10px] text-primary font-bold mt-0.5">{unit}</span>
-            <span className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">{label}</span>
+            <span className="text-[11px] text-primary font-bold mt-0.5">{unit}</span>
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground mt-0.5">{label}</span>
           </div>
         ))}
       </div>
@@ -368,7 +368,7 @@ function MacroSection({
 
   return (
     <div className={`rounded-xl border ${cfg.border} ${cfg.bg} p-3`}>
-      <p className={`text-[10px] uppercase tracking-[0.18em] font-black mb-3 ${cfg.color} flex items-center gap-1.5`}>
+      <p className={`text-[11px] uppercase tracking-[0.18em] font-black mb-3 ${cfg.color} flex items-center gap-1.5`}>
         {kind === "veg" && <Salad className="w-3 h-3" />}
         {cfg.label}
       </p>
@@ -384,7 +384,7 @@ function MacroSection({
           return (
             <div key={optIdx} className={i > 0 ? "pt-3 border-t border-white/5" : ""}>
               {hasAlternatives && (
-                <p className="text-[9px] uppercase tracking-[0.15em] text-muted-foreground font-bold mb-1.5">
+                <p className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground font-bold mb-1.5">
                   {OPTION_LABELS[optIdx] ?? `OPÇÃO ${optIdx + 1}`}
                 </p>
               )}
@@ -534,7 +534,7 @@ function MealCard({
               type="button"
               onClick={onToggleRestDay}
               aria-label={isRestDay ? "Ver versão de treino" : "Ver versão sem treino"}
-              className="text-[10px] font-bold px-2 py-1 rounded-full border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 transition-colors whitespace-nowrap"
+              className="text-[11px] font-bold px-2 py-1 rounded-full border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 transition-colors whitespace-nowrap"
             >
               {isRestDay ? (
                 <>
@@ -575,7 +575,7 @@ function MealCard({
 
           {linkedSupps.length > 0 && (
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5 space-y-1">
-              <p className="text-[10px] uppercase tracking-wider font-bold text-primary">
+              <p className="text-[11px] uppercase tracking-wider font-bold text-primary">
                 Suplementos desta refeição
               </p>
               {linkedSupps.map((s: any, i: number) => (
@@ -592,7 +592,7 @@ function MealCard({
 
           {meal.notes && (
             <div className="rounded-lg border border-white/10 bg-white/[0.02] p-2.5">
-              <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1">
+              <p className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-1">
                 Observação
               </p>
               <p className="text-xs text-foreground/90 break-words whitespace-pre-wrap">
@@ -735,14 +735,14 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
         {/* Linha 2 — Tipo de carbo do dia */}
         <div className="flex items-baseline justify-between gap-3 flex-wrap">
           <div className="min-w-0">
-            <p className={cn("text-[10px] uppercase tracking-[0.2em] font-bold", carbCfg.text)}>
+            <p className={cn("text-[11px] uppercase tracking-[0.2em] font-bold", carbCfg.text)}>
               Hoje · Carbo
             </p>
             <p className={cn("text-3xl font-black leading-none mt-0.5", carbCfg.text)}>
               {CARB_LABEL[todayInfo.carb]}
             </p>
           </div>
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
             {todayInfo.label}
           </span>
         </div>
@@ -774,9 +774,9 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
                 d.isToday ? "border-[#CC0000]" : "border-border/40"
               )}
             >
-              <span className="text-[9px] uppercase text-muted-foreground tracking-wider">{d.abbr}</span>
+              <span className="text-[10px] uppercase text-muted-foreground tracking-wider">{d.abbr}</span>
               <span className="text-[12px] font-bold text-foreground leading-none">{d.workoutKey || "—"}</span>
-              <span className={cn("text-[8px] font-bold uppercase px-1 py-px rounded border leading-none mt-0.5", cc.pill)}>
+              <span className={cn("text-[10px] font-bold uppercase px-1 py-px rounded border leading-none mt-0.5", cc.pill)}>
                 {CARB_LABEL[d.carb]}
               </span>
             </div>
@@ -842,7 +842,7 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
         "mt-4 rounded-xl border px-4 py-3 flex flex-col gap-1",
         carbCfgT.border, carbCfgT.bg
       )}>
-        <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-bold">
+        <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-bold">
           Amanhã — prepare-se
         </p>
         <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -858,7 +858,7 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
             )}
           </p>
           <span className={cn(
-            "text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border shrink-0",
+            "text-[11px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border shrink-0",
             carbCfgT.pill
           )}>
             Carbo {CARB_LABEL[tomorrowInfo.carb]}

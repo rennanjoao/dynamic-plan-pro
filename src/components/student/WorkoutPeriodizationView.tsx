@@ -82,7 +82,7 @@ function PeriodizedMobilityBlock({ exercises }: { exercises: (Exercise & { __id:
           <span className="flex items-center gap-2 text-sm font-bold text-primary">
             <StretchHorizontal className="w-4 h-4" />
             Mobilidade pré-treino
-            <Badge variant="outline" className="text-[10px] border-primary/40 text-primary">
+            <Badge variant="outline" className="text-[11px] border-primary/40 text-primary">
               {exercises.length}
             </Badge>
           </span>
@@ -238,7 +238,7 @@ export default function WorkoutPeriodizationView({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-3 rounded-xl border border-primary/30 bg-primary/5">
             {(["sets", "reps", "rest", "cadence"] as const).map((k) => (
               <div key={k} className="text-center">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
                   {k === "sets" ? "Séries" : k === "reps" ? "Reps" : k === "rest" ? "Descanso" : "Cadência"}
                 </p>
                 {editMode ? (
@@ -410,7 +410,7 @@ function ExerciseRow({
       <div className="grid grid-cols-4 gap-2">
         {(["sets", "reps", "cadence", "rest"] as const).map((k) => (
           <div key={k} className="bg-muted/50 p-2 rounded text-center">
-            <p className="text-[10px] text-muted-foreground uppercase">
+            <p className="text-[11px] text-muted-foreground uppercase">
               {k === "sets" ? "Séries" : k === "reps" ? "Reps" : k === "cadence" ? "Cadência" : "Descanso"}
             </p>
             {editMode ? (
