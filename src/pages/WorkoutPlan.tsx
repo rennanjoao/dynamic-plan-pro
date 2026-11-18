@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, AlertTriangle, Activity, Info, History, StretchHorizontal } from "lucide-react";
+import { ArrowLeft, AlertTriangle, Activity, Info, History, StretchHorizontal, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -292,6 +292,9 @@ export default function WorkoutPlan() {
     const k = weekDays[WEEKDAY_ORDER[new Date().getDay()]];
     return k && k !== "REST" ? k : null;
   })();
+  // Só afirma "descanso" se o coach marcou explicitamente (sem dias configurados, não diz nada).
+  const todayIsRest: boolean =
+    ((safePayload?.weekDays as Record<string, string>) || {})[WEEKDAY_ORDER[new Date().getDay()]] === "REST";
   const todayIndex = todayWorkoutKey
     ? workouts.findIndex((w: any) => String(w.key) === todayWorkoutKey)
     : -1;
@@ -472,6 +475,31 @@ export default function WorkoutPlan() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+
+        {/* Atalho no TOPO: antes o "Iniciar" ficava no fim do treino aberto,
+            depois de guia, estratégia, diretriz, progressão e exercícios. */}
+        {todayIndex >= 0 && workouts[todayIndex] && (
+          <button
+            type="button"
+            onClick={() => handleStartWorkout(todayWorkoutKey as string)}
+            className="w-full flex items-center gap-3 rounded-xl bg-primary text-primary-foreground px-4 py-4 text-left shadow-sm active:scale-[0.99] transition-transform"
+          >
+            <span className="w-11 h-11 rounded-full bg-primary-foreground/15 flex items-center justify-center shrink-0">
+              <Play className="w-5 h-5" />
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-base font-bold">Iniciar treino de hoje</span>
+              <span className="block text-sm opacity-90 truncate">
+                Treino {String.fromCharCode(65 + todayIndex)} · {(workouts[todayIndex] as any)?.focus || "Geral"}
+              </span>
+            </span>
+          </button>
+        )}
+        {todayIsRest && workouts.length > 0 && (
+          <p className="text-sm text-muted-foreground bg-muted/40 rounded-xl px-4 py-3">
+            Hoje está marcado como descanso. Se for treinar mesmo assim, escolha o treino abaixo e toque em "Iniciar".
+          </p>
+        )}
 
         {/* Com periodização, o guia unificado fica na faixa da semana. */}
         {!(periodizationEnabled && weeks.length > 0) && (
