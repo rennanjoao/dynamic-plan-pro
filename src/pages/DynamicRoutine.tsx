@@ -61,7 +61,16 @@ export default function DynamicRoutine() {
         };
       }
 
-      // 2) Fallback: coach_plans (cópia legada, só se não houver protocolo ativo)
+      // 2) Fallback: coach_plans (cópia legada) — SÓ para quem nunca teve
+      //    protocolo. Se existe protocolo (ex.: o coach desativou para revisar),
+      //    mostrar a cópia legada exibiria uma dieta antiga como se fosse a atual.
+      const { count: anyProtocol } = await supabase
+        .from("protocols")
+        .select("id", { count: "exact", head: true })
+        .eq("student_id", userId)
+        .eq("is_template", false);
+      if ((anyProtocol ?? 0) > 0) return null;
+
       const { data } = await supabase
         .from("coach_plans")
         .select("diet_strategy_json, workout_periodization_json")
