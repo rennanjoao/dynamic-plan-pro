@@ -490,7 +490,7 @@ export default function WorkoutPlan() {
             <span className="flex-1 min-w-0">
               <span className="block text-base font-bold">Iniciar treino de hoje</span>
               <span className="block text-sm opacity-90 truncate">
-                Treino {String.fromCharCode(65 + todayIndex)} · {(workouts[todayIndex] as any)?.focus || "Geral"}
+                Treino {String.fromCharCode(65 + todayIndex)} · {(workouts[todayIndex] as { focus?: string })?.focus || "Geral"}
               </span>
             </span>
           </button>

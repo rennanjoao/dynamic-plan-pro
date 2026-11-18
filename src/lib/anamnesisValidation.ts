@@ -39,7 +39,7 @@ export function validateAnamnesisStep1(input: {
 
 /** Remove a senha antes de guardar o rascunho no aparelho. */
 export function stripSecretsFromDraft<T extends Record<string, unknown>>(d: T): Omit<T, "senha"> {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { senha, ...rest } = d;
-  return rest;
+  const rest: Record<string, unknown> = { ...d };
+  delete rest.senha;
+  return rest as Omit<T, "senha">;
 }

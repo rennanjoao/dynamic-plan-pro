@@ -104,15 +104,15 @@ const Anamnesis = () => {
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3500); };
 
   // Leva a aluna até o campo com problema (etapa 1) e explica o que falta.
-  const goToStep1Field = (field: string, message: string) => {
-    showToast(message);
+  const goToStep1Field = useCallback((field: string, message: string) => {
+    setToast(message); setTimeout(() => setToast(""), 3500);
     setFormStep(1);
     setTimeout(() => {
       const el = document.querySelector<HTMLElement>(`[name="${field}"]`);
       if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.focus({ preventScroll: true }); }
       else window.scrollTo({ top: 0, behavior: "smooth" });
     }, 80);
-  };
+  }, []);
 
   // ─── Autosave de rascunho (localStorage) ──────────────────────
   // Salva o progresso a cada mudança (debounced) para evitar perda de dados
@@ -566,7 +566,7 @@ const Anamnesis = () => {
     }
   // [FIX MÉDIO] 'g' adicionado às dependências — é uma função que lê 'd',
   // mas como está definida fora do useCallback, o linter a exige aqui.
-  }, [d, g, gender, tpm, quedaF, groups, fotoFiles, fotoPreviews, coach, loggedUserId, isEditMode, editingAnamnesisId, studentEditCount, navigate, resolvedAccessCode]);
+  }, [d, g, gender, tpm, quedaF, groups, fotoFiles, fotoPreviews, coach, loggedUserId, isEditMode, editingAnamnesisId, studentEditCount, navigate, resolvedAccessCode, goToStep1Field]);
 
   const chBtn = (id: string) => cn("px-5 py-2.5 rounded-xl text-sm font-bold border-2 transition-all", gender === id ? "border-primary bg-primary/15 text-primary" : "border-border/50 text-muted-foreground hover:border-primary/40");
 

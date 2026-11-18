@@ -53,8 +53,10 @@ serve(async (req) => {
       .from("coach_students").select(cols)
       .eq("coach_id", user.id).eq("student_id", body.studentId).eq("status", "active")
       .maybeSingle();
-    let { data: link, error: linkErr } = await linkQuery("id, last_protocol_email_at");
-    if (linkErr) ({ data: link } = await linkQuery("id")); // migration 0007 ainda não aplicada
+    const first = await linkQuery("id, last_protocol_email_at");
+    const linkErr = first.error;
+    // migration 0007 ainda não aplicada → busca sem a coluna nova
+    const link = linkErr ? (await linkQuery("id")).data : first.data;
     if (!link) return json(403, { error: "forbidden" });
 
     // 1 e-mail por aluno a cada 6 h (coluna da migration 0007).

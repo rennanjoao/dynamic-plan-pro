@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchCoachBlocked } from "@/lib/coachAccessStatus";
 
 const ANA_DONE_KEY = (uid: string) => `anamnesis_done_${uid}`;
-export function readAnamnesisDone(uid: string): boolean | undefined {
+function readAnamnesisDone(uid: string): boolean | undefined {
   try {
     const v = localStorage.getItem(ANA_DONE_KEY(uid));
     return v === "1" ? true : v === "0" ? false : undefined;

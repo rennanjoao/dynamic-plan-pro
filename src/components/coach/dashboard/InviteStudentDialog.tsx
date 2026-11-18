@@ -13,37 +13,13 @@ import { Copy, Loader2, MessageCircle, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { buildInviteLink, buildInviteMessage, normalizeWhatsapp } from "@/lib/inviteMessage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-
-export function buildInviteLink(origin: string, code: string): string {
-  return `${origin.replace(/\/$/, "")}/anamnesis?codigo=${encodeURIComponent(code)}`;
-}
-
-export function buildInviteMessage(opts: { studentName?: string; coachName?: string; link: string; code: string }): string {
-  const first = (opts.studentName ?? "").trim().split(/\s+/)[0];
-  const hello = first ? `Oi, ${first}!` : "Oi!";
-  const from = opts.coachName ? ` com ${opts.coachName}` : "";
-  return [
-    `${hello} Seu acesso ao app de acompanhamento${from} está pronto.`,
-    ``,
-    `1) Abra este link: ${opts.link}`,
-    `2) Confirme o código ${opts.code} e preencha sua avaliação (dá para parar e continuar depois).`,
-    ``,
-    `Qualquer dúvida, é só me chamar.`,
-  ].join("\n");
-}
-
-/** Número para wa.me: só dígitos, com 55 quando vier sem DDI. Vazio → sem número. */
-export function normalizeWhatsapp(raw: string): string {
-  const digits = raw.replace(/\D/g, "");
-  if (!digits) return "";
-  return digits.length <= 11 ? `55${digits}` : digits;
-}
 
 export function InviteStudentDialog({
   open, onOpenChange, coachId, coachName,

@@ -13,23 +13,9 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Download, Share, SquarePlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { shouldShowIosInstallHelp } from "@/lib/pwaInstall";
 
 const DISMISSED_KEY = "pwa-install-dismissed";
-
-/** iPhone/iPad no navegador (não instalado ainda). */
-export function shouldShowIosInstallHelp(env: {
-  userAgent: string;
-  platform?: string;
-  maxTouchPoints?: number;
-  standalone: boolean;
-}): boolean {
-  if (env.standalone) return false;
-  const ua = env.userAgent;
-  const isIos = /iPhone|iPad|iPod/i.test(ua) ||
-    // iPadOS se apresenta como Mac, mas tem tela de toque
-    (env.platform === "MacIntel" && (env.maxTouchPoints ?? 0) > 1);
-  return isIos;
-}
 
 function isStandalone(): boolean {
   try {

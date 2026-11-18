@@ -1,6 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
-import { buildInviteLink, buildInviteMessage, normalizeWhatsapp } from "../InviteStudentDialog";
+import { describe, expect, it } from "vitest";
+import { buildInviteLink, buildInviteMessage, normalizeWhatsapp } from "@/lib/inviteMessage";
 
 describe("convite de aluno", () => {
   it("link já abre o cadastro com o código", () => {

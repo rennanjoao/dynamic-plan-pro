@@ -2,12 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StudentRow } from "../StudentRow";
+import type { StudentStatus } from "@/hooks/useCoachStudents";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 const student = {
   id: "s1", name: "Maria Silva", alertLevel: "ok", daysInactive: 0, daysSinceLastFeedback: 3,
   currentWeight: 62, lastFeedback: "2026-11-10", goal: "Hipertrofia",
-} as any;
+} as unknown as StudentStatus;
 
 describe("linha do aluno no painel do coach", () => {
   it("ações têm rótulo e Desvincular fica separado no menu", async () => {
