@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Lock, Mail, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { ElitePrimeLogo } from "@/components/shared/ElitePrimeLogo";
+import { translateAuthError } from "@/lib/authErrors";
 
 // Registra o acesso na tabela access_logs (não bloqueia o login se falhar)
 async function registerAccessLog(userId: string) {
@@ -75,12 +76,7 @@ const Auth = () => {
         await routeByRole(data.user.id);
       }
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : "Erro ao fazer login";
-      if (msg.includes("Invalid login credentials")) {
-        toast.error("Email ou senha incorretos");
-      } else {
-        toast.error(msg);
-      }
+      toast.error(translateAuthError(error as { message?: string; code?: string }, "Erro ao fazer login.").message);
     } finally {
       setIsLoading(false);
     }

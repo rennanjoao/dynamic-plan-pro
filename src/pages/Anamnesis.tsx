@@ -10,6 +10,8 @@ import { consumeStoredReferral, peekStoredReferral, consumeStoredDirectCoach } f
 import { FotoSlot } from "@/components/shared/FotoSlot";
 import { cn } from "@/lib/utils";
 import { ShieldCheck, ArrowRight } from "lucide-react";
+import { stripSecretsFromDraft, validateAnamnesisStep1 } from "@/lib/anamnesisValidation";
+import { translateAuthError } from "@/lib/authErrors";
 
 /* ── tipos ─────────────────────────────────────────────────── */
 type ChoiceGroup = Record<string, string>;
@@ -99,6 +101,17 @@ const Anamnesis = () => {
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3500); };
 
+  // Leva a aluna até o campo com problema (etapa 1) e explica o que falta.
+  const goToStep1Field = (field: string, message: string) => {
+    showToast(message);
+    setFormStep(1);
+    setTimeout(() => {
+      const el = document.querySelector<HTMLElement>(`[name="${field}"]`);
+      if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.focus({ preventScroll: true }); }
+      else window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 80);
+  };
+
   // ─── Autosave de rascunho (localStorage) ──────────────────────
   // Salva o progresso a cada mudança (debounced) para evitar perda de dados
   // se o aluno fechar a aba antes de submeter. Limpo no submit com sucesso.
@@ -110,7 +123,8 @@ const Anamnesis = () => {
     const draftKey = loggedUserId ? ANAMNESIS_DRAFT_KEY(loggedUserId) : ANAMNESIS_ANON_DRAFT_KEY;
     const handle = setTimeout(() => {
       try {
-        const draft = { d, gender, tpm, quedaF, groups, savedAt: Date.now() };
+        // A senha NUNCA vai para o rascunho (ficaria em texto no aparelho).
+        const draft = { d: stripSecretsFromDraft(d), gender, tpm, quedaF, groups, savedAt: Date.now() };
         localStorage.setItem(draftKey, JSON.stringify(draft));
       } catch {
         // Quota estourada ou localStorage bloqueado — sem isso o aluno não
@@ -147,7 +161,9 @@ const Anamnesis = () => {
       if (!raw) return;
       const draft = JSON.parse(raw);
       if (draft?.d && typeof draft.d === "object") {
-        setD(prev => ({ ...draft.d, ...prev, nome: prev.nome || draft.d.nome || "", email: prev.email || draft.d.email || "" }));
+        // Rascunhos antigos podiam conter a senha: descarta ao restaurar.
+        const safe = stripSecretsFromDraft(draft.d as Record<string, unknown>) as Record<string, string>;
+        setD(prev => ({ ...safe, ...prev, nome: prev.nome || safe.nome || "", email: prev.email || safe.email || "" }));
       }
       if (draft?.gender === "F" || draft?.gender === "M") setGender(draft.gender);
       if (Array.isArray(draft?.tpm)) setTpm(draft.tpm);
@@ -343,17 +359,8 @@ const Anamnesis = () => {
   // ETAPA 2: SUBMETER ANAMNESE E CRIAR CONTA
   const handleSubmit = useCallback(async () => {
     if (!coach) return;
-    if (!g("nome")) { showToast("Preencha seu nome."); return; }
-    if (!loggedUserId) {
-      if (!g("email") || !g("senha")) { showToast("Preencha Nome, E-mail e crie sua Senha."); return; }
-      if (g("senha").length < 6) { showToast("A senha deve ter no mínimo 6 caracteres."); return; }
-    }
-    if (!gender) { showToast("Selecione seu gênero."); return; }
-    if (!g("peso") || !g("altura")) {
-      showToast("Preencha peso e altura — são a base de comparação de todo o seu acompanhamento.");
-      setFormStep(1);
-      return;
-    }
+    const issue = validateAnamnesisStep1({ values: d, gender, hasAccount: !!loggedUserId });
+    if (issue) { goToStep1Field(issue.field, issue.message); return; }
 
     setSaving(true);
     try {
@@ -364,7 +371,12 @@ const Anamnesis = () => {
           password: g("senha"),
           options: { data: { full_name: g("nome") } }
         });
-        if (authError || !authData.user) throw new Error(authError?.message === "User already registered" ? "Este e-mail já está cadastrado." : "Erro ao criar conta.");
+        if (authError || !authData.user) {
+          const friendly = translateAuthError(authError, "Erro ao criar conta. Tente de novo em instantes.");
+          // E-mail ou senha recusados: volta para o campo certo, sem perder nada.
+          if (friendly.field) { goToStep1Field(friendly.field, friendly.message); setSaving(false); return; }
+          throw new Error(friendly.message);
+        }
         studentId = authData.user.id;
       }
 
@@ -1036,7 +1048,14 @@ const Anamnesis = () => {
             </Button>
           )}
           {formStep < TOTAL_FORM_STEPS ? (
-            <Button size="lg" className="flex-1 h-14 text-base font-bold glow-primary" onClick={() => { setFormStep(s => s + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+            <Button size="lg" className="flex-1 h-14 text-base font-bold glow-primary" onClick={() => {
+              // Etapa 1 tem os dados de acesso e as medidas-base: confere antes de seguir.
+              if (formStep === 1) {
+                const issue = validateAnamnesisStep1({ values: d, gender, hasAccount: !!loggedUserId });
+                if (issue) { goToStep1Field(issue.field, issue.message); return; }
+              }
+              setFormStep(s => s + 1); window.scrollTo({ top: 0, behavior: "smooth" });
+            }}>
               Continuar
             </Button>
           ) : (
