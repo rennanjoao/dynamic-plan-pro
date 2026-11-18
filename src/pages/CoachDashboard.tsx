@@ -122,8 +122,25 @@ function CoachDashboardInner() {
     try {
       const { error } = await supabase.from("coach_students").update({ status: "inactive" }).eq("coach_id", coachId).eq("student_id", unlinkTarget.id);
       if (error) throw error;
-      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("coach-students") });
-      toast.success("Aluno desvinculado");
+      const refresh = () => qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("coach-students") });
+      refresh();
+      const target = unlinkTarget;
+      // Clique errado: dá para desfazer por alguns segundos (o banco aceita a
+      // reativação pelo próprio coach até 10 min — migration 0007).
+      toast.success(`${target.name || "Aluno"} desvinculado`, {
+        duration: 10000,
+        action: {
+          label: "Desfazer",
+          onClick: async () => {
+            const { error: undoErr } = await supabase
+              .from("coach_students").update({ status: "active" })
+              .eq("coach_id", coachId).eq("student_id", target.id);
+            if (undoErr) { toast.error("Não foi possível desfazer. Peça ao admin para reativar o vínculo."); return; }
+            refresh();
+            toast.success("Vínculo restaurado");
+          },
+        },
+      });
       setUnlinkTarget(null);
     } catch (e) {
       toast.error("Erro ao desvincular: " + (e instanceof Error ? e.message : "erro desconhecido"));
@@ -395,7 +412,7 @@ function CoachDashboardInner() {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Desvincular aluno?</AlertDialogTitle>
-              <AlertDialogDescription><Private>{unlinkTarget?.name}</Private> perderá acesso ao protocolo.</AlertDialogDescription>
+              <AlertDialogDescription>Você deixa de ver a anamnese, os check-ins e as fotos de <Private>{unlinkTarget?.name}</Private>. Logo depois dá para desfazer por alguns minutos; passado isso, só o admin reativa o vínculo.</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancelar</AlertDialogCancel>

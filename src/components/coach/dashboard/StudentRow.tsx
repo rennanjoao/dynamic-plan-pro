@@ -1,5 +1,9 @@
 import type { StudentStatus } from "@/hooks/useCoachStudents";
-import { ClipboardList, Dumbbell, History, Activity, X, MessageSquare } from "lucide-react";
+import { ClipboardList, Dumbbell, History, Activity, X, MessageSquare, MoreVertical } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { AlertBadge, ClinicalSignalBadge, InsightBadge, STATUS_TEXT, WeightTrendBadge } from "./dashboardUtils";
 import { Private, usePrivacyMode } from "@/components/coach/PrivacyMode";
 
@@ -91,21 +95,34 @@ export function StudentRow({
       )}
 
       <div className="flex items-center gap-1 shrink-0">
-        <button onClick={() => onAnamnesis(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Anamnese">
-          <ClipboardList className="w-4 h-4" />
-        </button>
-        <button onClick={() => onProtocol(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Protocolo">
-          <Dumbbell className="w-4 h-4" />
-        </button>
-        <button onClick={() => onHistory(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Histórico de Check-ins">
-          <History className="w-4 h-4" />
-        </button>
-        <button onClick={() => onEngagement(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors" title="Engajamento">
-          <Activity className="w-4 h-4" />
-        </button>
-        <button onClick={() => onUnlink(student)} className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-destructive transition-colors" title="Desvincular">
-          <X className="w-4 h-4" />
-        </button>
+        {/* Ação principal com texto; as demais num menu com rótulos. Antes
+            eram 5 ícones sem texto (no celular não há dica ao passar o dedo)
+            e o "Desvincular" ficava colado nos outros. */}
+        <Button size="sm" variant="outline" onClick={() => onProtocol(student)} className="h-9 gap-1.5 px-2.5">
+          <Dumbbell className="w-4 h-4" /> <span className="hidden min-[380px]:inline">Protocolo</span>
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="icon" variant="ghost" className="h-9 w-9" aria-label={`Mais ações para ${safeName}`}>
+              <MoreVertical className="w-4 h-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem onSelect={() => onAnamnesis(student)}>
+              <ClipboardList className="w-4 h-4 mr-2" /> Anamnese
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onHistory(student)}>
+              <History className="w-4 h-4 mr-2" /> Histórico de check-ins
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onEngagement(student)}>
+              <Activity className="w-4 h-4 mr-2" /> Engajamento
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => onUnlink(student)} className="text-destructive focus:text-destructive">
+              <X className="w-4 h-4 mr-2" /> Desvincular aluno
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );
