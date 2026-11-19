@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 
 // ── Dados e mock do cliente Supabase (hoisted: vi.mock é içado para o topo) ──
@@ -23,12 +24,15 @@ const h = vi.hoisted(() => {
     feedback_read_at: null,
     ...extra,
   });
-  const ALL: Row[] = [
+  const seed = (): Row[] => [
     mk("c3", "2026-10-26T12:00:00Z", 80, { payload: { fotos: { frente: "novo/frente.jpg" } } }),
     // check-in antigo: só tem photo_url (formato legado), sem payload.fotos
-    mk("c2", "2026-10-12T12:00:00Z", 82, { photo_url: "legado/frente.jpg" }),
-    mk("c1", "2026-09-28T12:00:00Z", 85),
+    mk("c2", "2026-10-12T12:00:00Z", 82, { photo_url: "legado/frente.jpg", coach_feedback: "ok" }),
+    mk("c1", "2026-09-28T12:00:00Z", 85, { coach_feedback: "ok" }),
   ];
+  const ALL: Row[] = seed();
+  const reset = (rows?: Row[]) => { ALL.splice(0, ALL.length, ...(rows ?? seed())); };
+  const updates: Array<{ id: string; values: Record<string, unknown> }> = [];
 
   type Q = { eqId?: string; lt?: string; limit?: number };
   const resolve = (table: string, q: Q) => {
@@ -43,9 +47,21 @@ const h = vi.hoisted(() => {
   };
   const chain = (table: string) => {
     const q: Q = {};
+    let pendingUpdate: Record<string, unknown> | null = null;
     const c: Record<string, unknown> = {
       select: () => c,
-      eq: (col: string, v: string) => { if (col === "id" || col === "check_in_id") q.eqId = v; return c; },
+      update: (values: Record<string, unknown>) => { pendingUpdate = values; return c; },
+      eq: (col: string, v: string) => {
+        if (pendingUpdate) {
+          updates.push({ id: v, values: pendingUpdate });
+          const row = ALL.find((r) => r.id === v);
+          if (row) Object.assign(row, pendingUpdate);
+          pendingUpdate = null;
+          return Promise.resolve({ error: null });
+        }
+        if (col === "id" || col === "check_in_id") q.eqId = v;
+        return c;
+      },
       lt: (_col: string, v: string) => { q.lt = v; return c; },
       order: () => c,
       limit: (n: number) => { q.limit = n; return c; },
@@ -54,12 +70,12 @@ const h = vi.hoisted(() => {
     };
     return c;
   };
-  return { chain };
+  return { chain, reset, mk, updates, invoke: vi.fn(() => Promise.resolve({ error: null })) };
 });
 
 vi.mock("@/integrations/supabase/untyped", () => ({ sb: { from: (t: string) => h.chain(t) } }));
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { functions: { invoke: vi.fn() } },
+  supabase: { functions: { invoke: h.invoke } },
 }));
 vi.mock("@/lib/studentMedia", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
@@ -75,11 +91,69 @@ vi.mock("@/components/coach/dashboard/CheckinHistoryDialog", () => ({
 
 import CheckinFeedbackPanel from "../CheckinFeedbackPanel";
 
+const wrap = (ui: React.ReactElement) =>
+  render(<QueryClientProvider client={new QueryClient()}>{ui}</QueryClientProvider>);
+
 const renderPanel = () =>
-  render(<CheckinFeedbackPanel open onClose={() => {}} studentId="s1" studentName="Aluno Teste" />);
+  wrap(<CheckinFeedbackPanel open onClose={() => {}} studentId="s1" studentName="Aluno Teste" />);
 
 describe("CheckinFeedbackPanel", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => { vi.clearAllMocks(); h.reset(); h.updates.length = 0; });
+
+  it("abre o check-in MAIS ANTIGO ainda sem resposta (não o mais recente)", async () => {
+    h.reset([
+      h.mk("c3", "2026-10-26T12:00:00Z", 80),
+      h.mk("c2", "2026-10-12T12:00:00Z", 82),
+      h.mk("c1", "2026-09-28T12:00:00Z", 85, { coach_feedback: "respondido" }),
+    ]);
+    renderPanel();
+    // c2 (82 kg) comparado com c1 (85 kg)
+    expect(await screen.findByText("(-3.0)")).toBeInTheDocument();
+    expect(screen.getByTestId("pending-reply-banner")).toHaveTextContent("2 check-ins sem resposta deste aluno");
+  });
+
+  it("'Enviar e abrir o próximo': salva, avisa o aluno e abre o próximo check-in pendente do mesmo aluno", async () => {
+    h.reset([
+      h.mk("c3", "2026-10-26T12:00:00Z", 80),
+      h.mk("c2", "2026-10-12T12:00:00Z", 82),
+      h.mk("c1", "2026-09-28T12:00:00Z", 85, { coach_feedback: "respondido" }),
+    ]);
+    renderPanel();
+    expect(await screen.findByText("(-3.0)")).toBeInTheDocument();
+    await userEvent.type(screen.getByTestId("feedback-textarea"), "Boa evolução");
+    await userEvent.click(screen.getByTestId("send-and-next"));
+    await waitFor(() => expect(h.updates).toEqual([{ id: "c2", values: { coach_feedback: "Boa evolução" } }]));
+    expect(h.invoke).toHaveBeenCalledWith("reply-to-student", expect.anything());
+    // agora o c3 (80 kg) vs c2 (82 kg)
+    expect(await screen.findByText("(-2.0)")).toBeInTheDocument();
+    expect(screen.getByTestId("feedback-textarea")).toHaveValue("");
+  });
+
+  it("sem mais pendentes deste aluno, 'Enviar e abrir o próximo' passa para o próximo aluno da fila", async () => {
+    const onOpenNext = vi.fn();
+    const next = { id: "s2", name: "Próxima Aluna" } as never;
+    wrap(<CheckinFeedbackPanel open onClose={() => {}} studentId="s1" studentName="Aluno Teste" nextStudent={next} onOpenNext={onOpenNext} />);
+    expect(await screen.findByText("(-2.0)")).toBeInTheDocument();
+    expect(screen.getByText("Próxima Aluna")).toBeInTheDocument();
+    await userEvent.type(screen.getByTestId("feedback-textarea"), "Seguimos");
+    await userEvent.click(screen.getByTestId("send-and-next"));
+    await waitFor(() => expect(onOpenNext).toHaveBeenCalledWith(next));
+  });
+
+  it("no celular há um botão fixo que leva direto ao campo de feedback", async () => {
+    renderPanel();
+    const jump = await screen.findByTestId("jump-to-feedback");
+    expect(jump).toHaveTextContent("Escrever feedback");
+    const ta = screen.getByTestId("feedback-textarea") as HTMLTextAreaElement;
+    ta.scrollIntoView = vi.fn();
+    await userEvent.click(jump);
+    expect(ta.scrollIntoView).toHaveBeenCalled();
+  });
+
+  it("abre o check-in pedido (vindo do histórico da ficha)", async () => {
+    wrap(<CheckinFeedbackPanel open onClose={() => {}} studentId="s1" studentName="Aluno Teste" initialCheckinId="c2" />);
+    expect(await screen.findByText("(-3.0)")).toBeInTheDocument();
+  });
 
   it("compara o check-in aberto com o ANTERIOR a ele, também ao trocar pelo seletor", async () => {
     renderPanel();

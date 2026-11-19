@@ -13,11 +13,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   useCoachStudentsPaged, useCoachStudentsLite,
-  type AlertLevel, type StudentStatus,
+  type StudentListFilter, type StudentStatus,
 } from "@/hooks/useCoachStudents";
 import {
   AlertTriangle, CheckCircle2, Search, Filter, Users,
-  ArrowLeft, Loader2, DollarSign, User, LogOut, Activity, Sparkles, UserPlus,
+  ArrowLeft, Loader2, DollarSign, User, LogOut, Activity, Sparkles, UserPlus, MessageSquareReply,
 } from "lucide-react";
 import CoachNotificationBell from "@/components/coach/CoachNotificationBell";
 import { Input } from "@/components/ui/input";
@@ -37,10 +37,9 @@ import { StatCard, useCoachId } from "@/components/coach/dashboard/dashboardUtil
 import { sb } from "@/integrations/supabase/untyped";
 import { StudentRow } from "@/components/coach/dashboard/StudentRow";
 import { PriorityQueuePanel } from "@/components/coach/dashboard/PriorityQueuePanel";
-import { EvolutionDialog } from "@/components/coach/dashboard/EvolutionDialog";
 import { StudentFeedbackConfigDialog } from "@/components/coach/dashboard/StudentFeedbackConfigDialog";
-import { CheckinHistoryDialog } from "@/components/coach/dashboard/CheckinHistoryDialog";
-import { StudentEngagementDialog } from "@/components/coach/dashboard/StudentEngagementDialog";
+import { StudentProfileSheet, type StudentProfileTab } from "@/components/coach/dashboard/StudentProfileSheet";
+import { BadgeLegend } from "@/components/coach/dashboard/BadgeLegend";
 import { FinancesTab } from "@/components/coach/dashboard/FinancesTab";
 import { PartnersTab } from "@/components/coach/dashboard/PartnersTab";
 import { ProfileDialog } from "@/components/coach/dashboard/ProfileDialog";
@@ -67,15 +66,17 @@ function CoachDashboardInner() {
   const ownIdentity = useOwnCoachIdentity(coachId);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | AlertLevel>("all");
+  const [filter, setFilter] = useState<StudentListFilter>("all");
   const [view, setView] = useState<CoachView>("list");
   const [selectedStudent, setSelectedStudent] = useState<StudentStatus | null>(null);
   const [showProfile, setShowProfile] = useState(false);
   const [unlinkTarget, setUnlinkTarget] = useState<StudentStatus | null>(null);
-  const [historyStudent, setHistoryStudent] = useState<StudentStatus | null>(null);
-  const [engagementStudent, setEngagementStudent] = useState<StudentStatus | null>(null);
-  const [evoStudent, setEvoStudent] = useState<StudentStatus | null>(null);
+  // Ficha do aluno (abas Resumo · Check-ins · Evolução · Postura · Treinos · Protocolo · Anamnese).
+  const [profileStudent, setProfileStudent] = useState<StudentStatus | null>(null);
+  const [profileTab, setProfileTab] = useState<StudentProfileTab>("resumo");
   const [latestFbStudent, setLatestFbStudent] = useState<StudentStatus | null>(null);
+  // Check-in específico a abrir no painel (null = o pendente mais antigo).
+  const [feedbackCheckinId, setFeedbackCheckinId] = useState<string | null>(null);
   const [settingsStudent, setSettingsStudent] = useState<StudentStatus | null>(null);
   const [studentPage, setStudentPage] = useState(0);
   const STUDENTS_PER_PAGE = 20;
@@ -96,6 +97,7 @@ function CoachDashboardInner() {
 
   const {
     students: pagedStudents,
+    awaitingQueue,
     filteredCount,
     stats,
     isLoading,
@@ -116,6 +118,35 @@ function CoachDashboardInner() {
   const platformStatus = worstPlatformStatus(platformCharges);
 
   const goBack = () => { setView("list"); setSelectedStudent(null); };
+
+  const openProfile = (st: StudentStatus, tab: StudentProfileTab = "resumo") => {
+    setProfileTab(tab);
+    setProfileStudent(st);
+  };
+  const openFeedback = (st: StudentStatus, checkinId?: string) => {
+    setFeedbackCheckinId(checkinId ?? null);
+    setLatestFbStudent(st);
+  };
+  const openProtocol = (st: StudentStatus) => {
+    setProfileStudent(null);
+    setSelectedStudent(st);
+    setView("protocol");
+  };
+  // Aluno completo da lista (ou o mínimo, vindo da lista leve) a partir do id.
+  const studentById = (sid: string): StudentStatus | null => {
+    const full = pagedStudents.find((s) => s.id === sid) ?? awaitingQueue.find((s) => s.id === sid);
+    if (full) return full;
+    const lite = allStudents.find((s) => s.id === sid);
+    if (!lite) return null;
+    return {
+      id: lite.id, name: lite.name, alertLevel: "ok", daysInactive: 0, daysSinceLastFeedback: 0,
+      currentWeight: null, lastFeedback: null, awaitingReply: null,
+    } as unknown as StudentStatus;
+  };
+  // Próximo da fila "aguardando resposta" (fora o aluno aberto agora).
+  const nextAwaiting = latestFbStudent
+    ? awaitingQueue.find((s) => s.id !== latestFbStudent.id) ?? null
+    : null;
 
   const confirmUnlink = async () => {
     if (!unlinkTarget) return;
@@ -194,7 +225,14 @@ function CoachDashboardInner() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <CoachNotificationBell />
+            <CoachNotificationBell
+              onOpenStudent={(sid, target) => {
+                const st = studentById(sid);
+                if (!st) return;
+                if (target === "checkin") openFeedback(st);
+                else openProfile(st, "anamnese");
+              }}
+            />
             <PrivacyToggle />
             <ThemeToggle />
             <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-destructive h-9">
@@ -229,6 +267,36 @@ function CoachDashboardInner() {
           </TabsList>
 
           <TabsContent value="students" className="space-y-4">
+            {stats.awaitingReply > 0 && (
+              <div
+                data-testid="awaiting-reply-banner"
+                className="flex items-center gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3"
+              >
+                <MessageSquareReply className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+                <button
+                  type="button"
+                  onClick={() => setFilter(filter === "awaiting_reply" ? "all" : "awaiting_reply")}
+                  className="flex-1 text-left text-sm"
+                >
+                  <strong className="text-amber-800 dark:text-amber-300">
+                    {stats.awaitingReply} aluno{stats.awaitingReply > 1 ? "s" : ""} esperando sua resposta
+                  </strong>
+                  <span className="block text-xs text-muted-foreground underline-offset-2 hover:underline">
+                    {filter === "awaiting_reply" ? "Mostrando só eles, do que espera há mais tempo · ver todos" : "Ver só eles, do que espera há mais tempo"}
+                  </span>
+                </button>
+                {awaitingQueue[0] && (
+                  <Button
+                    size="sm"
+                    className="shrink-0 bg-amber-500 hover:bg-amber-600 text-white"
+                    onClick={() => openFeedback(awaitingQueue[0])}
+                    data-testid="awaiting-start"
+                  >
+                    Começar
+                  </Button>
+                )}
+              </div>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <StatCard label="Total de alunos"   value={stats.total}    icon={<Users className="w-4 h-4" />}        accent="#3B82F6" />
               <StatCard label="Em alerta crítico" value={stats.critical} icon={<AlertTriangle className="w-4 h-4" />} accent="#EF4444" />
@@ -250,7 +318,7 @@ function CoachDashboardInner() {
                   const st = allStudents.find((s) => s.id === sid);
                   if (!st) return;
                   const full = pagedStudents.find((s) => s.id === sid);
-                  setLatestFbStudent(
+                  openFeedback(
                     full ?? ({
                       id: st.id, name: st.name, alertLevel: "ok", daysInactive: 0,
                       daysSinceLastFeedback: 0, currentWeight: null, lastFeedback: null,
@@ -265,18 +333,21 @@ function CoachDashboardInner() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                 <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar aluno..." className="pl-8 h-9 text-sm" />
               </div>
-              <Select value={filter} onValueChange={(v) => setFilter(v as "all" | AlertLevel)}>
-                <SelectTrigger className="w-36 h-9 text-sm">
+              <Select value={filter} onValueChange={(v) => setFilter(v as StudentListFilter)}>
+                <SelectTrigger className="w-44 h-9 text-sm" data-testid="student-filter">
                   <Filter className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
                   <SelectValue placeholder="Filtrar" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="awaiting_reply">Esperando minha resposta</SelectItem>
+                  <SelectItem value="bad_signal">Sinal ruim no check-in</SelectItem>
                   <SelectItem value="critical">Crítico</SelectItem>
                   <SelectItem value="warning">Atenção</SelectItem>
                   <SelectItem value="ok">Em dia</SelectItem>
                 </SelectContent>
               </Select>
+              <BadgeLegend />
               <Button size="sm" onClick={() => setInviteOpen(true)} className="h-9 gap-1.5" disabled={!coachId}>
                 <UserPlus className="w-4 h-4" /> Convidar aluno
               </Button>
@@ -309,12 +380,10 @@ function CoachDashboardInner() {
               <div className="space-y-2">
                 {pagedStudents.map((s) => (
                   <StudentRow key={s.id} student={s}
-                    onAnamnesis={(st) => setEvoStudent(st)}
-                    onProtocol={(st) => { setSelectedStudent(st); setView("protocol"); }}
+                    onOpenProfile={openProfile}
+                    onProtocol={openProtocol}
                     onUnlink={setUnlinkTarget}
-                    onHistory={setHistoryStudent}
-                    onEngagement={setEngagementStudent}
-                    onLatestFeedback={(st) => setLatestFbStudent(st)}
+                    onLatestFeedback={(st) => openFeedback(st)}
                   />
                 ))}
                 {totalPages > 1 && (
@@ -421,30 +490,26 @@ function CoachDashboardInner() {
           </AlertDialogContent>
         </AlertDialog>
 
-        <CheckinHistoryDialog
-          student={historyStudent}
-          open={!!historyStudent}
-          onClose={() => setHistoryStudent(null)}
+        <StudentProfileSheet
+          // Mantém a ficha sincronizada com a lista (ex.: selo "Responder" some depois de responder).
+          student={profileStudent ? (pagedStudents.find((s) => s.id === profileStudent.id) ?? profileStudent) : null}
+          open={!!profileStudent}
+          onClose={() => setProfileStudent(null)}
+          coachId={coachId}
+          initialTab={profileTab}
+          onReply={(st, checkinId) => openFeedback(st, checkinId)}
+          onEditProtocol={openProtocol}
           onConfigure={(st) => setSettingsStudent(st)}
-        />
-
-        <StudentEngagementDialog
-          student={engagementStudent}
-          open={!!engagementStudent}
-          onClose={() => setEngagementStudent(null)}
-        />
-
-        <EvolutionDialog
-          student={evoStudent}
-          open={!!evoStudent}
-          onClose={() => setEvoStudent(null)}
         />
 
         <Suspense fallback={null}>
           <CheckinFeedbackPanel
             student={latestFbStudent}
             open={!!latestFbStudent}
-            onClose={() => setLatestFbStudent(null)}
+            initialCheckinId={feedbackCheckinId}
+            onClose={() => { setLatestFbStudent(null); setFeedbackCheckinId(null); }}
+            nextStudent={nextAwaiting}
+            onOpenNext={(next) => { setFeedbackCheckinId(null); setLatestFbStudent(next); }}
           />
         </Suspense>
 

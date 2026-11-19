@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Bell, Trash2, Check, Loader2, Inbox, Reply, Send } from "lucide-react";
+import { Bell, Trash2, Check, Loader2, Inbox, Reply, Send, MessageSquareReply, ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { Private, usePrivacyMode } from "@/components/coach/PrivacyMode";
+import { notificationTarget, type NotificationTarget } from "@/lib/coachNotifications";
 
 interface Notification {
   id: string;
@@ -38,7 +39,16 @@ function fmtWhen(iso: string) {
   } catch { return iso; }
 }
 
-export default function CoachNotificationBell() {
+export default function CoachNotificationBell({
+  onOpenStudent,
+}: {
+  /**
+   * Abre o check-in (painel de feedback completo, com fotos e medidas) ou a
+   * anamnese do aluno. Antes o "Responder" do sininho mandava só uma
+   * mensagem solta: a resposta não ficava gravada no check-in.
+   */
+  onOpenStudent?: (studentId: string, target: NotificationTarget) => void;
+} = {}) {
   const [coachId, setCoachId] = useState<string | null>(null);
   const { privacy } = usePrivacyMode();
   const privacyRef = useRef(privacy);
@@ -49,6 +59,15 @@ export default function CoachNotificationBell() {
   const [replyOpen, setReplyOpen] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
+  const onOpenStudentRef = useRef(onOpenStudent);
+  useEffect(() => { onOpenStudentRef.current = onOpenStudent; }, [onOpenStudent]);
+
+  const openTarget = async (n: Notification, target: NotificationTarget) => {
+    if (!n.student_id || !onOpenStudent) return;
+    setOpen(false);
+    onOpenStudent(n.student_id, target);
+    await markRead(n.id);
+  };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -99,7 +118,14 @@ export default function CoachNotificationBell() {
               : `${n.context}: "${n.message.substring(0, 60)}${n.message.length > 60 ? "…" : ""}"`,
             icon: <Bell className="w-4 h-4 text-primary" />,
             duration: 6000,
-            action: { label: "Ver", onClick: () => setOpen(true) },
+            action: (() => {
+              const target = notificationTarget(n.context);
+              if (target && n.student_id && onOpenStudentRef.current) {
+                const sid = n.student_id;
+                return { label: target === "checkin" ? "Abrir check-in" : "Abrir", onClick: () => onOpenStudentRef.current?.(sid, target) };
+              }
+              return { label: "Ver", onClick: () => setOpen(true) };
+            })(),
           });
         }
       )
@@ -237,8 +263,24 @@ export default function CoachNotificationBell() {
                     </div>
                   </div>
                 )}
-                <div className="flex justify-end gap-2 pt-1">
-                  {replyOpen !== n.id && (
+                <div className="flex flex-wrap justify-end gap-2 pt-1">
+                  {(() => {
+                    const target = notificationTarget(n.context);
+                    if (!target || !n.student_id || !onOpenStudent) return null;
+                    return (
+                      <Button
+                        size="sm"
+                        onClick={() => openTarget(n, target)}
+                        className="h-7 text-xs"
+                        data-testid="notification-open-target"
+                      >
+                        {target === "checkin"
+                          ? <><MessageSquareReply className="w-3.5 h-3.5 mr-1" /> Abrir check-in</>
+                          : <><ClipboardList className="w-3.5 h-3.5 mr-1" /> Abrir anamnese</>}
+                      </Button>
+                    );
+                  })()}
+                  {replyOpen !== n.id && !(notificationTarget(n.context) === "checkin" && n.student_id && onOpenStudent) && (
                     <Button size="sm" variant="outline" onClick={() => { setReplyOpen(n.id); setReplyText(""); }} className="h-7 text-xs border-primary/40 text-primary hover:bg-primary/10">
                       <Reply className="w-3.5 h-3.5 mr-1" /> Responder
                     </Button>

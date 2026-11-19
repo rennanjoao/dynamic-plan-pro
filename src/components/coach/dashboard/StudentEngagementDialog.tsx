@@ -49,9 +49,10 @@ function Row({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-export function StudentEngagementDialog({ student, open, onClose }: {
-  student: StudentStatus | null; open: boolean; onClose: () => void;
-}) {
+/** Conteúdo do engajamento (usado na ficha do aluno e na janela). */
+export function StudentEngagementContent({ studentId, active = true }: { studentId: string | null; active?: boolean }) {
+  const open = active;
+  const student = studentId ? { id: studentId } : null;
   const { data, isLoading, error } = useQuery({
     queryKey: ["student-engagement", student?.id],
     enabled: open && !!student,
@@ -67,11 +68,7 @@ export function StudentEngagementDialog({ student, open, onClose }: {
   const topArea = data?.areas_30d?.[0];
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Engajamento — <Private>{student?.name ?? "Aluno"}</Private></DialogTitle>
-        </DialogHeader>
+      <>
         {isLoading ? (
           <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
         ) : error || !data ? (
@@ -105,6 +102,20 @@ export function StudentEngagementDialog({ student, open, onClose }: {
             </Block>
           </div>
         )}
+      </>
+  );
+}
+
+export function StudentEngagementDialog({ student, open, onClose }: {
+  student: StudentStatus | null; open: boolean; onClose: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Engajamento — <Private>{student?.name ?? "Aluno"}</Private></DialogTitle>
+        </DialogHeader>
+        <StudentEngagementContent studentId={student?.id ?? null} active={open} />
       </DialogContent>
     </Dialog>
   );

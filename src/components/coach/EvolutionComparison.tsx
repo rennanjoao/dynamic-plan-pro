@@ -152,7 +152,8 @@ export default function EvolutionComparison({
           id: `ci-${c.id}`,
           kind: "checkin",
           date: c.submitted_at,
-          label: `Feedback ${idx === 0 ? "atual" : `#${(cis.length - idx)}`} · ${fmt(c.submitted_at)}`,
+          // "Check-in N", não "Feedback": feedback é o texto do coach, não o envio da aluna.
+          label: `Check-in ${cis.length - idx}${idx === 0 ? " (último)" : ""} · ${fmt(c.submitted_at)}`,
           metrics, fotos, feedback: c.coach_feedback, payload: payload,
         });
       });
@@ -320,7 +321,7 @@ export default function EvolutionComparison({
               if (latest) setFeedbackOnlyId(latest.id);
             }}
           >
-            <FileText className="w-3.5 h-3.5 mr-1.5" /> Ver Feedback Completo
+            <FileText className="w-3.5 h-3.5 mr-1.5" /> Ver check-in completo
           </Button>
         )}
       </div>
@@ -501,11 +502,11 @@ export default function EvolutionComparison({
       {(left.feedback || right.feedback) && (
         <div className="grid grid-cols-2 gap-3">
           <Card className="p-3 text-xs">
-            <p className="text-[10px] uppercase font-bold text-primary mb-1">{left.kind === "anamnese" ? "Anamnese" : "Feedback anterior"}</p>
+            <p className="text-[10px] uppercase font-bold text-primary mb-1">{left.kind === "anamnese" ? "Anamnese" : `Sua resposta · ${left.label.split(" · ")[0]}`}</p>
             <p className="whitespace-pre-wrap text-foreground/85">{left.feedback || (left.kind === "anamnese" ? "—" : "—")}</p>
           </Card>
           <Card className="p-3 text-xs">
-            <p className="text-[10px] uppercase font-bold text-primary mb-1">{right.kind === "anamnese" ? "Anamnese" : "Feedback atual"}</p>
+            <p className="text-[10px] uppercase font-bold text-primary mb-1">{right.kind === "anamnese" ? "Anamnese" : `Sua resposta · ${right.label.split(" · ")[0]}`}</p>
             <p className="whitespace-pre-wrap text-foreground/85">{right.feedback || "—"}</p>
           </Card>
         </div>

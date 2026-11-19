@@ -16,7 +16,8 @@ import { lazyWithRetry } from "@/lib/lazyWithRetry";
  * Não altera RLS, schema ou comportamento do reply-to-student.
  */
 
-import { useEffect, useState, lazy, Suspense, useMemo } from "react";
+import { useEffect, useState, lazy, Suspense, useMemo, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { sb } from "@/integrations/supabase/untyped";
 import {
@@ -27,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Loader2, Send, ChevronDown, ChevronUp, Sparkles, Pencil, History, ClipboardList } from "lucide-react";
+import { Loader2, Send, ChevronDown, ChevronUp, Sparkles, Pencil, History, ClipboardList, SkipForward, MessageSquareReply, PersonStanding } from "lucide-react";
 import { toast } from "sonner";
 import {
   CHECKIN_SECTIONS, CHECKIN_METRICS, CHECKIN_HIGHLIGHT_KEYS,
@@ -42,7 +43,9 @@ import { Private, PrivateImg } from "@/components/coach/PrivacyMode";
 import { triageClasses, triageLabel } from "@/lib/protocolRenewalTriage";
 import { resolveCheckinPhotos } from "@/lib/photoAnnotations";
 import CheckinPhotoCompare from "@/components/coach/CheckinPhotoCompare";
+const PostureQuickDialogLazy = lazyWithRetry(() => import("@/components/coach/posture/PostureQuickDialog"));
 import { cn } from "@/lib/utils";
+import { hasCoachFeedback, pickCheckinToOpen, unansweredSinceLastReply, waitingLabel } from "@/lib/coachPending";
 
 const AnamnesisViewerLazy = lazyWithRetry(() => import("@/components/anamnesis/AnamnesisViewer"));
 const ProgressChartLazy = lazyWithRetry(() =>
@@ -68,10 +71,20 @@ interface Props {
   studentName?: string;
   open: boolean;
   onClose: () => void;
+  /** Abre um check-in específico em vez de escolher sozinho (ex.: "Responder" no histórico da ficha). */
+  initialCheckinId?: string | null;
+  /**
+   * Próximo aluno aguardando resposta (fora este). Quando existe, aparece o
+   * botão "Enviar e abrir o próximo".
+   */
+  nextStudent?: StudentStatus | null;
+  onOpenNext?: (next: StudentStatus) => void;
 }
 
 export default function CheckinFeedbackPanel(props: Props) {
-  const { open, onClose, student } = props;
+  const { open, onClose, student, initialCheckinId, nextStudent, onOpenNext } = props;
+  const queryClient = useQueryClient();
+  const feedbackRef = useRef<HTMLTextAreaElement | null>(null);
   const studentId = student?.id ?? props.studentId ?? null;
   const studentName = student?.name ?? props.studentName ?? "Aluno";
   const [loading, setLoading] = useState(false);
@@ -92,6 +105,7 @@ export default function CheckinFeedbackPanel(props: Props) {
   const [generatingDraft, setGeneratingDraft] = useState(false);
   const [fullEditorOpen, setFullEditorOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [postureOpen, setPostureOpen] = useState(false);
   const [allCheckins, setAllCheckins] = useState<{ id: string; submitted_at: string; coach_feedback: string | null }[]>([]);
 
   useEffect(() => {
@@ -99,27 +113,38 @@ export default function CheckinFeedbackPanel(props: Props) {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const { data } = await sb
-        .from("check_ins")
-        .select(CHECKIN_COLUMNS)
-        .eq("student_id", studentId)
-        .order("submitted_at", { ascending: false })
-        .limit(1);
-      if (cancelled) return;
-      const row = ((data as CheckinRow[]) || [])[0] || null;
-      setCi(row);
-      setFeedback(row?.coach_feedback ?? "");
-      setLoading(false);
+      // Primeiro a lista leve: com ela escolhemos QUAL check-in abrir — o mais
+      // antigo ainda sem resposta (antes abria sempre o mais recente e o
+      // pendente mais antigo ficava escondido no seletor).
       const { data: listData } = await sb
         .from("check_ins")
         .select("id, submitted_at, coach_feedback")
         .eq("student_id", studentId)
         .order("submitted_at", { ascending: false })
         .limit(60);
-      if (!cancelled) setAllCheckins((listData as { id: string; submitted_at: string; coach_feedback: string | null }[]) || []);
+      if (cancelled) return;
+      const list = (listData as { id: string; submitted_at: string; coach_feedback: string | null }[]) || [];
+      setAllCheckins(list);
+      const targetId =
+        (initialCheckinId && list.some((c) => c.id === initialCheckinId) ? initialCheckinId : null) ??
+        pickCheckinToOpen(list)?.id ??
+        null;
+      let row: CheckinRow | null = null;
+      if (targetId) {
+        const { data } = await sb
+          .from("check_ins")
+          .select(CHECKIN_COLUMNS)
+          .eq("id", targetId)
+          .maybeSingle();
+        row = (data as CheckinRow) ?? null;
+      }
+      if (cancelled) return;
+      setCi(row);
+      setFeedback(row?.coach_feedback ?? "");
+      setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [open, studentId]);
+  }, [open, studentId, initialCheckinId]);
 
   // Busca o check-in imediatamente anterior ao que está aberto. Acompanha a troca
   // pelo seletor: assim as variações e as fotos "anterior" sempre comparam com o
@@ -187,6 +212,22 @@ export default function CheckinFeedbackPanel(props: Props) {
   const previousPhotos = useMemo(() => resolveCheckinPhotos(previous?.payload, previous?.photo_url), [previous]);
 
   const isEditingExisting = !!(ci?.coach_feedback && ci.coach_feedback.trim());
+  // Check-ins deste aluno ainda sem resposta (do mais antigo ao mais novo).
+  const pendingHere = useMemo(() => unansweredSinceLastReply(allCheckins), [allCheckins]);
+  const ciIsPending = !!ci && pendingHere.some((p) => p.id === ci.id);
+
+  const scrollToFeedback = () => {
+    feedbackRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    // foco depois da rolagem, para o teclado do celular não "pular" a tela
+    window.setTimeout(() => feedbackRef.current?.focus({ preventScroll: true }), 350);
+  };
+
+  const refreshCoachLists = () =>
+    queryClient.invalidateQueries({
+      predicate: (q) =>
+        typeof q.queryKey[0] === "string" &&
+        ((q.queryKey[0] as string).startsWith("coach-students") || q.queryKey[0] === "coach-cycle-summary"),
+    });
 
   const selectCheckin = async (id: string) => {
     if (!id || id === ci?.id) return;
@@ -230,7 +271,7 @@ export default function CheckinFeedbackPanel(props: Props) {
       .filter((c) => c.value !== undefined && c.value !== null && c.value !== "");
   }, [ci]);
 
-  const handleSend = async () => {
+  const handleSend = async (goNext = false) => {
     if (!studentId) return;
     const msg = feedback.trim();
     if (!msg) {
@@ -257,6 +298,7 @@ export default function CheckinFeedbackPanel(props: Props) {
       // (nem e-mail, nem alerta) — apenas o texto é atualizado silenciosamente.
       if (isEdit) {
         toast.success("Feedback atualizado (sem novo aviso ao aluno).");
+        refreshCoachLists();
         setCi((prev) => prev ? { ...prev, coach_feedback: msg } : prev);
         setAllCheckins((prev) => prev.map((r) => r.id === ci.id ? { ...r, coach_feedback: msg } : r));
         return;
@@ -270,7 +312,21 @@ export default function CheckinFeedbackPanel(props: Props) {
 
       toast.success("Feedback salvo e enviado ao aluno.");
       setCi((prev) => prev ? { ...prev, coach_feedback: msg } : prev);
-      setAllCheckins((prev) => prev.map((r) => r.id === ci.id ? { ...r, coach_feedback: msg } : r));
+      const updatedList = allCheckins.map((r) => r.id === ci.id ? { ...r, coach_feedback: msg } : r);
+      setAllCheckins(updatedList);
+      refreshCoachLists();
+
+      if (goNext) {
+        // Primeiro os outros check-ins pendentes DESTE aluno; depois o próximo aluno da fila.
+        const sameStudentNext = unansweredSinceLastReply(updatedList).find((r) => r.id !== ci.id);
+        if (sameStudentNext) {
+          await selectCheckin(sameStudentNext.id);
+        } else if (nextStudent && onOpenNext) {
+          onOpenNext(nextStudent);
+        } else {
+          onClose();
+        }
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Erro inesperado.";
       if (savedOk && !notifiedOk) {
@@ -346,6 +402,18 @@ export default function CheckinFeedbackPanel(props: Props) {
             {ci && (
               <div className="space-y-4 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
                 <p className="text-xs text-muted-foreground">Check-in: {fmtDate(ci.submitted_at)}</p>
+                {ciIsPending && (
+                  <div
+                    data-testid="pending-reply-banner"
+                    className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-700 dark:text-amber-400"
+                  >
+                    <MessageSquareReply className="w-4 h-4 shrink-0" />
+                    <span>
+                      Aguardando sua resposta · enviado {waitingLabel(ci.submitted_at)}
+                      {pendingHere.length > 1 && ` · ${pendingHere.length} check-ins sem resposta deste aluno`}
+                    </span>
+                  </div>
+                )}
 
                 <CheckinPhotoCompare
                   current={currentPhotos}
@@ -353,6 +421,18 @@ export default function CheckinFeedbackPanel(props: Props) {
                   currentLabel={fmtShortDate(ci.submitted_at)}
                   previousLabel={previous ? fmtShortDate(previous.submitted_at) : null}
                 />
+                {Object.keys(currentPhotos).length > 0 && studentId && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setPostureOpen(true)}
+                    data-testid="open-posture-quick"
+                  >
+                    <PersonStanding className="w-4 h-4 mr-1.5" /> Marcar postura nestas fotos
+                  </Button>
+                )}
 
                 {metricDeltas.length > 0 && (
                   <div className="space-y-1 border-t border-border pt-3">
@@ -561,13 +641,18 @@ export default function CheckinFeedbackPanel(props: Props) {
                     >
                       {allCheckins.map((c) => (
                         <option key={c.id} value={c.id}>
-                          {fmtDate(c.submitted_at)} {c.coach_feedback ? "· com feedback" : "· sem feedback"}
+                          {fmtDate(c.submitted_at)}{" "}
+                          {hasCoachFeedback(c.coach_feedback)
+                            ? "· respondido"
+                            : pendingHere.some((p) => p.id === c.id) ? "· aguardando resposta" : "· sem feedback"}
                         </option>
                       ))}
                     </select>
                   </div>
                 )}
                 <Textarea
+                  ref={feedbackRef}
+                  data-testid="feedback-textarea"
                   value={feedback}
                   onChange={(e) => setFeedback(e.target.value)}
                   placeholder={isEditingExisting
@@ -582,8 +667,20 @@ export default function CheckinFeedbackPanel(props: Props) {
                     Este check-in já tem feedback: salvar apenas atualiza o texto, sem notificar o aluno novamente.
                   </p>
                 )}
-                <div className="flex justify-end">
-                  <Button onClick={handleSend} disabled={sending || !ci} size="sm">
+                <div className="flex flex-wrap justify-end gap-2">
+                  {!isEditingExisting && (pendingHere.some((p) => p.id !== ci?.id) || (nextStudent && onOpenNext)) && (
+                    <Button
+                      onClick={() => handleSend(true)}
+                      disabled={sending || !ci}
+                      size="sm"
+                      variant="outline"
+                      data-testid="send-and-next"
+                    >
+                      <SkipForward className="w-4 h-4 mr-2" />
+                      Enviar e abrir o próximo
+                    </Button>
+                  )}
+                  <Button onClick={() => handleSend(false)} disabled={sending || !ci} size="sm">
                     {sending ? (
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     ) : (
@@ -592,9 +689,36 @@ export default function CheckinFeedbackPanel(props: Props) {
                     {isEditingExisting ? "Salvar alterações" : "Enviar feedback"}
                   </Button>
                 </div>
+                {!isEditingExisting && nextStudent && !pendingHere.some((p) => p.id !== ci?.id) && (
+                  <p className="text-[11px] text-muted-foreground text-right">
+                    Próximo aguardando: <Private>{nextStudent.name}</Private>
+                  </p>
+                )}
               </div>
             </div>
           </div>
+        )}
+
+        {/* Celular: o campo de feedback fica no fim de uma página longa (fotos,
+            medidas, gráfico, respostas…). Este botão fixo leva direto até ele. */}
+        {!loading && ci && (
+          <div className="lg:hidden sticky bottom-0 -mx-6 -mb-6 px-4 py-3 bg-background/95 backdrop-blur border-t border-border">
+            <Button className="w-full h-11 gap-2" onClick={scrollToFeedback} data-testid="jump-to-feedback">
+              <Pencil className="w-4 h-4" />
+              {isEditingExisting ? "Ver / editar feedback" : "Escrever feedback"}
+            </Button>
+          </div>
+        )}
+
+        {studentId && ci && postureOpen && (
+          <Suspense fallback={null}>
+            <PostureQuickDialogLazy
+              open={postureOpen}
+              onClose={() => setPostureOpen(false)}
+              studentId={studentId}
+              source={{ kind: "checkin", id: ci.id, date: ci.submitted_at, photos: currentPhotos }}
+            />
+          </Suspense>
         )}
 
         {studentId && fullEditorOpen && (
