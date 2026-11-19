@@ -1,11 +1,14 @@
+import { useState } from "react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { useStudentData } from "@/hooks/useStudentData";
 import { TrendingUp, Loader2 } from "lucide-react";
-import { estimateBF } from "@/lib/bfEstimate";
-import { colorForDelta, weightPolarityForGoal } from "@/lib/checkInSchema";
+import { colorForDelta, weightPolarityForGoal, type MetricPolarity } from "@/lib/checkInSchema";
+import { buildProgressSeries, PROGRESS_METRICS, type ProgressMetric } from "@/lib/progressSeries";
+import { cn } from "@/lib/utils";
 
 export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
   const { anamnesis, checkIns, goal, loading } = useStudentData(studentId);
+  const [metric, setMetric] = useState<ProgressMetric>("peso");
 
   if (loading) {
     return (
@@ -15,75 +18,35 @@ export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
     );
   }
 
-  const baseline = anamnesis?.baseline_metrics || {};
-  const payloadAna = (anamnesis?.payload as Record<string, any>) || {};
-  
-  // Parâmetros estáticos da Anamnese para cálculo de composição
-  const altura = Number(baseline.altura || 0);
-  // O campo salvo na anamnese é "gender" (en-US: "F"/"M"). Mantemos os
-  // fallbacks "genero"/"sexo" apenas por compatibilidade com payloads antigos.
-  const genero = payloadAna.gender || payloadAna.genero || payloadAna.sexo || "M";
+  // Data de ENVIO de cada check-in (não a da última edição) e ponto de
+  // partida (anamnese) sempre presente — ver lib/progressSeries.ts.
+  const chartData = buildProgressSeries({
+    anamnesis: anamnesis as never,
+    checkIns: checkIns as never,
+    metric,
+  });
+  const meta = PROGRESS_METRICS.find((m) => m.key === metric)!;
 
-  const rawData: Array<{ date: string; peso: number; gordura: number | null; timestamp: number }> = [];
-
-  // Ponto Inicial: Linha de base da Anamnese
-  if (anamnesis?.submitted_at && baseline.peso) {
-    const pesoBase = Number(baseline.peso);
-    const cinturaBase = Number(baseline.cintura || 0);
-    const bfBase = estimateBF({
-      altura,
-      cintura: cinturaBase,
-      pescoco: Number(baseline.pescoco || 0),
-      quadril: Number(baseline.quadril || 0),
-      genero,
-    }).value;
-
-    rawData.push({
-      date: new Date(anamnesis.submitted_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
-      peso: pesoBase,
-      gordura: bfBase,
-      timestamp: new Date(anamnesis.submitted_at).getTime(),
-    });
-  }
-
-  // Pontos Consecutivos: Histórico de Check-ins (Feedbacks)
-  if (checkIns && checkIns.length > 0) {
-    checkIns.forEach((chk) => {
-      if (chk.current_metrics && chk.submitted_at) {
-        const pesoAtual = Number(chk.current_metrics.peso || 0);
-        const cinturaAtual = Number(chk.current_metrics.cintura || 0);
-        const bfAtual = estimateBF({
-          altura,
-          cintura: cinturaAtual,
-          pescoco: Number(chk.current_metrics.pescoco || 0),
-          quadril: Number(chk.current_metrics.quadril || 0),
-          genero,
-        }).value;
-
-        // Usa o timestamp mais recente entre submitted_at e updated_at: um
-        // check-in editado deve aparecer na linha do tempo na data da edição,
-        // não na data de criação original do registro.
-        const updatedAt = (chk as unknown as { updated_at?: string }).updated_at;
-        const effectiveDate = updatedAt && new Date(updatedAt) > new Date(chk.submitted_at)
-          ? updatedAt
-          : chk.submitted_at;
-
-        rawData.push({
-          date: new Date(effectiveDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
-          peso: pesoAtual,
-          gordura: bfAtual,
-          timestamp: new Date(effectiveDate).getTime(),
-        });
-      }
-    });
-  }
-
-  // Ordenação cronológica estrita limitado às últimas 14 medições
-  const chartData = rawData
-    .filter((d) => d.peso > 0)
-    // gordura null é permitido — o gráfico omite o ponto automaticamente
-    .sort((a, b) => a.timestamp - b.timestamp)
-    .slice(-14);
+  const selector = (
+    <div className="flex flex-wrap gap-1.5 mb-4" role="group" aria-label="Medida no gráfico">
+      {PROGRESS_METRICS.map((m) => (
+        <button
+          key={m.key}
+          type="button"
+          onClick={() => setMetric(m.key)}
+          aria-pressed={metric === m.key}
+          className={cn(
+            "text-xs px-3 py-1.5 rounded-full border transition-colors",
+            metric === m.key
+              ? "bg-primary text-primary-foreground border-primary"
+              : "bg-muted/40 text-muted-foreground border-border hover:text-foreground",
+          )}
+        >
+          {m.label}
+        </button>
+      ))}
+    </div>
+  );
 
   if (chartData.length === 0) {
     return (
@@ -92,40 +55,45 @@ export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
           <TrendingUp className="w-5 h-5 text-primary" />
           <h2 className="text-xl font-bold text-foreground">Evolução de Medidas</h2>
         </div>
+        {selector}
         <p className="text-muted-foreground text-center py-8">
-          Aguardando o envio da Anamnese para inicializar a linha de base temporal.
+          {metric === "peso"
+            ? "Aguardando o envio da Anamnese para inicializar a linha de base temporal."
+            : `Ainda não há medida de ${meta.label.toLowerCase()} registrada.`}
         </p>
       </div>
     );
   }
 
-  // Comparamos sempre a medida mais recente com o primeiro ponto (anamnese
-  // baseline) para mostrar o progresso total desde o início — coerente com
-  // o ComparisonBoard que exibe a mesma comparação "Partida → Hoje".
-  const ultimaMedida = chartData[chartData.length - 1];
-  const primeiraMedida = chartData[0];
-  const mudancaPeso = (ultimaMedida.peso - primeiraMedida.peso).toFixed(1);
+  // Sempre a medida mais recente contra o primeiro ponto (anamnese, quando há)
+  // — progresso total desde o início, coerente com o "Partida → Hoje".
+  const ultima = chartData[chartData.length - 1];
+  const primeira = chartData[0];
+  const mudanca = Number((ultima.value - primeira.value).toFixed(1));
+  const desdeLabel = primeira.isBaseline ? "desde a anamnese" : `desde ${primeira.date}`;
 
-  // Para gordura, usamos o primeiro ponto que tenha valor calculado como
-  // referência, e comparamos com o último ponto calculado disponível.
-  const primeiraMedidaComGordura = chartData.find((p) => p.gordura !== null);
-  const ultimaMedidaComGordura = [...chartData].reverse().find((p) => p.gordura !== null);
+  const primeiraGordura = chartData.find((p) => p.gordura !== null);
+  const ultimaGordura = [...chartData].reverse().find((p) => p.gordura !== null);
   const mudancaGordura =
-    ultimaMedidaComGordura && primeiraMedidaComGordura && ultimaMedidaComGordura !== primeiraMedidaComGordura
-      ? (ultimaMedidaComGordura.gordura! - primeiraMedidaComGordura.gordura!).toFixed(1)
-      : ultimaMedidaComGordura && primeiraMedidaComGordura
-      ? "0"
-      : "0";
+    ultimaGordura && primeiraGordura ? Number((ultimaGordura.gordura! - primeiraGordura.gordura!).toFixed(1)) : null;
+
+  // Peso segue o objetivo; cintura/quadril: menor é melhor (padrão do app);
+  // braço/coxa: neutro (crescer pode ser o objetivo).
+  const polarity: MetricPolarity =
+    metric === "peso" ? weightPolarityForGoal(goal) : metric === "cintura" || metric === "quadril" ? "menor_melhor" : "neutro";
+
+  const data = chartData.map((p) => ({ date: p.date, valor: p.value, gordura: p.gordura }));
 
   return (
     <div className="glass rounded-2xl p-8">
-      <div className="flex items-center gap-2 mb-6">
+      <div className="flex items-center gap-2 mb-4">
         <TrendingUp className="w-5 h-5 text-primary" />
         <h2 className="text-xl font-bold text-foreground">Evolução de Medidas</h2>
       </div>
+      {selector}
 
       <ResponsiveContainer width="100%" height={300}>
-        <AreaChart data={chartData}>
+        <AreaChart data={data}>
           <defs>
             <linearGradient id="gradientPeso" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="hsl(350, 100%, 60%)" stopOpacity={0.4} />
@@ -138,13 +106,10 @@ export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
           <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-          
-          {/* Eixo esquerdo mapeado para o Peso */}
           <YAxis yAxisId="left" domain={['auto', 'auto']} stroke="hsl(var(--muted-foreground))" fontSize={12} width={35} />
-          
-          {/* Eixo direito independente mapeado para o % de Gordura Estimado */}
-          <YAxis yAxisId="right" orientation="right" domain={['auto', 'auto']} stroke="hsl(var(--muted-foreground))" fontSize={12} width={35} />
-          
+          {metric === "peso" && (
+            <YAxis yAxisId="right" orientation="right" domain={['auto', 'auto']} stroke="hsl(var(--muted-foreground))" fontSize={12} width={35} />
+          )}
           <Tooltip
             contentStyle={{
               backgroundColor: "hsl(var(--card))",
@@ -154,34 +119,52 @@ export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
             }}
           />
           <Legend />
-          <Area yAxisId="left" type="monotone" dataKey="peso" name="Peso (kg)" stroke="hsl(var(--primary-light))" fill="url(#gradientPeso)" strokeWidth={2} />
-          <Area yAxisId="right" type="monotone" dataKey="gordura" name="% Gordura Est." stroke="#3b82f6" fill="url(#gradientGordura)" strokeWidth={2} />
+          <Area
+            yAxisId="left"
+            type="monotone"
+            dataKey="valor"
+            name={metric === "peso" ? "Peso (kg)" : `${meta.label} (${meta.unit})`}
+            stroke="hsl(var(--primary-light))"
+            fill="url(#gradientPeso)"
+            strokeWidth={2}
+          />
+          {metric === "peso" && (
+            <Area yAxisId="right" type="monotone" dataKey="gordura" name="% Gordura Est." stroke="#3b82f6" fill="url(#gradientGordura)" strokeWidth={2} />
+          )}
         </AreaChart>
       </ResponsiveContainer>
 
-      <p className="mt-3 text-[11px] text-muted-foreground leading-relaxed">
-        * O % de Gordura Estimada é calculado pela fórmula US Navy com base nas medidas informadas (cintura, pescoço e quadril).
-        Trata-se de uma estimativa e pode apresentar variações devido à individualidade biológica. Não substitui avaliação profissional.
-      </p>
+      {metric === "peso" && (
+        <p className="mt-3 text-[11px] text-muted-foreground leading-relaxed">
+          * O % de Gordura Estimada é calculado pela fórmula US Navy com base nas medidas informadas (cintura, pescoço e quadril).
+          Trata-se de uma estimativa e pode apresentar variações devido à individualidade biológica. Não substitui avaliação profissional.
+        </p>
+      )}
+      {metric === "braco" && (
+        <p className="mt-3 text-[11px] text-muted-foreground">Braço contraído (média direito/esquerdo); sem ele, o relaxado.</p>
+      )}
 
-      <div className="mt-6 grid grid-cols-2 gap-4">
+      <div className={cn("mt-6 grid gap-4", metric === "peso" ? "grid-cols-2" : "grid-cols-1")}>
         <div className="glass rounded-xl p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider">Mudança de Peso</p>
-          <p className={`text-2xl font-bold mt-1 ${colorForDelta(Number(mudancaPeso), weightPolarityForGoal(goal))}`}>
-            {Number(mudancaPeso) > 0 ? '+' : ''}{mudancaPeso} kg
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">
+            {metric === "peso" ? "Mudança de Peso" : `Mudança de ${meta.label}`}
           </p>
-        </div>
-        <div className="glass rounded-xl p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider">Gordura Estimada</p>
-          <p className={`text-2xl font-bold mt-1 ${colorForDelta(Number(mudancaGordura))}`}>
-            {ultimaMedidaComGordura && primeiraMedidaComGordura
-              ? `${Number(mudancaGordura) > 0 ? '+' : ''}${mudancaGordura}%`
-              : '—'}
+          <p className={`text-2xl font-bold mt-1 ${colorForDelta(mudanca, polarity)}`} data-testid="progress-delta">
+            {mudanca > 0 ? '+' : ''}{mudanca.toFixed(1)} {meta.unit}
           </p>
-          {!ultimaMedidaComGordura && (
-            <p className="text-[11px] text-muted-foreground mt-1">Informe cintura e pescoço nos check-ins</p>
-          )}
+          <p className="text-[11px] text-muted-foreground mt-0.5">{desdeLabel}</p>
         </div>
+        {metric === "peso" && (
+          <div className="glass rounded-xl p-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Gordura Estimada</p>
+            <p className={`text-2xl font-bold mt-1 ${colorForDelta(mudancaGordura)}`}>
+              {mudancaGordura != null ? `${mudancaGordura > 0 ? '+' : ''}${mudancaGordura.toFixed(1)}%` : '—'}
+            </p>
+            {!ultimaGordura && (
+              <p className="text-[11px] text-muted-foreground mt-1">Informe cintura e pescoço nos check-ins</p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

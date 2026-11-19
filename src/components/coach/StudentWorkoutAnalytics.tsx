@@ -48,6 +48,8 @@ import { VOLUME_LANDMARKS, VOLUME_STATUS_META, classifyWeeklyVolume } from "@/li
 import { isMobilityExercise } from "@/lib/protocolSchema";
 import { INSIGHT_META, type CoachInsightSituacao } from "@/lib/coachInsights";
 import { localDateKey, parseDateOnly } from "@/lib/dateOnly";
+import { useStudentCycleSummary } from "@/hooks/useStudentCycleSummary";
+import { adherenceTotals, plannedSessionsPerWeek, weeklyTrainingAdherence } from "@/lib/coachCycleSummary";
 
 /* ── Constantes ─────────────────────────────────────────────────────────────── */
 
@@ -55,7 +57,7 @@ const GOLD  = "#C9A84C";
 const RED   = "#CC0000";
 const GREEN = "#22c55e";
 const BLUE  = "#60a5fa";
-const MUTED = "rgba(255,255,255,0.08)";
+const MUTED = "hsl(var(--border))";
 
 /* ── Tipos ──────────────────────────────────────────────────────────────────── */
 
@@ -68,6 +70,8 @@ interface SessionRow {
   general_feeling: number | null;
   sleep_quality:   number | null;
   is_deload_week:  boolean;
+  /** Recado opcional que a aluna deixa ao terminar o treino. */
+  notes?:          string | null;
 }
 
 interface SetRow {
@@ -180,8 +184,8 @@ function CustomTooltip({ active, payload, label }: {
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl p-3 text-xs shadow-xl" style={{ background: "#1C1C1E", border: `1px solid ${GOLD}44` }}>
-      <p className="font-bold text-white/70 mb-1.5">{label}</p>
+    <div className="rounded-xl p-3 text-xs shadow-xl" style={{ background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))", border: `1px solid ${GOLD}44` }}>
+      <p className="font-bold text-foreground/80 mb-1.5">{label}</p>
       {payload.map((p, i) => (
         <p key={i} style={{ color: p.color }} className="font-bold">
           {p.name}: {typeof p.value === "number" ? p.value.toLocaleString("pt-BR") : p.value}
@@ -193,7 +197,7 @@ function CustomTooltip({ active, payload, label }: {
 
 /* ── StatCard ───────────────────────────────────────────────────────────────── */
 
-function StatCard({ icon, label, value, sub, color = "white" }: {
+function StatCard({ icon, label, value, sub, color = "hsl(var(--foreground))" }: {
   icon: React.ReactNode;
   label: string;
   value: string | number;
@@ -201,13 +205,13 @@ function StatCard({ icon, label, value, sub, color = "white" }: {
   color?: string;
 }) {
   return (
-    <div className="rounded-xl p-3 flex flex-col gap-1" style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${MUTED}` }}>
-      <div className="flex items-center gap-1.5 text-white/50">
+    <div className="rounded-xl p-3 flex flex-col gap-1" style={{ background: "hsl(var(--muted) / 0.45)", border: `1px solid ${MUTED}` }}>
+      <div className="flex items-center gap-1.5 text-muted-foreground">
         {icon}
         <span className="text-[9px] uppercase tracking-wider font-bold">{label}</span>
       </div>
       <p className="text-xl font-black" style={{ color }}>{value}</p>
-      {sub && <p className="text-[10px] text-white/40">{sub}</p>}
+      {sub && <p className="text-[10px] text-muted-foreground">{sub}</p>}
     </div>
   );
 }
@@ -216,7 +220,7 @@ function StatCard({ icon, label, value, sub, color = "white" }: {
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[10px] uppercase tracking-wider text-white/40 font-bold mb-3">
+    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-3">
       {children}
     </p>
   );
@@ -226,8 +230,8 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="rounded-xl p-6 text-center" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${MUTED}` }}>
-      <p className="text-xs text-white/40">{text}</p>
+    <div className="rounded-xl p-6 text-center" style={{ background: "hsl(var(--muted) / 0.35)", border: `1px solid ${MUTED}` }}>
+      <p className="text-xs text-muted-foreground">{text}</p>
     </div>
   );
 }
@@ -236,7 +240,7 @@ function EmptyState({ text }: { text: string }) {
 
 function Panel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${MUTED}` }}>
+    <div className="rounded-xl p-4" style={{ background: "hsl(var(--muted) / 0.35)", border: `1px solid ${MUTED}` }}>
       {children}
     </div>
   );
@@ -268,7 +272,7 @@ function CoachInsightCard({ insight, loading, refreshing, onRefresh }: {
           type="button"
           onClick={onRefresh}
           disabled={refreshing}
-          className="p-1.5 rounded text-white/40 hover:text-white/70 transition"
+          className="p-1.5 rounded text-muted-foreground hover:text-foreground/80 transition"
           title="Atualizar leitura"
         >
           {refreshing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
@@ -277,7 +281,7 @@ function CoachInsightCard({ insight, loading, refreshing, onRefresh }: {
 
       {!insight && (
         <div className="px-4 pb-4">
-          <p className="text-xs text-white/40">
+          <p className="text-xs text-muted-foreground">
             {refreshing ? "Gerando a primeira leitura para este aluno…" : "Ainda não há leitura gerada para este aluno."}
           </p>
         </div>
@@ -285,12 +289,12 @@ function CoachInsightCard({ insight, loading, refreshing, onRefresh }: {
 
       {insight && (
         <div className="px-4 pb-4 space-y-3">
-          {insight.resumo && <p className="text-xs text-white/80 leading-relaxed">{insight.resumo}</p>}
+          {insight.resumo && <p className="text-xs text-foreground/90 leading-relaxed">{insight.resumo}</p>}
 
           {insight.observacoes.length > 0 && (
             <div>
-              <p className="text-[11px] font-semibold text-white/50 uppercase mb-1">O que foi observado</p>
-              <ul className="list-disc pl-4 text-xs space-y-0.5 text-white/70">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">O que foi observado</p>
+              <ul className="list-disc pl-4 text-xs space-y-0.5 text-foreground/80">
                 {insight.observacoes.map((o, i) => <li key={i}>{o}</li>)}
               </ul>
             </div>
@@ -298,20 +302,20 @@ function CoachInsightCard({ insight, loading, refreshing, onRefresh }: {
 
           {insight.interpretacao && (
             <div>
-              <p className="text-[11px] font-semibold text-white/50 uppercase mb-1">Interpretação</p>
-              <p className="text-xs text-white/70 leading-relaxed">{insight.interpretacao}</p>
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase mb-1">Interpretação</p>
+              <p className="text-xs text-foreground/80 leading-relaxed">{insight.interpretacao}</p>
             </div>
           )}
 
           {insight.sugestao && (
-            <p className="text-[11px] font-medium p-2 rounded-lg" style={{ color: meta.color, background: "rgba(255,255,255,0.04)" }}>
+            <p className="text-[11px] font-medium p-2 rounded-lg" style={{ color: meta.color, background: "hsl(var(--muted) / 0.45)" }}>
               💡 {insight.sugestao}
             </p>
           )}
 
           <div className="flex items-center justify-between pt-1">
-            <span className="text-[10px] text-white/30">{CONFIANCA_LABEL[insight.confianca] ?? insight.confianca}</span>
-            <span className="text-[10px] text-white/30">Gerado {fmtDate(insight.generated_at)}</span>
+            <span className="text-[10px] text-muted-foreground/80">{CONFIANCA_LABEL[insight.confianca] ?? insight.confianca}</span>
+            <span className="text-[10px] text-muted-foreground/80">Gerado {fmtDate(insight.generated_at)}</span>
           </div>
         </div>
       )}
@@ -323,6 +327,14 @@ function CoachInsightCard({ insight, loading, refreshing, onRefresh }: {
 
 export default function StudentWorkoutAnalytics({ studentId, studentName, coachId }: Props) {
   const qc = useQueryClient();
+  // Adesão REAL: treinos feitos ÷ previstos pelo protocolo (mesma conta do Resumo da ficha).
+  const cycle = useStudentCycleSummary(studentId);
+  const realAdherence = useMemo(() => {
+    const planned = plannedSessionsPerWeek(cycle.data?.protocol?.payload ?? null);
+    if (!planned || !cycle.data) return null;
+    const totals = adherenceTotals(weeklyTrainingAdherence(cycle.data.sessions, planned, 4));
+    return { perWeek: planned, done: totals.done, planned: totals.planned, pct: totals.pct };
+  }, [cycle.data]);
   const [expandedAlert, setExpandedAlert] = useState<string | null>(null);
   const [selectedExKey, setSelectedExKey] = useState<string>("");
 
@@ -334,7 +346,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
     queryFn: async () => {
       const { data, error } = await sb
         .from("workout_sessions")
-        .select("id, workout_key, workout_label, started_at, ended_at, general_feeling, sleep_quality, is_deload_week")
+        .select("id, workout_key, workout_label, started_at, ended_at, general_feeling, sleep_quality, is_deload_week, notes")
         .eq("user_id", studentId)
         .order("started_at", { ascending: false })
         .limit(20);
@@ -639,11 +651,13 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
   }, [sessions]);
 
   // ── Stats de resumo ────────────────────────────────────────────────────────
-  // Adesão: sessões concluídas ÷ teto de 12 sessões de referência.
-  // Numerador também é limitado ao mesmo teto para que o resultado nunca
-  // ultrapasse 100% (aluno com > 12 sessões concluídas mantém 100%).
-  const adherenceRate = sessions.length > 0
-    ? Math.round((Math.min(sessions.filter((s) => s.ended_at).length, 12) / Math.min(sessions.length, 12)) * 100)
+  // "Treinos concluídos": dos treinos INICIADOS, quantos foram até o fim
+  // (teto de 12 de referência). Isto NÃO é adesão — antes se chamava
+  // "Adesão" e uma aluna que treinou 2x no mês terminando as duas aparecia
+  // com 100%. A adesão real (feitos ÷ previstos) vem de realAdherence abaixo.
+  const finishedCount = sessions.filter((s) => s.ended_at).length;
+  const completionRate = sessions.length > 0
+    ? Math.round((Math.min(finishedCount, 12) / Math.min(sessions.length, 12)) * 100)
     : 0;
 
   const totalSetsCount   = completedSets.length;
@@ -742,7 +756,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-16 gap-2 text-white/40">
+      <div className="flex items-center justify-center py-16 gap-2 text-muted-foreground">
         <Loader2 className="w-5 h-5 animate-spin" />
         <span className="text-sm">Carregando dados de <Private>{studentName}</Private>…</span>
       </div>
@@ -804,20 +818,20 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                             style={{ color: alert.severity === "critical" ? RED : GOLD }}>
                             {meta.label}
                           </span>
-                          <span className="text-[9px] text-white/40">{fmtDate(alert.created_at)}</span>
+                          <span className="text-[9px] text-muted-foreground">{fmtDate(alert.created_at)}</span>
                         </div>
-                        <p className="text-xs text-white/80 mt-0.5 leading-relaxed">{alert.message}</p>
+                        <p className="text-xs text-foreground/90 mt-0.5 leading-relaxed">{alert.message}</p>
                       </div>
                       <div className="flex gap-1 shrink-0">
                         <button type="button"
                           onClick={() => setExpandedAlert(isExpand ? null : alert.id)}
-                          className="p-1 rounded text-white/40 hover:text-white/70 transition">
+                          className="p-1 rounded text-muted-foreground hover:text-foreground/80 transition">
                           {isExpand ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                         </button>
                         <button type="button"
                           onClick={() => markRead.mutate(alert.id)}
                           disabled={markRead.isPending}
-                          className="p-1 rounded text-white/40 hover:text-green-400 transition"
+                          className="p-1 rounded text-muted-foreground hover:text-green-400 transition"
                           title="Marcar como resolvido">
                           {markRead.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BellOff className="w-3.5 h-3.5" />}
                         </button>
@@ -826,7 +840,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                     <AnimatePresence>
                       {isExpand && alert.suggestion && (
                         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="pl-7">
-                          <p className="text-[11px] text-white/60 leading-relaxed p-2 rounded-lg" style={{ background: "rgba(255,255,255,0.04)" }}>
+                          <p className="text-[11px] text-foreground/70 leading-relaxed p-2 rounded-lg" style={{ background: "hsl(var(--muted) / 0.45)" }}>
                             💡 {alert.suggestion}
                           </p>
                         </motion.div>
@@ -842,23 +856,32 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
 
       {/* ── Sem dados ─────────────────────────────────────────────────────── */}
       {!hasData && (
-        <div className="rounded-xl p-8 text-center space-y-2" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${MUTED}` }}>
-          <Dumbbell className="w-8 h-8 text-white/20 mx-auto" />
-          <p className="text-sm text-white/40">Este aluno ainda não registrou nenhum treino pelo app.</p>
-          <p className="text-xs text-white/20">Os dados aparecem automaticamente após o primeiro treino concluído.</p>
+        <div className="rounded-xl p-8 text-center space-y-2" style={{ background: "hsl(var(--muted) / 0.35)", border: `1px solid ${MUTED}` }}>
+          <Dumbbell className="w-8 h-8 text-muted-foreground/60 mx-auto" />
+          <p className="text-sm text-muted-foreground">Este aluno ainda não registrou nenhum treino pelo app.</p>
+          <p className="text-xs text-muted-foreground/60">Os dados aparecem automaticamente após o primeiro treino concluído.</p>
         </div>
       )}
 
       {hasData && (
         <>
           {/* ── Cards de resumo ─────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <StatCard
               icon={<CheckCircle2 className="w-3.5 h-3.5" />}
-              label="Adesão"
-              value={`${adherenceRate}%`}
-              sub={`${sessions.length} sessões`}
-              color={adherenceRate >= 80 ? GREEN : adherenceRate >= 60 ? GOLD : RED}
+              label="Adesão (3 semanas)"
+              value={realAdherence?.pct != null ? `${realAdherence.pct}%` : "—"}
+              sub={realAdherence
+                ? `${realAdherence.done} de ${realAdherence.planned} previstos · ${realAdherence.perWeek}/semana`
+                : "protocolo sem treino de força"}
+              color={realAdherence?.pct == null ? undefined : realAdherence.pct >= 80 ? GREEN : realAdherence.pct >= 60 ? GOLD : RED}
+            />
+            <StatCard
+              icon={<CheckCircle2 className="w-3.5 h-3.5" />}
+              label="Treinos concluídos"
+              value={`${completionRate}%`}
+              sub={`${Math.min(finishedCount, 12)} de ${Math.min(sessions.length, 12)} iniciados foram até o fim`}
+              color={completionRate >= 80 ? GREEN : completionRate >= 60 ? GOLD : RED}
             />
             <StatCard
               icon={<Activity className="w-3.5 h-3.5" />}
@@ -905,9 +928,9 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                   </div>
                   <div className="space-y-1">
                     {personalRecords.slice(0, 4).map((pr, i) => (
-                      <p key={`${pr.exerciseName}-${i}`} className="text-[11px] text-white/80 leading-relaxed">
+                      <p key={`${pr.exerciseName}-${i}`} className="text-[11px] text-foreground/90 leading-relaxed">
                         <span className="font-semibold">{pr.exerciseName}</span> — {pr.weightKg}kg
-                        {pr.reps ? ` x ${pr.reps}` : ""} <span className="text-white/40">· {fmtDate(pr.executedAt)}</span>
+                        {pr.reps ? ` x ${pr.reps}` : ""} <span className="text-muted-foreground">· {fmtDate(pr.executedAt)}</span>
                       </p>
                     ))}
                   </div>
@@ -928,16 +951,16 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                     </div>
                     <div className="space-y-1">
                       {exerciseSwaps.slice(0, 4).map((sw) => (
-                        <p key={sw.from} className={`text-[11px] leading-relaxed ${sw.count >= 3 ? "font-semibold" : "text-white/80"}`} style={sw.count >= 3 ? { color: RED } : undefined}>
+                        <p key={sw.from} className={`text-[11px] leading-relaxed ${sw.count >= 3 ? "font-semibold" : "text-foreground/90"}`} style={sw.count >= 3 ? { color: RED } : undefined}>
                           Trocou <span className="font-semibold">{sw.from}</span> por{" "}
                           <span className="font-semibold">{sw.to.join(", ")}</span>
                           {sw.count >= 3 && ` — ${sw.count}x nas últimas semanas`}
-                          <span className="text-white/40"> · {fmtDate(sw.lastAt)}</span>
+                          <span className="text-muted-foreground"> · {fmtDate(sw.lastAt)}</span>
                         </p>
                       ))}
                     </div>
                     {recurring && (
-                      <p className="text-[10px] text-white/60">
+                      <p className="text-[10px] text-foreground/70">
                         💡 Pode indicar dor, falta de equipamento ou aversão ao movimento — vale conversar.
                       </p>
                     )}
@@ -990,9 +1013,9 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                         return (
                           <div key={ex.name} className="space-y-1.5">
                             <div className="flex items-center justify-between gap-2">
-                              <span className="text-xs text-white/80 truncate max-w-[55%]">{ex.name}</span>
+                              <span className="text-xs text-foreground/90 truncate max-w-[55%]">{ex.name}</span>
                               <div className="flex items-center gap-2 shrink-0">
-                                <span className="text-[10px] text-white/40">{ex.comMeta} séries</span>
+                                <span className="text-[10px] text-muted-foreground">{ex.comMeta} séries</span>
                                 <span className="text-xs font-black" style={{ color }}>{pct}% na meta</span>
                               </div>
                             </div>
@@ -1036,7 +1059,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                       ].map((l) => (
                         <div key={l.label} className="flex items-center gap-1.5">
                           <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: l.color }} />
-                          <span className="text-[10px] text-white/40">{l.label}</span>
+                          <span className="text-[10px] text-muted-foreground">{l.label}</span>
                         </div>
                       ))}
                     </div>
@@ -1055,8 +1078,8 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                           ? "frequentemente fora da faixa — revisar carga"
                           : "consistentemente fora da meta — ajuste necessário";
                         return (
-                          <p key={ex.name} className="text-xs text-white/60 leading-relaxed">
-                            {icon} <span className="text-white/80 font-semibold">{ex.name.split(" ").slice(0, 3).join(" ")}</span>: {msg}
+                          <p key={ex.name} className="text-xs text-foreground/70 leading-relaxed">
+                            {icon} <span className="text-foreground/90 font-semibold">{ex.name.split(" ").slice(0, 3).join(" ")}</span>: {msg}
                           </p>
                         );
                       })}
@@ -1084,7 +1107,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                         style={
                           activeExKey === ex.key
                             ? { background: GOLD + "22", borderColor: GOLD, color: GOLD }
-                            : { background: "transparent", borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.5)" }
+                            : { background: "transparent", borderColor: "hsl(var(--border))", color: "hsl(var(--muted-foreground))" }
                         }
                       >
                         {ex.name.split(" ").slice(0, 2).join(" ")}
@@ -1103,11 +1126,11 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                       <>
                         <ResponsiveContainer width="100%" height={160}>
                           <LineChart data={loadProgressionData} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.4)" }} />
-                            <YAxis tick={{ fontSize: 10, fill: "rgba(255,255,255,0.4)" }} />
+                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted) / 0.6)" />
+                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+                            <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
                             <Tooltip content={<CustomTooltip />} />
-                            <Legend wrapperStyle={{ fontSize: 10, color: "rgba(255,255,255,0.5)" }} />
+                            <Legend wrapperStyle={{ fontSize: 10, color: "hsl(var(--muted-foreground))" }} />
                             <Line type="monotone" dataKey="carga" name="Carga (kg)" stroke={GOLD} strokeWidth={2.5} dot={{ r: 4, fill: GOLD }} activeDot={{ r: 6 }} />
                             <Line type="monotone" dataKey="reps" name="Reps" stroke={BLUE} strokeWidth={1.5} dot={{ r: 3, fill: BLUE }} strokeDasharray="4 2" />
                           </LineChart>
@@ -1120,12 +1143,12 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                           return (
                             <div className="mt-3 flex items-center gap-4 pt-3 border-t border-white/5">
                               <div>
-                                <p className="text-[9px] uppercase tracking-wider text-white/40">Última</p>
-                                <p className="text-sm font-black text-white">{last.carga}kg × {last.reps} reps</p>
+                                <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Última</p>
+                                <p className="text-sm font-black text-foreground">{last.carga}kg × {last.reps} reps</p>
                               </div>
                               <div>
-                                <p className="text-[9px] uppercase tracking-wider text-white/40">Variação</p>
-                                <p className="text-sm font-black" style={{ color: delta > 0 ? GREEN : delta < 0 ? RED : "rgba(255,255,255,0.6)" }}>
+                                <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Variação</p>
+                                <p className="text-sm font-black" style={{ color: delta > 0 ? GREEN : delta < 0 ? RED : "hsl(var(--foreground) / 0.7)" }}>
                                   {delta > 0 ? "+" : ""}{delta}kg ({pct}%)
                                 </p>
                               </div>
@@ -1148,9 +1171,9 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                       <>
                         <ResponsiveContainer width="100%" height={150}>
                           <BarChart data={dropData} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.4)" }} />
-                            <YAxis tick={{ fontSize: 10, fill: "rgba(255,255,255,0.4)" }} unit="%" />
+                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted) / 0.6)" />
+                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+                            <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} unit="%" />
                             <Tooltip content={<CustomTooltip />} />
                             <ReferenceLine y={10} stroke={GOLD} strokeDasharray="4 2" label={{ value: "10% (ref.)", fontSize: 9, fill: GOLD }} />
                             <Bar
@@ -1169,7 +1192,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                             </Bar>
                           </BarChart>
                         </ResponsiveContainer>
-                        <p className="text-[10px] text-white/30 mt-2">
+                        <p className="text-[10px] text-muted-foreground/80 mt-2">
                           Verde ≤10% (excelente) · Dourado ≤20% (aceitável) · Vermelho &gt;20% (revisar carga ou volume)
                         </p>
                         {/* Média do drop */}
@@ -1178,9 +1201,9 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                           const cor     = avgDrop <= 10 ? GREEN : avgDrop <= 20 ? GOLD : RED;
                           return (
                             <div className="mt-3 pt-3 border-t border-white/5">
-                              <p className="text-[9px] uppercase tracking-wider text-white/40">Drop médio</p>
+                              <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Drop médio</p>
                               <p className="text-xl font-black" style={{ color: cor }}>{avgDrop}%</p>
-                              <p className="text-[10px] text-white/30 mt-0.5">
+                              <p className="text-[10px] text-muted-foreground/80 mt-0.5">
                                 {avgDrop <= 10
                                   ? "Excelente resistência à fadiga — carga bem calibrada."
                                   : avgDrop <= 20
@@ -1209,14 +1232,14 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                 <SectionTitle>
                   <BarChart2 className="w-3 h-3 inline mr-1 mb-0.5" />
                   Volume por grupamento — últimos 7 dias
-                  <span className="text-white/20 ml-1">(séries efetivas vs MEV/MAV/MRV)</span>
+                  <span className="text-muted-foreground/60 ml-1">(séries efetivas vs MEV/MAV/MRV)</span>
                 </SectionTitle>
                 {volumeByMuscleGroup.rows.length === 0 ? (
                   <EmptyState text="Sem séries registradas nos últimos 7 dias." />
                 ) : (
                   <>
                     {volumeSummary && (
-                      <p className="text-[11px] text-white/55 leading-relaxed mb-3">{volumeSummary}</p>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed mb-3">{volumeSummary}</p>
                     )}
                     <div className="space-y-2">
                       {volumeByMuscleGroup.rows.map((r) => {
@@ -1227,15 +1250,15 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                         return (
                           <div key={r.group}>
                             <div className="flex items-center justify-between gap-2 mb-1">
-                              <span className="text-[11px] font-semibold text-white/70">{r.label}</span>
-                              <span className="text-[10px] text-white/40">
+                              <span className="text-[11px] font-semibold text-foreground/80">{r.label}</span>
+                              <span className="text-[10px] text-muted-foreground">
                                 {r.series} séries · alvo {r.lm.mavMin}–{r.lm.mavMax} · teto {r.lm.mrv}
                               </span>
                             </div>
-                            <div className="relative h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                            <div className="relative h-2 rounded-full overflow-hidden" style={{ background: "hsl(var(--muted) / 0.6)" }}>
                               <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${pct}%`, background: meta.color }} />
-                              <div className="absolute inset-y-0 w-px" style={{ left: `${mevPct}%`, background: "rgba(255,255,255,0.35)" }} />
-                              <div className="absolute inset-y-0 w-px" style={{ left: `${mavPct}%`, background: "rgba(255,255,255,0.35)" }} />
+                              <div className="absolute inset-y-0 w-px" style={{ left: `${mevPct}%`, background: "hsl(var(--muted-foreground))" }} />
+                              <div className="absolute inset-y-0 w-px" style={{ left: `${mavPct}%`, background: "hsl(var(--muted-foreground))" }} />
                             </div>
                             <span className="text-[10px]" style={{ color: meta.color }}>{meta.label}</span>
                           </div>
@@ -1243,7 +1266,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                       })}
                     </div>
                     {volumeByMuscleGroup.unclassified > 0 && (
-                      <p className="text-[10px] text-white/30 mt-3">
+                      <p className="text-[10px] text-muted-foreground/80 mt-3">
                         {volumeByMuscleGroup.unclassified} série(s) sem grupamento identificado — classifique o exercício na biblioteca.
                       </p>
                     )}
@@ -1256,7 +1279,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                 <Panel>
                   <SectionTitle>
                     Volume total por sessão — {uniqueExercises.find((e) => e.key === activeExKey)?.name ?? "—"}
-                    <span className="text-white/20 ml-1">(kg × reps, todas as séries)</span>
+                    <span className="text-muted-foreground/60 ml-1">(kg × reps, todas as séries)</span>
                   </SectionTitle>
                   {/* Seletor compacto de exercício */}
                   <div className="flex gap-1.5 flex-wrap mb-3">
@@ -1267,7 +1290,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                         style={
                           activeExKey === ex.key
                             ? { background: BLUE + "22", borderColor: BLUE, color: BLUE }
-                            : { background: "transparent", borderColor: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.4)" }
+                            : { background: "transparent", borderColor: "hsl(var(--border))", color: "hsl(var(--muted-foreground))" }
                         }
                       >
                         {ex.name.split(" ").slice(0, 2).join(" ")}
@@ -1279,9 +1302,9 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                   ) : (
                     <ResponsiveContainer width="100%" height={150}>
                       <LineChart data={activeVolumePoints} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                        <XAxis dataKey="date" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.4)" }} />
-                        <YAxis tick={{ fontSize: 10, fill: "rgba(255,255,255,0.4)" }} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted) / 0.6)" />
+                        <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+                        <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
                         <Tooltip content={<CustomTooltip />} />
                         <Line type="monotone" dataKey="volume" name="Volume (kg)" stroke={BLUE} strokeWidth={2.5} dot={{ r: 4, fill: BLUE }} activeDot={{ r: 6 }} />
                       </LineChart>
@@ -1295,11 +1318,11 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                 <SectionTitle>Séries por dia — última semana</SectionTitle>
                 <ResponsiveContainer width="100%" height={150}>
                   <BarChart data={volumeWeekData} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.4)" }} />
-                    <YAxis tick={{ fontSize: 10, fill: "rgba(255,255,255,0.4)" }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted) / 0.6)" />
+                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+                    <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
                     <Tooltip content={<CustomTooltip />} />
-                    <Legend wrapperStyle={{ fontSize: 10, color: "rgba(255,255,255,0.5)" }} />
+                    <Legend wrapperStyle={{ fontSize: 10, color: "hsl(var(--muted-foreground))" }} />
                     <Bar dataKey="séries" fill={BLUE} radius={[4, 4, 0, 0]} />
                     <Bar dataKey="falhas" fill={RED}  radius={[4, 4, 0, 0]} />
                   </BarChart>
@@ -1322,8 +1345,8 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                             {t.key}
                           </div>
                           <div>
-                            <p className="text-xs font-bold text-white">{t.media}min</p>
-                            <p className="text-[10px] text-white/30">{t.count} sessão{t.count !== 1 ? "s" : ""} · {t.min}–{t.max}min</p>
+                            <p className="text-xs font-bold text-foreground">{t.media}min</p>
+                            <p className="text-[10px] text-muted-foreground/80">{t.count} sessão{t.count !== 1 ? "s" : ""} · {t.min}–{t.max}min</p>
                           </div>
                         </div>
                         {/* Barra de duração relativa */}
@@ -1342,7 +1365,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                       </div>
                     ))}
                   </div>
-                  <p className="text-[10px] text-white/20 mt-3">
+                  <p className="text-[10px] text-muted-foreground/60 mt-3">
                     Verde 30–90min (ideal) · Vermelho &lt;30min (treino muito curto) · Azul &gt;90min (longo)
                   </p>
                 </Panel>
@@ -1364,7 +1387,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                         <div key={row.label} className="space-y-1">
                           <div className="flex justify-between text-xs">
                             <span style={{ color: row.color }}>{row.label}</span>
-                            <span className="text-white/50 font-bold">{row.count} ({pct}%)</span>
+                            <span className="text-muted-foreground font-bold">{row.count} ({pct}%)</span>
                           </div>
                           <div className="h-2 rounded-full bg-white/5 overflow-hidden">
                             <motion.div
@@ -1379,7 +1402,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                       );
                     })}
                     {effortSemRpe > 0 && (
-                      <p className="text-[10px] text-white/30">{effortSemRpe} séries sem RPE registrado.</p>
+                      <p className="text-[10px] text-muted-foreground/80">{effortSemRpe} séries sem RPE registrado.</p>
                     )}
                   </div>
                 </Panel>
@@ -1397,23 +1420,28 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                   const duration = fmtDuration(s.started_at, s.ended_at);
                   return (
                     <div key={s.id} className="rounded-xl p-3 flex items-center gap-3"
-                      style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${MUTED}` }}>
+                      style={{ background: "hsl(var(--muted) / 0.35)", border: `1px solid ${MUTED}` }}>
                       <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-sm font-black"
-                        style={{ background: "rgba(255,255,255,0.06)", color: GOLD }}>
+                        style={{ background: "hsl(var(--muted) / 0.6)", color: GOLD }}>
                         {s.workout_key}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-white truncate">
+                        <p className="text-sm font-bold text-foreground truncate">
                           {s.workout_label ? `${s.workout_key} · ${s.workout_label}` : `Treino ${s.workout_key}`}
                           {s.is_deload_week && (
                             <span className="ml-1.5 text-[9px] px-1.5 py-0.5 rounded font-bold"
                               style={{ background: BLUE + "22", color: BLUE }}>Deload</span>
                           )}
                         </p>
+                        {s.notes && s.notes.trim() && (
+                          <p className="text-xs mt-1 rounded-md px-2 py-1 bg-primary/10 text-foreground whitespace-pre-wrap" data-testid="session-note">
+                            💬 {s.notes.trim()}
+                          </p>
+                        )}
                         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          <span className="text-[10px] text-white/40">{fmtDate(s.started_at)}</span>
+                          <span className="text-[10px] text-muted-foreground">{fmtDate(s.started_at)}</span>
                           {duration !== "—" && (
-                            <span className="flex items-center gap-1 text-[10px] text-white/40">
+                            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                               <Clock className="w-2.5 h-2.5" />{duration}
                             </span>
                           )}
@@ -1440,7 +1468,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                         )}
                         {s.ended_at
                           ? <CheckCircle2 className="w-4 h-4" style={{ color: GREEN }} />
-                          : <Clock className="w-4 h-4 text-white/20" />
+                          : <Clock className="w-4 h-4 text-muted-foreground/60" />
                         }
                       </div>
                     </div>

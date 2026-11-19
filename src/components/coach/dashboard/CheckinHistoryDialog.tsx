@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, FileDown, Settings2 } from "lucide-react";
+import { Loader2, FileDown, Settings2, MessageSquareReply } from "lucide-react";
 import { toast } from "sonner";
 import type { StudentStatus } from "@/hooks/useCoachStudents";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -8,6 +8,8 @@ import CheckinPayloadAnswers from "@/components/coach/CheckinPayloadAnswers";
 import { sb } from "@/integrations/supabase/untyped";
 import { Private, usePrivacyMode } from "@/components/coach/PrivacyMode";
 import { resolveMediaUrl } from "@/lib/studentMedia";
+import { metricRows } from "@/lib/checkinMetricLabels";
+import { hasCoachFeedback, unansweredSinceLastReply } from "@/lib/coachPending";
 
 const PRIVACY_EXPORT_TITLE = "Desativado no Modo Privacidade — o PDF abriria com nome e fotos do aluno visíveis.";
 // Escapa HTML antes de interpolar dados do aluno em document.write (evita XSS armazenado)
@@ -29,14 +31,21 @@ interface CheckinRow {
   feedback_read_at: string | null;
 }
 
-export function CheckinHistoryDialog({
-  student, open, onClose, onConfigure,
+/**
+ * Lista de check-ins do aluno (conteúdo). Usada dentro da ficha do aluno
+ * (aba "Check-ins") e da janela CheckinHistoryDialog.
+ */
+export function CheckinHistoryList({
+  student, active = true, onConfigure, onOpenCheckin,
 }: {
   student: StudentStatus | null;
-  open: boolean;
-  onClose: () => void;
+  /** Só carrega quando visível. */
+  active?: boolean;
   onConfigure?: (s: StudentStatus) => void;
+  /** Abre o painel de feedback já neste check-in (responder/editar). */
+  onOpenCheckin?: (checkinId: string) => void;
 }) {
+  const open = active;
   const [items, setItems] = useState<CheckinRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -99,6 +108,9 @@ export function CheckinHistoryDialog({
   const fmtDate = (iso: string) =>
     new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
+  // Pendentes = enviados depois do último respondido (mesma regra da lista do coach).
+  const pendingIds = new Set(unansweredSinceLastReply(items).map((c) => c.id));
+
   const getWeight = (c: CheckinRow) => {
     const m = c.current_metrics || {};
     return (m as Record<string, unknown>).peso ?? (m as Record<string, unknown>).weight ?? "—";
@@ -116,8 +128,8 @@ export function CheckinHistoryDialog({
 
   const renderCheckinHTML = async (c: CheckinRow) => {
     const metrics = c.current_metrics || {};
-    const rows = Object.entries(metrics)
-      .map(([k, v]) => `<div class="row"><span class="lbl">${esc(k)}</span><span class="val">${esc(typeof v === "object" ? JSON.stringify(v) : String(v ?? "—"))}</span></div>`)
+    const rows = metricRows(metrics as Record<string, unknown>)
+      .map((r) => `<div class="row"><span class="lbl">${esc(r.label)}</span><span class="val">${esc(r.value)}</span></div>`)
       .join("");
     const fotos = ((c.payload as Record<string, unknown> | null)?.fotos as Record<string, string> | undefined) || {};
     const POSES: Array<[string, string]> = [
@@ -220,11 +232,7 @@ export function CheckinHistoryDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Check-ins — <Private>{student?.name ?? "Aluno"}</Private></DialogTitle>
-        </DialogHeader>
+      <div className="space-y-3">
         {student && onConfigure && (
           <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
             <p className="text-xs text-muted-foreground">
@@ -265,8 +273,11 @@ export function CheckinHistoryDialog({
                       {hasExames(c) && (
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-purple-500/10 text-purple-600 border-purple-500/30">Com exames</span>
                       )}
-                      {c.coach_feedback && (
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-500/10 text-emerald-600 border-emerald-500/30">Com feedback</span>
+                      {hasCoachFeedback(c.coach_feedback) && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-500/10 text-emerald-600 border-emerald-500/30">Respondido</span>
+                      )}
+                      {pendingIds.has(c.id) && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-700 border-amber-500/30">Aguardando sua resposta</span>
                       )}
                       {c.coach_feedback && c.feedback_read_at && (
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-primary/10 text-primary border-primary/30">✓ Visto pelo aluno</span>
@@ -276,7 +287,18 @@ export function CheckinHistoryDialog({
                       )}
                     </div>
                   </div>
-                  <div className="flex justify-end gap-2">
+                  <div className="flex flex-wrap justify-end gap-2">
+                    {onOpenCheckin && (
+                      <Button
+                        size="sm"
+                        variant={pendingIds.has(c.id) ? "default" : "outline"}
+                        className={pendingIds.has(c.id) ? "h-7 text-xs bg-amber-500 hover:bg-amber-600 text-white" : "h-7 text-xs"}
+                        onClick={() => onOpenCheckin(c.id)}
+                      >
+                        <MessageSquareReply className="w-3 h-3 mr-1" />
+                        {pendingIds.has(c.id) ? "Responder" : hasCoachFeedback(c.coach_feedback) ? "Abrir / editar resposta" : "Abrir"}
+                      </Button>
+                    )}
                     <Button size="sm" variant="ghost" className="h-7 text-xs"
                       onClick={() => setExpanded((p) => ({ ...p, [c.id]: !isOpen }))}>
                       {isOpen ? "Ocultar" : "Ver detalhes"}
@@ -289,12 +311,10 @@ export function CheckinHistoryDialog({
                   </div>
                   {isOpen && (
                     <div className="border-t border-border pt-2 mt-1 space-y-1">
-                      {Object.entries(c.current_metrics || {}).map(([k, v]) => (
-                        <div key={k} className="flex justify-between text-xs py-0.5">
-                          <span className="text-muted-foreground capitalize">{k}</span>
-                          <span className="font-medium text-right max-w-[60%]">
-                            {typeof v === "object" && v !== null ? JSON.stringify(v) : String(v ?? "—")}
-                          </span>
+                      {metricRows(c.current_metrics).map((r) => (
+                        <div key={r.key} className="flex justify-between text-xs py-0.5">
+                          <span className="text-muted-foreground">{r.label}</span>
+                          <span className="font-medium text-right max-w-[60%]">{r.value}</span>
                         </div>
                       ))}
                       <CheckinPayloadAnswers payload={c.payload as Record<string, unknown> | null} showPhotos />
@@ -318,6 +338,26 @@ export function CheckinHistoryDialog({
             )}
           </div>
         )}
+      </div>
+  );
+}
+
+export function CheckinHistoryDialog({
+  student, open, onClose, onConfigure, onOpenCheckin,
+}: {
+  student: StudentStatus | null;
+  open: boolean;
+  onClose: () => void;
+  onConfigure?: (s: StudentStatus) => void;
+  onOpenCheckin?: (checkinId: string) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Check-ins — <Private>{student?.name ?? "Aluno"}</Private></DialogTitle>
+        </DialogHeader>
+        <CheckinHistoryList student={student} active={open} onConfigure={onConfigure} onOpenCheckin={onOpenCheckin} />
       </DialogContent>
     </Dialog>
   );

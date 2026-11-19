@@ -330,6 +330,8 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const [showPostWorkoutMetrics, setShowPostWorkoutMetrics] = useState(false);
   const [pwSleep, setPwSleep] = useState<1 | 2 | 3 | 4 | null>(null);
   const [pwFeeling, setPwFeeling] = useState<1 | 2 | 3 | 4 | null>(null);
+  // Recado opcional para o coach (ex.: "dor no joelho no agachamento").
+  const [pwNote, setPwNote] = useState("");
   const isFinishingRef = useRef(false);
   const sessionBootstrapped = useRef(false);
 
@@ -745,6 +747,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     if (isFinishingRef.current) return;
     setPwSleep(null);
     setPwFeeling(null);
+    setPwNote("");
     setShowPostWorkoutMetrics(true);
   };
 
@@ -757,6 +760,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         periodizationWeek: isPeriodizationOn ? activeWeek : undefined,
         sleepQuality: pwSleep,
         generalFeeling: pwFeeling,
+        notes: pwNote.trim() ? pwNote.trim().slice(0, 500) : undefined,
       });
       try { localStorage.removeItem(storageKey); } catch { /* noop */ }
       setShowPostWorkoutMetrics(false);
@@ -1191,7 +1195,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
       </Dialog>
 
       <Dialog open={showPostWorkoutMetrics} onOpenChange={(o) => { if (!o && !isFinishing) setShowPostWorkoutMetrics(false); }}>
-        <DialogContent className="max-w-md bg-black/90 backdrop-blur-md border border-white/10 rounded-3xl">
+        <DialogContent className="max-w-md max-h-[92dvh] overflow-y-auto bg-black/90 backdrop-blur-md border border-white/10 rounded-3xl">
           <DialogHeader>
             <DialogTitle className="text-xl font-black italic uppercase tracking-tight">
               Como foi este treino?
@@ -1256,6 +1260,21 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                   );
                 })}
               </div>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="pw-note" className="text-[11px] uppercase tracking-widest font-black text-white/50 block">
+                Quer avisar algo ao coach?
+              </label>
+              <textarea
+                id="pw-note"
+                data-testid="post-workout-note"
+                value={pwNote}
+                onChange={(e) => setPwNote(e.target.value)}
+                maxLength={500}
+                rows={2}
+                placeholder="Ex.: senti o joelho no agachamento"
+                className="w-full rounded-2xl border-2 border-white/10 bg-white/5 px-3 py-2 text-base text-white placeholder:text-white/35 focus:outline-none focus:border-primary/60"
+              />
             </div>
             <Button
               onClick={confirmFinishWorkout}

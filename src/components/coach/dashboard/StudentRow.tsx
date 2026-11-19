@@ -1,21 +1,25 @@
 import type { StudentStatus } from "@/hooks/useCoachStudents";
-import { ClipboardList, Dumbbell, History, Activity, X, MessageSquare, MoreVertical } from "lucide-react";
+import {
+  ClipboardList, Dumbbell, History, Activity, X, MessageSquare, MoreVertical, MessageSquareReply,
+  ChevronRight, LineChart, UserRound, PersonStanding,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AlertBadge, ClinicalSignalBadge, InsightBadge, STATUS_TEXT, WeightTrendBadge } from "./dashboardUtils";
 import { Private, usePrivacyMode } from "@/components/coach/PrivacyMode";
+import { waitingLabel } from "@/lib/coachPending";
+import type { StudentProfileTab } from "./StudentProfileSheet";
 
 export function StudentRow({
-  student, onAnamnesis, onProtocol, onUnlink, onHistory, onEngagement, onLatestFeedback,
+  student, onOpenProfile, onProtocol, onUnlink, onLatestFeedback,
 }: {
   student: StudentStatus;
-  onAnamnesis: (s: StudentStatus) => void;
+  /** Abre a ficha do aluno (opcionalmente numa aba específica). */
+  onOpenProfile: (s: StudentStatus, tab?: StudentProfileTab) => void;
   onProtocol: (s: StudentStatus) => void;
   onUnlink: (s: StudentStatus) => void;
-  onHistory: (s: StudentStatus) => void;
-  onEngagement: (s: StudentStatus) => void;
   onLatestFeedback: (s: StudentStatus) => void;
 }) {
   // Sempre em dias exatos (nunca "há N semana(s)") — o coach precisa comparar
@@ -42,26 +46,46 @@ export function StudentRow({
   const safeName = student.name || "Aluno";
   const initials = safeName.split(" ").slice(0, 2).map((n) => n[0] || "").join("");
   const { privacy } = usePrivacyMode();
+  const awaiting = student.awaitingReply;
 
   let displayWeight: string | number | undefined;
   if (typeof student.currentWeight === "object" && student.currentWeight !== null) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     displayWeight = (student.currentWeight as any).peso || (student.currentWeight as any).weight || undefined;
   } else {
     displayWeight = student.currentWeight as string | number | undefined;
   }
 
   return (
-    <div className={`flex items-center gap-4 px-4 py-3.5 rounded-xl border transition-colors ${
-      student.alertLevel === "critical" ? "bg-red-50/60 border-red-100 dark:bg-red-950/20 dark:border-red-900" :
-      student.alertLevel === "warning"  ? "bg-amber-50/50 border-amber-100 dark:bg-amber-950/20 dark:border-amber-900" :
-      "bg-card border-border"
-    }`}>
-      <Private as="div" className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 bg-primary/10 text-primary uppercase">
-        {privacy ? "••" : initials}
-      </Private>
+    <div
+      data-testid={`student-row-${student.id}`}
+      className={`flex items-center gap-3 sm:gap-4 px-3 sm:px-4 py-3.5 rounded-xl border transition-colors ${
+        student.alertLevel === "critical" ? "bg-red-50/60 border-red-100 dark:bg-red-950/20 dark:border-red-900" :
+        student.alertLevel === "warning"  ? "bg-amber-50/50 border-amber-100 dark:bg-amber-950/20 dark:border-amber-900" :
+        "bg-card border-border"
+      }`}
+    >
+      <button
+        type="button"
+        onClick={() => onOpenProfile(student)}
+        className="shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label={`Abrir ficha de ${safeName}`}
+      >
+        <Private as="div" className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold bg-primary/10 text-primary uppercase">
+          {privacy ? "••" : initials}
+        </Private>
+      </button>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <Private as="p" className="text-sm font-semibold text-foreground truncate">{safeName}</Private>
+          <button
+            type="button"
+            onClick={() => onOpenProfile(student)}
+            className="inline-flex items-center gap-0.5 min-w-0 text-left hover:underline underline-offset-2"
+            title="Abrir ficha do aluno"
+          >
+            <Private as="span" className="text-sm font-semibold text-foreground truncate">{safeName}</Private>
+            <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+          </button>
           <AlertBadge
             level={student.alertLevel || "ok"}
             daysSinceLastFeedback={student.daysSinceLastFeedback}
@@ -74,16 +98,27 @@ export function StudentRow({
           <InsightBadge situacao={student.insightSituacao} />
         </div>
         <p className="text-xs text-muted-foreground truncate">{student.goal || "Objetivo não definido"}</p>
-        <button
-          type="button"
-          onClick={() => (student.lastFeedback ? onLatestFeedback(student) : onAnamnesis(student))}
-          className={`text-xs flex items-center gap-1 mt-0.5 rounded px-1 -mx-1 transition-colors ${feedbackStatusClass}`}
-          title={student.lastFeedback ? "Ver feedback atual" : "Ver anamnese"}
-        >
-          {student.lastFeedback ? <MessageSquare className="w-3 h-3" /> : <ClipboardList className="w-3 h-3" />}
-          {feedbackLabel}
-        </button>
-
+        {awaiting ? (
+          <button
+            type="button"
+            onClick={() => onLatestFeedback(student)}
+            className="text-xs flex items-center gap-1 mt-0.5 rounded px-1 -mx-1 font-semibold text-amber-700 dark:text-amber-400 hover:bg-accent"
+            title="Abrir o check-in que espera sua resposta"
+          >
+            <MessageSquareReply className="w-3 h-3" />
+            {awaiting.count > 1 ? `${awaiting.count} check-ins esperando resposta` : "Check-in esperando resposta"} · {waitingLabel(awaiting.since)}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => (student.lastFeedback ? onLatestFeedback(student) : onOpenProfile(student, "anamnese"))}
+            className={`text-xs flex items-center gap-1 mt-0.5 rounded px-1 -mx-1 transition-colors ${feedbackStatusClass}`}
+            title={student.lastFeedback ? "Ver último check-in" : "Ver anamnese"}
+          >
+            {student.lastFeedback ? <MessageSquare className="w-3 h-3" /> : <ClipboardList className="w-3 h-3" />}
+            {feedbackLabel}
+          </button>
+        )}
       </div>
 
       {displayWeight !== undefined && displayWeight !== null && (
@@ -95,12 +130,22 @@ export function StudentRow({
       )}
 
       <div className="flex items-center gap-1 shrink-0">
-        {/* Ação principal com texto; as demais num menu com rótulos. Antes
-            eram 5 ícones sem texto (no celular não há dica ao passar o dedo)
-            e o "Desvincular" ficava colado nos outros. */}
-        <Button size="sm" variant="outline" onClick={() => onProtocol(student)} className="h-9 gap-1.5 px-2.5">
-          <Dumbbell className="w-4 h-4" /> <span className="hidden min-[380px]:inline">Protocolo</span>
-        </Button>
+        {/* Ação principal com texto: quando há check-in esperando, "Responder"
+            passa na frente do "Protocolo" — é o trabalho pendente do coach. */}
+        {awaiting ? (
+          <Button
+            size="sm"
+            onClick={() => onLatestFeedback(student)}
+            className="h-9 gap-1.5 px-2.5 bg-amber-500 hover:bg-amber-600 text-white"
+            data-testid="row-reply-button"
+          >
+            <MessageSquareReply className="w-4 h-4" /> <span className="hidden min-[380px]:inline">Responder</span>
+          </Button>
+        ) : (
+          <Button size="sm" variant="outline" onClick={() => onProtocol(student)} className="h-9 gap-1.5 px-2.5">
+            <Dumbbell className="w-4 h-4" /> <span className="hidden min-[380px]:inline">Protocolo</span>
+          </Button>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="icon" variant="ghost" className="h-9 w-9" aria-label={`Mais ações para ${safeName}`}>
@@ -108,14 +153,29 @@ export function StudentRow({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem onSelect={() => onAnamnesis(student)}>
+            <DropdownMenuItem onSelect={() => onOpenProfile(student)}>
+              <UserRound className="w-4 h-4 mr-2" /> Abrir ficha do aluno
+            </DropdownMenuItem>
+            {awaiting && (
+              <DropdownMenuItem onSelect={() => onProtocol(student)}>
+                <Dumbbell className="w-4 h-4 mr-2" /> Editar protocolo
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => onOpenProfile(student, "checkins")}>
+              <History className="w-4 h-4 mr-2" /> Check-ins
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onOpenProfile(student, "evolucao")}>
+              <LineChart className="w-4 h-4 mr-2" /> Evolução
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onOpenProfile(student, "postura")}>
+              <PersonStanding className="w-4 h-4 mr-2" /> Postura
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onOpenProfile(student, "treinos")}>
+              <Activity className="w-4 h-4 mr-2" /> Treinos
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onOpenProfile(student, "anamnese")}>
               <ClipboardList className="w-4 h-4 mr-2" /> Anamnese
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => onHistory(student)}>
-              <History className="w-4 h-4 mr-2" /> Histórico de check-ins
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => onEngagement(student)}>
-              <Activity className="w-4 h-4 mr-2" /> Engajamento
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => onUnlink(student)} className="text-destructive focus:text-destructive">

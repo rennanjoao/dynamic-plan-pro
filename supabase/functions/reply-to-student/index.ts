@@ -73,7 +73,11 @@ serve(async (req) => {
     //    CORREÇÃO: usamos frequency="once" e target_date=today, mas o TrainerAlert
     //    no frontend agora exibe alertas "once" por até 7 dias após created_at,
     //    garantindo que o aluno veja a resposta mesmo abrindo amanhã ou depois.
-    const alertMessage = body.context
+    // Feedback de check-in não é "resposta a uma dúvida": texto próprio no e-mail.
+    const isCheckin = body.context === "Check-in";
+    const alertMessage = isCheckin
+      ? `💬 ${coachName} enviou o retorno do seu check-in: ${body.message.trim()}`
+      : body.context
       ? `💬 Resposta de ${coachName} (${body.context}): ${body.message.trim()}`
       : `💬 Resposta de ${coachName}: ${body.message.trim()}`;
     const { error: alertErr } = await admin.from("daily_alerts").insert({
@@ -96,7 +100,9 @@ serve(async (req) => {
         Elite Prime <span style="color:#E11D48">Hub</span> — Resposta do seu treinador
       </h1>
       <p style="margin:0 0 4px 0"><strong>Olá ${esc(studentName)},</strong></p>
-      <p style="margin:0 0 16px 0;color:#444">${esc(coachName)} respondeu sua dúvida${body.context ? ` sobre <strong>${esc(body.context)}</strong>` : ""}:</p>
+      <p style="margin:0 0 16px 0;color:#444">${isCheckin
+        ? `${esc(coachName)} enviou o retorno do seu check-in:`
+        : `${esc(coachName)} respondeu sua dúvida${body.context ? ` sobre <strong>${esc(body.context)}</strong>` : ""}:`}</p>
       ${body.originalMessage ? `<blockquote style="margin:0 0 16px 0;padding:10px 14px;border-left:3px solid #E11D48;background:#fafafa;color:#555;font-size:13px">${esc(body.originalMessage)}</blockquote>` : ""}
       <div style="margin:16px 0;padding:16px;background:#fff7f7;border-radius:10px;border:1px solid #fde2e2;color:#222;white-space:pre-wrap;line-height:1.5">${esc(body.message)}</div>
       <p style="margin-top:12px;color:#444;font-size:13px">Acesse sua área do aluno para ver a mensagem completa na plataforma.</p>
@@ -114,7 +120,9 @@ serve(async (req) => {
         body: JSON.stringify({
           from: "Elite Prime Hub <noreply@eliteprimehub.com.br>",
           to: [studentEmail],
-          subject: `Resposta do seu treinador${body.context ? ` — ${body.context}` : ""}`,
+          subject: isCheckin
+            ? "Retorno do seu check-in"
+            : `Resposta do seu treinador${body.context ? ` — ${body.context}` : ""}`,
           html,
         }),
       });

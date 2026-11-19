@@ -64,6 +64,13 @@
       "when": 1795047279329,
       "tag": "0008_regras_abertas_alerta",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795150000000,
+      "tag": "0009_coach_acompanhamento",
+      "breakpoints": true
     }
   ]
 }

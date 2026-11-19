@@ -76,4 +76,11 @@ export const queryKeys = {
   // Espelha src/hooks/usePostureAssessments.ts.
   coachPostureAssessments: (studentId: string | null) =>
     ["coach-posture-assessments", studentId] as const,
+
+  // Espelha src/hooks/usePostureQuickChecks.ts.
+  coachPostureQuick: (studentId: string | null) =>
+    ["coach-posture-quick", studentId] as const,
+  // Espelha src/hooks/useStudentCycleSummary.ts.
+  coachCycleSummary: (studentId: string | null) =>
+    ["coach-cycle-summary", studentId] as const,
 } as const;

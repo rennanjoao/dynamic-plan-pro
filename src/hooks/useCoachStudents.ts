@@ -4,8 +4,16 @@ import type { Goal } from "@/utils/macros";
 import { getClinicalSignal, type ClinicalSignal } from "@/lib/checkInSchema";
 import type { CoachInsightSituacao } from "@/lib/coachInsights";
 import { queryKeys } from "@/lib/queryKeys";
+import { awaitingReplyByStudent, type AwaitingReply } from "@/lib/coachPending";
 
 export type AlertLevel = "critical" | "warning" | "ok";
+
+/**
+ * Filtros da lista do coach. Os três primeiros medem o atraso DO ALUNO;
+ * "awaiting_reply" mostra o que falta O COACH responder e "bad_signal" quem
+ * deu sinal ruim no último check-in.
+ */
+export type StudentListFilter = "all" | AlertLevel | "awaiting_reply" | "bad_signal";
 
 export interface WeightTrend {
   deltaKg: number | null;
@@ -49,14 +57,15 @@ export interface StudentStatus {
    * "Em dia"/dias sem feedback.
    */
   awaitingFirstProtocol: boolean;
-
+  /** Check-in(s) do aluno ainda sem resposta do coach; null se está tudo respondido. */
+  awaitingReply: AwaitingReply | null;
 }
 
 export interface PagedStudentsResult {
   students: StudentStatus[];
   totalCount: number;
   filteredCount: number;
-  stats: { total: number; critical: number; warning: number; ok: number };
+  stats: { total: number; critical: number; warning: number; ok: number; awaitingReply: number };
 }
 
 function daysSince(dateStr: string | null): number {
@@ -159,7 +168,7 @@ export function useCoachStudentsLite(coachId: string | null) {
 export function useCoachStudentsPaged(
   coachId: string | null,
   feedbackIntervalDays: number,
-  opts: { page: number; pageSize: number; search?: string; filter?: "all" | AlertLevel } = {
+  opts: { page: number; pageSize: number; search?: string; filter?: StudentListFilter } = {
     page: 0,
     pageSize: 60, // cobre o teto projetado de 50 alunos/coach em 1 página só
     search: "",
@@ -192,7 +201,7 @@ export function useCoachStudentsPaged(
         supabase.from("profiles").select("user_id, full_name, email").in("user_id", ids),
         supabase
           .from("check_ins")
-          .select("student_id, coach_id, submitted_at, updated_at, payload")
+          .select("student_id, coach_id, submitted_at, updated_at, payload, coach_feedback")
           .in("student_id", ids)
           // Registros anteriores ao trigger podem não ter coach_id. Como os
           // alunos acima já pertencem ao vínculo ativo, esses legados entram
@@ -232,6 +241,11 @@ export function useCoachStudentsPaged(
           );
         }
       });
+
+      // Pendências do coach: último check-in do aluno ainda sem resposta.
+      const awaitingByStudent = awaitingReplyByStudent(
+        (lastCi ?? []) as { student_id: string; submitted_at: string; coach_feedback: string | null }[],
+      );
 
       // Data em que o ALUNO abriu um protocolo pela primeira vez. É esse
       // momento — e não o "coach salvou" — que liga o radar de feedback.
@@ -290,6 +304,7 @@ export function useCoachStudentsPaged(
           weightTrend: { deltaKg: null, direction: null, isStagnant: false },
           clinicalSignal: getClinicalSignal(lastCiPayloadByStudent.get(sid) ?? null),
           insightSituacao: null,
+          awaitingReply: awaitingByStudent.get(sid) ?? null,
         };
       });
 
@@ -313,15 +328,26 @@ export function useCoachStudentsPaged(
     critical: allRows.filter((s) => s.alertLevel === "critical").length,
     warning: allRows.filter((s) => s.alertLevel === "warning").length,
     ok: allRows.filter((s) => s.alertLevel === "ok").length,
+    awaitingReply: allRows.filter((s) => !!s.awaitingReply).length,
   };
 
   // [FIX] search + filter aplicados sobre o conjunto completo, ANTES da
   // paginação — corrige o bug de lista vazia ao buscar/filtrar.
   const filtered = allRows.filter((s) => {
     const matchSearch = (s.name || "").toLowerCase().includes(search.toLowerCase());
-    const matchFilter = filter === "all" || s.alertLevel === filter;
+    const matchFilter =
+      filter === "all" ? true
+      : filter === "awaiting_reply" ? !!s.awaitingReply
+      : filter === "bad_signal" ? s.clinicalSignal === "alerta" || s.clinicalSignal === "atencao"
+      : s.alertLevel === filter;
     return matchSearch && matchFilter;
   });
+  // Na caixa "aguardando minha resposta", quem espera há mais tempo vem primeiro.
+  if (filter === "awaiting_reply") {
+    filtered.sort(
+      (a, b) => new Date(a.awaitingReply!.since).getTime() - new Date(b.awaitingReply!.since).getTime(),
+    );
+  }
 
   const filteredCount = filtered.length;
   const totalCount = allRows.length;
@@ -467,8 +493,15 @@ export function useCoachStudentsPaged(
     };
   });
 
+  // Fila completa (todas as páginas) de quem espera resposta, mais antigo primeiro.
+  // Alimenta o "Enviar e abrir o próximo" do painel de feedback.
+  const awaitingQueue = allRows
+    .filter((s) => !!s.awaitingReply)
+    .sort((a, b) => new Date(a.awaitingReply!.since).getTime() - new Date(b.awaitingReply!.since).getTime());
+
   return {
     students: enrichedPage,
+    awaitingQueue,
     totalCount,
     filteredCount,
     stats,
