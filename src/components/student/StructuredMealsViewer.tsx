@@ -509,14 +509,17 @@ function MealCard({
               whileTap={{ scale: 0.85 }}
               animate={isChecked ? { scale: [1, 1.2, 1] } : { scale: 1 }}
               transition={{ duration: 0.25 }}
-              className={cn(
-                "w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors cursor-pointer",
+              // Área de toque de 44px (mínimo para o dedo); o círculo visível continua com 28px.
+              className="w-11 h-11 -m-2 flex items-center justify-center shrink-0 cursor-pointer"
+            >
+              <span className={cn(
+                "w-7 h-7 rounded-full border-2 flex items-center justify-center transition-colors",
                 isChecked
                   ? "bg-emerald-500 border-emerald-500 text-black"
                   : "border-white/20 text-white/40 hover:border-emerald-500/60",
-              )}
-            >
-              {isChecked ? <Check className="w-4 h-4" strokeWidth={3} /> : null}
+              )}>
+                {isChecked ? <Check className="w-4 h-4" strokeWidth={3} /> : null}
+              </span>
             </motion.span>
           )}
           <span className="text-xl leading-none shrink-0">{icon}</span>
@@ -608,6 +611,12 @@ function MealCard({
       )}
     </div>
   );
+}
+
+/** 3 → "3 litros"; 2.5 → "2,5 litros". */
+function formatLiters(v: number): string {
+  const n = Math.round(v * 10) / 10;
+  return `${String(n).replace(".", ",")} ${n === 1 ? "litro" : "litros"}`;
 }
 
 // ─── Root ─────────────────────────────────────────────────────────────────────
@@ -705,6 +714,8 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
     [meals, selectedDayTypeByPair, defaultDayType, validPairIds],
   );
 
+  const waterLiters = Number(safeData?.macros?.water) || 0;
+
   const highPct: number = safeData.carbCycleHighPct ?? 15;
   const lowPct: number  = safeData.carbCycleLowPct  ?? 15;
 
@@ -790,6 +801,14 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
             {todayInfo.label}
           </span>
         </div>
+
+        {/* Meta de água do coach (antes o coach preenchia e a aluna nunca via). */}
+        {waterLiters > 0 && (
+          <p className="text-[13px] text-foreground flex items-center gap-1.5" data-testid="water-target">
+            <Droplets className="w-4 h-4 text-sky-400 shrink-0" />
+            Água hoje: <strong>{formatLiters(waterLiters)}</strong>
+          </p>
+        )}
 
         {/* Linha 3 — Treino ou mensagem de descanso */}
         {dayPlan.adjusted ? (

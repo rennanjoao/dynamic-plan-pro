@@ -52,7 +52,13 @@ beforeEach(() => {
   markSeen.mockReset().mockResolvedValue(undefined);
   navigateMock.mockReset();
 });
-afterEach(() => cleanup());
+afterEach(async () => {
+  cleanup();
+  // O Radix (FocusScope) dispara um evento num setTimeout(0) ao desmontar o
+  // diálogo. Sem esperar, às vezes ele roda depois do jsdom ser desmontado no
+  // fim do arquivo e o CI acusa "Unhandled error" (falha intermitente).
+  await new Promise((r) => setTimeout(r, 20));
+});
 
 describe("WhatsNewHost", () => {
   it("não mostra nada e não marca nada quando não há pendências", async () => {

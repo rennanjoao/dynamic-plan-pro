@@ -58,10 +58,12 @@ import { parseRestTime } from "@/lib/timeParser";
 /* ── Constantes ─────────────────────────────────────────────────────────────── */
 const GOLD = "#C9A84C";
 
-const EFFORT_OPTIONS: { value: 1 | 2 | 3; label: string; emoji: string; color: string; bg: string }[] = [
-  { value: 1, label: "Limpo",  emoji: "✅", color: "#22c55e", bg: "rgba(34,197,94,0.14)" },
-  { value: 2, label: "Pesado", emoji: "🔥", color: GOLD,      bg: "rgba(201,168,76,0.14)" },
-  { value: 3, label: "Falhei", emoji: "💀", color: "#CC0000", bg: "rgba(204,0,0,0.14)" },
+// `hint` explica o rótulo em linguagem simples (decisão do Rennan, 18/11) —
+// "Limpo" sozinho não dizia nada para a aluna nova.
+const EFFORT_OPTIONS: { value: 1 | 2 | 3; label: string; hint: string; emoji: string; color: string; bg: string }[] = [
+  { value: 1, label: "Limpo",  hint: "Sobrou força",  emoji: "✅", color: "#22c55e", bg: "rgba(34,197,94,0.14)" },
+  { value: 2, label: "Pesado", hint: "No limite",     emoji: "🔥", color: GOLD,      bg: "rgba(201,168,76,0.14)" },
+  { value: 3, label: "Falhei", hint: "Não completei", emoji: "💀", color: "#CC0000", bg: "rgba(204,0,0,0.14)" },
 ];
 
 /* ── Helpers ── */
@@ -113,6 +115,24 @@ function getAudioCtx(): AudioContext | null {
     if (sharedAudioCtx.state === "suspended") void sharedAudioCtx.resume();
     return sharedAudioCtx;
   } catch { return null; }
+}
+
+/**
+ * iPhone/Safari só libera som que COMEÇA num toque da aluna. Antes o áudio só
+ * era criado quando o descanso terminava (sem toque) e ficava mudo no iPhone.
+ * Chamado no toque de registrar a série: cria/retoma o contexto e toca um
+ * buffer silencioso, o que destrava os bipes seguintes.
+ */
+function unlockAudio() {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  try {
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start(0);
+  } catch { /* cosmético */ }
 }
 
 function playBeep(type: "warn" | "end" = "end") {
@@ -280,7 +300,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         playBeep("warn");
         triggeredAlertsRef.current.add(ms);
         if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(25);
-        toast.success("Janela de descanso aberta! Pode iniciar.", { icon: "🔥", duration: 2000 });
+        toast.success("Já pode começar a próxima série.", { icon: "🔥", duration: 2000 });
       }
     }
     
@@ -300,7 +320,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         toast.success(`Indo para ${exercises[currentExIdx + 1]?.name}`, { icon: "➡️", duration: 2500 });
         setCurrentExIdx((i) => i + 1);
       } else {
-        toast.error("Limite de descanso atingido! Inicie agora.", { icon: "💀", duration: 3000 });
+        toast("Descanso completo. Bora para a próxima série!", { icon: "⏱️", duration: 3000 });
       }
     }
   }, [restElapsed, restRunning, restMilestones, maxRest, setDataMap, currentExKey, setsMax, currentExIdx, exercises]);
@@ -494,6 +514,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
 
   const handleFizASerie = async (effort: 1 | 2 | 3) => {
     if (isRegisteringSetRef.current || isFinishingRef.current) return;
+    unlockAudio(); // dentro do toque: libera o bipe do descanso no iPhone
     const currentSets = setDataMap[currentExKey] ?? [];
     const setIdx = nextSetIndex(currentSets);
     if (setIdx >= setsMax) return;
@@ -543,9 +564,8 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         periodizationWeek: weekSlot,
         executedAt,
       });
-      if (!isPR) {
-        toast.success(`Série ${setIdx + 1} registrada`, { duration: 2200 });
-      }
+      // Sem aviso de "Série registrada": a bolinha da série já fica verde
+      // (eram até 3 avisos por série).
     } catch (err) {
       console.warn("[WorkoutMode] Falha ao registrar série:", err);
       toast.error("Sem conexão — série salva localmente e será sincronizada depois.", { duration: 2500 });
@@ -820,22 +840,23 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         {currentEx && (
           <motion.div key={currentExKey} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
             
-            {/* Cronômetro Dinâmico Integrado com timeParser */}
-            <div className={`bg-neutral-900 rounded-3xl p-6 border-2 transition-all duration-500 ${restRunning ? (isWindowOpen ? "border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]" : "border-primary shadow-[0_0_15px_rgba(201,168,76,0.2)]") : "border-white/5"} relative overflow-hidden`}>
+            {/* Cronômetro: GRANDE só durante o descanso. Fora dele vira uma faixa
+                fina — antes um "00:00 Aguardando Série" gigante empurrava os botões
+                de registrar a série para baixo da tela. */}
+            {restRunning ? (
+            <div className={`bg-neutral-900 rounded-3xl p-6 border-2 transition-all duration-500 ${isWindowOpen ? "border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]" : "border-primary shadow-[0_0_15px_rgba(201,168,76,0.2)]"} relative overflow-hidden`} data-testid="rest-timer-full">
               <div className="text-center space-y-1 relative z-10">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <Badge variant="outline" className={`text-[11px] uppercase font-black ${isWindowOpen ? "bg-green-500/10 text-green-500 border-green-500/20" : "bg-primary/10 text-primary border-primary/20"}`}>
-                    {restRunning ? (isWindowOpen ? "Janela Aberta" : "Recuperando") : "Aguardando Série"}
+                    {isWindowOpen ? "Já pode começar" : "Descansando"}
                   </Badge>
                   <span className="text-[11px] text-white/60 font-bold uppercase tracking-widest">{restDisplay}</span>
                 </div>
-                <h3 className={`text-7xl font-black tabular-nums tracking-tighter transition-colors ${restRunning && (maxRest - restElapsed <= 5) ? "text-red-500 animate-pulse" : "text-white"}`}>{fmtMMSS(restElapsed)}</h3>
-                {restRunning && (
-                  <div className="flex justify-center gap-3 mt-4">
-                    <Button onClick={() => setRestSegStartedAt(null)} variant="secondary" size="sm" className="rounded-full h-11 px-7 text-xs font-black uppercase active:scale-95">Pausar</Button>
-                    <Button onClick={() => { setRestBaseSec(0); setRestSegStartedAt(null); }} size="sm" className="rounded-full h-11 px-7 text-xs font-black uppercase active:scale-95">Zerar</Button>
-                  </div>
-                )}
+                <h3 className={`text-7xl font-black tabular-nums tracking-tighter transition-colors ${(maxRest - restElapsed <= 5) ? "text-red-500 animate-pulse" : "text-white"}`}>{fmtMMSS(restElapsed)}</h3>
+                <div className="flex justify-center gap-3 mt-4">
+                  <Button onClick={() => { setRestBaseSec(restElapsed); setRestSegStartedAt(null); }} variant="secondary" size="sm" className="rounded-full h-11 px-7 text-xs font-black uppercase active:scale-95">Pausar</Button>
+                  <Button onClick={() => { setRestBaseSec(0); setRestSegStartedAt(null); }} size="sm" className="rounded-full h-11 px-7 text-xs font-black uppercase active:scale-95">Zerar</Button>
+                </div>
                 {todasFeitas && currentExIdx < exercises.length - 1 && (
                   <motion.p
                     initial={{ opacity: 0, y: 4 }}
@@ -847,6 +868,21 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                 )}
               </div>
             </div>
+            ) : (
+            <div className="bg-neutral-900 rounded-2xl px-4 py-3 border border-white/5 flex items-center gap-3" data-testid="rest-timer-compact">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-black uppercase tracking-tight text-white">
+                  {restBaseSec <= 0 ? "Hora da série" : restBaseSec >= maxRest ? "Descanso completo" : `Descanso pausado · ${fmtMMSS(restBaseSec)}`}
+                </p>
+                <p className="text-[11px] text-white/60 font-bold uppercase tracking-widest">Descanso: {restDisplay}</p>
+              </div>
+              {restBaseSec > 0 && restBaseSec < maxRest && (
+                <Button onClick={() => setRestSegStartedAt(Date.now())} size="sm" variant="secondary" className="rounded-full h-10 px-4 text-xs font-black uppercase">
+                  Continuar
+                </Button>
+              )}
+            </div>
+            )}
 
             {/* Exercício Info */}
             <div className="bg-neutral-900 rounded-3xl p-4 border border-white/5 space-y-4">
@@ -987,7 +1023,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                 })()}
                 <div className="grid grid-cols-3 gap-2">
                   {EFFORT_OPTIONS.map(opt => (
-                    <button key={opt.value} onClick={() => handleFizASerie(opt.value)} disabled={isRegisteringSet || isFinishing} className="flex flex-col items-center justify-center min-h-20 rounded-2xl border-2 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none" style={{ borderColor: opt.color, backgroundColor: opt.bg, color: opt.color }}><span className="text-2xl">{opt.emoji}</span><span className="text-[11px] font-black uppercase mt-1">{opt.label}</span></button>
+                    <button key={opt.value} onClick={() => handleFizASerie(opt.value)} disabled={isRegisteringSet || isFinishing} className="flex flex-col items-center justify-center min-h-20 rounded-2xl border-2 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none" style={{ borderColor: opt.color, backgroundColor: opt.bg, color: opt.color }}><span className="text-2xl">{opt.emoji}</span><span className="text-[11px] font-black uppercase mt-1">{opt.label}</span><span className="text-[11px] font-semibold normal-case opacity-80 leading-tight">{opt.hint}</span></button>
                   ))}
                 </div>
                 <button
@@ -1018,20 +1054,20 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
             <div className="flex gap-3">
               <div className="flex-1 space-y-1">
                 <label className="text-[11px] uppercase font-black text-white/60">Carga (kg)</label>
-                <input
-                  type="number"
-                  step="0.5"
-                  value={editWeight || ""}
-                  onChange={(e) => setEditWeight(parseFloat(e.target.value) || 0)}
+                {/* Mesmo campo da carga principal: aceita 7,5 (antes virava 7). */}
+                <DecimalInput
+                  value={editWeight}
+                  onChange={setEditWeight}
                   className="w-full h-12 bg-white/5 border border-white/10 rounded-xl text-center text-lg font-black outline-none focus:border-primary/50"
                 />
               </div>
               <div className="flex-1 space-y-1">
                 <label className="text-[11px] uppercase font-black text-white/60">Reps</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   value={editReps || ""}
-                  onChange={(e) => setEditReps(parseFloat(e.target.value) || 0)}
+                  onChange={(e) => setEditReps(parseInt(e.target.value.replace(/\D/g, ""), 10) || 0)}
                   className="w-full h-12 bg-white/5 border border-white/10 rounded-xl text-center text-lg font-black outline-none focus:border-primary/50"
                 />
               </div>
