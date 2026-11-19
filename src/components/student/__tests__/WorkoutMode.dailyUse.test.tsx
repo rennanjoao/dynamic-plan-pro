@@ -80,9 +80,9 @@ class FakeAudioContext {
 describe("Modo Treino — uso diário", () => {
   beforeEach(() => {
     cleanup(); localStorage.clear();
-    Object.values(h).forEach(v => { if (typeof v === "function" && "mockClear" in v) (v as any).mockClear(); });
+    Object.values(h).forEach(v => { if (typeof v === "function" && "mockClear" in v) (v as { mockClear: () => void }).mockClear(); });
     h.sessionId = "S1"; h.best.mockResolvedValue({}); h.hasLocalSession.mockReturnValue(false); h.materializeLocalSession.mockResolvedValue(null);
-    (window as any).AudioContext = FakeAudioContext;
+    (window as unknown as { AudioContext: unknown }).AudioContext = FakeAudioContext;
   });
 
   it("botões de esforço explicam o que significam", async () => {
@@ -132,6 +132,6 @@ describe("Modo Treino — uso diário", () => {
     fireEvent.change(dialogWeight, { target: { value: "7,5" } });
     expect(dialogWeight.value).toBe("7,5");
     await userEvent.click(screen.getByRole("button", { name: "Salvar" }));
-    await waitFor(() => expect((h.registerSet.mock.calls.at(-1)?.[0] as any)?.weightKg).toBe(7.5));
+    await waitFor(() => expect((h.registerSet.mock.calls.at(-1)?.[0] as { weightKg?: number })?.weightKg).toBe(7.5));
   });
 });

@@ -123,7 +123,7 @@ function getAudioCtx(): AudioContext | null {
  * Chamado no toque de registrar a série: cria/retoma o contexto e toca um
  * buffer silencioso, o que destrava os bipes seguintes.
  */
-export function unlockAudio() {
+function unlockAudio() {
   const ctx = getAudioCtx();
   if (!ctx) return;
   try {
