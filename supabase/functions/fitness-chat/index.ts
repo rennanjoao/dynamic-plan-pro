@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 import { buildCorsHeaders } from "../_shared/cors.ts";
 import { adminClient, getCaller } from "../_shared/partnerAuth.ts";
+import { groqChat, groqErrorMessage } from "../_shared/groq.ts";
 
 // Limite de mensagens por pessoa (janela deslizante simples). Ajuste aqui se precisar.
 const CHAT_LIMIT_STUDENT = { max: 25, windowSec: 600 }; // 25 msgs / 10 min
@@ -148,38 +149,37 @@ serve(async (req) => {
       })),
     ];
 
-    const response = await fetch(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${GROQ_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "qwen/qwen3.6-27b",
-          messages: chatMessages,
-          stream: true,
-          reasoning_effort: "none",
-          // Baixa aleatoriedade: respostas consistentes e menos "criativas" em tema de saúde.
-          temperature: isCoachCaller ? 0.4 : 0.2,
-          top_p: 0.9,
-          // OTPM da conta é 1000 — sem teto, a Groq recusa o pedido com 429.
-          max_tokens: 800,
-        }),
-      }
-    );
+    const { response, model } = await groqChat({
+      apiKey: GROQ_API_KEY,
+      label: "fitness-chat",
+      body: {
+        messages: chatMessages,
+        stream: true,
+        reasoning_effort: "none",
+        // Baixa aleatoriedade: respostas consistentes e menos "criativas" em tema de saúde.
+        temperature: isCoachCaller ? 0.4 : 0.2,
+        top_p: 0.9,
+        // OTPM da conta é 1000 — sem teto, a Groq recusa o pedido com 429.
+        max_tokens: 800,
+      },
+    });
 
     if (!response.ok) {
       const errText = await response.text().catch(() => "(sem corpo)");
-      console.error("[fitness-chat] Groq error", response.status, errText);
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Limite excedido. Tente novamente em instantes." }), { status: 429, headers: corsHeaders });
-      }
+      console.error("[fitness-chat] Groq error", response.status, model, errText);
       if (response.status === 413) {
         return new Response(JSON.stringify({ error: "Conversa muito longa. Limpe o chat e tente novamente." }), { status: 413, headers: corsHeaders });
       }
-      return new Response(JSON.stringify({ error: `Erro no gateway de IA (${response.status})` }), { status: 500, headers: corsHeaders });
+      // Aluno vê uma mensagem neutra; o coach vê a causa (chave, cota, modelo).
+      const message = isCoachCaller
+        ? groqErrorMessage(response.status, errText)
+        : response.status === 429
+        ? "Muita gente usando agora. Tente novamente em instantes."
+        : "O assistente está indisponível no momento. Tente mais tarde ou fale direto com o seu treinador.";
+      return new Response(JSON.stringify({ error: message }), {
+        status: response.status === 429 ? 429 : 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Groq retorna SSE OpenAI-compatível — proxy direto para o cliente.

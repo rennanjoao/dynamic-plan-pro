@@ -127,7 +127,7 @@ export const FitnessChatBot = ({ athleteContext, onOpen, proactiveMessage, whats
 
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({ error: "Erro de conexão" }));
-      if (resp.status === 429) toast.error("Limite de requisições excedido. Aguarde.");
+      if (resp.status === 429) toast.error(err.error || "Limite de requisições excedido. Aguarde.");
       else if (resp.status === 402) toast.error("Créditos de IA esgotados.");
       else toast.error(err.error || "Erro ao conectar com IA");
       throw new Error(err.error);

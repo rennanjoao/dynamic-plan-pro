@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCorsHeaders } from "../_shared/cors.ts";
 import { hasAestheticTags } from "../_shared/photoAnalysisLogic.ts";
+import { groqChat, groqErrorMessage } from "../_shared/groq.ts";
 
 serve(async (req) => {
   const corsHeaders = buildCorsHeaders(req.headers.get("origin"));
@@ -91,11 +92,10 @@ Regras:
       exemplosDeFeedbacksAnterioresDoCoach: (pastFeedbacks ?? []).map((f) => f.coach_feedback),
     });
 
-    const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "qwen/qwen3.6-27b",
+    const aiRes = await groqChat({
+      apiKey: GROQ_API_KEY,
+      label: "checkin-feedback-draft",
+      body: {
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userContent },
@@ -103,11 +103,12 @@ Regras:
         stream: false,
         temperature: 0.6,
         reasoning_effort: "none",
-      }),
-    });
+      },
+    }).then((r) => r.response);
     if (!aiRes.ok) {
       const t = await aiRes.text().catch(() => "");
-      throw new Error(`Groq error ${aiRes.status}: ${t}`);
+      console.error("[checkin-feedback-draft] Groq", aiRes.status, t);
+      throw new Error(groqErrorMessage(aiRes.status, t));
     }
     const aiJson = await aiRes.json();
     const draft = (aiJson.choices?.[0]?.message?.content ?? "").trim();

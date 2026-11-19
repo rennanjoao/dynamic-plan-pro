@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCorsHeaders } from "../_shared/cors.ts";
+import { groqChat } from "../_shared/groq.ts";
 
 const WEEKDAYS_ORDER = [
   { key: "dom", label: "Domingo" }, { key: "seg", label: "Segunda" },
@@ -102,11 +103,10 @@ Regras:
       ultimoTreinoRegistrado: ultimoTreino,
     });
 
-    const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "qwen/qwen3.6-27b",
+    const aiRes = await groqChat({
+      apiKey: GROQ_API_KEY,
+      label: "student-daily-nudge",
+      body: {
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userContent },
@@ -117,8 +117,8 @@ Regras:
         // estourar o limite de tokens de saída por minuto do provedor (429).
         max_tokens: 160,
         reasoning_effort: "none",
-      }),
-    });
+      },
+    }).then((r) => r.response);
     if (!aiRes.ok) {
       const t = await aiRes.text().catch(() => "");
       console.error("[student-daily-nudge] IA indisponível", aiRes.status, t);

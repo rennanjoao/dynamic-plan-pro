@@ -105,6 +105,7 @@ import { TACO_FOODS } from "@/data/tacoFoods";
 import { ENRICHED_FOODS } from "@/data/enrichedFoods";
 import { Private } from "@/components/coach/PrivacyMode";
 import { triageClasses, triageLabel } from "@/lib/protocolRenewalTriage";
+import { functionErrorMessage } from "@/lib/functionError";
 import {
   deleteRemoteNewDraft, fetchRemoteNewDraft, pickNewestDraft, saveRemoteNewDraft, withTimeout,
   type NewProtocolDraft,
@@ -614,7 +615,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
           carbCycle: setupCarbCycle,
         },
       });
-      if (error) throw error;
+      if (error) throw new Error(await functionErrorMessage(error, "Não foi possível gerar sugestão agora"));
       if (!data?.ok) {
         toast.error(
           data?.reason === "sem_anamnese"
@@ -652,7 +653,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         .maybeSingle();
       if (!lastCheckin?.id) throw new Error("Aluno ainda não enviou nenhum check-in");
       const { data, error } = await sb.functions.invoke("protocol-renewal-draft", { body: { checkInId: lastCheckin.id } });
-      if (error) throw error;
+      if (error) throw new Error(await functionErrorMessage(error, "Não foi possível gerar sugestão agora"));
       if (!data?.ok) throw new Error(data?.error || "Falha ao gerar sugestão");
       setRenewalText(data.resumo || "");
       setRenewalSuggestions(data.sugestoes || []);

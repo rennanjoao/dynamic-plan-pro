@@ -6,6 +6,7 @@ import {
   parseAesthetic, parsePosture, photosFingerprint, planAnalysis,
   type AestheticResult, type ExistingAnalysis, type PostureResult,
 } from "../_shared/photoAnalysisLogic.ts";
+import { groqChat, groqErrorMessage } from "../_shared/groq.ts";
 
 /**
  * Análise das fotos do check-in (para o coach; a aluna não lê o resultado).
@@ -26,16 +27,22 @@ import {
 // O modelo aceita no máximo 5 imagens por chamada: estética usa até 4 (2 atuais
 // + 2 de referência) e postura usa as 4 atuais — chamadas separadas.
 const COMPARE_POSES = ["frente", "costas"] as const;
-const MODEL = "qwen/qwen3.6-27b";
-
 type Content = Array<Record<string, unknown>>;
 
+/** Erro do provedor (chave, cota, modelo) — a mensagem já vem em português. */
+class GroqCallError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+
 async function callModel(apiKey: string, system: string, content: Content, temperature: number): Promise<string> {
-  const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: MODEL,
+  // Modelo com visão: o plano B de texto (sem imagem) não é usado aqui.
+  const { response: aiRes } = await groqChat({
+    apiKey,
+    label: "photo-analysis",
+    vision: true,
+    body: {
       messages: [
         { role: "system", content: system },
         { role: "user", content },
@@ -43,11 +50,12 @@ async function callModel(apiKey: string, system: string, content: Content, tempe
       stream: false,
       temperature,
       reasoning_effort: "none",
-    }),
+    },
   });
   if (!aiRes.ok) {
     const t = await aiRes.text().catch(() => "");
-    throw new Error(`Groq error ${aiRes.status}: ${t}`);
+    console.error("[photo-analysis] Groq", aiRes.status, t);
+    throw new GroqCallError(aiRes.status, groqErrorMessage(aiRes.status, t));
   }
   const aiJson = await aiRes.json();
   return aiJson.choices?.[0]?.message?.content ?? "";
@@ -172,6 +180,7 @@ serve(async (req) => {
       return data?.signedUrl ?? null;
     };
 
+    let aiError: string | null = null;
     let aesthetic: AestheticResult | null = null;
     let aestheticStatus: "gerada" | "falhou" | "nao_pedida" = "nao_pedida";
     let posture: PostureResult | null = null;
@@ -240,6 +249,7 @@ serve(async (req) => {
       } catch (err) {
         // Falha de rede/IA numa parte não derruba a outra.
         console.error("[photo-analysis] estetica:", err);
+        if (err instanceof GroqCallError) aiError = err.message;
       }
       aestheticStatus = aesthetic ? "gerada" : "falhou";
     }
@@ -265,6 +275,7 @@ serve(async (req) => {
           posture = await callValidated(GROQ_API_KEY, POSTURE_SYSTEM_PROMPT, content, parsePosture, "postura");
         } catch (err) {
           console.error("[photo-analysis] postura:", err);
+          if (err instanceof GroqCallError) aiError = err.message;
         }
         postureStatus = posture ? "gerada" : "falhou";
       }
@@ -272,7 +283,13 @@ serve(async (req) => {
 
     if (!aesthetic && !posture) {
       // Nada aproveitável: não grava nada, assim uma próxima chamada tenta de novo.
-      return json({ ok: false, error: "ia_invalida", estetica: aestheticStatus, posture: postureStatus }, 502);
+      return json({
+        ok: false,
+        error: aiError ?? "A IA não devolveu uma análise válida das fotos. Tente de novo.",
+        code: aiError ? "ia_indisponivel" : "ia_invalida",
+        estetica: aestheticStatus,
+        posture: postureStatus,
+      }, 502);
     }
 
     const nowIso = new Date().toISOString();

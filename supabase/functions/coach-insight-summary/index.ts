@@ -16,6 +16,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCorsHeaders } from "../_shared/cors.ts";
+import { groqChat, groqErrorMessage } from "../_shared/groq.ts";
 
 type Situacao = "boa" | "atencao" | "risco" | "dados_insuficientes";
 type Confianca = "alta" | "media" | "baixa";
@@ -147,11 +148,10 @@ Responda SOMENTE com JSON válido, sem markdown:
 - "severidade": "risco" só para sinais clínicos que pedem cautela imediata; o resto é "atencao".
 - "sugestao": em tom de sugestão ("vale avaliar", "considerar"), nunca ordem. Use "" se não houver.`;
 
-      const anaRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "qwen/qwen3.6-27b",
+      const anaRes = await groqChat({
+        apiKey: GROQ_API_KEY,
+        label: "coach-insight-summary",
+        body: {
           messages: [
             { role: "system", content: ANAMNESE_PROMPT },
             { role: "user", content: JSON.stringify(anamnesis.payload).slice(0, 12000) },
@@ -159,8 +159,8 @@ Responda SOMENTE com JSON válido, sem markdown:
           stream: false,
           temperature: 0.2,
           reasoning_effort: "none",
-        }),
-      });
+        },
+      }).then((r) => r.response);
       let ana: { resumo?: string; sinais?: { texto?: string; severidade?: string }[]; interpretacao?: string; sugestao?: string } = {};
       if (anaRes.ok) {
         const j = await anaRes.json();
@@ -257,11 +257,10 @@ Nunca gere uma nota, score ou porcentagem. A decisão final é sempre do coach.`
         : null,
     });
 
-    const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "qwen/qwen3.6-27b",
+    const aiRes = await groqChat({
+      apiKey: GROQ_API_KEY,
+      label: "coach-insight-summary",
+      body: {
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userContent },
@@ -269,11 +268,12 @@ Nunca gere uma nota, score ou porcentagem. A decisão final é sempre do coach.`
         stream: false,
         temperature: 0.3,
         reasoning_effort: "none",
-      }),
-    });
+      },
+    }).then((r) => r.response);
     if (!aiRes.ok) {
       const t = await aiRes.text().catch(() => "");
-      throw new Error(`Groq error ${aiRes.status}: ${t}`);
+      console.error("[coach-insight-summary] Groq", aiRes.status, t);
+      throw new Error(groqErrorMessage(aiRes.status, t));
     }
     const aiJson = await aiRes.json();
     const raw = aiJson.choices?.[0]?.message?.content ?? "{}";

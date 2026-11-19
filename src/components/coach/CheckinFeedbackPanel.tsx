@@ -46,6 +46,7 @@ import CheckinPhotoCompare from "@/components/coach/CheckinPhotoCompare";
 const PostureQuickDialogLazy = lazyWithRetry(() => import("@/components/coach/posture/PostureQuickDialog"));
 import { cn } from "@/lib/utils";
 import { hasCoachFeedback, pickCheckinToOpen, unansweredSinceLastReply, waitingLabel } from "@/lib/coachPending";
+import { functionErrorMessage } from "@/lib/functionError";
 
 const AnamnesisViewerLazy = lazyWithRetry(() => import("@/components/anamnesis/AnamnesisViewer"));
 const ProgressChartLazy = lazyWithRetry(() =>
@@ -346,7 +347,7 @@ export default function CheckinFeedbackPanel(props: Props) {
       const { data, error } = await supabase.functions.invoke("checkin-feedback-draft", {
         body: { checkInId: ci.id },
       });
-      if (error) throw error;
+      if (error) throw new Error(await functionErrorMessage(error, "Erro ao gerar rascunho."));
       const draft = (data as { draft?: string })?.draft;
       if (draft) setFeedback(draft);
       else toast.error("Não foi possível gerar o rascunho.");
