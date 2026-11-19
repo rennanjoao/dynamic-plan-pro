@@ -90,4 +90,23 @@ describe("Dieta — 'Hoje não vou treinar'", () => {
     await vi.waitFor(() =>
       expect(screen.getByRole("button", { name: "Cozido" }).getAttribute("aria-pressed")).toBe("true"));
   });
+
+  it("mostra a meta de água definida pelo coach", async () => {
+    const p = { ...payload(true), macros: { water: 2.5 } };
+    render(<StructuredMealsViewer payload={p} />);
+    expect((await screen.findByTestId("water-target")).textContent).toContain("2,5 litros");
+  });
+
+  it("sem meta de água não mostra nada", async () => {
+    render(<StructuredMealsViewer payload={payload(true)} />);
+    await screen.findByRole("button", { name: "Hoje não vou treinar" });
+    expect(screen.queryByTestId("water-target")).toBeNull();
+  });
+
+  it("marcar refeição tem área de toque de 44px", async () => {
+    render(<StructuredMealsViewer payload={payload(true)} />);
+    const box = (await screen.findAllByRole("checkbox"))[0];
+    expect(box.className).toContain("w-11");
+    expect(box.className).toContain("h-11");
+  });
 });
