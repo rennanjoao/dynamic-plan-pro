@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { sb } from "@/integrations/supabase/untyped";
 import { queryKeys } from "@/lib/queryKeys";
 import type { MealCheckLite, SessionLite } from "@/lib/coachCycleSummary";
+import { isFeltRegion, type FeelRow } from "@/lib/exerciseFeel";
 
 export interface StudentNote {
   sessionId: string;
@@ -24,6 +25,8 @@ export interface CycleSummaryData {
   meals: MealCheckLite[];
   lastCheckin: { id: string; submittedAt: string; answered: boolean; readByStudent: boolean } | null;
   notes: StudentNote[];
+  /** "Onde você sentiu?" (últimos 60 dias). null = tabela ainda não existe no banco. */
+  feel: FeelRow[] | null;
 }
 
 const isoDaysAgo = (n: number) => {
@@ -45,7 +48,8 @@ export function useStudentCycleSummary(studentId: string | null) {
       const mealsSince = isoDaysAgo(9);
       const mealsSinceKey = `${mealsSince.getFullYear()}-${String(mealsSince.getMonth() + 1).padStart(2, "0")}-${String(mealsSince.getDate()).padStart(2, "0")}`;
 
-      const [protoRes, sessRes, mealRes, ciRes] = await Promise.all([
+      const feelSince = isoDaysAgo(60);
+      const [protoRes, sessRes, mealRes, ciRes, feelRes] = await Promise.all([
         sb.from("protocols")
           .select("id, name, payload, created_at, updated_at, student_first_viewed_at")
           .eq("student_id", studentId)
@@ -72,6 +76,12 @@ export function useStudentCycleSummary(studentId: string | null) {
           .order("submitted_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
+        sb.from("workout_exercise_feel")
+          .select("exercise_key, exercise_name, felt, created_at")
+          .eq("user_id", studentId)
+          .gte("created_at", feelSince.toISOString())
+          .order("created_at", { ascending: false })
+          .limit(200),
       ]);
 
       const sessionRows = (sessRes.data ?? []) as Array<{
@@ -111,6 +121,9 @@ export function useStudentCycleSummary(studentId: string | null) {
               readByStudent: !!ci.feedback_read_at,
             }
           : null,
+        feel: feelRes.error
+          ? null
+          : ((feelRes.data ?? []) as FeelRow[]).filter((r) => isFeltRegion(r.felt)),
         notes: sessionRows
           .filter((s) => s.notes && s.notes.trim())
           .slice(0, 8)

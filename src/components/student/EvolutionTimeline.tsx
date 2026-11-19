@@ -1,4 +1,5 @@
 import { MediaImg } from "@/components/shared/MediaImg";
+import { coachOf } from "@/lib/coachWords";
 /**
  * EvolutionTimeline.tsx
  * Timeline vertical estilo feed com Gráfico de Evolução.
@@ -16,6 +17,8 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 interface Props {
   checkIns: CheckIn[];
   goal?: string | null;
+  /** Nome do profissional (para "Retorno de Rennan"); null = "do seu treinador". */
+  coachName?: string | null;
 }
 
 function fmtDate(iso: string) {
@@ -24,7 +27,7 @@ function fmtDate(iso: string) {
   });
 }
 
-export default function EvolutionTimeline({ checkIns, goal }: Props) {
+export default function EvolutionTimeline({ checkIns, goal, coachName = null }: Props) {
   const [selected, setSelected] = useState<CheckIn | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
 
@@ -102,8 +105,8 @@ return [...checkIns].sort((a, b) => new Date(a.submitted_at).getTime() - new Dat
                         {(c as unknown as { coach_reaction?: string | null }).coach_reaction && (
                           <span
                             className="text-base leading-none"
-                            title="Reação do seu coach"
-                            aria-label="Reação do coach"
+                            title={`Reação ${coachOf(coachName)}`}
+                            aria-label={`Reação ${coachOf(coachName)}`}
                           >
                             {(c as unknown as { coach_reaction?: string }).coach_reaction}
                           </span>
@@ -189,7 +192,7 @@ return [...checkIns].sort((a, b) => new Date(a.submitted_at).getTime() - new Dat
                 <div className="mt-4 border-t border-border pt-4">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-primary mb-2 flex items-center gap-1.5">
                     <MessageSquare className="w-3.5 h-3.5" />
-                    Retorno do Coach
+                    Retorno {coachOf(coachName)}
                   </h3>
                   <p className="text-sm whitespace-pre-wrap text-foreground/85 bg-primary/5 rounded-lg p-3 border border-primary/20">
                     {selected.coach_feedback}

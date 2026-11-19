@@ -1,15 +1,76 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCorsHeaders } from "../_shared/cors.ts";
+import {
+  AESTHETIC_SYSTEM_PROMPT, POSE_ORDER, POSTURE_SYSTEM_PROMPT,
+  parseAesthetic, parsePosture, photosFingerprint, planAnalysis,
+  type AestheticResult, type ExistingAnalysis, type PostureResult,
+} from "../_shared/photoAnalysisLogic.ts";
 
-const POSE_ORDER = ["frente", "lateral_dir", "lateral_esq", "costas"] as const;
-// Envio pra IA é só o par frente+costas (limite de 5 imagens/request do modelo).
-// POSE_ORDER continua sendo o gate de "check-in tem as 4 fotos" — não muda.
+/**
+ * Análise das fotos do check-in (para o coach; a aluna não lê o resultado).
+ *
+ * Body: { checkInId, parts?: ("estetica" | "postura")[] } — sem `parts`, gera
+ * as duas. Gera só o que falta (ou tudo de novo, se a aluna trocou as fotos).
+ *
+ * Revisão de precisão (pacote 6):
+ *  - referência da estética = check-in ANTERIOR ao analisado (antes podia pegar
+ *    um check-in mais novo ao analisar um antigo);
+ *  - resposta inválida da IA não é gravada (antes ficava vazia para sempre);
+ *  - 1 nova tentativa quando a IA devolve algo fora do formato;
+ *  - trocar as fotos refaz a análise (impressão digital das 4 fotos);
+ *  - coach só com vínculo ATIVO pode pedir;
+ *  - postura numa chamada separada, com as 4 fotos e prompt próprio.
+ */
+
+// O modelo aceita no máximo 5 imagens por chamada: estética usa até 4 (2 atuais
+// + 2 de referência) e postura usa as 4 atuais — chamadas separadas.
 const COMPARE_POSES = ["frente", "costas"] as const;
+const MODEL = "qwen/qwen3.6-27b";
+
+type Content = Array<Record<string, unknown>>;
+
+async function callModel(apiKey: string, system: string, content: Content, temperature: number): Promise<string> {
+  const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: MODEL,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content },
+      ],
+      stream: false,
+      temperature,
+      reasoning_effort: "none",
+    }),
+  });
+  if (!aiRes.ok) {
+    const t = await aiRes.text().catch(() => "");
+    throw new Error(`Groq error ${aiRes.status}: ${t}`);
+  }
+  const aiJson = await aiRes.json();
+  return aiJson.choices?.[0]?.message?.content ?? "";
+}
+
+/** Chama e valida; se vier fora do formato, tenta mais uma vez mais "fria". */
+async function callValidated<T>(
+  apiKey: string, system: string, content: Content, parse: (raw: string) => T | null, label: string,
+): Promise<T | null> {
+  for (const temperature of [0.2, 0]) {
+    const raw = await callModel(apiKey, system, content, temperature);
+    const parsed = parse(raw);
+    if (parsed) return parsed;
+    console.warn(`[photo-analysis] ${label}: resposta fora do formato (temp ${temperature}):`, raw.slice(0, 500));
+  }
+  return null;
+}
 
 serve(async (req) => {
   const corsHeaders = buildCorsHeaders(req.headers.get("origin"));
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -27,8 +88,10 @@ serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    const { checkInId } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const checkInId = body?.checkInId;
     if (!checkInId) throw new Error("checkInId é obrigatório");
+    const parts: string[] = Array.isArray(body?.parts) && body.parts.length > 0 ? body.parts : ["estetica", "postura"];
 
     const { data: current, error: curErr } = await adminClient
       .from("check_ins")
@@ -49,182 +112,200 @@ serve(async (req) => {
         .select("coach_id")
         .eq("student_id", current.student_id)
         .eq("coach_id", user.id)
+        .eq("status", "active")
         .maybeSingle();
       allowed = !!link;
     }
     if (!allowed) throw new Error("Acesso negado");
 
-    // Idempotência estrita: nunca reprocessa
-    const { data: existing } = await adminClient
-      .from("checkin_photo_analysis")
-      .select("id")
-      .eq("check_in_id", checkInId)
-      .maybeSingle();
-    if (existing) {
-      return new Response(JSON.stringify({ ok: true, skipped: "already_generated" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const payload = (current.payload as Record<string, unknown>) || {};
     const fotos = (payload.fotos as Record<string, string>) || {};
-    const missing = POSE_ORDER.some((k) => !fotos[k]);
-    if (missing) {
-      return new Response(JSON.stringify({ ok: true, skipped: "fotos_incompletas" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+    if (POSE_ORDER.some((k) => !fotos[k])) return json({ ok: true, skipped: "fotos_incompletas" });
+    const fingerprint = photosFingerprint(fotos);
+
+    // Colunas novas (posture/photos_fingerprint) só existem depois do SQL do
+    // pacote 6. Sem elas, funciona como antes (só a parte estética).
+    let postureSupported = true;
+    let existing: ExistingAnalysis | null = null;
+    {
+      const res = await adminClient
+        .from("checkin_photo_analysis")
+        .select("tags, posture, photos_fingerprint")
+        .eq("check_in_id", checkInId)
+        .maybeSingle();
+      if (res.error) {
+        if (res.error.code !== "42703") throw res.error;
+        postureSupported = false;
+        const legacy = await adminClient
+          .from("checkin_photo_analysis")
+          .select("tags")
+          .eq("check_in_id", checkInId)
+          .maybeSingle();
+        if (legacy.error) throw legacy.error;
+        existing = legacy.data ? { tags: legacy.data.tags, posture: null, photos_fingerprint: null } : null;
+      } else if (res.data) {
+        existing = res.data as ExistingAnalysis;
+      }
+    }
+
+    const plan = planAnalysis({
+      existing,
+      fingerprint,
+      wantAesthetic: parts.includes("estetica"),
+      wantPosture: parts.includes("postura"),
+      postureSupported,
+    });
+    if (!plan.aesthetic && !plan.posture) {
+      return json({
+        ok: true,
+        skipped: "already_generated",
+        posture: postureSupported ? "mantida" : "indisponivel",
       });
     }
 
-    // Referência: check-in anterior mais recente com o par frente+costas completo
-    const { data: prevList } = await adminClient
-      .from("check_ins")
-      .select("id, payload, submitted_at")
-      .eq("student_id", current.student_id)
-      .neq("id", checkInId)
-      .order("submitted_at", { ascending: false })
-      .limit(10);
-
-    let refFrente: string | null = null;
-    let refCostas: string | null = null;
-    for (const p of prevList ?? []) {
-      const pf = ((p.payload as Record<string, unknown>)?.fotos as Record<string, string>) || {};
-      if (COMPARE_POSES.every((k) => pf[k])) {
-        refFrente = pf.frente;
-        refCostas = pf.costas;
-        break;
-      }
-    }
-    const hasReference = !!refFrente && !!refCostas;
-
-    // Fotos agora ficam no bucket PRIVADO `student-media`: o modelo precisa de
-    // URL assinada temporária. Valores legados (http) passam direto.
+    // Fotos no bucket PRIVADO `student-media`: o modelo recebe URL assinada
+    // temporária. Valores legados (http) passam direto.
     const signMedia = async (ref: string | null): Promise<string | null> => {
       if (!ref) return null;
       if (/^https?:/i.test(ref)) return ref;
-      const { data } = await adminClient.storage
-        .from("student-media")
-        .createSignedUrl(ref, 900);
+      const { data } = await adminClient.storage.from("student-media").createSignedUrl(ref, 900);
       return data?.signedUrl ?? null;
     };
-    const [frenteUrl, costasUrl, refFrenteUrl, refCostasUrl] = await Promise.all([
-      signMedia(fotos.frente),
-      signMedia(fotos.costas),
-      signMedia(refFrente),
-      signMedia(refCostas),
-    ]);
-    if (!frenteUrl || !costasUrl) {
-      return new Response(JSON.stringify({ ok: true, skipped: "fotos_inacessiveis" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const useReference = hasReference && !!refFrenteUrl && !!refCostasUrl;
 
-    // Contexto de objetivo/condição do aluno (mesmo resumo já usado no coach — nunca cru)
-    const { data: anamneseRow } = await adminClient
-      .from("anamnesis")
-      .select("ai_summary")
-      .eq("student_id", current.student_id)
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const anamneseContexto = anamneseRow?.ai_summary ?? null;
+    let aesthetic: AestheticResult | null = null;
+    let aestheticStatus: "gerada" | "falhou" | "nao_pedida" = "nao_pedida";
+    let posture: PostureResult | null = null;
+    let postureStatus: "gerada" | "falhou" | "nao_pedida" | "indisponivel" =
+      postureSupported ? "nao_pedida" : "indisponivel";
 
-    const SYSTEM_PROMPT = `Você analisa fotos corporais (frente e costas) de um aluno de fitness para o coach dele.
-Responda SOMENTE com um JSON válido, sem markdown, sem texto fora do JSON, exatamente neste formato:
-{"gordura_visual":"...","definicao":"...","volume_muscular":"...","simetria":"...","reliability":0.0}
-- Descrições curtas e qualitativas (ex.: "moderada", "boa definição no tronco", "levemente assimétrico à direita").
-- As imagens vêm identificadas por legenda (frente atual, frente anterior, costas atual, costas anterior). Compare cada pose com seu par da mesma pose quando o par anterior existir.
-- "simetria" pode considerar frente e costas atuais entre si, mesmo sem referência anterior.
-- Use o contexto de objetivo/condição do aluno (se fornecido) só para calibrar a leitura (ex.: fase de volume explica menos definição; não tratar como meta a cobrar do aluno).
-- NUNCA cite peso, %BF ou qualquer número clínico.
-- NUNCA emita diagnóstico clínico, mesmo que o contexto mencione lesão ou condição de saúde.
-- reliability: 0.0 a 1.0 conforme a confiabilidade da comparação com as fotos de referência anterior (frente+costas). Se não houver esse par anterior completo, use 0.`;
+    // ── 1) Estética (comparação com o check-in ANTERIOR) ─────────────────────
+    if (plan.aesthetic) {
+      const { data: prevList } = await adminClient
+        .from("check_ins")
+        .select("id, payload, submitted_at")
+        .eq("student_id", current.student_id)
+        .neq("id", checkInId)
+        .lt("submitted_at", current.submitted_at)
+        .order("submitted_at", { ascending: false })
+        .limit(10);
 
-    const userContent: Array<Record<string, unknown>> = [
-      {
-        type: "text",
-        text: `Comparação em pares por pose (frente com frente, costas com costas).${useReference ? "" : " Sem par anterior completo (frente+costas) — analise só as fotos atuais."}${anamneseContexto ? `\n\nContexto do aluno (objetivo/condição, da anamnese): ${anamneseContexto}` : ""}`,
-      },
-      { type: "text", text: "Frente atual:" },
-      { type: "image_url", image_url: { url: frenteUrl } },
-    ];
-    if (useReference) {
-      userContent.push({ type: "text", text: "Frente anterior (referência):" });
-      userContent.push({ type: "image_url", image_url: { url: refFrenteUrl! } });
-    }
-    userContent.push({ type: "text", text: "Costas atual:" });
-    userContent.push({ type: "image_url", image_url: { url: costasUrl } });
-    if (useReference) {
-      userContent.push({ type: "text", text: "Costas anterior (referência):" });
-      userContent.push({ type: "image_url", image_url: { url: refCostasUrl! } });
-    }
+      let refFrente: string | null = null;
+      let refCostas: string | null = null;
+      for (const p of prevList ?? []) {
+        const pf = ((p.payload as Record<string, unknown>)?.fotos as Record<string, string>) || {};
+        if (COMPARE_POSES.every((k) => pf[k])) {
+          refFrente = pf.frente;
+          refCostas = pf.costas;
+          break;
+        }
+      }
 
-    const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "qwen/qwen3.6-27b",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userContent },
-        ],
-        stream: false,
-        temperature: 0.3,
-        reasoning_effort: "none",
-      }),
-    });
-    if (!aiRes.ok) {
-      const t = await aiRes.text().catch(() => "");
-      throw new Error(`Groq error ${aiRes.status}: ${t}`);
-    }
-    const aiJson = await aiRes.json();
-    const raw = aiJson.choices?.[0]?.message?.content ?? "{}";
-    let parsed: {
-      gordura_visual?: string;
-      definicao?: string;
-      volume_muscular?: string;
-      simetria?: string;
-      reliability?: number;
-    };
-    try {
-      parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
-    } catch {
-      console.error("[photo-analysis] resposta não-JSON do modelo:", raw);
-      parsed = {};
+      const [frenteUrl, costasUrl, refFrenteUrl, refCostasUrl] = await Promise.all([
+        signMedia(fotos.frente), signMedia(fotos.costas), signMedia(refFrente), signMedia(refCostas),
+      ]);
+      if (!frenteUrl || !costasUrl) return json({ ok: true, skipped: "fotos_inacessiveis" });
+      const useReference = !!refFrenteUrl && !!refCostasUrl;
+
+      // Contexto de objetivo/condição do aluno (resumo já usado no coach — nunca cru)
+      const { data: anamneseRow } = await adminClient
+        .from("anamnesis")
+        .select("ai_summary")
+        .eq("student_id", current.student_id)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const anamneseContexto = anamneseRow?.ai_summary ?? null;
+
+      const content: Content = [
+        {
+          type: "text",
+          text: `Comparação em pares por pose (frente com frente, costas com costas).${useReference ? "" : " Sem par anterior completo (frente+costas) — analise só as fotos atuais."}${anamneseContexto ? `\n\nContexto do aluno (objetivo/condição, da anamnese): ${anamneseContexto}` : ""}`,
+        },
+        { type: "text", text: "Frente atual:" },
+        { type: "image_url", image_url: { url: frenteUrl } },
+      ];
+      if (useReference) {
+        content.push({ type: "text", text: "Frente anterior (referência):" });
+        content.push({ type: "image_url", image_url: { url: refFrenteUrl! } });
+      }
+      content.push({ type: "text", text: "Costas atual:" });
+      content.push({ type: "image_url", image_url: { url: costasUrl } });
+      if (useReference) {
+        content.push({ type: "text", text: "Costas anterior (referência):" });
+        content.push({ type: "image_url", image_url: { url: refCostasUrl! } });
+      }
+
+      try {
+        aesthetic = await callValidated(GROQ_API_KEY, AESTHETIC_SYSTEM_PROMPT, content, (raw) => parseAesthetic(raw, useReference), "estetica");
+      } catch (err) {
+        // Falha de rede/IA numa parte não derruba a outra.
+        console.error("[photo-analysis] estetica:", err);
+      }
+      aestheticStatus = aesthetic ? "gerada" : "falhou";
     }
 
-    const tags = {
-      gordura_visual: parsed.gordura_visual ?? "",
-      definicao: parsed.definicao ?? "",
-      volume_muscular: parsed.volume_muscular ?? "",
-      simetria: parsed.simetria ?? "",
-    };
-    const reliability =
-      typeof parsed.reliability === "number" && isFinite(parsed.reliability)
-        ? Math.max(0, Math.min(1, parsed.reliability))
-        : (useReference ? null : 0);
+    // ── 2) Postura (as 4 fotos atuais) ───────────────────────────────────────
+    if (plan.posture) {
+      const urls = await Promise.all(POSE_ORDER.map((k) => signMedia(fotos[k])));
+      if (urls.some((u) => !u)) {
+        postureStatus = "falhou";
+      } else {
+        const labels: Record<string, string> = {
+          frente: "Foto de FRENTE:",
+          lateral_dir: "Foto de LADO (lado direito do corpo virado para a câmera):",
+          lateral_esq: "Foto de LADO (lado esquerdo do corpo virado para a câmera):",
+          costas: "Foto de COSTAS:",
+        };
+        const content: Content = [{ type: "text", text: "Triagem visual das 4 fotos abaixo." }];
+        POSE_ORDER.forEach((k, i) => {
+          content.push({ type: "text", text: labels[k] });
+          content.push({ type: "image_url", image_url: { url: urls[i]! } });
+        });
+        try {
+          posture = await callValidated(GROQ_API_KEY, POSTURE_SYSTEM_PROMPT, content, parsePosture, "postura");
+        } catch (err) {
+          console.error("[photo-analysis] postura:", err);
+        }
+        postureStatus = posture ? "gerada" : "falhou";
+      }
+    }
+
+    if (!aesthetic && !posture) {
+      // Nada aproveitável: não grava nada, assim uma próxima chamada tenta de novo.
+      return json({ ok: false, error: "ia_invalida", estetica: aestheticStatus, posture: postureStatus }, 502);
+    }
+
+    const nowIso = new Date().toISOString();
+    const photosChanged = !!existing?.photos_fingerprint && existing.photos_fingerprint !== fingerprint;
+    const row: Record<string, unknown> = { check_in_id: checkInId };
+    if (aesthetic) {
+      row.tags = aesthetic.tags;
+      row.reliability = aesthetic.reliability;
+      row.generated_at = nowIso;
+    } else if (!existing || photosChanged) {
+      // Fotos novas e a estética falhou: não deixa a leitura das fotos antigas valendo.
+      row.tags = {};
+      row.reliability = null;
+    }
+    if (postureSupported) {
+      if (posture) {
+        row.posture = posture;
+        row.posture_generated_at = nowIso;
+      } else if (photosChanged) {
+        row.posture = null;
+        row.posture_generated_at = null;
+      }
+      row.photos_fingerprint = fingerprint;
+    }
 
     const { error: upsertErr } = await adminClient
       .from("checkin_photo_analysis")
-      .upsert(
-        {
-          check_in_id: checkInId,
-          tags,
-          reliability,
-          generated_at: new Date().toISOString(),
-        },
-        { onConflict: "check_in_id" }
-      );
+      .upsert(row, { onConflict: "check_in_id" });
     if (upsertErr) throw upsertErr;
 
-    return new Response(JSON.stringify({ ok: true }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ ok: true, estetica: aestheticStatus, posture: postureStatus });
   } catch (e) {
     console.error("[photo-analysis]", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Erro desconhecido" }), {
-      status: 500,
-      headers: { ...buildCorsHeaders(req.headers.get("origin")), "Content-Type": "application/json" },
-    });
+    return json({ error: e instanceof Error ? e.message : "Erro desconhecido" }, 500);
   }
 });

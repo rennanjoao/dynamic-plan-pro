@@ -35,7 +35,7 @@ const FEELING_META: Record<number, { label: string; emoji: string; cls: string }
   1: { label: "Cansado",  emoji: "🥱", cls: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20" },
   2: { label: "Normal",   emoji: "😐", cls: "bg-blue-500/10 text-blue-500 border-blue-500/20" },
   3: { label: "Disposto", emoji: "🔥", cls: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" },
-  4: { label: "Exaurido", emoji: "💀", cls: "bg-red-500/10 text-red-500 border-red-500/20" },
+  4: { label: "Exaurido", emoji: "😮‍💨", cls: "bg-red-500/10 text-red-500 border-red-500/20" },
 };
 const SLEEP_META: Record<number, { label: string; emoji: string; cls: string }> = {
   1: { label: "Ruim",      emoji: "🔴", cls: "bg-red-500/10 text-red-500 border-red-500/20" },

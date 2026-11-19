@@ -1193,7 +1193,7 @@ export default function ShoppingList() {
           <div style={cardStyle}>
             <ShoppingCart size={36} style={{ color: "var(--color-text-tertiary)", marginBottom: 12 }} />
             <p style={{ fontSize: 16, fontWeight: 500, color: "var(--color-text-primary)", marginBottom: 6 }}>Nenhum protocolo ativo</p>
-            <p style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>Assim que seu coach publicar seu protocolo, sua lista aparece aqui automaticamente.</p>
+            <p style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>Assim que o seu treinador publicar seu protocolo, sua lista aparece aqui automaticamente.</p>
           </div>
         </div>
       </div>
@@ -1580,7 +1580,7 @@ export default function ShoppingList() {
           <div style={{ background: "rgba(251,191,36,0.08)", border: "0.5px solid rgba(251,191,36,0.35)", borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "flex-start", gap: 10 }}>
             <span style={{ fontSize: 16, flexShrink: 0 }}>⚠️</span>
             <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 13, fontWeight: 500, color: "var(--color-text-primary)", marginBottom: 4 }}>Protocolo atualizado pelo coach</p>
+              <p style={{ fontSize: 13, fontWeight: 500, color: "var(--color-text-primary)", marginBottom: 4 }}>Protocolo atualizado</p>
               <p style={{ fontSize: 12, color: "var(--color-text-secondary)", marginBottom: 8 }}>Algumas quantidades podem ter mudado desde sua última lista.</p>
               <button onClick={handleRegenerate} style={{ fontSize: 12, fontWeight: 500, color: "#CC0000", background: "transparent", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>
                 Regenerar lista

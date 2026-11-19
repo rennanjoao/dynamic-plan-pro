@@ -93,7 +93,7 @@ export const AnamnesisGuard = ({ children }: { children: React.ReactNode }) => {
           <Ban className="w-12 h-12 text-destructive mx-auto" />
           <h1 className="text-xl font-bold">Plataforma temporariamente indisponível</h1>
           <p className="text-sm text-muted-foreground">
-            Entre em contato com seu coach.
+            Fale com o seu treinador.
           </p>
         </div>
       </div>

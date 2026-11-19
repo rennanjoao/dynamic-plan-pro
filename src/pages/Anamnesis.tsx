@@ -8,6 +8,7 @@ import { uploadStudentPhoto, isStoragePath } from "@/lib/studentMedia";
 import { notifyCoach } from "@/lib/notifyCoach";
 import { consumeStoredReferral, peekStoredReferral, consumeStoredDirectCoach } from "@/lib/referralCapture";
 import { FotoSlot } from "@/components/shared/FotoSlot";
+import { PhotoGuideTips } from "@/components/shared/PhotoGuideTips";
 import { cn } from "@/lib/utils";
 import { ShieldCheck, ArrowRight } from "lucide-react";
 import { stripSecretsFromDraft, validateAnamnesisStep1 } from "@/lib/anamnesisValidation";
@@ -411,7 +412,7 @@ const Anamnesis = () => {
         }
       }
       if (fotosComFalha.length) {
-        avisos.push(`${fotosComFalha.length} foto(s) não foram enviadas. Reenvie pelo seu próximo check-in ou avise o seu coach.`);
+        avisos.push(`${fotosComFalha.length} foto(s) não foram enviadas. Reenvie pelo seu próximo check-in ou avise o seu treinador.`);
       }
 
       const coachIdOrNull = coach.id || null;
@@ -444,7 +445,7 @@ const Anamnesis = () => {
         const redeemErr = await invokeWithRetry("redeem-access-code", { code: codeToRedeem }, 2);
         if (redeemErr) {
           console.warn("redeem-access-code falhou", redeemErr);
-          avisos.push("Não conseguimos confirmar o seu código de acesso agora. Se a sua parceria não aparecer, avise o seu coach.");
+          avisos.push("Não conseguimos confirmar o seu código de acesso agora. Se a sua parceria não aparecer, avise o seu treinador.");
         }
       }
       const SAVE_ERR = "Não foi possível salvar a sua anamnese agora. Seus dados continuam preenchidos — tente enviar novamente em instantes.";
@@ -493,7 +494,7 @@ const Anamnesis = () => {
         if (linkErr) {
           console.warn("link-coach-student falhou", linkErr);
           vinculoFalhou = true;
-          avisos.push("Sua ficha foi salva, mas não conseguimos concluir o vínculo com o seu coach. Avise-o pelo WhatsApp para liberar o seu acesso.");
+          avisos.push("Sua ficha foi salva, mas não conseguimos concluir o vínculo com o seu treinador. Avise-o pelo WhatsApp para liberar o seu acesso.");
         }
 
         // ── Atribuição de indicação aluno→aluno (efeito rede do WorkoutShareCard) ──
@@ -808,7 +809,7 @@ const Anamnesis = () => {
             <Field label="Objetivos detalhados"><FiTextarea name="objetivos" placeholder="Descreva seus objetivos..." value={g("objetivos")} onChange={set("objetivos")} /></Field>
             <Field label="Músculo que quer dar mais ênfase"><FiInput name="musculo_enfase" placeholder="Ex: Peitoral e ombros (ou glúteos e pernas)" value={g("musculo_enfase")} onChange={set("musculo_enfase")} /></Field>
             <Field label="Foto de inspiração (opcional)">
-              <p className="text-[11px] text-muted-foreground -mt-1 mb-1">Um shape ou físico que você admira — ajuda o coach a entender sua referência estética.</p>
+              <p className="text-[11px] text-muted-foreground -mt-1 mb-1">Um shape ou físico que você admira — ajuda o seu treinador a entender sua referência estética.</p>
               <div className="grid grid-cols-4 gap-2">
                 <FotoSlot
                   label="Shape"
@@ -1027,12 +1028,7 @@ const Anamnesis = () => {
         <section>
           <SecHead num="12" title="Fotos de Avaliação" />
           <Card>
-            <div className="bg-card/50 border border-border/30 rounded-lg p-3 mb-3 space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">📸 Mesmo protocolo sempre — para comparação real</p>
-              {[["☀","Mesma luz natural — preferencialmente manhã"],["⏰","Mesmo horário — em jejum, antes de qualquer refeição"],["🩳", gender === "F" ? "Top esportivo e short de treino" : "Sunga, cueca boxer ou short de treino"],["📍","Mesmo local, mesma distância, fundo neutro"],["🧍","Postura semi-relaxada — sem sugar a barriga"]].map(([icon, text]) => (
-                <div key={text} className="flex items-start gap-2 text-xs text-muted-foreground"><span>{icon}</span><span>{text}</span></div>
-              ))}
-            </div>
+            <PhotoGuideTips gender={gender === "F" || gender === "M" ? gender : null} className="mb-3" />
             <div className="grid grid-cols-4 gap-2">
               {(["frente","lateral_dir","lateral_esq","costas"] as const).map(k => (
                 <FotoSlot key={k} label={k === "frente" ? "Frente" : k === "lateral_dir" ? "Lado Dir." : k === "lateral_esq" ? "Lado Esq." : "Costas"} preview={fotoPreviews[k]} onFile={f => setFoto(k, f)} onRemove={() => { setFotoFiles(p => ({ ...p, [k]: null })); setFotoPreviews(p => ({ ...p, [k]: null })); }} />

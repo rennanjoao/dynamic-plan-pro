@@ -6,7 +6,7 @@
  * check-in já foi respondido e o que ela deixou de recado nos treinos.
  */
 import { useMemo } from "react";
-import { Loader2, Dumbbell, UtensilsCrossed, MessageSquareReply, CalendarDays, CheckCircle2, StickyNote, Eye } from "lucide-react";
+import { Loader2, Dumbbell, UtensilsCrossed, MessageSquareReply, CalendarDays, CheckCircle2, StickyNote, Eye, Target, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useStudentCycleSummary } from "@/hooks/useStudentCycleSummary";
@@ -15,6 +15,7 @@ import {
   plannedSessionsPerWeek, weeklyTrainingAdherence, weeksSince,
 } from "@/lib/coachCycleSummary";
 import { waitingLabel } from "@/lib/coachPending";
+import { FELT_LABEL, summarizeFeel, type FeltRegion } from "@/lib/exerciseFeel";
 
 const fmt = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 const fmtLong = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
@@ -63,6 +64,7 @@ export default function StudentCycleSummary({
       meals: mealAdherence(data.meals, 7),
       mealsPlanned: plannedMealsPerDay(payload),
       publishedWeeks: weeksSince(data.protocol?.createdAt),
+      feel: data.feel ? summarizeFeel(data.feel).slice(0, 6) : null,
     };
   }, [data]);
 
@@ -192,6 +194,50 @@ export default function StudentCycleSummary({
           </div>
         )}
       </Card>
+
+      {view.feel && (
+        <div className="sm:col-span-2">
+          <Card icon={<Target className="w-3.5 h-3.5" />} title="Onde a aluna sente (exercícios de glúteo)" testId="summary-feel">
+            {view.feel.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Ainda sem respostas. Aparece quando a aluna marca "onde sentiu mais" no fim do exercício.
+              </p>
+            ) : (
+              <ul className="space-y-2.5">
+                {view.feel.map((f) => (
+                  <li key={f.exerciseKey} className="text-sm space-y-1" data-testid={`feel-${f.exerciseKey}`}>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-medium">{f.exerciseName}</span>
+                      {(Object.entries(f.counts) as [FeltRegion, number][])
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([region, n]) => (
+                          <span
+                            key={region}
+                            className={cn(
+                              "text-[11px] px-1.5 py-px rounded border",
+                              region === f.compensation
+                                ? "border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400 font-semibold"
+                                : "border-border text-muted-foreground",
+                            )}
+                          >
+                            {FELT_LABEL[region]} {n}
+                          </span>
+                        ))}
+                      <span className="text-[11px] text-muted-foreground">(últimas {f.total})</span>
+                    </div>
+                    {f.compensation && f.hint && (
+                      <p className="text-xs text-amber-800 dark:text-amber-300 flex gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <span><strong>{FELT_LABEL[f.compensation]} dominando.</strong> {f.hint}</span>
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </div>
+      )}
 
       <div className="sm:col-span-2">
         <Card icon={<StickyNote className="w-3.5 h-3.5" />} title="Recados da aluna nos treinos" testId="summary-notes">

@@ -40,6 +40,8 @@ import type { ExerciseSessionLoad } from "@/lib/workoutTypes";
 import { effortLabel, toExerciseKey } from "@/lib/workoutTypes";
 import { useExerciseGif } from "@/hooks/useExerciseGif";
 import { isMobilityExercise } from "@/lib/protocolSchema";
+import { FELT_OPTIONS, isGluteFocusExercise, type FeltRegion } from "@/lib/exerciseFeel";
+import { coachBy, coachTo } from "@/lib/coachWords";
 import { parseExerciseNotes } from "@/lib/parseExerciseNotes";
 import { ExerciseVideoSheet } from "./ExerciseVideoSheet";
 import { CompactWeekSelector } from "./CompactWeekSelector";
@@ -63,7 +65,7 @@ const GOLD = "#C9A84C";
 const EFFORT_OPTIONS: { value: 1 | 2 | 3; label: string; hint: string; emoji: string; color: string; bg: string }[] = [
   { value: 1, label: "Limpo",  hint: "Sobrou força",  emoji: "✅", color: "#22c55e", bg: "rgba(34,197,94,0.14)" },
   { value: 2, label: "Pesado", hint: "No limite",     emoji: "🔥", color: GOLD,      bg: "rgba(201,168,76,0.14)" },
-  { value: 3, label: "Falhei", hint: "Não completei", emoji: "💀", color: "#CC0000", bg: "rgba(204,0,0,0.14)" },
+  { value: 3, label: "Falhei", hint: "Não completei", emoji: "✋", color: "#CC0000", bg: "rgba(204,0,0,0.14)" },
 ];
 
 /* ── Helpers ── */
@@ -223,6 +225,8 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   const [showExList, setShowExList] = useState(false);
   
   const [swapMap, setSwapMap] = useState<Record<string, { name: string; gifKey?: string }>>(_saved?.swapMap ?? {});
+  // "Onde você sentiu?" por exercício (chave do exercício na tela).
+  const [feltMap, setFeltMap] = useState<Record<string, FeltRegion>>(_saved?.feltMap ?? {});
   const [showSwap, setShowSwap] = useState(false);
   const [swapLoading, setSwapLoading] = useState(false);
   const [swapGroup, setSwapGroup] = useState<MuscleGroup | null>(null);
@@ -365,6 +369,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
     const resetLocalProgress = () => {
       try { localStorage.removeItem(storageKey); } catch { /* noop */ }
       setSetDataMap({});
+      setFeltMap({});
     };
 
     const rebuildFromServer = (activeSessionId: string) => {
@@ -454,8 +459,21 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
   }, [userId, day?.key]);
 
   useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify({ activeWeek, completed, setDataMap, swapMap, sessionId: session.sessionId, startedAt, restBaseSec, restSegStartedAt }));
-  }, [activeWeek, completed, setDataMap, swapMap, session.sessionId, startedAt, restBaseSec, restSegStartedAt]);
+    localStorage.setItem(storageKey, JSON.stringify({ activeWeek, completed, setDataMap, swapMap, feltMap, sessionId: session.sessionId, startedAt, restBaseSec, restSegStartedAt }));
+  }, [activeWeek, completed, setDataMap, swapMap, feltMap, session.sessionId, startedAt, restBaseSec, restSegStartedAt]);
+
+  const handleFelt = useCallback(async (region: FeltRegion) => {
+    const name = currentEx?.name;
+    if (!name) return;
+    setFeltMap((prev) => ({ ...prev, [currentExKey]: region }));
+    try {
+      await session.registerExerciseFeel(name, region);
+    } catch (err) {
+      // Opcional: fica na fila e sobe depois; não incomoda a aluna com aviso.
+      console.warn("[WorkoutMode] 'onde sentiu' pendente:", err);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentEx?.name, currentExKey, session.registerExerciseFeel]);
 
   const openSwapDialog = useCallback(async () => {
     setShowSwap(true);
@@ -1043,6 +1061,34 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                 )}
               </div>
             )}
+
+            {/* "Onde você sentiu?" — só em exercício de glúteo, depois da
+                última série, e opcional. Ajuda o coach a ver se a lombar ou o
+                quadríceps estão roubando o estímulo. */}
+            {todasFeitas && doneSets.some((st) => !st?.skipped) && isGluteFocusExercise(currentEx?.name) && (
+              <div className="bg-neutral-900 rounded-3xl p-4 border border-white/5 space-y-3" data-testid="felt-card">
+                <div>
+                  <p className="text-sm font-black uppercase tracking-tight text-white">Onde você sentiu mais?</p>
+                  <p className="text-[11px] text-white/60">Opcional — um toque. {feltMap[currentExKey] ? "Anotado ✓ (pode trocar)" : "Ajuda a ajustar o seu treino."}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {FELT_OPTIONS.map((opt) => {
+                    const active = feltMap[currentExKey] === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => handleFelt(opt.value)}
+                        className={`h-12 rounded-2xl border-2 text-xs font-black uppercase tracking-wide transition-all active:scale-95 ${active ? "border-primary bg-primary/15 text-primary" : "border-white/10 bg-white/5 text-white/80"}`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
       </main>
@@ -1103,7 +1149,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
           </DialogHeader>
           <p className="text-[11px] text-white/60 -mt-2">
             {swapCurated
-              ? "Alternativas liberadas pelo seu coach para este exercício."
+              ? `Alternativas liberadas ${coachBy(coachName)} para este exercício.`
               : swapGroup
               ? `Alternativas de ${MUSCLE_GROUP_LABELS[swapGroup]} — o estímulo prescrito é mantido.`
               : "Não identificamos o grupo muscular deste exercício."}
@@ -1200,7 +1246,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
             <DialogTitle className="text-xl font-black italic uppercase tracking-tight">
               Como foi este treino?
             </DialogTitle>
-            <p className="text-xs text-white/50 -mt-1">Opcional — ajuda seu coach, mas não é obrigatório pra finalizar.</p>
+            <p className="text-xs text-white/50 -mt-1">Opcional — ajuda a ajustar o seu treino, mas não é obrigatório pra finalizar.</p>
           </DialogHeader>
           <div className="space-y-6 mt-2">
             <div className="space-y-3">
@@ -1239,7 +1285,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
                   { v: 1, emoji: "🥱", label: "Cansado",  color: "#eab308", bg: "rgba(234,179,8,0.10)" },
                   { v: 2, emoji: "😐", label: "Normal",   color: "#3b82f6", bg: "rgba(59,130,246,0.10)" },
                   { v: 3, emoji: "🔥", label: "Disposto", color: "#10b981", bg: "rgba(16,185,129,0.12)" },
-                  { v: 4, emoji: "💀", label: "Exaurido", color: "#ef4444", bg: "rgba(239,68,68,0.10)" },
+                  { v: 4, emoji: "😮‍💨", label: "Exaurido", color: "#ef4444", bg: "rgba(239,68,68,0.10)" },
                 ].map((opt) => {
                   const active = pwFeeling === opt.v;
                   return (
@@ -1263,7 +1309,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
             </div>
             <div className="space-y-2">
               <label htmlFor="pw-note" className="text-[11px] uppercase tracking-widest font-black text-white/50 block">
-                Quer avisar algo ao coach?
+                Quer avisar algo {coachTo(coachName)}?
               </label>
               <textarea
                 id="pw-note"

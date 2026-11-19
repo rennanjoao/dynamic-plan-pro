@@ -428,7 +428,7 @@ describe("summarizeProtocolChanges", () => {
       expect.objectContaining({
         category: "geral",
         importance: "alta",
-        label: "Seu protocolo foi liberado pelo seu coach",
+        label: "Seu protocolo foi liberado",
       }),
     ]);
   });
@@ -440,7 +440,7 @@ describe("summarizeProtocolChanges", () => {
       expect.objectContaining({
         category: "geral",
         importance: "alta",
-        label: "Seu protocolo foi totalmente atualizado pelo seu coach",
+        label: "Seu protocolo foi totalmente atualizado",
       }),
     ]);
   });

@@ -9,7 +9,7 @@ describe("identidade do coach", () => {
     expect(c).toMatchObject({ coachId: "c1", name: "Ana Souza", known: true, cref: "123456-G/SP", teamName: "Time Ana" });
     expect(coachSignature(c)).toBe("Ana Souza · CREF 123456-G/SP");
   });
-  it("sem nome cadastrado mostra 'seu coach' (nunca o nome de outra pessoa)", () => {
+  it("sem nome cadastrado mostra 'seu treinador' (nunca o nome de outra pessoa)", () => {
     const c = toCoachIdentity(null);
     expect(c.name).toBe(FALLBACK_COACH_NAME);
     expect(c.known).toBe(false);

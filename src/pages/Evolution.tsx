@@ -21,6 +21,7 @@ import { formatRelativePtBR } from "@/lib/formatDate";
 import { queryKeys } from "@/lib/queryKeys";
 import PreviewModeBar from "@/components/student/PreviewModeBar";
 import { useStudentViewCoachIdentity } from "@/hooks/useCoachIdentity";
+import { coachOf } from "@/lib/coachWords";
 
 export default function Evolution() {
   const navigate = useNavigate();
@@ -99,7 +100,7 @@ export default function Evolution() {
               >
                 <div className="flex items-center gap-2">
                   <MessageCircle className="w-4 h-4 text-primary shrink-0" />
-                  <p className="text-sm font-bold text-primary dark:text-primary">Feedback de {coach.name}</p>
+                  <p className="text-sm font-bold text-primary dark:text-primary">Feedback {coachOf(coach)}</p>
                   <span className="text-[11px] text-muted-foreground ml-auto shrink-0">{formatRelativePtBR(latestFeedback.submitted_at)}</span>
                 </div>
                 <p className="text-sm text-foreground/80 mt-1 line-clamp-1">
@@ -114,7 +115,7 @@ export default function Evolution() {
                 <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-primary dark:text-primary">
-                      <MessageCircle className="w-4 h-4" /> Feedback de {coach.name}
+                      <MessageCircle className="w-4 h-4" /> Feedback {coachOf(coach)}
                     </DialogTitle>
                     <p className="text-[11px] text-muted-foreground">{formatRelativePtBR(latestFeedback.submitted_at)}</p>
                   </DialogHeader>
@@ -132,7 +133,7 @@ export default function Evolution() {
             </TabsList>
 
             <TabsContent value="dashboard" className="space-y-4 mt-0">
-              <ProgressChart />
+              <ProgressChart audience="student" />
               <ComparisonBoard
                 anamnesis={anamnesis}
                 latestCheckIn={checkIns[0] ?? null}
@@ -144,7 +145,7 @@ export default function Evolution() {
             </TabsContent>
 
             <TabsContent value="historico" className="mt-0">
-              <EvolutionTimeline checkIns={checkIns} goal={goal} />
+              <EvolutionTimeline checkIns={checkIns} goal={goal} coachName={coach.known ? coach.name : null} />
             </TabsContent>
           </Tabs>
           </>

@@ -6,9 +6,20 @@ import { colorForDelta, weightPolarityForGoal, type MetricPolarity } from "@/lib
 import { buildProgressSeries, PROGRESS_METRICS, type ProgressMetric } from "@/lib/progressSeries";
 import { cn } from "@/lib/utils";
 
-export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
+export const ProgressChart = ({
+  studentId,
+  audience = "coach",
+}: {
+  studentId?: string;
+  /**
+   * "student": a tela da aluna abre na CINTURA (quando ela tem essa medida) e
+   * lembra que a balança é só um dos sinais — o peso às vezes não muda e o
+   * corpo muda. O coach continua abrindo no peso.
+   */
+  audience?: "student" | "coach";
+} = {}) => {
   const { anamnesis, checkIns, goal, loading } = useStudentData(studentId);
-  const [metric, setMetric] = useState<ProgressMetric>("peso");
+  const [chosenMetric, setMetric] = useState<ProgressMetric | null>(null);
 
   if (loading) {
     return (
@@ -18,6 +29,11 @@ export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
     );
   }
 
+  const hasWaist =
+    audience === "student" &&
+    buildProgressSeries({ anamnesis: anamnesis as never, checkIns: checkIns as never, metric: "cintura" }).length > 0;
+  const metric: ProgressMetric = chosenMetric ?? (hasWaist ? "cintura" : "peso");
+
   // Data de ENVIO de cada check-in (não a da última edição) e ponto de
   // partida (anamnese) sempre presente — ver lib/progressSeries.ts.
   const chartData = buildProgressSeries({
@@ -26,6 +42,12 @@ export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
     metric,
   });
   const meta = PROGRESS_METRICS.find((m) => m.key === metric)!;
+
+  const scaleNote = audience === "student" ? (
+    <p className="text-xs text-muted-foreground mb-3" data-testid="scale-note">
+      A balança é só um dos sinais: às vezes o peso não muda e a cintura diminui. Olhe as medidas e as fotos junto.
+    </p>
+  ) : null;
 
   const selector = (
     <div className="flex flex-wrap gap-1.5 mb-4" role="group" aria-label="Medida no gráfico">
@@ -55,7 +77,9 @@ export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
           <TrendingUp className="w-5 h-5 text-primary" />
           <h2 className="text-xl font-bold text-foreground">Evolução de Medidas</h2>
         </div>
-        {selector}
+        {scaleNote}
+        {scaleNote}
+      {selector}
         <p className="text-muted-foreground text-center py-8">
           {metric === "peso"
             ? "Aguardando o envio da Anamnese para inicializar a linha de base temporal."
@@ -90,6 +114,7 @@ export const ProgressChart = ({ studentId }: { studentId?: string } = {}) => {
         <TrendingUp className="w-5 h-5 text-primary" />
         <h2 className="text-xl font-bold text-foreground">Evolução de Medidas</h2>
       </div>
+      {scaleNote}
       {selector}
 
       <ResponsiveContainer width="100%" height={300}>

@@ -143,7 +143,7 @@ const FEELING_META: Record<number, { label: string; emoji: string; cls: string }
   1: { label: "Cansado",  emoji: "🥱", cls: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20" },
   2: { label: "Normal",   emoji: "😐", cls: "bg-blue-500/10 text-blue-500 border-blue-500/20" },
   3: { label: "Disposto", emoji: "🔥", cls: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" },
-  4: { label: "Exaurido", emoji: "💀", cls: "bg-red-500/10 text-red-500 border-red-500/20" },
+  4: { label: "Exaurido", emoji: "😮‍💨", cls: "bg-red-500/10 text-red-500 border-red-500/20" },
 };
 // Os códigos brutos gravados em general_feeling seguem a ORDEM DOS BOTÕES no
 // modal pós-treino (1=Cansado, 2=Normal, 3=Disposto, 4=Exaurido) — NÃO uma
@@ -1379,7 +1379,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                     {[
                       { label: "✅ Limpo (RIR 3+)",   count: effortCounts.limpos,  color: GREEN },
                       { label: "🔥 Pesado (RIR 1-2)", count: effortCounts.pesados, color: GOLD  },
-                      { label: "💀 Falhei (RIR 0)",   count: effortCounts.falhas,  color: RED   },
+                      { label: "✋ Falhei (RIR 0)",   count: effortCounts.falhas,  color: RED   },
                     ].map((row) => {
                       const base = totalForEffort - effortSemRpe;
                       const pct  = base > 0 ? Math.round((row.count / base) * 100) : 0;

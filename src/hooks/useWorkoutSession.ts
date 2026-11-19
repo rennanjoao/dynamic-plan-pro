@@ -16,6 +16,8 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { FeltRegion } from "@/lib/exerciseFeel";
+import { sb } from "@/integrations/supabase/untyped";
 import { toExerciseKey } from "@/lib/workoutTypes";
 import type { ExerciseHistory, ExerciseSessionLoad } from "@/lib/workoutTypes";
 import { workoutDraftStorageKey } from "@/lib/periodizationKey";
@@ -92,7 +94,13 @@ export interface RemoveSetPlan {
  * séries manter" e apaga as de número maior.
  */
 type QueueItem = RegisterSetParams & {
-  op?: "upsert" | "truncate";
+  /**
+   * `feel` = resposta de "Onde você sentiu?" (tabela workout_exercise_feel).
+   * Usa a mesma fila (offline, sessão local → real), mas numa faixa própria:
+   * nunca segura as séries do exercício.
+   */
+  op?: "upsert" | "truncate" | "feel";
+  felt?: FeltRegion;
   /** Sessão em que o item foi registrado. Ausente = sessão atual (formato antigo). */
   sid?: string | null;
 };
@@ -334,6 +342,27 @@ export function useWorkoutSession() {
   }, [materializeLocalSession]);
 
   const applyQueueItem = useCallback(async (targetSessionId: string, item: QueueItem): Promise<boolean> => {
+    if (item.op === "feel") {
+      if (!item.felt) return true; // item inválido: descarta
+      // Tabela nova (pacote 6): ainda fora dos tipos gerados.
+      const { error } = await sb
+        .from("workout_exercise_feel")
+        .upsert(
+          {
+            session_id: targetSessionId,
+            user_id: userIdRef.current,
+            exercise_key: toExerciseKey(item.exerciseName),
+            exercise_name: item.exerciseName,
+            felt: item.felt,
+          },
+          { onConflict: "session_id,exercise_key" },
+        );
+      // Tabela ainda não criada no banco (SQL do pacote 6 pendente): descarta em
+      // vez de ficar tentando para sempre — é uma resposta opcional.
+      if (error && (error.code === "42P01" || error.code === "PGRST205")) return true;
+      if (error) console.warn("[syncPendingSets] Falha ao gravar 'onde sentiu':", error.message);
+      return !error;
+    }
     if (item.op === "truncate") {
       const { error } = await supabase
         .from("workout_sets")
@@ -367,7 +396,7 @@ export function useWorkoutSession() {
     const blocked = new Set<string>();
 
     for (const item of toSync) {
-      const lane = `${item.sid ?? "current"}::${toExerciseKey(item.exerciseName)}`;
+      const lane = `${item.sid ?? "current"}::${item.op === "feel" ? "feel::" : ""}${toExerciseKey(item.exerciseName)}`;
       if (blocked.has(lane)) continue;
       let ok = false;
       try {
@@ -548,6 +577,26 @@ export function useWorkoutSession() {
         console.error("[registerSet] Série ficou pendente (sem confirmação do servidor)");
         throw new Error("Falha ao salvar série no servidor. Seus dados foram mantidos localmente.");
       }
+    },
+    [persistQueue, syncPendingSets]
+  );
+
+  // ── "Onde você sentiu?" (opcional, exercícios de glúteo) ────────────────────
+  // Mesmo caminho das séries: entra na fila antes da rede e sobe quando der.
+  const registerExerciseFeel = useCallback(
+    async (exerciseName: string, felt: FeltRegion) => {
+      const item: QueueItem = {
+        op: "feel",
+        felt,
+        exerciseName,
+        setNumber: 0,
+        executedAt: new Date().toISOString(),
+        sid: sessionIdRef.current,
+      };
+      pendingSetsRef.current.push(item);
+      persistQueue();
+      if (!sessionIdRef.current) return;
+      await syncPendingSets();
     },
     [persistQueue, syncPendingSets]
   );
@@ -902,6 +951,7 @@ export function useWorkoutSession() {
     hasLocalSession,
     getSessionSets,
     registerSet,
+    registerExerciseFeel,
     removeSet,
     finishSession,
     getExerciseHistory,
