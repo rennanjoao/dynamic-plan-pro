@@ -2,16 +2,17 @@ import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Pill, Info, UtensilsCrossed, Calendar, Copy, ChevronDown } from "lucide-react";
+import { ArrowLeft, Pill, Info, UtensilsCrossed, Calendar, Copy, ChevronDown, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { ProtocolPayloadSchema } from "@/lib/protocolSchema";
+import { ProtocolPayloadSchema, WEEKDAYS } from "@/lib/protocolSchema";
 import ProtocolQuestionButton from "@/components/student/ProtocolQuestionButton";
 import { useHighlightTarget } from "@/hooks/useHighlightTarget";
 import { slug } from "@/lib/slug";
-import { ABBR } from "@/lib/weekCycle";
+import { ABBR, todayKey } from "@/lib/weekCycle";
+import { supplementsForToday } from "@/lib/supplementsToday";
 import { useAuthUserId } from "@/hooks/useAuthUserId";
 import { PageLoader } from "@/components/ui/PageLoader";
 import PreviewModeBar from "@/components/student/PreviewModeBar";
@@ -157,6 +158,39 @@ export default function Supplements() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-5">
+        {/* Hoje — o que tomar no dia (só mostra; decisão do Rennan 18/11).
+            Antes a aluna via todos os suplementos e precisava descobrir sozinha
+            quais manipulados eram do dia. */}
+        {(() => {
+          const dk = todayKey();
+          const todayGroups = supplementsForToday(supplements, supplementCombos, dk);
+          if (todayGroups.length === 0) return null;
+          const dayLabel = WEEKDAYS.find((d) => d.key === dk)?.label ?? "";
+          return (
+            <section className="rounded-2xl border border-primary/30 bg-primary/5 p-4 space-y-3" data-testid="supplements-today">
+              <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Sun className="w-4 h-4 text-primary" /> Hoje{dayLabel ? ` · ${dayLabel}` : ""}
+              </h2>
+              <ul className="space-y-2.5">
+                {todayGroups.map((g, gi) => (
+                  <li key={gi} className="flex gap-3">
+                    <span className="w-24 shrink-0 text-[12px] font-bold uppercase tracking-wide text-primary pt-0.5">{g.timing}</span>
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      {g.comboName && <p className="text-[12px] font-semibold text-muted-foreground">{g.comboName}</p>}
+                      {g.items.map((it, ii) => (
+                        <p key={ii} className="text-sm text-foreground leading-snug">
+                          <span className="font-semibold">{it.name}</span>
+                          {it.dose && <> — {it.dose}</>}
+                          {it.mealRef && <span className="text-muted-foreground"> · com {it.mealRef}</span>}
+                        </p>
+                      ))}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          );
+        })()}
 
         {/* 1. Sono */}
         {supplementationGuideline.trim() && (
