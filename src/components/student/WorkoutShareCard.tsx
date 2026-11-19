@@ -114,7 +114,7 @@ export default function WorkoutShareCard({
   totalSets,
   completedExercises,
   totalExercises,
-  coachName = "seu coach",
+  coachName,
   teamName,
   streak,
   coachId,
@@ -241,7 +241,7 @@ export default function WorkoutShareCard({
       if (nav.canShare?.({ files: [file] })) {
         await (navigator as unknown as { share: (d: object) => Promise<void> }).share({
           files: [file],
-          title: `Protocolo concluído — Elite Prime · ${coachName}`,
+          title: coachName ? `Protocolo concluído — Elite Prime · ${coachName}` : "Protocolo concluído — Elite Prime",
         });
       } else {
         const url = URL.createObjectURL(blob);
@@ -595,9 +595,11 @@ export default function WorkoutShareCard({
 
             {/* Rodapé — Coach + marca, dentro da área segura inferior */}
             <div style={{ marginTop: "18px", paddingTop: "14px", borderTop: `1px solid ${BORDER}`, textAlign: "center" }}>
-              <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", marginBottom: "4px" }}>
-                Coach <span style={{ color: GOLD }}>{coachName}</span>
-              </p>
+              {coachName && (
+                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", marginBottom: "4px" }}>
+                  Treino de <span style={{ color: GOLD }}>{coachName}</span>
+                </p>
+              )}
               <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "9px", fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase" }}>
                 www.eliteprimehub.com.br
               </p>

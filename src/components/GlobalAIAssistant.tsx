@@ -303,7 +303,7 @@ export const GlobalAIAssistant = () => {
 
     let msg: string | null = null;
     if (coachFeedback && !feedbackReadAt) {
-      msg = "Seu coach deixou um feedback no seu último check-in! Quer que eu faça um resumo pra você?";
+      msg = "Seu treinador deixou um feedback no seu último check-in! Quer que eu faça um resumo pra você?";
     } else if (checkinStreak >= 3 && daysSinceLastCheckin != null && daysSinceLastCheckin >= 12) {
       msg = `Você já tem ${checkinStreak} check-ins seguidos 🔥 Falta pouco pro próximo — quer que eu revise o que ajustar agora?`;
     } else if (daysSinceLastWorkout != null && daysSinceLastWorkout >= 3) {

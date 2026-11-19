@@ -55,12 +55,19 @@ describe("mergeProtocolChanges", () => {
     expect(merged[0]).toMatchObject({
       category: "geral",
       importance: "alta",
-      label: "Seu protocolo foi totalmente atualizado pelo seu coach",
+      label: "Seu protocolo foi totalmente atualizado",
       target_anchor: null,
     });
   });
 
-  it("existente já é o evento único 'geral' → mantém como está mesmo com incoming", () => {
+  it("evento 'geral' NOVO (sem 'coach') também é reconhecido e mantido", () => {
+    const existing: ProtocolChange[] = [
+      { category: "geral", importance: "alta", label: "Seu protocolo foi totalmente atualizado", target_tab: null, target_anchor: null, detail: null },
+    ];
+    expect(mergeProtocolChanges(existing, [mk({ label: "algo novo", target_anchor: "x" })])).toEqual(existing);
+  });
+
+  it("existente já é o evento único 'geral' (texto antigo, gravado antes do pacote 6) → mantém como está mesmo com incoming", () => {
     const existing: ProtocolChange[] = [
       {
         category: "geral",

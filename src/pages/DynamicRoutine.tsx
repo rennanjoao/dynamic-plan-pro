@@ -134,7 +134,7 @@ export default function DynamicRoutine() {
           </Button>
           <div>
             <h1 className="text-lg font-bold text-foreground">Rotina</h1>
-            <p className="text-xs text-muted-foreground">Aguardando seu coach</p>
+            <p className="text-xs text-muted-foreground">Aguardando o seu treinador</p>
           </div>
         </header>
         <main className="flex-1 flex items-center justify-center p-4">
@@ -145,7 +145,7 @@ export default function DynamicRoutine() {
               </div>
               <h2 className="text-base font-bold text-foreground">Dieta em Construção</h2>
               <p className="text-sm text-muted-foreground">
-                Seu coach está montando sua estratégia. Assim que o protocolo for publicado, a sua dieta aparecerá aqui.
+                Seu treinador está montando sua estratégia. Assim que o protocolo for publicado, a sua dieta aparecerá aqui.
               </p>
               <Button onClick={() => navigate(-1)} variant="outline" className="mt-4">
                 Voltar

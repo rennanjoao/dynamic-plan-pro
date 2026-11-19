@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCorsHeaders } from "../_shared/cors.ts";
+import { hasAestheticTags } from "../_shared/photoAnalysisLogic.ts";
 
 serve(async (req) => {
   const corsHeaders = buildCorsHeaders(req.headers.get("origin"));
@@ -85,7 +86,8 @@ Regras:
       checkInAtual: { metrics: current.current_metrics, payload: current.payload, data: current.submitted_at },
       resumoIA: insightRow?.summary ?? null,
       contextoAnamnese: anamneseRow?.ai_summary ?? null,
-      analiseVisual: photoRow ? { tags: photoRow.tags, reliability: photoRow.reliability } : null,
+      // Linha sem leitura estética (IA falhou ou só tem postura) não vira "análise visual".
+      analiseVisual: photoRow && hasAestheticTags(photoRow.tags) ? { tags: photoRow.tags, reliability: photoRow.reliability } : null,
       exemplosDeFeedbacksAnterioresDoCoach: (pastFeedbacks ?? []).map((f) => f.coach_feedback),
     });
 

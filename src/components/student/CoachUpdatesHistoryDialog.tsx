@@ -6,6 +6,7 @@
  * student_id atual), independentemente de `seen_at`. Sem ações — só leitura.
  */
 import { useQuery } from "@tanstack/react-query";
+import { normalizeUpdateLabel } from "@/lib/coachWords";
 import { sb } from "@/integrations/supabase/untyped";
 import { useStudentData } from "@/hooks/useStudentData";
 import {
@@ -74,7 +75,7 @@ export default function CoachUpdatesHistoryDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Histórico de atualizações do coach</DialogTitle>
+          <DialogTitle>Histórico de atualizações do seu protocolo</DialogTitle>
         </DialogHeader>
 
         {isLoading ? (
@@ -83,7 +84,7 @@ export default function CoachUpdatesHistoryDialog({
           </div>
         ) : rows.length === 0 ? (
           <div className="text-center py-10 text-sm text-muted-foreground">
-            Nenhuma atualização do coach registrada ainda.
+            Nenhuma atualização registrada ainda.
           </div>
         ) : (
           <div className="space-y-3">
@@ -111,7 +112,7 @@ export default function CoachUpdatesHistoryDialog({
                         <li key={idx} className="flex gap-3 p-2.5 rounded-lg bg-accent/30">
                           <Icon className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                           <div className="flex-1 min-w-0 space-y-1">
-                            <p className="text-sm text-foreground">{item.label}</p>
+                            <p className="text-sm text-foreground">{normalizeUpdateLabel(item.label)}</p>
                             {item.detail && (
                               <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
                                 {item.detail}

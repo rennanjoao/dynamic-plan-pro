@@ -71,6 +71,13 @@
       "when": 1795150000000,
       "tag": "0009_coach_acompanhamento",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795160000000,
+      "tag": "0010_postura_ia_e_onde_sentiu",
+      "breakpoints": true
     }
   ]
 }

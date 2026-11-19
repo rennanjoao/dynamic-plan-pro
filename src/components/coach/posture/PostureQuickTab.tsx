@@ -111,7 +111,8 @@ export default function PostureQuickTab({ studentId }: { studentId: string }) {
         >
           {sources.data.map((s) => {
             const c = checks.find((x) => x.source_kind === s.kind && x.source_id === s.id);
-            const tag = c ? ` · marcado (${countPresent(c.findings)} desvio${countPresent(c.findings) === 1 ? "" : "s"})` : Object.keys(s.photos).length === 0 ? " · sem fotos" : "";
+            const n = c ? countPresent(c.findings) : 0;
+            const tag = c ? ` · marcado (${n === 0 ? "tudo ok" : `${n} para observar/investigar`})` : Object.keys(s.photos).length === 0 ? " · sem fotos" : "";
             return <option key={`${s.kind}:${s.id}`} value={`${s.kind}:${s.id}`}>{s.label}{tag}</option>;
           })}
         </select>

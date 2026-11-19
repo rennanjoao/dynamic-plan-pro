@@ -31,4 +31,15 @@ describe("gráfico de evolução — medidas", () => {
     await userEvent.click(screen.getByRole("button", { name: "Braço" }));
     expect(screen.getByText("Ainda não há medida de braço registrada.")).toBeTruthy();
   });
+
+  it("tela da aluna abre na cintura e lembra que a balança é só um sinal; o coach continua no peso", () => {
+    const { unmount } = render(<ProgressChart audience="student" />);
+    expect(screen.getByText("Mudança de Cintura")).toBeTruthy();
+    expect(screen.getByTestId("scale-note")).toHaveTextContent("às vezes o peso não muda e a cintura diminui");
+    unmount();
+    render(<ProgressChart studentId="s1" />);
+    expect(screen.getByText("Mudança de Peso")).toBeTruthy();
+    expect(screen.queryByTestId("scale-note")).toBeNull();
+  });
 });
+

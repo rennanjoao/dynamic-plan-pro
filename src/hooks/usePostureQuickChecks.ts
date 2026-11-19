@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { sb } from "@/integrations/supabase/untyped";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
-import { sanitizeFindings, type PostureFindings, type PostureQuickCheck } from "@/lib/postureQuick";
+import { parsePostureAi, sanitizeFindings, type PostureAiSuggestion, type PostureFindings, type PostureQuickCheck } from "@/lib/postureQuick";
 import { resolveCheckinPhotos } from "@/lib/photoAnnotations";
 
 /** Um envio com fotos que pode receber marcação postural. */
@@ -117,6 +117,63 @@ export function usePostureSources(studentId: string | null) {
         out.push({ kind: "anamnesis", id: anam.id, date: anam.submitted_at, photos: fotos, label: `Anamnese (início) · ${fmtShort(anam.submitted_at)}` });
       }
       return out;
+    },
+  });
+}
+
+// ─── Sugestão postural da IA (checkin_photo_analysis.posture) ────────────────
+
+export interface PostureAiState {
+  suggestion: PostureAiSuggestion | null;
+  /** Coluna `posture` ainda não existe (SQL do pacote 6 não rodou). */
+  unavailable: boolean;
+}
+
+/** Lê a sugestão postural da IA de um check-in (só coach ativo/admin pela RLS). */
+export function usePostureAiSuggestion(checkInId: string | null) {
+  return useQuery({
+    queryKey: ["coach-posture-ai", checkInId],
+    enabled: !!checkInId,
+    retry: false,
+    queryFn: async (): Promise<PostureAiState> => {
+      const { data, error } = await sb
+        .from("checkin_photo_analysis")
+        .select("posture, posture_generated_at")
+        .eq("check_in_id", checkInId)
+        .maybeSingle();
+      if (error) {
+        // 42703 = coluna inexistente (SQL ainda não aplicado).
+        if (error.code === "42703" || /posture/i.test(error.message ?? "")) return { suggestion: null, unavailable: true };
+        throw error;
+      }
+      return {
+        suggestion: data ? parsePostureAi(data.posture, data.posture_generated_at ?? null) : null,
+        unavailable: false,
+      };
+    },
+  });
+}
+
+/**
+ * Pede à function photo-analysis a leitura postural deste check-in (gera só o
+ * que faltar; se as fotos mudaram, refaz). Precisa das 4 fotos.
+ */
+export function useRequestPostureAi() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (checkInId: string) => {
+      const { data, error } = await supabase.functions.invoke("photo-analysis", {
+        body: { checkInId, parts: ["postura"] },
+      });
+      if (error) throw new Error("Não foi possível gerar a sugestão agora. Tente de novo em instantes.");
+      const res = (data ?? {}) as { ok?: boolean; skipped?: string; posture?: string };
+      if (res.skipped === "fotos_incompletas") throw new Error("A sugestão precisa das 4 fotos (frente, dois lados e costas).");
+      if (res.skipped === "fotos_inacessiveis") throw new Error("Não consegui abrir as fotos deste check-in.");
+      if (res.posture === "falhou") throw new Error("A IA não devolveu uma leitura válida. Tente de novo.");
+      return res;
+    },
+    onSuccess: (_d, checkInId) => {
+      qc.invalidateQueries({ queryKey: ["coach-posture-ai", checkInId] });
     },
   });
 }

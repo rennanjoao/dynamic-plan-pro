@@ -19,6 +19,7 @@ const h = vi.hoisted(() => ({
   success: vi.fn(),
   sessionId: "S1" as string | null,
   finishSession: vi.fn(async (..._a: unknown[]) => {}),
+  registerExerciseFeel: vi.fn(async (..._a: unknown[]) => {}),
 }));
 
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { success: (...a: unknown[]) => h.success(...a), error: vi.fn() }) }));
@@ -38,6 +39,7 @@ vi.mock("@/hooks/useWorkoutSession", () => ({
     registerSet: h.registerSet,
     removeSet: h.removeSet,
     finishSession: h.finishSession,
+    registerExerciseFeel: h.registerExerciseFeel,
     getStreak: async () => 0,
   }),
 }));
@@ -75,7 +77,8 @@ describe("Modo Treino — recado para o coach", () => {
     await lift(20);
     await userEvent.click(await screen.findByRole("button", { name: /Finalizar/ }));
     const note = await screen.findByTestId("post-workout-note");
-    expect(screen.getByText("Quer avisar algo ao coach?")).toBeTruthy();
+    // Sem "coach" para a aluna: sem nome cadastrado, "o seu treinador".
+    expect(screen.getByText("Quer avisar algo para o seu treinador?")).toBeTruthy();
     await userEvent.type(note, "  Senti o joelho no agachamento  ");
     await userEvent.click(screen.getByRole("button", { name: /Confirmar e Finalizar/ }));
     await waitFor(() => expect(h.finishSession).toHaveBeenCalled());
@@ -89,5 +92,46 @@ describe("Modo Treino — recado para o coach", () => {
     await userEvent.click(await screen.findByRole("button", { name: /Confirmar e Finalizar/ }));
     await waitFor(() => expect(h.finishSession).toHaveBeenCalled());
     expect((h.finishSession.mock.calls[0][0] as { notes?: string }).notes).toBeUndefined();
+  });
+});
+
+describe("Modo Treino — onde você sentiu? (exercícios de glúteo)", () => {
+  beforeEach(() => {
+    cleanup(); localStorage.clear();
+    h.registerSet.mockClear(); h.registerExerciseFeel.mockClear();
+    h.sessionId = "S1"; h.best.mockResolvedValue({}); h.hasLocalSession.mockReturnValue(false); h.materializeLocalSession.mockResolvedValue(null);
+  });
+
+  const glute = [{ key: "A", exercises: [{ name: "Hip Thrust", sets: "1", reps: "10", rest: "60s" }, { name: "Supino", sets: "1", reps: "8", rest: "60s" }] }];
+  const showGlute = (coachName?: string) =>
+    render(<WorkoutMode workouts={glute} userId="u1" coachName={coachName} initialWeek={0} periodization={{ enabled: false }} onClose={() => {}} />);
+
+  it("depois da última série de um exercício de glúteo, pergunta onde sentiu e grava a resposta", async () => {
+    showGlute();
+    expect(screen.queryByTestId("felt-card")).toBeNull(); // antes de terminar as séries, nada
+    await lift(40);
+    const card = await screen.findByTestId("felt-card");
+    expect(card).toHaveTextContent("Onde você sentiu mais?");
+    expect(card).toHaveTextContent("Opcional");
+    await userEvent.click(screen.getByRole("button", { name: "Lombar" }));
+    expect(h.registerExerciseFeel).toHaveBeenCalledWith("Hip Thrust", "lombar");
+    expect(screen.getByRole("button", { name: "Lombar" })).toHaveAttribute("aria-pressed", "true");
+    // pode trocar a resposta
+    await userEvent.click(screen.getByRole("button", { name: "Glúteo" }));
+    expect(h.registerExerciseFeel).toHaveBeenLastCalledWith("Hip Thrust", "gluteo");
+  });
+
+  it("exercício que não é de glúteo não pergunta", async () => {
+    show(); // Supino, 4 séries
+    for (let i = 0; i < 4; i++) await lift(20);
+    await waitFor(() => expect(h.registerSet).toHaveBeenCalledTimes(4));
+    expect(screen.queryByTestId("felt-card")).toBeNull();
+  });
+
+  it("com o nome do profissional, o recado do fim do treino usa o nome (sem 'coach')", async () => {
+    render(<WorkoutMode workouts={workout} userId="u1" coachName="Rennan Gonçalves" initialWeek={0} periodization={{ enabled: false }} onClose={() => {}} />);
+    await lift(40);
+    await userEvent.click(await screen.findByRole("button", { name: /Finalizar/ }));
+    expect(await screen.findByText("Quer avisar algo para Rennan?")).toBeTruthy();
   });
 });

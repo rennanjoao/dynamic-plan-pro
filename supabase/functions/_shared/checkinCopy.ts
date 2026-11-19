@@ -58,13 +58,13 @@ const D0_VARIANTS: CopyVariant[] = [
     subject: "5 minutos hoje. Ajuste preciso na próxima semana.",
     heading: "5 minutos hoje, ajuste preciso depois",
     body:
-      "Hoje é o dia do seu feedback. É rápido — poucos minutos — mas é o único jeito do seu coach saber se o plano atual está funcionando. Seu progresso depende diretamente dessa atualização.",
+      "Hoje é o dia do seu feedback. É rápido — poucos minutos — mas é o único jeito do seu treinador saber se o plano atual está funcionando. Seu progresso depende diretamente dessa atualização.",
   },
   {
     subject: "Está pendente: seu feedback de hoje",
     heading: "Seu feedback de hoje está pendente",
     body:
-      "O feedback de hoje ainda não foi enviado. Leva poucos minutos e é a informação que decide os próximos ajustes do seu protocolo. Sem essa etapa, seu progresso fica parado no radar do coach.",
+      "O feedback de hoje ainda não foi enviado. Leva poucos minutos e é a informação que decide os próximos ajustes do seu protocolo. Sem essa etapa, seu progresso fica parado no radar do seu treinador.",
   },
 ];
 
@@ -80,7 +80,7 @@ const D2_VARIANTS: CopyVariant[] = [
     subject: "Sem seu feedback, seu esforço pode estar sendo desperdiçado",
     heading: "Seu esforço pode estar sendo desperdiçado",
     body:
-      "Dois dias de atraso no feedback significam dois dias em que seu coach não sabe o que realmente está acontecendo com seu corpo. Seu plano será ajustado no escuro se isso continuar — não deixe o esforço dos últimos treinos perder efeito.",
+      "Dois dias de atraso no feedback significam dois dias em que seu treinador não sabe o que realmente está acontecendo com seu corpo. Seu plano será ajustado no escuro se isso continuar — não deixe o esforço dos últimos treinos perder efeito.",
   },
   {
     subject: "Última chamada: feedback pendente há 2 dias",
@@ -89,10 +89,10 @@ const D2_VARIANTS: CopyVariant[] = [
       "Seu feedback está pendente há dois dias. A partir daqui, qualquer ajuste no seu protocolo passa a ser um chute, não uma decisão baseada em dado real. Envie agora antes que o próximo ciclo comece sem essa informação.",
   },
   {
-    subject: "Seu coach está no escuro sobre sua evolução",
-    heading: "Seu coach está no escuro sobre sua evolução",
+    subject: "Seu treinador está no escuro sobre sua evolução",
+    heading: "Seu treinador está no escuro sobre sua evolução",
     body:
-      "Há dois dias sem feedback, seu coach está tomando decisões sobre seu plano sem visibilidade real do que está acontecendo. Não deixe o esforço do seu treino ser desperdiçado por falta de uma atualização de poucos minutos.",
+      "Há dois dias sem feedback, seu treinador está tomando decisões sobre seu plano sem visibilidade real do que está acontecendo. Não deixe o esforço do seu treino ser desperdiçado por falta de uma atualização de poucos minutos.",
   },
 ];
 
@@ -162,7 +162,7 @@ export function buildCheckinEmailHtml(
     <a href="${params.ctaUrl}" style="display:inline-block;padding:12px 24px;border-radius:10px;background:#C5A059;color:#080808;font-size:13px;font-weight:800;text-decoration:none;letter-spacing:.02em;">${esc(ctaLabel)}</a>
   </div>
   <div style="padding:16px 28px;border-top:1px solid #2a2a2a;">
-    <p style="margin:0;color:#666;font-size:11px;">Coach ${esc(params.coachName)} · Elite Prime Hub</p>
+    <p style="margin:0;color:#666;font-size:11px;">${esc(params.coachName)} · Elite Prime Hub</p>
   </div>
 </div>`.trim();
 

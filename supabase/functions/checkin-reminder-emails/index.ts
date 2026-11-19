@@ -196,8 +196,10 @@ Deno.serve(async (req: Request) => {
         ctaUrl: APP_CTA_URL,
       });
 
-      const key = `${sid}:${emailType}:${today}`;
-      contentByKey.set(key, {
+      // Nome próprio: "key" já é a chave do vínculo acima (mesmo bloco) — a
+      // redeclaração impedia a function de iniciar.
+      const contentKey = `${sid}:${emailType}:${today}`;
+      contentByKey.set(contentKey, {
         subject: built.subject,
         html: built.html,
         email: (student as { email?: string | null } | undefined)?.email ?? null,

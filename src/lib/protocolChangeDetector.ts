@@ -549,7 +549,7 @@ export function summarizeProtocolChanges(args: {
     return [{
       category: "geral",
       importance: "alta",
-      label: "Seu protocolo foi liberado pelo seu coach",
+      label: "Seu protocolo foi liberado",
       target_tab: null,
       target_anchor: null,
       detail: null,
@@ -559,7 +559,7 @@ export function summarizeProtocolChanges(args: {
     return [{
       category: "geral",
       importance: "alta",
-      label: "Seu protocolo foi totalmente atualizado pelo seu coach",
+      label: "Seu protocolo foi totalmente atualizado",
       target_tab: null,
       target_anchor: null,
       detail: null,

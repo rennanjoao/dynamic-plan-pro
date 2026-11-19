@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCorsHeaders } from "../_shared/cors.ts";
+import { hasAestheticTags } from "../_shared/photoAnalysisLogic.ts";
 
 const TREINO_CAMPOS = ["sets", "reps", "cadence", "rest"] as const;
 const DIETA_CAMPOS = ["calories", "protein", "carbs", "fat", "water"] as const;
@@ -313,7 +314,7 @@ Regras:
       dnaDoCoach,
       checkInAtual: { respostas: checkIn.payload ?? null, metricas: checkIn.current_metrics ?? null, data: checkIn.submitted_at },
       insightDoCheckIn: insight?.summary ?? null,
-      analiseDeFotos: fotoAnalise?.tags ?? null,
+      analiseDeFotos: fotoAnalise && hasAestheticTags(fotoAnalise.tags) ? fotoAnalise.tags : null,
       ultimosCheckins: (checkins ?? []).map((c) => ({ metrics: c.current_metrics, data: c.submitted_at })),
       resumoAnamnese: anamnese?.ai_summary ?? null,
     });

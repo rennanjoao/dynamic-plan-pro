@@ -17,7 +17,7 @@ import { isMissingFunctionError } from "@/lib/coachAccessStatus";
 
 export interface CoachIdentity {
   coachId: string | null;
-  /** Nome para exibir — nunca vazio ("seu coach" quando desconhecido). */
+  /** Nome para exibir — nunca vazio ("seu treinador" quando desconhecido). */
   name: string;
   /** true quando o nome real foi encontrado. */
   known: boolean;
@@ -25,7 +25,7 @@ export interface CoachIdentity {
   teamName: string | null;
 }
 
-export const FALLBACK_COACH_NAME = "seu coach";
+export const FALLBACK_COACH_NAME = "seu treinador";
 
 export function toCoachIdentity(row: {
   coach_id?: string | null; full_name?: string | null; team_name?: string | null; cref?: string | null;

@@ -155,7 +155,7 @@ export const ANAMNESIS_SECTIONS: AnamnesisSection[] = [
     { key: "mudancas_neg", label: "Notou mudanças negativas na saúde nos últimos 3 anos?", placeholder: "Ex: Imunidade ficou muito baixa, vivo resfriado." },
     { key: "cirurgias", label: "Já fez cirurgias relevantes?", placeholder: "Ex: Operei o ombro direito em 2020." },
     { key: "implantes", label: "Possui implantes, pinos ou DIU (Qual)?", placeholder: "Ex: DIU Mirena." },
-    { key: "obs_finais", label: "Quer deixar alguma observação extra para o Coach?", placeholder: "Conte aqui qualquer outra coisa que considere importante eu saber." },
+    { key: "obs_finais", label: "Quer deixar alguma observação extra para o seu treinador?", placeholder: "Conte aqui qualquer outra coisa que considere importante eu saber." },
   ]},
 ];
 

@@ -19,6 +19,7 @@ import { uploadStudentPhoto, uploadStudentExam, openMedia } from "@/lib/studentM
 import type { FieldRenderContext, SectionDef } from "@/lib/anamnesisSchema";
 import { FormField } from "@/components/student/FormField";
 import { FotoSlot } from "@/components/shared/FotoSlot";
+import { PhotoGuideTips } from "@/components/shared/PhotoGuideTips";
 import { useStudentData } from "@/hooks/useStudentData";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -761,18 +762,7 @@ export default function CheckIn() {
           <h2 className="text-sm font-bold text-primary uppercase tracking-wider mb-4">
             Fotos de Progresso
           </h2>
-          <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 mb-4 space-y-1 text-[11px] text-muted-foreground">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-primary mb-1">📸 Como tirar a foto correta</p>
-            {[
-              "Mesmo ambiente e fundo de sempre",
-              "Mesma iluminação (evite sombras e contraluz)",
-              "Mesma roupa — sunga, bermuda ou top",
-              "Mesmo horário (preferencialmente em jejum)",
-              "Câmera na altura da cintura, distância de 1,5m",
-            ].map((tip) => (
-              <p key={tip}>· <span className="text-foreground font-medium">{tip}</span></p>
-            ))}
-          </div>
+          <PhotoGuideTips className="mb-4" />
           <div className="grid grid-cols-4 gap-2">
             {FOTO_KEYS.map((key) => (
               <FotoSlot
@@ -792,7 +782,7 @@ export default function CheckIn() {
             Exames (PDF) <span className="text-[11px] font-normal text-muted-foreground normal-case">— opcional</span>
           </h2>
           <p className="text-[11px] text-muted-foreground mb-3">
-            Anexe até 3 arquivos PDF (10MB cada) para seu coach revisar junto com o check-in.
+            Anexe até 3 arquivos PDF (10MB cada) para o seu treinador revisar junto com o check-in.
           </p>
           <div className="space-y-2">
             {existingExames.map((ex, i) => (
@@ -859,7 +849,7 @@ export default function CheckIn() {
               </li>
             </ul>
             <p className="text-xs text-muted-foreground mt-4">
-              Revise os dados acima. Ao enviar, seu coach será notificado automaticamente.
+              Revise os dados acima. Ao enviar, o seu treinador será avisado automaticamente.
             </p>
           </Card>
         )}

@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import { formatDatePtBR } from "@/lib/formatDate";
 import { useStudentViewCoachIdentity } from "@/hooks/useCoachIdentity";
+import { coachOf, normalizeUpdateLabel } from "@/lib/coachWords";
 
 export interface CoachChangeItem {
   category: "treino" | "dieta" | "suplemento" | "diretriz" | "geral";
@@ -234,7 +235,7 @@ export default function CoachUpdatesCard() {
           type="button"
           onClick={handleOpenSheet}
           className="w-full text-left bg-card border border-border/60 border-l-2 border-l-primary rounded-xl p-4 shadow-none hover:bg-muted/30 transition-colors flex items-center gap-3"
-          aria-label={`Ver diretrizes técnicas de ${coach.name}`}
+          aria-label={`Ver diretrizes técnicas ${coachOf(coach)}`}
         >
           <Sparkles className="w-5 h-5 text-primary shrink-0" />
           <div className="flex-1 space-y-0.5 min-w-0">
@@ -273,7 +274,7 @@ export default function CoachUpdatesCard() {
                     aria-expanded={isExpandable ? isExpanded : undefined}
                   >
                     <Icon className="w-4 h-4 text-primary shrink-0" />
-                    <span className="flex-1 text-sm text-foreground min-w-0">{item.label}</span>
+                    <span className="flex-1 text-sm text-foreground min-w-0">{normalizeUpdateLabel(item.label)}</span>
                     {isExpandable ? (
                       <ChevronDown
                         className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${

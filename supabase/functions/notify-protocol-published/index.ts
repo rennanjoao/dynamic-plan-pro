@@ -72,7 +72,7 @@ serve(async (req) => {
     const studentEmail = stu?.email ?? null;
     if (!RESEND_KEY || !studentEmail) return json(200, { ok: true, sent: false, reason: !RESEND_KEY ? "no_resend" : "no_email" });
 
-    const coachName = (coach?.full_name ?? "").trim() || "Seu coach";
+    const coachName = (coach?.full_name ?? "").trim() || "Seu treinador";
     const firstName = String(stu?.full_name ?? "").trim().split(/\s+/)[0] || "";
     const labels = (Array.isArray(body.changes) ? body.changes : [])
       .map((c) => String(c ?? "").trim()).filter(Boolean).slice(0, 6);

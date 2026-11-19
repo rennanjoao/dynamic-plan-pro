@@ -448,7 +448,9 @@ export default function EvolutionComparison({
         </div>
       </Card>
 
-      {right.kind === "checkin" && photoAnalysis && (
+      {right.kind === "checkin" && photoAnalysis &&
+        [photoAnalysis.tags.gordura_visual, photoAnalysis.tags.definicao, photoAnalysis.tags.volume_muscular, photoAnalysis.tags.simetria]
+          .some((v) => typeof v === "string" && v.trim()) && (
         <Card className="p-3">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] uppercase tracking-wider text-primary font-bold">Análise visual (IA)</p>

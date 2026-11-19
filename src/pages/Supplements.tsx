@@ -16,6 +16,8 @@ import { supplementsForToday } from "@/lib/supplementsToday";
 import { useAuthUserId } from "@/hooks/useAuthUserId";
 import { PageLoader } from "@/components/ui/PageLoader";
 import PreviewModeBar from "@/components/student/PreviewModeBar";
+import { useStudentViewCoachIdentity } from "@/hooks/useCoachIdentity";
+import { coachOf } from "@/lib/coachWords";
 
 // ─── Card interno recolhível ─────────────────────────────────────────────────
 // Cada diretriz vive dentro de um card que inicia minimizado; o aluno clica
@@ -71,6 +73,7 @@ function GuidelineAccordionItem({
 
 export default function Supplements() {
   const navigate = useNavigate();
+  const coach = useStudentViewCoachIdentity();
   const userId = useAuthUserId();
   const [searchParams] = useSearchParams();
   const previewAs = searchParams.get("previewAs");
@@ -152,7 +155,7 @@ export default function Supplements() {
         </Button>
         <div className="flex-1">
           <h1 className="text-lg font-bold text-foreground">Diretrizes & Suplementação</h1>
-          <p className="text-xs text-muted-foreground">Orientações do seu coach</p>
+          <p className="text-xs text-muted-foreground">Orientações {coachOf(coach)}</p>
         </div>
         
       </header>
@@ -390,7 +393,7 @@ export default function Supplements() {
 
         {!hasAnything && (
           <p className="text-center text-muted-foreground italic py-10">
-            Diretrizes ainda não publicadas pelo coach.
+            Diretrizes ainda não publicadas.
           </p>
         )}
 

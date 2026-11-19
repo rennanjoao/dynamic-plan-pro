@@ -228,7 +228,7 @@ export const CHECKIN_SECTIONS: SectionDef[] = [
     id: "identificacao",
     title: "01 · Identificação",
     fields: [
-      { key: "atencao_urgente",   label: "Precisa de atenção prioritária do coach agora?", type: "choices", options: ["Não", "Sim"] },
+      { key: "atencao_urgente",   label: "Precisa de atenção prioritária do seu treinador agora?", type: "choices", options: ["Não", "Sim"] },
       { key: "humor_geral",       label: "Como está seu humor e disposição geral?",        type: "choices", options: ["Animado", "Normal", "Cansado"] },
       { key: "evento_relevante",  label: "Aconteceu algo relevante desde o último check-in? (lesão, doença, viagem, novo sintoma)", type: "choices", options: ["Não", "Sim"] },
       {
@@ -330,7 +330,7 @@ export const CHECKIN_SECTIONS: SectionDef[] = [
       { key: "temp_d4",            label: "Temperatura ao acordar (Dia 4)", type: "number", step: "0.01", unit: "°C", half: true, placeholder: "Ex: 36.4" },
       { key: "temp_d5",            label: "Temperatura ao acordar (Dia 5)", type: "number", step: "0.01", unit: "°C", half: true, placeholder: "Ex: 36.5" },
       { key: "exame_obs",          label: "Tem algum resultado de exame novo ou orientação médica?", type: "text", placeholder: "Ex: Fiz exames ontem e o colesterol deu alterado..." },
-      { key: "observacoes",        label: "Quer deixar algum recado, dúvida ou observação para o Coach?", type: "textarea", placeholder: "Use este espaço para falar o que quiser." },
+      { key: "observacoes",        label: "Quer deixar algum recado, dúvida ou observação para o seu treinador?", type: "textarea", placeholder: "Use este espaço para falar o que quiser." },
     ],
   },
 ];

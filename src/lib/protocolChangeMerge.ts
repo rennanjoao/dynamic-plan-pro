@@ -12,10 +12,12 @@ import type { ProtocolChange } from "./protocolChangeDetector";
  *    o `detail` mais recente.
  *  - Itens novos sem identidade conhecida entram no fim.
  *  - Se o total mesclado passar de 20, colapsa tudo em um único evento "geral"
- *    ("Seu protocolo foi totalmente atualizado pelo seu coach").
+ *    ("Seu protocolo foi totalmente atualizado").
  *  - Se o array existente já for esse evento único "geral", mantém como está.
  */
-const GLOBAL_UPDATE_LABEL = "Seu protocolo foi totalmente atualizado pelo seu coach";
+const GLOBAL_UPDATE_LABEL = "Seu protocolo foi totalmente atualizado";
+// Eventos já gravados no banco antes do pacote 6 ainda têm o texto antigo.
+const LEGACY_GLOBAL_UPDATE_LABEL = "Seu protocolo foi totalmente atualizado pelo seu coach";
 
 const globalUpdateEvent = (): ProtocolChange => ({
   category: "geral",
@@ -30,7 +32,9 @@ const identityOf = (c: ProtocolChange): string =>
   c?.target_anchor ? `a:${c.target_anchor}` : `l:${c?.label ?? ""}`;
 
 const isCollapsedGlobal = (arr: ProtocolChange[]): boolean =>
-  arr.length === 1 && arr[0]?.label === GLOBAL_UPDATE_LABEL && arr[0]?.category === "geral";
+  arr.length === 1 &&
+  (arr[0]?.label === GLOBAL_UPDATE_LABEL || arr[0]?.label === LEGACY_GLOBAL_UPDATE_LABEL) &&
+  arr[0]?.category === "geral";
 
 export function mergeProtocolChanges(
   existing: ProtocolChange[],
