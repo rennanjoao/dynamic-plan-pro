@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { buildCorsHeaders } from "../_shared/cors.ts";
+import { groqChat } from "../_shared/groq.ts";
 const SYSTEM_PROMPT = `Você é o assistente oficial da plataforma Elite Hub.
 Responda de forma direta, objetiva e em no máximo 3 frases, salvo pedido de detalhe.
 Para orçamento ou dúvidas sem resposta indique o e-mail contato@eliteprimehub.com.br ou Instagram @Rennan_Eliteprime.
@@ -68,43 +69,26 @@ serve(async (req: Request) => {
       })),
     ];
 
-    const response = await fetch(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${GROQ_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "qwen/qwen3.6-27b",
-          messages: chatMessages,
-          reasoning_effort: "none",
-        }),
-      }
-    );
+    const { response, model } = await groqChat({
+      apiKey: GROQ_API_KEY,
+      label: "info-chat",
+      body: {
+        messages: chatMessages,
+        reasoning_effort: "none",
+      },
+    });
 
     if (!response.ok) {
-      // Lê o corpo uma única vez como texto — para log e para extrair mensagem de erro
       const errBody = await response.text().catch(() => "(sem corpo)");
-      console.error(`[info-chat] Groq error ${response.status}:`, errBody);
-
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em instantes." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
-      }
-
-      let errMessage = "Erro na IA";
-      try {
-        const parsed = JSON.parse(errBody);
-        errMessage = parsed?.error?.message ?? errMessage;
-      } catch { /* ignora parse error */ }
-
+      console.error(`[info-chat] Groq error ${response.status} (${model}):`, errBody);
+      // Chat público: o visitante nunca vê detalhes do provedor (só o log).
       return new Response(
-        JSON.stringify({ error: errMessage }),
-        { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        JSON.stringify({
+          error: response.status === 429
+            ? "Muitas pessoas conversando agora. Tente novamente em instantes."
+            : "O assistente está indisponível no momento. Tente mais tarde.",
+        }),
+        { status: response.status === 429 ? 429 : 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 

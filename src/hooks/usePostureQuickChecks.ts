@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { parsePostureAi, sanitizeFindings, type PostureAiSuggestion, type PostureFindings, type PostureQuickCheck } from "@/lib/postureQuick";
 import { resolveCheckinPhotos } from "@/lib/photoAnnotations";
+import { functionErrorMessage } from "@/lib/functionError";
 
 /** Um envio com fotos que pode receber marcação postural. */
 export interface PostureSourceOption {
@@ -165,7 +166,7 @@ export function useRequestPostureAi() {
       const { data, error } = await supabase.functions.invoke("photo-analysis", {
         body: { checkInId, parts: ["postura"] },
       });
-      if (error) throw new Error("Não foi possível gerar a sugestão agora. Tente de novo em instantes.");
+      if (error) throw new Error(await functionErrorMessage(error, "Não foi possível gerar a sugestão agora. Tente de novo em instantes."));
       const res = (data ?? {}) as { ok?: boolean; skipped?: string; posture?: string };
       if (res.skipped === "fotos_incompletas") throw new Error("A sugestão precisa das 4 fotos (frente, dois lados e costas).");
       if (res.skipped === "fotos_inacessiveis") throw new Error("Não consegui abrir as fotos deste check-in.");

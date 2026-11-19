@@ -50,6 +50,7 @@ import { INSIGHT_META, type CoachInsightSituacao } from "@/lib/coachInsights";
 import { localDateKey, parseDateOnly } from "@/lib/dateOnly";
 import { useStudentCycleSummary } from "@/hooks/useStudentCycleSummary";
 import { adherenceTotals, plannedSessionsPerWeek, weeklyTrainingAdherence } from "@/lib/coachCycleSummary";
+import { functionErrorMessage } from "@/lib/functionError";
 
 /* ── Constantes ─────────────────────────────────────────────────────────────── */
 
@@ -446,13 +447,13 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
   const refreshInsight = useMutation({
     mutationFn: async () => {
       const { error } = await sb.functions.invoke("coach-insight-summary", { body: { studentId } });
-      if (error) throw error;
+      if (error) throw new Error(await functionErrorMessage(error, "Não foi possível atualizar a leitura agora."));
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["coach_insight_summary", studentId] });
     },
-    onError: () => {
-      toast.error("Não foi possível atualizar a leitura agora.");
+    onError: (e) => {
+      toast.error(e instanceof Error ? e.message : "Não foi possível atualizar a leitura agora.");
     },
   });
 

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCorsHeaders } from "../_shared/cors.ts";
+import { groqChat, groqErrorMessage } from "../_shared/groq.ts";
 
 const FREE_TEXT_FIELDS = [
   "objetivos", "profissao", "atividades", "lesoes", "remedios", "drogas",
@@ -68,11 +69,10 @@ Responda SOMENTE com um JSON válido, sem markdown, exatamente neste formato:
 - "detalhes": SE algum flag for true, cite em poucas palavras o que foi mencionado, para o coach revisar com atenção — nunca é uma decisão clínica, só um sinalizador para revisão humana.
 Nunca invente informação que não esteja no texto do aluno.`;
 
-    const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "qwen/qwen3.6-27b",
+    const aiRes = await groqChat({
+      apiKey: GROQ_API_KEY,
+      label: "anamnesis-summary",
+      body: {
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: JSON.stringify(freeText) },
@@ -80,11 +80,12 @@ Nunca invente informação que não esteja no texto do aluno.`;
         stream: false,
         temperature: 0.2,
         reasoning_effort: "none",
-      }),
-    });
+      },
+    }).then((r) => r.response);
     if (!aiRes.ok) {
       const t = await aiRes.text().catch(() => "");
-      throw new Error(`Groq error ${aiRes.status}: ${t}`);
+      console.error("[anamnesis-summary] Groq", aiRes.status, t);
+      throw new Error(groqErrorMessage(aiRes.status, t));
     }
     const aiJson = await aiRes.json();
     const raw = aiJson.choices?.[0]?.message?.content ?? "{}";

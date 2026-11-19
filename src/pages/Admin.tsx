@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, LogOut, Users, Link2, DollarSign, Activity, User, Dumbbell, Sparkles, Bell } from "lucide-react";
+import { ArrowLeft, LogOut, Users, Link2, DollarSign, Activity, User, Dumbbell, Sparkles, Bell, Bot } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -18,6 +18,7 @@ import { AdminPasswordManager } from "@/components/admin/AdminPasswordManager";
 import { PartnershipsManagement } from "@/components/admin/PartnershipsManagement";
 import { UsersManagement } from "@/components/admin/UsersManagement";
 import { AnnouncementsAdmin } from "@/components/admin/AnnouncementsAdmin";
+import { AiHealthPanel } from "@/components/admin/AiHealthPanel";
 import { SimpleProfileDialog } from "@/components/SimpleProfileDialog";
 
 const Admin = () => {
@@ -84,6 +85,7 @@ const Admin = () => {
             <TabsTrigger value="exercise-library" className="gap-1.5"><Dumbbell className="w-4 h-4" /> Biblioteca</TabsTrigger>
             <TabsTrigger value="partnerships" className="gap-1.5"><Sparkles className="w-4 h-4" /> Parcerias</TabsTrigger>
             <TabsTrigger value="announcements" className="gap-1.5"><Bell className="w-4 h-4" /> Novidades</TabsTrigger>
+            <TabsTrigger value="ai" className="gap-1.5"><Bot className="w-4 h-4" /> IA</TabsTrigger>
           </TabsList>
 
           <TabsContent value="trainers">
@@ -119,6 +121,12 @@ const Admin = () => {
 
           <TabsContent value="announcements">
             <AnnouncementsAdmin />
+          </TabsContent>
+
+          <TabsContent value="ai">
+            <div className="rounded-xl border border-border bg-card p-6">
+              <AiHealthPanel />
+            </div>
           </TabsContent>
 
           <TabsContent value="exercise-library" className="space-y-6">

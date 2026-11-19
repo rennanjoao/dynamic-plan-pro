@@ -11,6 +11,7 @@ import ReactMarkdown from "react-markdown";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { functionErrorMessage } from "@/lib/functionError";
 
 interface Message {
   id: string;
@@ -94,7 +95,7 @@ export const InfoChatBot = () => {
       const { data, error } = await supabase.functions.invoke("info-chat", {
         body: { messages: history },
       });
-      if (error) throw error;
+      if (error) throw new Error(await functionErrorMessage(error, "O assistente está indisponível no momento."));
       const reply = (data as { text?: string; error?: string })?.text;
       if (!reply) throw new Error((data as { error?: string })?.error || "Resposta vazia");
       setMessages(prev => [...prev, { id: Date.now().toString() + "_a", role: "assistant", content: reply }]);
