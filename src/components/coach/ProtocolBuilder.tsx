@@ -82,6 +82,7 @@ import { pruneOrphanWeekDays } from "@/lib/weekDaysOps";
 import { MacrosTab } from "./protocol-builder/MacrosTab";
 import { GuidelinesTab } from "./protocol-builder/GuidelinesTab";
 import { WorkoutsTab } from "./protocol-builder/WorkoutsTab";
+import { BusyWeekStudentCard } from "./busy-week/BusyWeekStudentCard";
 import { DietTab } from "./protocol-builder/DietTab";
 import { calcMealMacros, calcDayMacros, tacoGroupToKind, parseWeightString, optionMacros, compareOptions, type SubstitutionSeverity } from "@/lib/macroCalc";
 import {
@@ -1112,7 +1113,10 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             </TabsList>
             <TabsContent value="macros" className="mt-4"><MacrosTab payload={payload} setPayload={updatePayload} /></TabsContent>
             <TabsContent value="guidelines" className="mt-4"><GuidelinesTab payload={payload} setPayload={updatePayload} coachId={coachId} /></TabsContent>
-            <TabsContent value="workouts" className="mt-4"><WorkoutsTab payload={payload} setPayload={updatePayload} coachId={coachId} onOpenTemplateLibrary={() => setLibraryOpen(true)} /></TabsContent>
+            <TabsContent value="workouts" className="mt-4">
+              <BusyWeekStudentCard coachId={coachId} studentId={studentId} studentName={studentName} />
+              <WorkoutsTab payload={payload} setPayload={updatePayload} coachId={coachId} onOpenTemplateLibrary={() => setLibraryOpen(true)} />
+            </TabsContent>
             <TabsContent value="diet" className="mt-4"><DietTab payload={payload} setPayload={updatePayload} onOpenTemplateLibrary={() => setLibraryOpen(true)} /></TabsContent>
           </Tabs>
 
