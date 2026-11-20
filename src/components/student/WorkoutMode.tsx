@@ -25,6 +25,7 @@ import {
   Repeat,
   Loader2,
   Video,
+  ArrowUpDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,7 @@ import {
 } from "@/lib/exerciseLibrary";
 import { classifyExerciseByName, MUSCLE_GROUP_LABELS, type MuscleGroup } from "@/lib/muscleGroupClassifier";
 import { parseRestTime } from "@/lib/timeParser";
+import { isBusyKey, workoutKeyLabel } from "@/lib/busyWeek";
 
 /* ── Constantes ─────────────────────────────────────────────────────────────── */
 const GOLD = "#C9A84C";
@@ -349,6 +351,7 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
         userId,
         coachId,
         workoutKey: day.key,
+        workoutLabel: isBusyKey(day.key) ? `Semana corrida${day.focus ? ` · ${day.focus}` : ""}` : undefined,
         periodizationWeek: isPeriodizationOn ? activeWeek : undefined,
         periodizationKey,
         isDeloadWeek: periodizationKey === "deload",
@@ -845,7 +848,12 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
           className="w-11 h-11 -ml-1 flex items-center justify-center text-white/60 active:text-white active:scale-90 transition-all"
         ><X className="w-6 h-6" /></button>
         <div className="flex-1 min-w-0">
-          <h1 className="font-black text-sm truncate uppercase tracking-tight">Treino {day?.key} {day?.focus && `· ${day.focus}`}</h1>
+          <h1 className="font-black text-sm truncate uppercase tracking-tight">{workoutKeyLabel(day?.key)} {day?.focus && `· ${day.focus}`}</h1>
+          {day?.__inverted && (
+            <p className="text-[11px] font-bold text-white/70 flex items-center gap-1" data-testid="workout-inverted">
+              <ArrowUpDown className="w-3 h-3" /> Ordem invertida hoje (mobilidade continua antes)
+            </p>
+          )}
           <p className="text-xs text-primary font-bold flex items-center gap-1"><Flame className="w-3 h-3" /> {fmtMMSS(elapsedSec)}</p>
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0">

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { effortLabel } from "@/lib/workoutTypes";
 import { periodizationKeyLabel } from "@/lib/periodizationKey";
 import { Button } from "@/components/ui/button";
+import { isBusyKey, workoutKeyLabel } from "@/lib/busyWeek";
 
 /* ── Helpers ─────────────────────────────────────────────────────────────────── */
 
@@ -203,8 +204,8 @@ export default function WorkoutHistory({ userId, periodizationKey = null }: { us
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-bold text-foreground truncate">
-                    Treino {session.workout_key}
-                    {session.workout_label ? ` · ${session.workout_label}` : ""}
+                    {workoutKeyLabel(session.workout_key)}
+                    {session.workout_label && !isBusyKey(session.workout_key) ? ` · ${session.workout_label}` : ""}
                   </p>
                   {session.is_deload_week && (
                     <span className="text-[11px] font-bold uppercase text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded">

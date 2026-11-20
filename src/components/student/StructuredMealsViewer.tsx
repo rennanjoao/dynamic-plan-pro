@@ -26,6 +26,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useMealCheckins } from "@/hooks/useMealCheckins";
 import { slug } from "@/lib/slug";
 import { localDateKey } from "@/lib/dateOnly";
+import { useStudentBusyWeek } from "@/hooks/useBusyWeek";
+import { busyCarbFor, suggestBusyDayType, type BusyDayType } from "@/lib/busyWeek";
 
 // ─── Math engine ──────────────────────────────────────────────────────────────
 /** Retorna saudação de acordo com o horário local do dispositivo */
@@ -649,8 +651,25 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
   // ── "Hoje não vou treinar" / "Hoje vou treinar" (ver src/lib/dietDayMode.ts)
   // Só muda por ação explícita da aluna e só vale para hoje.
   const [dayOverride, setDayOverride] = useState<DayOverride | null>(null);
-  const plannedTraining = !!todayWorkout;
-  const dayPlan = resolveDayPlan({ plannedTraining, plannedCarb: todayInfo.carb, override: dayOverride });
+
+  // Semana Corrida: sem dia fixo — o tipo do dia vem da sequência (treinou
+  // ontem → descanso) e a aluna confirma ou troca; o carbo segue a regra do plano.
+  const { data: busyData } = useStudentBusyWeek(uid);
+  const busyRule = busyData?.active && busyData.assignment ? busyData.assignment.payload.dietRule : null;
+  const busySuggestion: BusyDayType | null = busyRule ? suggestBusyDayType(busyData!.sessions) : null;
+  const plannedTraining = busyRule ? busySuggestion === "training" : !!todayWorkout;
+  const computeDayPlan = (override: DayOverride | null) => {
+    if (busyRule) {
+      const type: BusyDayType = override ?? busySuggestion ?? "training";
+      return { dayType: type, carb: busyCarbFor(busyRule, type), adjusted: false };
+    }
+    return resolveDayPlan({ plannedTraining, plannedCarb: todayInfo.carb, override });
+  };
+  const dayPlan = computeDayPlan(dayOverride);
+  const busyCarbNow = busyRule ? dayPlan.carb : null;
+  useEffect(() => {
+    if (busyCarbNow) setCarbMode(busyCarbNow as CarbMode);
+  }, [busyCarbNow]);
 
   // Ao identificar a aluna: recupera a escolha de hoje e a preferência cru/cozido.
   useEffect(() => {
@@ -658,7 +677,7 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
     const saved = readDayOverride(uid, dayKey);
     if (saved) {
       setDayOverride(saved);
-      setCarbMode(resolveDayPlan({ plannedTraining, plannedCarb: todayInfo.carb, override: saved }).carb as CarbMode);
+      setCarbMode(computeDayPlan(saved).carb as CarbMode);
     }
     const cooked = readCookedPref(uid);
     if (cooked !== null) setIsCookedState(cooked);
@@ -675,7 +694,7 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
     if (uid) writeDayOverride(uid, dayKey, value);
     // Todas as refeições com par voltam a seguir o dia (descarta trocas manuais).
     setSelectedDayTypeByPair({});
-    setCarbMode(resolveDayPlan({ plannedTraining, plannedCarb: todayInfo.carb, override: value }).carb as CarbMode);
+    setCarbMode(computeDayPlan(value).carb as CarbMode);
   };
 
   // ── Refeições de Treino vs Descanso ────────────────────────────────────
@@ -811,7 +830,31 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
         )}
 
         {/* Linha 3 — Treino ou mensagem de descanso */}
-        {dayPlan.adjusted ? (
+        {busyRule ? (
+          <div className="space-y-1.5" data-testid="busy-diet-day">
+            <p className="text-[12px] text-muted-foreground">
+              Semana Corrida: o carbo segue o seu dia (treino: <strong className="text-foreground">{CARB_LABEL[busyRule.training]}</strong> · descanso: <strong className="text-foreground">{CARB_LABEL[busyRule.rest]}</strong>).
+            </p>
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-background/60 p-1 max-w-xs" role="radiogroup" aria-label="Hoje é dia de">
+              {(["training", "rest"] as const).map((t) => {
+                const selected = dayPlan.dayType === t;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => applyDayOverride(t === busySuggestion ? null : t)}
+                    className={cn("h-8 rounded-md text-[13px] font-semibold", selected ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
+                    data-testid={`busy-day-${t}`}
+                  >
+                    {t === "training" ? "Treino" : "Descanso"}{t === busySuggestion ? " ·sugerido" : ""}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : dayPlan.adjusted ? (
           <div className="rounded-xl bg-background/70 border border-border/60 px-3 py-2 flex items-center justify-between gap-2">
             <p className="text-[13px] text-foreground leading-snug">
               {dayOverride === "rest"
@@ -838,7 +881,7 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
             Dia de descanso — recuperação é parte do processo. Hidrate-se bem e durma cedo 🌙
           </p>
         )}
-        {!dayPlan.adjusted && dayAction && (
+        {!busyRule && !dayPlan.adjusted && dayAction && (
           <button
             type="button"
             onClick={() => applyDayOverride(dayAction === "skip" ? "rest" : "training")}
@@ -849,7 +892,8 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
         )}
       </div>
 
-      {/* ── Week strip (read-only) ── */}
+      {/* ── Week strip (read-only) — na Semana Corrida o dia não é fixo ── */}
+      {!busyRule && (
       <div className="grid grid-cols-7 gap-1 mb-4">
         {strip.map((d) => {
           const cc = CARB_COLOR[d.carb];
@@ -870,6 +914,7 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
           );
         })}
       </div>
+      )}
 
 
 

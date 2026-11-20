@@ -53,6 +53,8 @@ function dayKeyLocal(d: Date): string {
 export interface SessionLite {
   started_at: string;
   ended_at: string | null;
+  /** Chave do treino (SC_… = Semana Corrida). */
+  workout_key?: string | null;
   /** true quando a sessão tem ao menos uma série concluída. */
   hasCompletedSets?: boolean;
 }
@@ -68,6 +70,8 @@ export interface WeekAdherence {
   done: number;
   planned: number;
   isCurrent: boolean;
+  /** Semana em que a aluna usou a Semana Corrida (previsto = o do plano). */
+  busy?: boolean;
 }
 
 /**
@@ -82,6 +86,8 @@ export function weeklyTrainingAdherence(
   planned: number,
   weeks = 4,
   now: Date = new Date(),
+  /** Treinos por semana da Semana Corrida; semanas em que ela usou contam por ele. */
+  busyPlanned?: number | null,
 ): WeekAdherence[] {
   const currentStart = startOfWeekMonday(now);
   const out: WeekAdherence[] = [];
@@ -96,7 +102,12 @@ export function weeklyTrainingAdherence(
       const t = new Date(s.started_at);
       if (t >= ws && t < we) days.add(dayKeyLocal(t));
     }
-    out.push({ weekStart: ws, done: days.size, planned, isCurrent: i === 0 });
+    const busy = !!busyPlanned && sessions.some((s) => {
+      if (!s.workout_key || !s.workout_key.startsWith("SC_")) return false;
+      const t = new Date(s.started_at);
+      return t >= ws && t < we;
+    });
+    out.push({ weekStart: ws, done: days.size, planned: busy ? busyPlanned! : planned, isCurrent: i === 0, ...(busy ? { busy: true } : {}) });
   }
   return out;
 }

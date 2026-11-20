@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import {
   Plus, Trash2, ArrowUp, ArrowDown, ChevronDown, CheckCircle2, GripVertical, Activity,
-  StretchHorizontal, Dumbbell, Library, CopyPlus, Copy,
+  StretchHorizontal, Dumbbell, Library, CopyPlus, Copy, ArrowUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
@@ -28,6 +28,7 @@ import { duplicateWorkoutDay, nextWorkoutKey } from "@/lib/workoutDayOps";
 import { normalizeCarb, cycleCarb, CARB_LABEL, DAY_KEYS } from "@/lib/weekCycle";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { WorkoutTemplateQuickPicker } from "@/components/coach/WorkoutTemplateQuickPicker";
+import { INVERT_OPTIONS, INVERT_LABEL, makeInvertSetting, type InvertMode } from "@/lib/workoutInversion";
 
 import {
   DndContext, closestCenter, PointerSensor, KeyboardSensor,
@@ -57,7 +58,39 @@ function SortableExerciseRow({
   );
 }
 
-export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrary }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void; coachId: string | null; onOpenTemplateLibrary?: () => void }) {
+/** Seletor "inverter a ordem" de um treino (mobilidade fica sempre no começo). */
+function InvertSelect({ value, onChange, testId }: { value: InvertMode; onChange: (m: InvertMode) => void; testId?: string }) {
+  return (
+    <Select value={value} onValueChange={(v) => onChange(v as InvertMode)}>
+      <SelectTrigger
+        className={cn("h-7 w-auto gap-1 text-[11px] rounded-full px-2.5", value !== "off" ? "border-primary/50 text-primary bg-primary/5" : "text-muted-foreground")}
+        title="Inverter a ordem dos exercícios (a mobilidade continua antes)"
+        data-testid={testId}
+      >
+        <ArrowUpDown className="w-3 h-3" />
+        <SelectValue>{value === "off" ? "Ordem normal" : `Inverter: ${INVERT_LABEL[value].toLowerCase()}`}</SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {INVERT_OPTIONS.map((o) => (
+          <SelectItem key={o.value} value={o.value}>
+            <span className="flex flex-col">
+              <span className="text-xs font-medium">{o.label}</span>
+              <span className="text-[10px] text-muted-foreground">{o.hint}</span>
+            </span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+/**
+ * `variant="busyWeek"`: mesmo editor, usado na Semana Corrida — sem dias da
+ * semana, carbo por dia, volume semanal, descanso e aeróbicos (o plano usa
+ * rotação A/B/C e a dieta segue treino/descanso).
+ */
+export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrary, variant = "protocol" }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void; coachId: string | null; onOpenTemplateLibrary?: () => void; variant?: "protocol" | "busyWeek" }) {
+  const isBusy = variant === "busyWeek";
   useEffect(() => {
     const needs = payload.workouts.some((d) => d.exercises.some((e: any) => !e.__id));
     if (!needs) return;
@@ -184,7 +217,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
     if (!result) return;
     setPayload(result.payload);
     setScrollToKey(result.newKey);
-    toast.success(`Treino ${positionLetter(di)} duplicado como Treino ${positionLetter(result.newIndex)}. Vincule os dias da semana dele.`);
+    toast.success(`Treino ${positionLetter(di)} duplicado como Treino ${positionLetter(result.newIndex)}.${isBusy ? "" : " Vincule os dias da semana dele."}`);
   };
 
   /** Remove um bloco de treino + vínculos de dia da semana + overrides da periodização. */
@@ -270,7 +303,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <WorkoutTemplateQuickPicker payload={payload} setPayload={setPayload} coachId={coachId} />
-        {onOpenTemplateLibrary && (
+        {onOpenTemplateLibrary && !isBusy && (
           <button
             type="button"
             onClick={onOpenTemplateLibrary}
@@ -283,7 +316,27 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
       <WorkoutPeriodizationEditor payload={payload} setPayload={setPayload} coachId={coachId} onOpenTemplateLibrary={onOpenTemplateLibrary} />
 
 
+      {/* ── Inverter a ordem: aplicar em todos de uma vez ── */}
+      {payload.workouts.length > 0 && (() => {
+        const modes = new Set(payload.workouts.map((w) => w.invert?.mode ?? "off"));
+        const common: InvertMode = modes.size === 1 ? ([...modes][0] as InvertMode) : "off";
+        return (
+          <div className="flex items-center justify-between gap-2 flex-wrap rounded-lg border border-border/60 bg-card/40 px-3 py-2" data-testid="invert-all">
+            <p className="text-[11px] text-muted-foreground">
+              <span className="font-semibold text-foreground">Inverter a ordem</span> para variar o estímulo (mobilidade sempre antes).
+              {modes.size > 1 && " Cada treino está com uma regra."}
+            </p>
+            <InvertSelect
+              value={common}
+              testId="invert-all-select"
+              onChange={(m) => setPayload({ ...payload, workouts: payload.workouts.map((w) => ({ ...w, invert: makeInvertSetting(m) })) })}
+            />
+          </div>
+        );
+      })()}
+
       {/* ── Week strip: pílulas Seg→Dom ── */}
+      {!isBusy && (<>
       <Card className="bg-card/40 border-border p-2.5">
         <div className="flex items-center justify-between mb-1.5 px-1">
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Semana</p>
@@ -324,6 +377,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
       </Card>
 
       <WeeklyVolumeDashboard workouts={payload.workouts} weekDays={weekDays} periodization={payload.periodization} />
+      </>)}
 
       {periodOn && payload.workouts.length > 0 && (
         <p className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-[11px] text-foreground/80">
@@ -365,6 +419,12 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
               placeholder="Nome do treino (ex: Dorsal · Peito · Inferiores)"
               className="h-10 text-base font-bold flex-1 min-w-0 border-0 bg-transparent focus-visible:ring-1 focus-visible:ring-primary/40 px-2"
             />
+            <InvertSelect
+              value={(day.invert?.mode ?? "off") as InvertMode}
+              testId={`invert-select-${day.key}`}
+              onChange={(m) => updDay(di, { invert: makeInvertSetting(m) })}
+            />
+            {!isBusy && (
             <Popover>
               <PopoverTrigger asChild>
                 <button
@@ -399,6 +459,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                 </div>
               </PopoverContent>
             </Popover>
+            )}
             <div className="flex items-center gap-0.5 shrink-0">
               <button
                 type="button"
@@ -644,6 +705,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                 />
               )}
 
+              {!isBusy && (
               <Button
                 size="sm"
                 variant="outline"
@@ -667,9 +729,10 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
               >
                 <Activity className="w-3 h-3 mr-1" /> Aeróbico neste treino
               </Button>
+              )}
             </div>
 
-            {(payload.cardio ?? []).filter((c) => c.workoutKey === day.key && c.associationType === "workout").length > 0 && (
+            {!isBusy && (payload.cardio ?? []).filter((c) => c.workoutKey === day.key && c.associationType === "workout").length > 0 && (
               <div className="mt-3 pt-3 border-t border-border/40 space-y-2">
                 <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
                   <Activity className="w-3.5 h-3.5 text-primary" /> Aeróbico do Treino {positionLetter(di)}
@@ -766,6 +829,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
 
 
       {/* ── Card especial: Descanso (key reservada "REST") ── */}
+      {!isBusy && (<>
       <Card className="bg-card/40 border-dashed border-border/60 p-4">
         <div className="flex items-center gap-3 mb-2">
           <div className="w-10 h-10 rounded-full bg-muted text-muted-foreground flex items-center justify-center font-black text-[11px] shrink-0 uppercase tracking-wider">
@@ -846,6 +910,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
           </Card>
         ))}
       </div>
+      </>)}
 
       <CoachExerciseLibraryDialog
         open={libraryDayIndex !== null}

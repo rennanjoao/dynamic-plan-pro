@@ -78,6 +78,13 @@
       "when": 1795160000000,
       "tag": "0010_postura_ia_e_onde_sentiu",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795250000000,
+      "tag": "0011_semana_corrida",
+      "breakpoints": true
     }
   ]
 }

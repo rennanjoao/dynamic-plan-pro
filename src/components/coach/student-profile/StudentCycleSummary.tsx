@@ -52,7 +52,7 @@ export default function StudentCycleSummary({
     if (!data) return null;
     const payload = data.protocol?.payload ?? null;
     const planned = plannedSessionsPerWeek(payload);
-    const weeks = planned ? weeklyTrainingAdherence(data.sessions, planned, 4) : [];
+    const weeks = planned ? weeklyTrainingAdherence(data.sessions, planned, 4, new Date(), data.busyWeek?.sessionsPerWeek ?? null) : [];
     const totals = adherenceTotals(weeks);
     const current = weeks.find((w) => w.isCurrent) ?? null;
     return {
@@ -148,8 +148,19 @@ export default function StudentCycleSummary({
           <p className="text-sm text-muted-foreground">O protocolo não tem treino de força para comparar.</p>
         ) : (
           <div className="space-y-2 text-sm">
+            {data.busyWeek?.enabled && (
+              <p className="text-xs rounded-md bg-primary/5 border border-primary/20 px-2 py-1" data-testid="summary-busy-week">
+                Semana Corrida ({data.busyWeek.planName || "plano"}):{" "}
+                {data.busyWeek.studentOn
+                  ? <strong>usando desde {data.busyWeek.since ? fmt(data.busyWeek.since) : "agora"}</strong>
+                  : "liberada, ela está na rotina normal"}
+              </p>
+            )}
             {view.current && (
-              <p>Esta semana: <strong>{view.current.done} de {view.current.planned}</strong></p>
+              <p>
+                Esta semana: <strong>{view.current.done} de {view.current.planned}</strong>
+                {view.current.busy && <span className="text-xs text-muted-foreground"> · Semana Corrida</span>}
+              </p>
             )}
             <p>
               Últimas 3 semanas:{" "}
@@ -169,13 +180,14 @@ export default function StudentCycleSummary({
                         style={{ height: `${Math.round(ratio * 100)}%` }}
                       />
                     </div>
-                    <span className="text-[10px] text-muted-foreground">{w.isCurrent ? "atual" : fmt(w.weekStart.toISOString())}</span>
+                    <span className="text-[10px] text-muted-foreground">{w.isCurrent ? "atual" : fmt(w.weekStart.toISOString())}{w.busy ? " · SC" : ""}</span>
                   </div>
                 );
               })}
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Previsto: {view.planned} treino{view.planned === 1 ? "" : "s"} por semana. Conta só treino registrado no app.
+              Previsto: {view.planned} treino{view.planned === 1 ? "" : "s"} por semana
+              {data.busyWeek ? ` (${data.busyWeek.sessionsPerWeek} nas semanas em que ela usou a Semana Corrida — marcadas "SC")` : ""}. Conta só treino registrado no app.
             </p>
           </div>
         )}
