@@ -80,3 +80,27 @@ describe("WorkoutsTab — duplicar treino e limpeza de redundâncias", () => {
     expect(screen.getByText(/Nenhum aeróbico geral/)).toBeInTheDocument();
   });
 });
+
+describe("WorkoutsTab — inverter a ordem e modo Semana Corrida", () => {
+  it("cada treino tem o seletor de inversão, mostrando a regra salva", () => {
+    const p = payloadWith();
+    p.workouts[1] = { ...p.workouts[1], invert: { mode: "consecutive", since: "2026-12-01" } };
+    setup(p);
+    expect(screen.getByTestId("invert-select-A").textContent).toMatch(/Ordem normal/);
+    expect(screen.getByTestId("invert-select-B").textContent).toMatch(/dias seguidos/i);
+    expect(screen.getByTestId("invert-all")).toBeTruthy();
+  });
+
+  it("modo Semana Corrida esconde dias da semana, descanso e aeróbicos", () => {
+    render(
+      <ConfirmProvider>
+        <WorkoutsTab payload={payloadWith()} setPayload={vi.fn()} coachId="c1" variant="busyWeek" />
+      </ConfirmProvider>,
+    );
+    expect(screen.queryByTitle("Dias da semana deste treino")).toBeNull();
+    expect(screen.queryByText(/Dia sem treino — vincule/)).toBeNull();
+    expect(screen.queryByText(/Aeróbicos gerais/)).toBeNull();
+    expect(screen.queryByText(/Aeróbico neste treino/)).toBeNull();
+    expect(screen.getByTestId("invert-select-A")).toBeTruthy();
+  });
+});

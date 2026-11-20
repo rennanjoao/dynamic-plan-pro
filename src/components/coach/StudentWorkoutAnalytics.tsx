@@ -51,6 +51,7 @@ import { localDateKey, parseDateOnly } from "@/lib/dateOnly";
 import { useStudentCycleSummary } from "@/hooks/useStudentCycleSummary";
 import { adherenceTotals, plannedSessionsPerWeek, weeklyTrainingAdherence } from "@/lib/coachCycleSummary";
 import { functionErrorMessage } from "@/lib/functionError";
+import { isBusyKey, workoutKeyLabel } from "@/lib/busyWeek";
 
 /* ── Constantes ─────────────────────────────────────────────────────────────── */
 
@@ -1343,7 +1344,7 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                         <div className="flex items-center gap-2">
                           <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black shrink-0"
                             style={{ background: GOLD + "22", color: GOLD }}>
-                            {t.key}
+                            {isBusyKey(t.key) ? `SC${t.key.slice(3)}` : t.key}
                           </div>
                           <div>
                             <p className="text-xs font-bold text-foreground">{t.media}min</p>
@@ -1424,11 +1425,11 @@ export default function StudentWorkoutAnalytics({ studentId, studentName, coachI
                       style={{ background: "hsl(var(--muted) / 0.35)", border: `1px solid ${MUTED}` }}>
                       <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-sm font-black"
                         style={{ background: "hsl(var(--muted) / 0.6)", color: GOLD }}>
-                        {s.workout_key}
+                        {isBusyKey(s.workout_key) ? `SC${s.workout_key.slice(3)}` : s.workout_key}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold text-foreground truncate">
-                          {s.workout_label ? `${s.workout_key} · ${s.workout_label}` : `Treino ${s.workout_key}`}
+                          {s.workout_label ? `${workoutKeyLabel(s.workout_key)} · ${s.workout_label}` : workoutKeyLabel(s.workout_key)}
                           {s.is_deload_week && (
                             <span className="ml-1.5 text-[9px] px-1.5 py-0.5 rounded font-bold"
                               style={{ background: BLUE + "22", color: BLUE }}>Deload</span>

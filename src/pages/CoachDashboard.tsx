@@ -18,6 +18,7 @@ import {
 import {
   AlertTriangle, CheckCircle2, Search, Filter, Users,
   ArrowLeft, Loader2, DollarSign, User, LogOut, Activity, Sparkles, UserPlus, MessageSquareReply,
+  CalendarClock,
 } from "lucide-react";
 import CoachNotificationBell from "@/components/coach/CoachNotificationBell";
 import { Input } from "@/components/ui/input";
@@ -47,6 +48,7 @@ import { usePlatformBilling, worstPlatformStatus } from "@/hooks/usePlatformBill
 import { PrivacyProvider, PrivacyToggle, Private } from "@/components/coach/PrivacyMode";
 import { coachSignature, useOwnCoachIdentity } from "@/hooks/useCoachIdentity";
 import { InviteStudentDialog } from "@/components/coach/dashboard/InviteStudentDialog";
+import { BusyWeekManager } from "@/components/coach/busy-week/BusyWeekManager";
 
 const ProtocolBuilder = lazyWithRetry(() => import("@/components/coach/ProtocolBuilder"));
 const CheckinFeedbackPanel = lazyWithRetry(() => import("@/components/coach/CheckinFeedbackPanel"));
@@ -81,6 +83,7 @@ function CoachDashboardInner() {
   const [studentPage, setStudentPage] = useState(0);
   const STUDENTS_PER_PAGE = 20;
   const [activeTab, setActiveTab] = useState<"students" | "finances" | "treinos" | "parcerias">("students");
+  const [busyWeekOpen, setBusyWeekOpen] = useState(false);
   const [treinoSearch, setTreinoSearch] = useState("");
   const qc = useQueryClient();
 
@@ -406,6 +409,18 @@ function CoachDashboardInner() {
           </TabsContent>
 
           <TabsContent value="treinos" className="space-y-4">
+            <button
+              type="button"
+              onClick={() => setBusyWeekOpen(true)}
+              className="w-full flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-left hover:bg-primary/10 transition"
+              data-testid="open-busy-week"
+            >
+              <CalendarClock className="w-5 h-5 text-primary shrink-0" />
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-semibold">Semana Corrida</span>
+                <span className="block text-xs text-muted-foreground">Full Body ou Upper/Lower para semanas apertadas — monte e ative para várias alunas.</span>
+              </span>
+            </button>
             {allStudents.length > 8 && (
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
@@ -458,6 +473,9 @@ function CoachDashboardInner() {
           </TabsContent>
         </Tabs>
 
+        {busyWeekOpen && (
+          <BusyWeekManager open={busyWeekOpen} onOpenChange={setBusyWeekOpen} coachId={coachId} />
+        )}
         {coachId && (
           <InviteStudentDialog
             open={inviteOpen}

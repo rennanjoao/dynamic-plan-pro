@@ -6,6 +6,8 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: { auth: { getSession: () => Promise.resolve({ data: { session: { user: { id: "aluna-1" } } } }) } },
 }));
 vi.mock("@/hooks/useMealCheckins", () => ({ useMealCheckins: () => ({ checked: {}, toggle: vi.fn() }) }));
+const busy = vi.hoisted(() => ({ value: undefined as unknown }));
+vi.mock("@/hooks/useBusyWeek", () => ({ useStudentBusyWeek: () => ({ data: busy.value }) }));
 
 import StructuredMealsViewer from "../StructuredMealsViewer";
 import { todayKey } from "@/lib/weekCycle";
@@ -33,7 +35,7 @@ function payload(trainingToday: boolean) {
   };
 }
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => { localStorage.clear(); busy.value = undefined; });
 afterEach(() => cleanup());
 
 describe("Dieta — 'Hoje não vou treinar'", () => {
@@ -108,5 +110,43 @@ describe("Dieta — 'Hoje não vou treinar'", () => {
     const box = (await screen.findAllByRole("checkbox"))[0];
     expect(box.className).toContain("w-11");
     expect(box.className).toContain("h-11");
+  });
+
+  describe("Semana Corrida", () => {
+    const yesterday = () => { const d = new Date(); d.setDate(d.getDate() - 1); d.setHours(10); return d.toISOString(); };
+    const busyOn = (sessions: Array<{ workout_key: string; started_at: string }>) => ({
+      active: true,
+      sessions,
+      assignment: { payload: { dietRule: { training: "high", rest: "off" }, workouts: [{ key: "SC_A" }] } },
+    });
+
+    it("treinou ontem: sugere descanso, carbo do descanso e refeições de descanso; sem a faixa da semana", async () => {
+      busy.value = busyOn([{ workout_key: "SC_A", started_at: yesterday() }]);
+      render(<StructuredMealsViewer payload={payload(true)} />);
+      expect(screen.getByTestId("busy-diet-day")).toBeTruthy();
+      expect(screen.getByRole("radio", { name: /Descanso ·sugerido/ }).getAttribute("aria-checked")).toBe("true");
+      expect(within(screen.getByText("Hoje · Carbo").parentElement as HTMLElement).getByText("Baixo")).toBeTruthy();
+      expect(screen.getByText("Lanche do descanso")).toBeTruthy();
+      expect(screen.queryByText("Pré-treino")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Hoje não vou treinar" })).toBeNull();
+    });
+
+    it("a aluna troca para treino: refeições de treino e carbo do dia de treino, lembrado hoje", async () => {
+      busy.value = busyOn([{ workout_key: "SC_A", started_at: yesterday() }]);
+      const first = render(<StructuredMealsViewer payload={payload(false)} />);
+      await userEvent.click(screen.getByRole("radio", { name: "Treino" }));
+      expect(screen.getByText("Pré-treino")).toBeTruthy();
+      expect(within(screen.getByText("Hoje · Carbo").parentElement as HTMLElement).getByText("Alto")).toBeTruthy();
+      first.unmount();
+      render(<StructuredMealsViewer payload={payload(false)} />);
+      expect(await screen.findByText("Pré-treino")).toBeTruthy();
+    });
+
+    it("sem treino ontem: sugere treino", () => {
+      busy.value = busyOn([]);
+      render(<StructuredMealsViewer payload={payload(false)} />);
+      expect(screen.getByRole("radio", { name: /Treino ·sugerido/ }).getAttribute("aria-checked")).toBe("true");
+      expect(screen.getByText("Pré-treino")).toBeTruthy();
+    });
   });
 });

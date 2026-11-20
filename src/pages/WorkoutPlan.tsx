@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, AlertTriangle, Activity, Info, History, StretchHorizontal, Play } from "lucide-react";
+import { ArrowLeft, AlertTriangle, Activity, Info, History, StretchHorizontal, Play, ArrowUpDown, CalendarClock, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +23,7 @@ import { MobilityExerciseRow } from "@/components/student/MobilityExerciseRow";
 import { MobilitySuggestedDrawer } from "@/components/student/MobilitySuggestedDrawer";
 import { WorkoutGuideDrawer } from "@/components/student/WorkoutGuideDrawer";
 import { useCurrentPeriodizationWeek } from "@/hooks/useCurrentPeriodizationWeek";
-import { DEFAULT_WEEKS } from "@/lib/periodizationDefaults";
+import { DEFAULT_WEEKS, type WeekMeta } from "@/lib/periodizationDefaults";
 import { buildPeriodizationKey } from "@/lib/periodizationKey";
 import { useAuthUserId } from "@/hooks/useAuthUserId";
 import { PageLoader } from "@/components/ui/PageLoader";
@@ -32,6 +32,10 @@ import PreviousProtocolButton from "@/components/student/PreviousProtocolButton"
 import { LoadProgressionDrawer } from "@/components/student/LoadProgressionDrawer";
 
 import { isSessionStale } from "@/hooks/useWorkoutSession";
+import { useStudentBusyWeek, useSetMyBusyWeekMode } from "@/hooks/useBusyWeek";
+import { applyWorkoutInversion, trainedYesterday } from "@/lib/workoutInversion";
+import { BUSY_KIND_LABEL, isBusyKey, nextBusyWorkoutKey } from "@/lib/busyWeek";
+import { toast } from "sonner";
 
 
 const WEEKDAYS_LABEL: Record<string, string> = {
@@ -231,6 +235,10 @@ export default function WorkoutPlan() {
     };
   }, [userId, queryClient]);
 
+  // Semana Corrida: plano secundário liberado pelo coach + escolha da aluna.
+  const { data: busyData } = useStudentBusyWeek(userId);
+  const setBusyMode = useSetMyBusyWeekMode(userId);
+
   const { data: coachProfile } = useQuery({
     queryKey: ["coach-profile-name", (planData as any)?.coach_id],
     enabled: !!(planData as any)?.coach_id,
@@ -262,13 +270,39 @@ export default function WorkoutPlan() {
   const rawPayload = planData?.workout_periodization_json || {};
   const parsed = ProtocolPayloadSchema.safeParse(rawPayload);
   const safePayload: any = parsed.success ? parsed.data : rawPayload;
-  const workouts = Array.isArray(safePayload?.workouts) ? safePayload.workouts : [];
+  const protocolWorkouts = Array.isArray(safePayload?.workouts) ? safePayload.workouts : [];
+  // Semana Corrida ativa → treinos e periodização do plano secundário; senão, os do protocolo.
+  // Em seguida aplica a inversão de ordem configurada pelo coach (mobilidade sempre antes).
+  const busyAssignment = draftPreview ? null : busyData?.assignment ?? null;
+  const busyActive = !!busyAssignment && !!busyData?.active;
+  const busySessions = busyData?.sessions ?? [];
+  const todayDateKey = new Date().toDateString();
+  type PlanDay = { key: string; focus?: string; exercises?: Array<{ name: string; [k: string]: unknown }>; __inverted?: boolean; [k: string]: unknown };
+  type PlanWeek = WeekMeta & { isDeload?: boolean };
+  type PlanPeriodization = { enabled?: boolean; weeks?: PlanWeek[]; overrides?: Record<string, Record<string, unknown>>; [k: string]: unknown } | undefined;
+  const effective = useMemo(() => {
+    const baseWorkouts = (busyActive ? busyAssignment!.payload.workouts : protocolWorkouts) as PlanDay[];
+    const basePer = (busyActive ? busyAssignment!.payload.periodization : safePayload?.periodization) as PlanPeriodization;
+    return applyWorkoutInversion(baseWorkouts, basePer, { today: new Date(), sessions: busySessions });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busyActive, busyAssignment, rawPayload, busySessions, todayDateKey]);
+  const workouts = effective.workouts;
+  const effectivePeriodization = effective.periodization;
+  const effectivePayload: Record<string, unknown> = busyActive
+    ? {
+        ...safePayload,
+        workouts,
+        periodization: effectivePeriodization,
+        weekDays: {},
+        cardio: ((safePayload?.cardio ?? []) as Array<{ workoutKey?: string; associationType?: string }>).filter((c) => !(c.workoutKey && c.associationType === "workout")),
+      }
+    : { ...safePayload, workouts, periodization: effectivePeriodization };
   const trainingGuideline = safePayload?.guidelines?.training;
   const showGuidelines: boolean = (safePayload as any)?.showGuidelines ?? false;
-  const periodizationEnabled: boolean = safePayload?.periodization?.enabled ?? false;
-  const weeks =
-    safePayload?.periodization?.weeks?.length === 4
-      ? safePayload.periodization.weeks
+  const periodizationEnabled: boolean = effectivePeriodization?.enabled ?? false;
+  const weeks: PlanWeek[] =
+    effectivePeriodization?.weeks?.length === 4
+      ? effectivePeriodization.weeks
       : DEFAULT_WEEKS;
   // A semana corre em loop pelo calendário (não depende de a aluna treinar nem de usar o Modo Treino).
   const currentWeek = useCurrentPeriodizationWeek(
@@ -288,12 +322,13 @@ export default function WorkoutPlan() {
   // Treino de hoje (a partir do weekDays do protocolo) — abre por padrão e recebe badge.
   const WEEKDAY_ORDER = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
   const todayWorkoutKey: string | null = (() => {
+    if (busyActive) return nextBusyWorkoutKey(workouts.map((w) => String(w.key)), busySessions);
     const weekDays = (safePayload?.weekDays as Record<string, string>) || {};
     const k = weekDays[WEEKDAY_ORDER[new Date().getDay()]];
     return k && k !== "REST" ? k : null;
   })();
   // Só afirma "descanso" se o coach marcou explicitamente (sem dias configurados, não diz nada).
-  const todayIsRest: boolean =
+  const todayIsRest: boolean = !busyActive &&
     ((safePayload?.weekDays as Record<string, string>) || {})[WEEKDAY_ORDER[new Date().getDay()]] === "REST";
   const todayIndex = todayWorkoutKey
     ? workouts.findIndex((w: any) => String(w.key) === todayWorkoutKey)
@@ -339,10 +374,15 @@ export default function WorkoutPlan() {
                 {letter}
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-base flex items-center gap-2">
-                  Treino {letter}
+                <h3 className="font-bold text-base flex items-center gap-2 flex-wrap">
+                  {isBusyKey(day.key) ? "Semana corrida" : "Treino"} {letter}
                   {isToday && (
-                    <Badge className="text-[11px] px-1.5 py-0 h-4">Hoje</Badge>
+                    <Badge className="text-[11px] px-1.5 py-0 h-4">{busyActive ? "Próximo" : "Hoje"}</Badge>
+                  )}
+                  {day.__inverted && (
+                    <Badge variant="outline" className="text-[11px] px-1.5 py-0 h-4 gap-1 border-primary/40 text-primary" data-testid={`inverted-${day.key}`}>
+                      <ArrowUpDown className="w-3 h-3" /> Ordem invertida hoje
+                    </Badge>
                   )}
                 </h3>
                 <p className="text-xs text-muted-foreground">{day.focus || "Geral"}</p>
@@ -476,6 +516,55 @@ export default function WorkoutPlan() {
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
 
+        {busyAssignment && (
+          <div className="rounded-xl border border-border bg-card p-4 space-y-3" data-testid="busy-week-switch">
+            <div className="flex items-start gap-3">
+              <CalendarClock className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <p className="text-sm font-bold">Semana apertada?</p>
+                <p className="text-xs text-muted-foreground">
+                  {busyActive
+                    ? `Você está na Semana Corrida (${BUSY_KIND_LABEL[busyAssignment.kind]}). Faça os treinos na ordem, em dias alternados. A dieta acompanha: dia de treino ou de descanso.`
+                    : `Seu treinador liberou um plano ${BUSY_KIND_LABEL[busyAssignment.kind]} para semanas corridas. Troque quando precisar e volte quando a rotina normalizar.`}
+                </p>
+                {busyActive && busyAssignment.payload.note && (
+                  <p className="text-xs mt-1 italic text-foreground/80">“{busyAssignment.payload.note}”</p>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/50 p-1" role="radiogroup" aria-label="Qual treino usar">
+              {([
+                { on: false, label: "Rotina normal" },
+                { on: true, label: "Semana corrida" },
+              ] as const).map((opt) => {
+                const selected = busyActive === opt.on;
+                return (
+                  <button
+                    key={opt.label}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    disabled={setBusyMode.isPending || !!previewAs || selected}
+                    onClick={() => setBusyMode.mutate(opt.on, {
+                      onSuccess: (on) => toast.success(on ? "Semana Corrida ligada. Bons treinos!" : "De volta à rotina normal."),
+                      onError: (e) => toast.error(e instanceof Error ? e.message : "Não foi possível trocar agora."),
+                    })}
+                    className={`h-9 rounded-md text-sm font-semibold transition ${selected ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                    data-testid={opt.on ? "busy-on" : "busy-off"}
+                  >
+                    {setBusyMode.isPending && !selected ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            {busyActive && trainedYesterday(busySessions, new Date()) && (
+              <p className="text-[11px] text-muted-foreground" data-testid="busy-trained-yesterday">
+                Você treinou ontem: hoje pode ser descanso. Se for treinar, o próximo treino já está separado abaixo.
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Atalho no TOPO: antes o "Iniciar" ficava no fim do treino aberto,
             depois de guia, estratégia, diretriz, progressão e exercícios. */}
         {todayIndex >= 0 && workouts[todayIndex] && (
@@ -488,9 +577,10 @@ export default function WorkoutPlan() {
               <Play className="w-5 h-5" />
             </span>
             <span className="flex-1 min-w-0">
-              <span className="block text-base font-bold">Iniciar treino de hoje</span>
+              <span className="block text-base font-bold">{busyActive ? "Iniciar próximo treino" : "Iniciar treino de hoje"}</span>
               <span className="block text-sm opacity-90 truncate">
-                Treino {String.fromCharCode(65 + todayIndex)} · {(workouts[todayIndex] as { focus?: string })?.focus || "Geral"}
+                {busyActive ? `Semana corrida ${String.fromCharCode(65 + todayIndex)}` : `Treino ${String.fromCharCode(65 + todayIndex)}`} · {(workouts[todayIndex] as { focus?: string })?.focus || "Geral"}
+                {(workouts[todayIndex] as { __inverted?: boolean })?.__inverted ? " · ordem invertida" : ""}
               </span>
             </span>
           </button>
@@ -509,7 +599,7 @@ export default function WorkoutPlan() {
         )}
 
         <WorkoutStrategyHeader
-          payload={safePayload}
+          payload={effectivePayload}
           studentName={(studentProfile as any)?.full_name ?? undefined}
           periodizationEnabled={periodizationEnabled}
           weeks={weeks}
@@ -550,7 +640,7 @@ export default function WorkoutPlan() {
         {periodizationEnabled ? (
           <WorkoutPeriodizationView
             workouts={workouts as any}
-            periodization={safePayload?.periodization}
+            periodization={effectivePeriodization}
             onStartWorkout={handleStartWorkout}
             showGuidelines={showGuidelines}
             allowEdit={false}
@@ -605,7 +695,7 @@ export default function WorkoutPlan() {
           studentName={(studentProfile as any)?.full_name ?? undefined}
           initialDay={workoutModeDay}
           initialWeek={workoutModeWeek}
-          periodization={safePayload?.periodization}
+          periodization={effectivePeriodization}
           onClose={() => { setShowWorkoutMode(false); setWorkoutModeDay(undefined); }}
         />
       )}

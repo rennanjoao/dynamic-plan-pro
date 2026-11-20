@@ -83,4 +83,9 @@ export const queryKeys = {
   // Espelha src/hooks/useStudentCycleSummary.ts.
   coachCycleSummary: (studentId: string | null) =>
     ["coach-cycle-summary", studentId] as const,
+
+  // Espelham src/hooks/useBusyWeek.ts (Semana Corrida).
+  busyWeekPlans: (coachId: string | null) => ["busy-week-plans", coachId] as const,
+  busyWeekAssignments: (coachId: string | null) => ["busy-week-assignments", coachId] as const,
+  studentBusyWeek: (userId: string | null) => ["student-busy-week", userId] as const,
 } as const;

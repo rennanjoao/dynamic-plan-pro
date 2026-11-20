@@ -102,10 +102,20 @@ export function isLegacyMobilityExercise(ex: any): boolean {
 }
 
 
+// Inversão da ordem dos exercícios (mobilidade sempre fica no começo).
+// Ver src/lib/workoutInversion.ts para o que cada modo significa.
+export const INVERT_MODES = ["off", "every", "weekly", "biweekly", "monthly", "consecutive"] as const;
+export const InvertSettingSchema = z.object({
+  mode: z.enum(INVERT_MODES).catch("off").default("off"),
+  // Data (AAAA-MM-DD) em que o coach ligou: referência dos modos por semana/mês.
+  since: z.string().optional(),
+});
+
 export const WorkoutDaySchema = z.object({
   key: z.string(),
   focus: z.string().default(""),
   exercises: z.array(ExerciseSchema).default([]),
+  invert: InvertSettingSchema.optional(),
 });
 
 // Aeróbico associado a um dia de treino ou da semana

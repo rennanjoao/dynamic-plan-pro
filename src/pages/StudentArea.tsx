@@ -8,7 +8,7 @@
  *   a tela baixa os dados daquele aluno em vez dos dados do usuário logado.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -40,6 +40,8 @@ import QRCode from "qrcode";
 import { formatDatePtBR } from "@/lib/formatDate";
 
 import { localDateKey, parseDateOnly } from "@/lib/dateOnly";
+import { useStudentBusyWeek } from "@/hooks/useBusyWeek";
+import { nextBusyWorkoutKey, suggestBusyDayType, workoutKeyLabel } from "@/lib/busyWeek";
 // ─── localStorage helpers ───────────────────────────────────────────────────
 const DISMISSED_KEY = (uid: string) => `dismissed_alerts_${uid}`;
 function loadDismissed(uid: string): string[] {
@@ -297,6 +299,24 @@ export default function StudentArea() {
     },
   });
 
+  // Semana Corrida: quando a aluna está usando, o card de hoje mostra o
+  // próximo treino da rotação (não o treino do dia da semana).
+  const { data: busyWeek } = useStudentBusyWeek(userId);
+  const todayPlanEff = useMemo(() => {
+    if (!busyWeek?.active || !busyWeek.assignment) return todayPlan;
+    const workouts = busyWeek.assignment.payload.workouts;
+    const next = nextBusyWorkoutKey(workouts.map((w) => w.key), busyWeek.sessions);
+    if (!next) return todayPlan;
+    const w = workouts.find((x) => x.key === next);
+    return {
+      tipo: "treino" as const,
+      letra: next,
+      foco: w?.focus || null,
+      busy: true as const,
+      restSuggested: suggestBusyDayType(busyWeek.sessions) === "rest",
+    };
+  }, [busyWeek, todayPlan]);
+
   // Diretrizes liberadas pelo coach → card "Diretrizes & Suplementação" pisca em verde.
   const { data: guidelinesHighlight } = useQuery({
     queryKey: ["student-guidelines-flag", userId],
@@ -313,7 +333,7 @@ export default function StudentArea() {
   const todayKeyStr = localDateKey();
   const { data: todayConfirmed } = useQuery({
     queryKey: ["student-today-session", userId, todayKeyStr],
-    enabled: !!userId && todayPlan?.tipo === "treino",
+    enabled: !!userId && todayPlanEff?.tipo === "treino",
     staleTime: 1000 * 60,
     queryFn: async () => {
       const start = new Date(); start.setHours(0, 0, 0, 0);
@@ -324,10 +344,10 @@ export default function StudentArea() {
 
   const confirmWorkout = useMutation({
     mutationFn: async () => {
-      if (!userId || todayPlan?.tipo !== "treino") return;
+      if (!userId || todayPlanEff?.tipo !== "treino") return;
       const now = new Date().toISOString();
       const { error } = await (supabase as never as { from: (t: string) => any }).from("workout_sessions").insert({
-        user_id: userId, workout_key: todayPlan.letra, workout_label: todayPlan.foco ?? null, started_at: now, ended_at: now, block_number: 1, is_deload_week: false, notes: "Confirmado manualmente pelo aluno",
+        user_id: userId, workout_key: todayPlanEff.letra, workout_label: todayPlanEff.foco ?? null, started_at: now, ended_at: now, block_number: 1, is_deload_week: false, notes: "Confirmado manualmente pelo aluno",
       });
       if (error) throw error;
     },
@@ -570,17 +590,17 @@ export default function StudentArea() {
 
       <main className="max-w-4xl mx-auto px-4 py-5 space-y-4">
 
-        {userId && (todayPlanLoading || todayPlan) && (
+        {userId && (todayPlanLoading || todayPlanEff) && (
           <Card
-            className={`border-primary/20 bg-primary/5 ${todayPlan?.tipo === "treino" ? "cursor-pointer hover:bg-primary/10 transition-colors" : ""}`}
+            className={`border-primary/20 bg-primary/5 ${todayPlanEff?.tipo === "treino" ? "cursor-pointer hover:bg-primary/10 transition-colors" : ""}`}
             onClick={() => {
-              if (todayPlan?.tipo === "treino") navigate(`/workout-plan?start=${encodeURIComponent(todayPlan.letra)}${previewAs ? `&${previewQS}` : ''}`);
+              if (todayPlanEff?.tipo === "treino") navigate(`/workout-plan?start=${encodeURIComponent(todayPlanEff.letra)}${previewAs ? `&${previewQS}` : ''}`);
             }}
           >
             <CardContent className="p-4 flex items-start gap-3">
               {todayPlanLoading ? (
                 <Skeleton className="w-9 h-9 rounded-full shrink-0" />
-              ) : todayPlan?.tipo === "treino" ? (
+              ) : todayPlanEff?.tipo === "treino" ? (
                 <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
                   <Dumbbell className="w-4 h-4 text-primary" />
                 </div>
@@ -594,15 +614,22 @@ export default function StudentArea() {
                   <Skeleton className="h-4 w-32 rounded" />
                 ) : (
                   <p className="text-sm font-semibold text-foreground">
-                    {todayPlan?.tipo === "treino"
-                      ? `Hoje: Treino ${todayPlan.letra}${todayPlan.foco ? ` — ${todayPlan.foco}` : ""}`
+                    {todayPlanEff?.tipo === "treino"
+                      ? "busy" in todayPlanEff
+                        ? `Semana corrida · próximo: ${workoutKeyLabel(todayPlanEff.letra).replace("Semana corrida ", "Treino ")}${todayPlanEff.foco ? ` — ${todayPlanEff.foco}` : ""}`
+                        : `Hoje: Treino ${todayPlanEff.letra}${todayPlanEff.foco ? ` — ${todayPlanEff.foco}` : ""}`
                       : "Hoje: dia de descanso"}
+                  </p>
+                )}
+                {todayPlanEff && "busy" in todayPlanEff && todayPlanEff.restSuggested && (
+                  <p className="text-xs text-muted-foreground mt-1" data-testid="busy-rest-hint">
+                    Você treinou ontem: hoje pode ser descanso. Se for treinar, use o treino acima.
                   </p>
                 )}
                 {dailyNudge && (
                   <p className="text-xs text-muted-foreground mt-1">{dailyNudge}</p>
                 )}
-                {todayPlan?.tipo === "treino" && (
+                {todayPlanEff?.tipo === "treino" && (
                   todayConfirmed ? (
                     <p className="text-[11px] text-primary mt-2 flex items-center gap-1">
                       <CheckCircle2 className="w-3 h-3" /> Treino de hoje registrado

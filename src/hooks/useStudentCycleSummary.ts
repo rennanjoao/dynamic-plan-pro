@@ -27,6 +27,8 @@ export interface CycleSummaryData {
   notes: StudentNote[];
   /** "Onde você sentiu?" (últimos 60 dias). null = tabela ainda não existe no banco. */
   feel: FeelRow[] | null;
+  /** Semana Corrida liberada para a aluna (null = não liberada ou SQL não aplicado). */
+  busyWeek: { planName: string; enabled: boolean; studentOn: boolean; since: string | null; sessionsPerWeek: number } | null;
 }
 
 const isoDaysAgo = (n: number) => {
@@ -49,7 +51,7 @@ export function useStudentCycleSummary(studentId: string | null) {
       const mealsSinceKey = `${mealsSince.getFullYear()}-${String(mealsSince.getMonth() + 1).padStart(2, "0")}-${String(mealsSince.getDate()).padStart(2, "0")}`;
 
       const feelSince = isoDaysAgo(60);
-      const [protoRes, sessRes, mealRes, ciRes, feelRes] = await Promise.all([
+      const [protoRes, sessRes, mealRes, ciRes, feelRes, busyRes] = await Promise.all([
         sb.from("protocols")
           .select("id, name, payload, created_at, updated_at, student_first_viewed_at")
           .eq("student_id", studentId)
@@ -59,7 +61,7 @@ export function useStudentCycleSummary(studentId: string | null) {
           .limit(1)
           .maybeSingle(),
         sb.from("workout_sessions")
-          .select("id, started_at, ended_at, notes, workout_label")
+          .select("id, started_at, ended_at, notes, workout_label, workout_key")
           .eq("user_id", studentId)
           .gte("started_at", since.toISOString())
           .order("started_at", { ascending: false })
@@ -82,10 +84,14 @@ export function useStudentCycleSummary(studentId: string | null) {
           .gte("created_at", feelSince.toISOString())
           .order("created_at", { ascending: false })
           .limit(200),
+        sb.from("busy_week_assignments")
+          .select("plan_name, enabled, student_on, student_on_since, payload")
+          .eq("student_id", studentId)
+          .maybeSingle(),
       ]);
 
       const sessionRows = (sessRes.data ?? []) as Array<{
-        id: string; started_at: string; ended_at: string | null; notes: string | null; workout_label: string | null;
+        id: string; started_at: string; ended_at: string | null; notes: string | null; workout_label: string | null; workout_key?: string | null;
       }>;
 
       // Sessões sem "encerrar" mas com série concluída também contam como treino.
@@ -111,7 +117,7 @@ export function useStudentCycleSummary(studentId: string | null) {
         protocol: p
           ? { id: p.id, name: p.name, payload: p.payload, createdAt: p.created_at, updatedAt: p.updated_at, firstViewedAt: p.student_first_viewed_at }
           : null,
-        sessions: sessionRows.map((s) => ({ started_at: s.started_at, ended_at: s.ended_at, hasCompletedSets: withSets.has(s.id) })),
+        sessions: sessionRows.map((s) => ({ started_at: s.started_at, ended_at: s.ended_at, workout_key: s.workout_key ?? null, hasCompletedSets: withSets.has(s.id) })),
         meals: ((mealRes.data ?? []) as MealCheckLite[]),
         lastCheckin: ci
           ? {
@@ -121,6 +127,20 @@ export function useStudentCycleSummary(studentId: string | null) {
               readByStudent: !!ci.feedback_read_at,
             }
           : null,
+        busyWeek: (() => {
+          const b = busyRes?.error ? null : (busyRes?.data as {
+            plan_name: string; enabled: boolean; student_on: boolean; student_on_since: string | null; payload: { sessionsPerWeek?: unknown } | null;
+          } | null);
+          if (!b) return null;
+          const spw = Number(b.payload?.sessionsPerWeek);
+          return {
+            planName: b.plan_name,
+            enabled: !!b.enabled,
+            studentOn: !!b.student_on,
+            since: b.student_on_since,
+            sessionsPerWeek: Number.isFinite(spw) && spw >= 1 && spw <= 6 ? spw : 3,
+          };
+        })(),
         feel: feelRes.error
           ? null
           : ((feelRes.data ?? []) as FeelRow[]).filter((r) => isFeltRegion(r.felt)),

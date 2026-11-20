@@ -49,6 +49,7 @@ function base(): CycleSummaryData {
       { exercise_key: "stiff", exercise_name: "Stiff", felt: "posterior", created_at: daysAgo(2) },
       { exercise_key: "stiff", exercise_name: "Stiff", felt: "posterior", created_at: daysAgo(6) },
     ],
+    busyWeek: null,
   };
 }
 
@@ -115,5 +116,23 @@ describe("Resumo do ciclo (ficha do aluno)", () => {
     h.data = d;
     renderIt();
     expect(screen.getByText("A aluna ainda não abriu este protocolo.")).toBeTruthy();
+  });
+
+  it("Semana Corrida: mostra se está usando e mede a semana dela pelo plano (3), não pelo protocolo (4)", () => {
+    const d = base();
+    d.busyWeek = { planName: "Full Body Dez", enabled: true, studentOn: true, since: daysAgo(3), sessionsPerWeek: 3 };
+    d.sessions = [{ started_at: daysAgo(0), ended_at: daysAgo(0), workout_key: "SC_A" }];
+    h.data = d;
+    renderIt();
+    expect(screen.getByTestId("summary-busy-week").textContent).toMatch(/Full Body Dez.*usando desde/);
+    expect(screen.getByText(/Esta semana:/).textContent).toMatch(/1 de 3.*Semana Corrida/);
+  });
+
+  it("Semana Corrida liberada mas não usada: avisa que ela está na rotina normal", () => {
+    const d = base();
+    d.busyWeek = { planName: "Upper Lower", enabled: true, studentOn: false, since: null, sessionsPerWeek: 2 };
+    h.data = d;
+    renderIt();
+    expect(screen.getByTestId("summary-busy-week").textContent).toMatch(/rotina normal/);
   });
 });
