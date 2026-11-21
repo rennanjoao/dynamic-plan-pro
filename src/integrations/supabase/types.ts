@@ -378,6 +378,95 @@ export type Database = {
         }
         Relationships: []
       }
+      busy_week_assignments: {
+        Row: {
+          coach_id: string
+          created_at: string
+          customized: boolean
+          enabled: boolean
+          id: string
+          kind: string
+          payload: Json
+          plan_id: string | null
+          plan_name: string
+          plan_synced_at: string | null
+          student_id: string
+          student_on: boolean
+          student_on_since: string | null
+          updated_at: string
+        }
+        Insert: {
+          coach_id?: string
+          created_at?: string
+          customized?: boolean
+          enabled?: boolean
+          id?: string
+          kind?: string
+          payload?: Json
+          plan_id?: string | null
+          plan_name?: string
+          plan_synced_at?: string | null
+          student_id: string
+          student_on?: boolean
+          student_on_since?: string | null
+          updated_at?: string
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          customized?: boolean
+          enabled?: boolean
+          id?: string
+          kind?: string
+          payload?: Json
+          plan_id?: string | null
+          plan_name?: string
+          plan_synced_at?: string | null
+          student_id?: string
+          student_on?: boolean
+          student_on_since?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "busy_week_assignments_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "busy_week_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      busy_week_plans: {
+        Row: {
+          coach_id: string
+          created_at: string
+          id: string
+          kind: string
+          name: string
+          payload: Json
+          updated_at: string
+        }
+        Insert: {
+          coach_id?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          name: string
+          payload?: Json
+          updated_at?: string
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          name?: string
+          payload?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       check_ins: {
         Row: {
           ai_feedback_draft: string | null
@@ -513,6 +602,9 @@ export type Database = {
           check_in_id: string
           generated_at: string
           id: string
+          photos_fingerprint: string | null
+          posture: Json | null
+          posture_generated_at: string | null
           reliability: number | null
           tags: Json
         }
@@ -520,6 +612,9 @@ export type Database = {
           check_in_id: string
           generated_at?: string
           id?: string
+          photos_fingerprint?: string | null
+          posture?: Json | null
+          posture_generated_at?: string | null
           reliability?: number | null
           tags?: Json
         }
@@ -527,6 +622,9 @@ export type Database = {
           check_in_id?: string
           generated_at?: string
           id?: string
+          photos_fingerprint?: string | null
+          posture?: Json | null
+          posture_generated_at?: string | null
           reliability?: number | null
           tags?: Json
         }
@@ -1004,9 +1102,12 @@ export type Database = {
           coach_id: string
           created_at: string
           critical_days: number | null
+          deactivated_at: string | null
+          deactivated_by: string | null
           feedback_interval_days: number | null
           id: string
           is_exempt: boolean
+          last_protocol_email_at: string | null
           notes: string | null
           status: string
           student_id: string
@@ -1017,9 +1118,12 @@ export type Database = {
           coach_id: string
           created_at?: string
           critical_days?: number | null
+          deactivated_at?: string | null
+          deactivated_by?: string | null
           feedback_interval_days?: number | null
           id?: string
           is_exempt?: boolean
+          last_protocol_email_at?: string | null
           notes?: string | null
           status?: string
           student_id: string
@@ -1030,9 +1134,12 @@ export type Database = {
           coach_id?: string
           created_at?: string
           critical_days?: number | null
+          deactivated_at?: string | null
+          deactivated_by?: string | null
           feedback_interval_days?: number | null
           id?: string
           is_exempt?: boolean
+          last_protocol_email_at?: string | null
           notes?: string | null
           status?: string
           student_id?: string
@@ -1748,6 +1855,45 @@ export type Database = {
         }
         Relationships: []
       }
+      posture_quick_checks: {
+        Row: {
+          coach_id: string
+          created_at: string
+          findings: Json
+          id: string
+          note: string | null
+          source_date: string
+          source_id: string
+          source_kind: string
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          coach_id?: string
+          created_at?: string
+          findings?: Json
+          id?: string
+          note?: string | null
+          source_date: string
+          source_id: string
+          source_kind: string
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          findings?: Json
+          id?: string
+          note?: string | null
+          source_date?: string
+          source_id?: string
+          source_kind?: string
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       prescription_profile: {
         Row: {
           coach_id: string
@@ -2016,6 +2162,33 @@ export type Database = {
           resolved_items?: Json
           status?: string
           student_id?: string | null
+        }
+        Relationships: []
+      }
+      protocol_new_drafts: {
+        Row: {
+          coach_id: string
+          created_at: string
+          name: string | null
+          payload: Json
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          name?: string | null
+          payload: Json
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          name?: string | null
+          payload?: Json
+          student_id?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -2564,6 +2737,47 @@ export type Database = {
           },
         ]
       }
+      workout_exercise_feel: {
+        Row: {
+          created_at: string
+          exercise_key: string
+          exercise_name: string
+          felt: string
+          id: string
+          session_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          exercise_key: string
+          exercise_name: string
+          felt: string
+          id?: string
+          session_id: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          exercise_key?: string
+          exercise_name?: string
+          felt?: string
+          id?: string
+          session_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workout_exercise_feel_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "workout_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workout_progress: {
         Row: {
           completed: boolean
@@ -2888,6 +3102,22 @@ export type Database = {
           notification_email: string
         }[]
       }
+      get_my_coach_access_status: {
+        Args: never
+        Returns: {
+          coach_blocked: boolean
+          coach_id: string
+        }[]
+      }
+      get_my_coach_public_info: {
+        Args: never
+        Returns: {
+          coach_id: string
+          cref: string
+          full_name: string
+          team_name: string
+        }[]
+      }
       get_partner_referrals: {
         Args: { p_partner_id: string }
         Returns: {
@@ -2930,6 +3160,8 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_active_coach_of: { Args: { p_student_id: string }; Returns: boolean }
+      is_privileged_request: { Args: never; Returns: boolean }
       mark_daily_alert_read: {
         Args: { p_alert_id: string }
         Returns: undefined
@@ -3018,6 +3250,7 @@ export type Database = {
         }
         Returns: string
       }
+      set_busy_week_mode: { Args: { p_on: boolean }; Returns: boolean }
       set_partner_commission: {
         Args: { p_partner_id: string; p_rate_bp: number }
         Returns: undefined
