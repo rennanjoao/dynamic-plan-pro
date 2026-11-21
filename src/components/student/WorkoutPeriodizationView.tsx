@@ -12,6 +12,7 @@ import { DEFAULT_WEEKS, type WeekMeta } from "@/lib/periodizationDefaults";
 import { isMobilityExercise } from "@/lib/protocolSchema";
 import { MobilityExerciseRow } from "@/components/student/MobilityExerciseRow";
 import { ExerciseNameButton } from "@/components/shared/ExerciseNameButton";
+import { resolveExerciseInWeek, type PeriodizationLike } from "@/lib/prescriptionResolve";
 
 /* ---------- Tipos ---------- */
 interface Exercise {
@@ -153,22 +154,18 @@ export default function WorkoutPeriodizationView({
     }));
   };
 
+  // Mesma regra do Modo Treino e da prévia do coach: exceção da semana >
+  // valor da semana > exercício (src/lib/prescriptionResolve.ts).
   const resolvedExercises = useMemo(() => {
-    const wkOverrides = overrides[activeWeek] || {};
+    const per: PeriodizationLike = { enabled: true, weeks, overrides: overrides as unknown as PeriodizationLike["overrides"] };
     return workouts.map((day) => ({
       ...day,
       exercises: (day.exercises || []).map((ex, idx) => {
-        const positionalId = exId(day, idx);
-        const stableId = ex.__id;
-        const stableOverride = stableId
-          ? Object.values(wkOverrides).find((patch) => patch.exerciseId === stableId)
-          : undefined;
-        const legacyOverride = wkOverrides[positionalId];
-        const override = stableOverride || (!legacyOverride?.exerciseId || legacyOverride.exerciseId === stableId ? legacyOverride : undefined) || {};
-        return { ...ex, ...override, __id: stableId || positionalId } as Exercise & { __id: string };
+        const r = resolveExerciseInWeek(ex as Exercise & Record<string, unknown>, per, activeWeek, day.key, idx);
+        return { ...r, __id: ex.__id || exId(day, idx) } as Exercise & { __id: string };
       }),
     }));
-  }, [workouts, overrides, activeWeek]);
+  }, [workouts, overrides, activeWeek, weeks]);
 
   return (
     <div className="space-y-4">

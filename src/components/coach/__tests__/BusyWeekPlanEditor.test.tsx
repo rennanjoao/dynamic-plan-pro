@@ -9,6 +9,7 @@ vi.mock("@/components/coach/CoachExerciseLibraryDialog", () => ({ CoachExerciseL
 vi.mock("@/components/coach/MobilityTemplateBar", () => ({ MobilityTemplateBar: () => null }));
 vi.mock("@/components/coach/WorkoutTemplateQuickPicker", () => ({ WorkoutTemplateQuickPicker: () => null }));
 vi.mock("@/components/coach/WorkoutPeriodizationEditor", () => ({ default: () => null }));
+vi.mock("@/components/coach/PeriodizationTemplateQuickPicker", () => ({ PeriodizationTemplateQuickPicker: () => null }));
 
 import { toast } from "sonner";
 import { ConfirmProvider } from "@/components/ConfirmProvider";
@@ -53,9 +54,10 @@ describe("Editor do plano da Semana Corrida", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
-  it("plano novo começa com 2 treinos e inversão em dias seguidos", () => {
+  it("plano novo começa com 2 treinos e inversão em dias seguidos (selo no cabeçalho)", () => {
     show(null);
-    expect(screen.getByTestId("invert-select-SC_A").textContent).toMatch(/dias seguidos/i);
-    expect(screen.getByTestId("invert-select-SC_B")).toBeTruthy();
+    expect(screen.getAllByTestId("invert-badge")).toHaveLength(2);
+    expect(screen.getByTestId("workout-menu-A")).toBeTruthy();
+    expect(screen.getByTestId("workout-menu-B")).toBeTruthy();
   });
 });

@@ -97,7 +97,9 @@ describe("resolveExerciseForWeek", () => {
       periodization: { enabled: true, overrides: { "0": { "A_0": { exerciseId: "removed-a", sets: "9" } } } },
     });
     const r = resolveExerciseForWeek(p, 0, "A", 0);
-    expect(r?.sets).toBe("3");
+    // Override órfão ignorado → vale a semana ("a semana manda", 20/11/2026), não o "9".
+    expect(r?.sets).toBe(p.periodization.weeks[0].sets);
+    expect(r?.sets).not.toBe("9");
     expect(r?.overridden).toBe(false);
   });
 
