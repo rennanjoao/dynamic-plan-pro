@@ -43,6 +43,8 @@ interface Draft {
 
 export interface BusyWeekInlineHandle {
   hasUnsaved: () => boolean;
+  /** Salva a Semana Corrida pendente (usado pelo Salvar/Publicar do protocolo). true = ok ou nada a salvar. */
+  saveIfDirty: () => Promise<boolean>;
 }
 
 export const BusyWeekInlineEditor = forwardRef<BusyWeekInlineHandle, {
@@ -96,21 +98,26 @@ export const BusyWeekInlineEditor = forwardRef<BusyWeekInlineHandle, {
   const currentPayload = draft ? editorToBusyPayload(draft.editor, draft.base ?? emptyBusyPayload(draft.kind)) : null;
   const dirty = !!draft && (!draft.base || JSON.stringify(currentPayload) !== JSON.stringify(draft.base));
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
-  useImperativeHandle(ref, () => ({ hasUnsaved: () => dirty }), [dirty]);
+  // Ref sempre com a versão mais nova de save (o pai chama no Salvar/Publicar).
+  const saveRef = useRef<() => Promise<boolean>>(async () => true);
+  useImperativeHandle(ref, () => ({
+    hasUnsaved: () => dirty,
+    saveIfDirty: () => (dirty ? saveRef.current() : Promise.resolve(true)),
+  }), [dirty]);
 
   const start = (payload: BusyWeekPayload, opts: { planId: string | null; planName: string; kind: BusyKind; planSyncedAt?: string | null }) => {
     loadedFrom.current = "draft";
     setDraft({ ...opts, base: null, editor: busyToEditorPayload(payload, emptyEditor) });
   };
 
-  const save = () => {
-    if (!draft || !currentPayload) return;
+  const save = async (): Promise<boolean> => {
+    if (!draft || !currentPayload) return true;
     if (currentPayload.workouts.length === 0 || !currentPayload.workouts.some((w) => w.exercises.some((e) => String(e.name ?? "").trim()))) {
-      toast.error("Monte pelo menos um treino com exercícios.");
-      return;
+      toast.error("Semana Corrida: monte pelo menos um treino com exercícios.");
+      return false;
     }
-    upsert.mutate(
-      {
+    try {
+      await upsert.mutateAsync({
         studentId,
         planId: draft.planId,
         planName: draft.planName,
@@ -119,13 +126,16 @@ export const BusyWeekInlineEditor = forwardRef<BusyWeekInlineHandle, {
         // Diferente do modelo da biblioteca → fica marcada como ajustada só pra ela.
         customized: !!draft.planId && JSON.stringify(currentPayload) !== JSON.stringify(plans.find((p) => p.id === draft.planId)?.payload ?? null),
         ...(draft.base ? {} : { planSyncedAt: draft.planSyncedAt ?? null }),
-      },
-      {
-        onSuccess: () => toast.success(draft.base ? `Semana Corrida de ${who} salva.` : `Semana Corrida liberada para ${who}. Ela escolhe quando usar.`),
-        onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao salvar."),
-      },
-    );
+      });
+      toast.success(draft.base ? `Semana Corrida de ${who} salva.` : `Semana Corrida liberada para ${who}. Ela escolhe quando usar.`);
+      return true;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar a Semana Corrida.");
+      return false;
+    }
   };
+
+  saveRef.current = save;
 
   const discard = () => {
     if (!draft) return;
@@ -324,10 +334,10 @@ export const BusyWeekInlineEditor = forwardRef<BusyWeekInlineHandle, {
       {dirty && (
         <div className="sticky bottom-2 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-primary/40 bg-background/95 px-4 py-3 shadow-lg backdrop-blur" data-testid="busy-inline-savebar">
           <p className="text-xs text-muted-foreground flex-1 min-w-[180px]">
-            {draft.base ? "Alterações na Semana Corrida ainda não salvas." : `Salvar libera a Semana Corrida para ${who}.`} Salva separado do protocolo e vale na hora.
+            {draft.base ? "Alterações na Semana Corrida ainda não salvas." : `Salvar libera a Semana Corrida para ${who}.`} O Salvar/Publicar do protocolo também salva isto.
           </p>
           <Button size="sm" variant="ghost" onClick={discard} disabled={upsert.isPending}>Descartar</Button>
-          <Button size="sm" onClick={save} disabled={upsert.isPending} data-testid="busy-inline-save">
+          <Button size="sm" onClick={() => void save()} disabled={upsert.isPending} data-testid="busy-inline-save">
             {upsert.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
             {draft.base ? "Salvar Semana Corrida" : `Salvar e liberar para ${who}`}
           </Button>

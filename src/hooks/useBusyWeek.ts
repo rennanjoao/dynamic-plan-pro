@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { sb } from "@/integrations/supabase/untyped";
 import { queryKeys } from "@/lib/queryKeys";
 import { isMissingTableError } from "@/hooks/usePostureQuickChecks";
-import { normalizeBusyPayload, type BusyKind, type BusyWeekPayload } from "@/lib/busyWeek";
+import { normalizeBusyForSave, normalizeBusyPayload, type BusyKind, type BusyWeekPayload } from "@/lib/busyWeek";
 import type { SessionMark } from "@/lib/workoutInversion";
 
 export const BUSY_SQL_MISSING_MSG =
@@ -120,7 +120,7 @@ export function useSaveBusyWeekPlan(coachId: string | null) {
   const invalidate = useInvalidateBusy(coachId);
   return useMutation({
     mutationFn: async (input: { id?: string; name: string; kind: BusyKind; payload: BusyWeekPayload }): Promise<BusyWeekPlan> => {
-      const row = { name: input.name.trim(), kind: input.kind, payload: normalizeBusyPayload(input.payload) };
+      const row = { name: input.name.trim(), kind: input.kind, payload: normalizeBusyForSave(input.payload) };
       const q = input.id
         ? sb.from("busy_week_plans").update(row).eq("id", input.id)
         : sb.from("busy_week_plans").insert({ ...row, coach_id: coachId });
@@ -153,13 +153,14 @@ export function useApplyBusyWeekPlan(coachId: string | null) {
     mutationFn: async ({ plan, studentIds }: { plan: BusyWeekPlan; studentIds: string[] }) => {
       if (studentIds.length === 0) return 0;
       const now = new Date().toISOString();
+      const safePayload = normalizeBusyForSave(plan.payload);
       const rows = studentIds.map((student_id) => ({
         student_id,
         coach_id: coachId,
         plan_id: plan.id,
         plan_name: plan.name,
         kind: plan.kind,
-        payload: plan.payload,
+        payload: safePayload,
         plan_synced_at: plan.updated_at || now,
         customized: false,
         enabled: true,
@@ -194,7 +195,7 @@ export function useSaveAssignmentPayload(coachId: string | null) {
     mutationFn: async ({ studentId, payload }: { studentId: string; payload: BusyWeekPayload }) => {
       const { error } = await sb
         .from("busy_week_assignments")
-        .update({ payload: normalizeBusyPayload(payload), customized: true, coach_id: coachId })
+        .update({ payload: normalizeBusyForSave(payload), customized: true, coach_id: coachId })
         .eq("student_id", studentId);
       if (error) throw new Error(error.message);
     },
@@ -226,7 +227,7 @@ export function useUpsertStudentBusyWeek(coachId: string | null) {
         plan_id: input.planId,
         plan_name: input.planName.slice(0, 120),
         kind: input.kind,
-        payload: normalizeBusyPayload(input.payload),
+        payload: normalizeBusyForSave(input.payload),
         customized: input.customized,
         enabled: true,
       };
