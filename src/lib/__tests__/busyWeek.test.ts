@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  BUSY_KEY_PREFIX, busyCarbFor, emptyBusyPayload, isAssignmentOutdated, isBusyKey, isBusyWeek,
+  BUSY_KEY_PREFIX, busyCarbFor, busyFromProtocolWorkouts, busyToEditorPayload, busyTrainingDays, defaultBusyWeek, editorToBusyPayload, emptyBusyPayload, isAssignmentOutdated, isBusyKey, isBusyWeek,
   nextBusyWorkoutKey, normalizeBusyPayload, suggestBusyDayType, workoutKeyLabel,
 } from "../busyWeek";
 import {
@@ -166,5 +166,51 @@ describe("Semana Corrida", () => {
     expect(isAssignmentOutdated(a, "2026-12-02T10:00:00Z")).toBe(true);
     expect(isAssignmentOutdated(a, "2026-12-01T10:00:00Z")).toBe(false);
     expect(isAssignmentOutdated({ ...a, plan_id: null }, "2026-12-02T10:00:00Z")).toBe(false);
+  });
+});
+
+describe("Semana Corrida — faixa da semana (dias + carbo) igual ao treino atual", () => {
+  it("semana padrão: treino seg/qua/sex alternando, descanso nos outros", () => {
+    const w = defaultBusyWeek(["SC_A", "SC_B"]);
+    expect(w.weekDays).toEqual({ seg: "SC_A", ter: "REST", qua: "SC_B", qui: "REST", sex: "SC_A", sab: "REST", dom: "REST" });
+    expect(w.carbCycle.seg).toBe("base");
+    expect(w.carbCycle.ter).toBe("off");
+    expect(defaultBusyWeek(["SC_A", "SC_B", "SC_C"]).weekDays.sex).toBe("SC_C");
+  });
+
+  it("plano antigo sem faixa: monta a semana a partir da regra antiga de carbo", () => {
+    const p = normalizeBusyPayload({ workouts: [{ key: "SC_A" }, { key: "SC_B" }], dietRule: { training: "high", rest: "off" } });
+    expect(p.weekDays.seg).toBe("SC_A");
+    expect(p.carbCycle.seg).toBe("high");
+    expect(p.carbCycle.dom).toBe("off");
+    expect(busyTrainingDays(p)).toBe(3);
+    expect(p.sessionsPerWeek).toBe(3);
+  });
+
+  it("dias apontando para treino renomeado ou removido são corrigidos", () => {
+    const p = normalizeBusyPayload({
+      workouts: [{ key: "A" }, { key: "B" }],
+      weekDays: { seg: "A", ter: "B", qua: "Z", qui: "REST" },
+      carbCycle: { seg: "high", ter: "xyz" },
+    });
+    expect(p.weekDays).toEqual({ seg: "SC_A", ter: "SC_B", qui: "REST" });
+    expect(p.carbCycle).toEqual({ seg: "high", ter: "base" });
+    expect(busyTrainingDays(p)).toBe(2);
+  });
+
+  it("o editor do protocolo leva e traz dias, carbo e observação do descanso", () => {
+    const plan = normalizeBusyPayload({ workouts: [{ key: "SC_A" }], weekDays: { seg: "SC_A", ter: "REST" }, carbCycle: { seg: "high", ter: "off" }, restNotes: "caminhada" });
+    const editor = busyToEditorPayload(plan, ProtocolPayloadSchema.parse({ setup: {} }));
+    expect(editor.weekDays).toEqual({ seg: "SC_A", ter: "REST" });
+    const back = editorToBusyPayload({ ...editor, carbCycle: { ...editor.carbCycle, ter: "base" } }, plan);
+    expect(back.carbCycle.ter).toBe("base");
+    expect(back.restNotes).toBe("caminhada");
+  });
+
+  it("copiar do treino atual: mesmos exercícios, chaves SC_ e inverter em dias seguidos", () => {
+    const p = busyFromProtocolWorkouts([{ key: "A", focus: "Pernas", exercises: [{ name: "Leg press" }] }] as never);
+    expect(p.workouts[0].key).toBe("SC_A");
+    expect(p.workouts[0].invert?.mode).toBe("consecutive");
+    expect(p.weekDays.seg).toBe("SC_A");
   });
 });

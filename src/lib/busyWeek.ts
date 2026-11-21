@@ -13,15 +13,17 @@
  *    da rotação; treinou em dias seguidos → ordem invertida (configurável por
  *    treino, ver workoutInversion.ts). Mobilidade sempre antes.
  *  - Periodização com liga/desliga no plano (desligada = faixa fixa).
- *  - Dieta: mesmas refeições; o carbo segue o TIPO do dia (treino ou
- *    descanso), com o nível definido pelo coach no plano. O app sugere o tipo
- *    pela sequência (treinou ontem → descanso) e a aluna confirma ou troca.
+ *  - Dieta (revisão 20/11 noite): o plano tem a MESMA faixa da semana do
+ *    treino atual — dias com treino/descanso e carbo Alto/Base/Baixo por dia,
+ *    ajustados pelo coach no mesmo lugar. A dieta da aluna usa essa semana com
+ *    os mesmos botões "Hoje não vou treinar / Hoje vou treinar". Os treinos
+ *    em si seguem a rotação (ela escolhe quando treinar).
  *
  * Arquivo puro (sem Supabase/React) — testado em busyWeek.test.ts.
  */
 import { z } from "zod";
 import { PeriodizationSchema, WorkoutDaySchema, type ProtocolPayload } from "./protocolSchema";
-import type { CarbLevel } from "./weekCycle";
+import { DAY_KEYS, normalizeCarb, type CarbLevel } from "./weekCycle";
 import { localDateKey } from "./dateOnly";
 import type { SessionMark } from "./workoutInversion";
 
@@ -38,13 +40,19 @@ const CarbLevelSchema = z.enum(["high", "base", "off"]).catch("base");
 export const BusyWeekPayloadSchema = z.object({
   workouts: z.array(WorkoutDaySchema).default([]),
   periodization: PeriodizationSchema.default({} as never),
+  /** Dia da semana → treino (SC_A…) ou "REST". Mesma faixa do protocolo. */
+  weekDays: z.record(z.string()).catch({}).default({}),
+  /** Dia da semana → carbo (high/base/off). Mesma faixa do protocolo. */
+  carbCycle: z.record(z.string()).catch({}).default({}),
+  restNotes: z.string().max(2000).catch("").default(""),
+  /** Legado (planos criados antes da faixa da semana): vira o carbo padrão dos dias. */
   dietRule: z
     .object({
       training: CarbLevelSchema.default("base"),
       rest: CarbLevelSchema.default("off"),
     })
     .default({ training: "base", rest: "off" }),
-  /** Treinos esperados por semana nesta modalidade (aderência do coach). */
+  /** Legado — hoje vem da faixa da semana (busyTrainingDays). */
   sessionsPerWeek: z.number().int().min(1).max(6).catch(3).default(3),
   /** Recado curto para a aluna (opcional). */
   note: z.string().max(500).catch("").default(""),
@@ -89,7 +97,70 @@ export function normalizeBusyPayload(raw: unknown): BusyWeekPayload {
     }
     periodization = { ...periodization, overrides };
   }
-  return { ...base, workouts, periodization };
+  const keys = workouts.map((w) => w.key);
+  // Dias da semana seguem a renomeação; dias apontando para treino que não existe saem.
+  let weekDays: Record<string, string> = {};
+  for (const [day, wk] of Object.entries(base.weekDays ?? {})) {
+    const k = renames.get(wk) ?? wk;
+    if (k === "REST" || keys.includes(k)) weekDays[day] = k;
+  }
+  let carbCycle: Record<string, string> = {};
+  for (const d of DAY_KEYS) if (base.carbCycle?.[d]) carbCycle[d] = normalizeCarb(base.carbCycle[d]);
+  // Plano antigo (sem faixa da semana): monta A · descanso · B · descanso…
+  if (Object.keys(weekDays).length === 0 && keys.length > 0) {
+    const def = defaultBusyWeek(keys, { training: base.dietRule?.training ?? "base", rest: base.dietRule?.rest ?? "off" });
+    weekDays = def.weekDays;
+    if (Object.keys(carbCycle).length === 0) carbCycle = def.carbCycle;
+  }
+  const trainingDays = Object.values(weekDays).filter((k) => k && k !== "REST").length;
+  return {
+    ...base,
+    workouts,
+    periodization,
+    weekDays,
+    carbCycle,
+    sessionsPerWeek: trainingDays > 0 ? Math.min(6, trainingDays) : base.sessionsPerWeek,
+  };
+}
+
+/**
+ * Semana sugerida para a Semana Corrida: treino em dias alternados
+ * (seg · qua · sex), descanso nos outros. 1 treino: A A A; 2: A B A; 3: A B C.
+ */
+export function defaultBusyWeek(
+  workoutKeys: string[],
+  rule: { training: CarbLevel; rest: CarbLevel } = { training: "base", rest: "off" },
+): { weekDays: Record<string, string>; carbCycle: Record<string, CarbLevel> } {
+  const trainDays = ["seg", "qua", "sex"];
+  const weekDays: Record<string, string> = {};
+  const carbCycle: Record<string, CarbLevel> = {};
+  let i = 0;
+  for (const d of DAY_KEYS) {
+    if (trainDays.includes(d) && workoutKeys.length > 0) {
+      weekDays[d] = workoutKeys[i % workoutKeys.length];
+      carbCycle[d] = rule.training;
+      i++;
+    } else {
+      weekDays[d] = "REST";
+      carbCycle[d] = rule.rest;
+    }
+  }
+  return { weekDays, carbCycle };
+}
+
+/** Quantos dias de treino a semana do plano tem (aderência do coach). */
+export function busyTrainingDays(p: Pick<BusyWeekPayload, "weekDays" | "sessionsPerWeek">): number {
+  const n = Object.values(p.weekDays ?? {}).filter((k) => k && k !== "REST").length;
+  return n > 0 ? n : p.sessionsPerWeek;
+}
+
+/** Copia os treinos do protocolo como ponto de partida da Semana Corrida. */
+export function busyFromProtocolWorkouts(workouts: ProtocolPayload["workouts"]): BusyWeekPayload {
+  const copy = JSON.parse(JSON.stringify(workouts ?? [])) as ProtocolPayload["workouts"];
+  return normalizeBusyPayload({
+    workouts: copy.map((w) => ({ ...w, invert: w.invert ?? { mode: "consecutive" } })),
+    periodization: { enabled: false },
+  });
 }
 
 /** Plano em branco para o coach começar (2 treinos, inversão em dias seguidos). */
@@ -111,11 +182,26 @@ export function emptyBusyPayload(kind: BusyKind): BusyWeekPayload {
  * treinos + periodização. Estas duas funções fazem a ponte sem perder nada.
  */
 export function busyToEditorPayload(plan: BusyWeekPayload, base: ProtocolPayload): ProtocolPayload {
-  return { ...base, workouts: plan.workouts, periodization: plan.periodization, weekDays: {}, cardio: [] };
+  return {
+    ...base,
+    workouts: plan.workouts,
+    periodization: plan.periodization,
+    weekDays: { ...plan.weekDays },
+    carbCycle: { ...plan.carbCycle } as ProtocolPayload["carbCycle"],
+    restNotes: plan.restNotes,
+    cardio: [],
+  };
 }
 
 export function editorToBusyPayload(editor: ProtocolPayload, plan: BusyWeekPayload): BusyWeekPayload {
-  return normalizeBusyPayload({ ...plan, workouts: editor.workouts, periodization: editor.periodization });
+  return normalizeBusyPayload({
+    ...plan,
+    workouts: editor.workouts,
+    periodization: editor.periodization,
+    weekDays: editor.weekDays,
+    carbCycle: editor.carbCycle,
+    restNotes: editor.restNotes,
+  });
 }
 
 // ── Aluna: rotação e tipo do dia ─────────────────────────────────────────────

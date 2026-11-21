@@ -27,7 +27,10 @@ import { useMealCheckins } from "@/hooks/useMealCheckins";
 import { slug } from "@/lib/slug";
 import { localDateKey } from "@/lib/dateOnly";
 import { useStudentBusyWeek } from "@/hooks/useBusyWeek";
-import { busyCarbFor, suggestBusyDayType, type BusyDayType } from "@/lib/busyWeek";
+import { isBusyKey } from "@/lib/busyWeek";
+
+/** "SC_A" (Semana Corrida) aparece como "A"; o resto fica igual. */
+const shortWorkoutKey = (k: string) => (isBusyKey(k) ? k.slice(3) : k);
 
 // ─── Math engine ──────────────────────────────────────────────────────────────
 /** Retorna saudação de acordo com o horário local do dispositivo */
@@ -635,10 +638,18 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
   const { checked, toggle } = useMealCheckins(uid, dayKey, meals.length);
 
   // ── Contexto do dia ─────────────────────────────────────────────────────
-  const strip = buildWeekStrip(safeData);
+  // Semana Corrida ligada: a semana (dias de treino/descanso + carbo) e os
+  // treinos vêm do plano dela — o resto funciona igual à rotina normal,
+  // inclusive "Hoje não vou treinar / Hoje vou treinar".
+  const { data: busyData } = useStudentBusyWeek(uid);
+  const busyPlan = busyData?.active && busyData.assignment ? busyData.assignment.payload : null;
+  const weekSource = busyPlan
+    ? { ...safeData, workouts: busyPlan.workouts, weekDays: busyPlan.weekDays, carbCycle: busyPlan.carbCycle }
+    : safeData;
+  const strip = buildWeekStrip(weekSource);
   const todayInfo = strip.find((d) => d.isToday)!;
   const tomorrowInfo = strip.find((d) => d.key === tomorrowKey())!;
-  const workouts: any[] = Array.isArray(safeData.workouts) ? safeData.workouts : [];
+  const workouts: any[] = Array.isArray(weekSource.workouts) ? weekSource.workouts : [];
   const findWorkout = (k: string) => workouts.find((w) => w.key === k);
   const todayWorkout = todayInfo.workoutKey ? findWorkout(todayInfo.workoutKey) : null;
   const tomorrowWorkout = tomorrowInfo.workoutKey ? findWorkout(tomorrowInfo.workoutKey) : null;
@@ -652,24 +663,17 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
   // Só muda por ação explícita da aluna e só vale para hoje.
   const [dayOverride, setDayOverride] = useState<DayOverride | null>(null);
 
-  // Semana Corrida: sem dia fixo — o tipo do dia vem da sequência (treinou
-  // ontem → descanso) e a aluna confirma ou troca; o carbo segue a regra do plano.
-  const { data: busyData } = useStudentBusyWeek(uid);
-  const busyRule = busyData?.active && busyData.assignment ? busyData.assignment.payload.dietRule : null;
-  const busySuggestion: BusyDayType | null = busyRule ? suggestBusyDayType(busyData!.sessions) : null;
-  const plannedTraining = busyRule ? busySuggestion === "training" : !!todayWorkout;
-  const computeDayPlan = (override: DayOverride | null) => {
-    if (busyRule) {
-      const type: BusyDayType = override ?? busySuggestion ?? "training";
-      return { dayType: type, carb: busyCarbFor(busyRule, type), adjusted: false };
-    }
-    return resolveDayPlan({ plannedTraining, plannedCarb: todayInfo.carb, override });
-  };
+  const plannedTraining = !!todayWorkout;
+  const computeDayPlan = (override: DayOverride | null) =>
+    resolveDayPlan({ plannedTraining, plannedCarb: todayInfo.carb, override });
   const dayPlan = computeDayPlan(dayOverride);
-  const busyCarbNow = busyRule ? dayPlan.carb : null;
+  // Ligou/desligou a Semana Corrida (ou o plano chegou depois): o carbo de hoje
+  // acompanha a semana em uso, respeitando a escolha de hoje da aluna.
+  const weekSourceKey = `${busyPlan ? "busy" : "main"}|${todayInfo.carb}|${todayInfo.workoutKey}`;
   useEffect(() => {
-    if (busyCarbNow) setCarbMode(busyCarbNow as CarbMode);
-  }, [busyCarbNow]);
+    setCarbMode(computeDayPlan(dayOverride).carb as CarbMode);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekSourceKey]);
 
   // Ao identificar a aluna: recupera a escolha de hoje e a preferência cru/cozido.
   useEffect(() => {
@@ -830,31 +834,7 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
         )}
 
         {/* Linha 3 — Treino ou mensagem de descanso */}
-        {busyRule ? (
-          <div className="space-y-1.5" data-testid="busy-diet-day">
-            <p className="text-[12px] text-muted-foreground">
-              Semana Corrida: o carbo segue o seu dia (treino: <strong className="text-foreground">{CARB_LABEL[busyRule.training]}</strong> · descanso: <strong className="text-foreground">{CARB_LABEL[busyRule.rest]}</strong>).
-            </p>
-            <div className="grid grid-cols-2 gap-1 rounded-lg bg-background/60 p-1 max-w-xs" role="radiogroup" aria-label="Hoje é dia de">
-              {(["training", "rest"] as const).map((t) => {
-                const selected = dayPlan.dayType === t;
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    onClick={() => applyDayOverride(t === busySuggestion ? null : t)}
-                    className={cn("h-8 rounded-md text-[13px] font-semibold", selected ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
-                    data-testid={`busy-day-${t}`}
-                  >
-                    {t === "training" ? "Treino" : "Descanso"}{t === busySuggestion ? " ·sugerido" : ""}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : dayPlan.adjusted ? (
+        {dayPlan.adjusted ? (
           <div className="rounded-xl bg-background/70 border border-border/60 px-3 py-2 flex items-center justify-between gap-2">
             <p className="text-[13px] text-foreground leading-snug">
               {dayOverride === "rest"
@@ -872,7 +852,7 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
         ) : todayWorkout ? (
           <p className="text-[12px] text-muted-foreground">
             Dia de treino{" "}
-            <span className="text-foreground font-semibold">{todayWorkout.key}</span>
+            <span className="text-foreground font-semibold">{shortWorkoutKey(todayWorkout.key)}</span>
             {todayWorkout.focus ? <> · {todayWorkout.focus}</> : null}
             {" "}— foco total na execução 💪
           </p>
@@ -881,7 +861,7 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
             Dia de descanso — recuperação é parte do processo. Hidrate-se bem e durma cedo 🌙
           </p>
         )}
-        {!busyRule && !dayPlan.adjusted && dayAction && (
+        {!dayPlan.adjusted && dayAction && (
           <button
             type="button"
             onClick={() => applyDayOverride(dayAction === "skip" ? "rest" : "training")}
@@ -892,8 +872,10 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
         )}
       </div>
 
-      {/* ── Week strip (read-only) — na Semana Corrida o dia não é fixo ── */}
-      {!busyRule && (
+      {/* ── Week strip (read-only) ── */}
+      {busyPlan && (
+        <p className="text-[11px] text-muted-foreground mb-1" data-testid="busy-diet-week">Semana Corrida: dias e carbo do seu plano secundário.</p>
+      )}
       <div className="grid grid-cols-7 gap-1 mb-4">
         {strip.map((d) => {
           const cc = CARB_COLOR[d.carb];
@@ -906,7 +888,7 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
               )}
             >
               <span className="text-[10px] uppercase text-muted-foreground tracking-wider">{d.abbr}</span>
-              <span className="text-[12px] font-bold text-foreground leading-none">{d.workoutKey || "—"}</span>
+              <span className="text-[12px] font-bold text-foreground leading-none">{d.workoutKey ? shortWorkoutKey(d.workoutKey) : "—"}</span>
               <span className={cn("text-[10px] font-bold uppercase px-1 py-px rounded border leading-none mt-0.5", cc.pill)}>
                 {CARB_LABEL[d.carb]}
               </span>
@@ -914,7 +896,6 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
           );
         })}
       </div>
-      )}
 
 
 
@@ -982,7 +963,7 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
             {tomorrowWorkout ? (
               <>
                 Treino{" "}
-                <span className="font-bold">{tomorrowWorkout.key}</span>
+                <span className="font-bold">{shortWorkoutKey(tomorrowWorkout.key)}</span>
                 {tomorrowWorkout.focus ? <> · {tomorrowWorkout.focus}</> : null}
               </>
             ) : (

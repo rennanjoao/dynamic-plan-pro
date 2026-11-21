@@ -1,8 +1,8 @@
 /**
- * Editor de um plano da Semana Corrida (biblioteca do coach) ou da cópia de
- * UMA aluna. Reaproveita o editor de treinos do protocolo (WorkoutsTab no
- * modo "busyWeek"): mesmos exercícios, biblioteca, mobilidade, periodização
- * com liga/desliga e o seletor de inverter a ordem.
+ * Editor de um plano da Semana Corrida da biblioteca. Reaproveita o editor de
+ * treinos do protocolo (WorkoutsTab no modo "busyWeek"): mesmos exercícios,
+ * mobilidade, periodização com liga/desliga, inverter a ordem e a MESMA faixa
+ * da semana (dias + carbo) — sem seletores próprios de carbo.
  */
 import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
@@ -15,7 +15,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { WorkoutsTab } from "@/components/coach/protocol-builder/WorkoutsTab";
 import { ProtocolPayloadSchema, type ProtocolPayload } from "@/lib/protocolSchema";
-import { CARB_LABEL, type CarbLevel } from "@/lib/weekCycle";
 import {
   BUSY_KIND_LABEL, busyToEditorPayload, editorToBusyPayload, emptyBusyPayload,
   type BusyKind, type BusyWeekPayload,
@@ -26,8 +25,6 @@ export interface BusyPlanDraft {
   kind: BusyKind;
   payload: BusyWeekPayload;
 }
-
-const CARB_OPTIONS: CarbLevel[] = ["high", "base", "off"];
 
 export function BusyWeekPlanEditor({
   open,
@@ -125,36 +122,6 @@ export function BusyWeekPlanEditor({
               </SelectContent>
             </Select>
           </div>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-3 rounded-lg border border-border/60 bg-card/40 p-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Treinos por semana (para a aderência)</Label>
-            <Select value={String(plan.sessionsPerWeek)} onValueChange={(v) => setPlan({ ...plan, sessionsPerWeek: Number(v) })}>
-              <SelectTrigger className="h-9" data-testid="busy-plan-sessions"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {[2, 3, 4].map((n) => <SelectItem key={n} value={String(n)}>{n}x na semana</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Carbo no dia de treino</Label>
-            <Select value={plan.dietRule.training} onValueChange={(v) => setPlan({ ...plan, dietRule: { ...plan.dietRule, training: v as CarbLevel } })}>
-              <SelectTrigger className="h-9" data-testid="busy-plan-carb-training"><SelectValue /></SelectTrigger>
-              <SelectContent>{CARB_OPTIONS.map((c) => <SelectItem key={c} value={c}>{CARB_LABEL[c]}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Carbo no dia de descanso</Label>
-            <Select value={plan.dietRule.rest} onValueChange={(v) => setPlan({ ...plan, dietRule: { ...plan.dietRule, rest: v as CarbLevel } })}>
-              <SelectTrigger className="h-9" data-testid="busy-plan-carb-rest"><SelectValue /></SelectTrigger>
-              <SelectContent>{CARB_OPTIONS.map((c) => <SelectItem key={c} value={c}>{CARB_LABEL[c]}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <p className="md:col-span-3 text-[11px] text-muted-foreground">
-            A dieta continua a mesma do protocolo; na Semana Corrida o carbo segue o dia de treino ou de descanso, com os
-            percentuais de carbo alto/baixo que você já usa. Refeições com versão treino/descanso trocam junto.
-          </p>
         </div>
 
         <div className="space-y-1">

@@ -82,7 +82,8 @@ import { pruneOrphanWeekDays } from "@/lib/weekDaysOps";
 import { MacrosTab } from "./protocol-builder/MacrosTab";
 import { GuidelinesTab } from "./protocol-builder/GuidelinesTab";
 import { WorkoutsTab } from "./protocol-builder/WorkoutsTab";
-import { BusyWeekStudentCard } from "./busy-week/BusyWeekStudentCard";
+import { BusyWeekInlineEditor } from "./busy-week/BusyWeekInlineEditor";
+import { useBusyWeekAssignments } from "@/hooks/useBusyWeek";
 import { DietTab } from "./protocol-builder/DietTab";
 import { calcMealMacros, calcDayMacros, tacoGroupToKind, parseWeightString, optionMacros, compareOptions, type SubstitutionSeverity } from "@/lib/macroCalc";
 import {
@@ -183,6 +184,13 @@ function computeCompletion(payload: ProtocolPayload | null) {
 export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const qc = useQueryClient();
   const [coachId, setCoachId] = useState<string | null>(null);
+  // Aba Treinos: "Treino atual" (protocolo) ou "Semana corrida" (treino secundário).
+  const [workoutsView, setWorkoutsView] = useState<"main" | "busy">("main");
+  const [busyMounted, setBusyMounted] = useState(false);
+  const [busyDirty, setBusyDirty] = useState(false);
+  const { data: busyAssignments = [] } = useBusyWeekAssignments(coachId);
+  const busyMine = busyAssignments.find((a) => a.student_id === studentId && a.enabled);
+  const busyStatus = busyMine ? (busyMine.student_on ? "em uso" : "ativa") : "";
   const [protocolId, setProtocolId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [payload, setPayload] = useState<ProtocolPayload | null>(null);
@@ -1114,8 +1122,51 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             <TabsContent value="macros" className="mt-4"><MacrosTab payload={payload} setPayload={updatePayload} /></TabsContent>
             <TabsContent value="guidelines" className="mt-4"><GuidelinesTab payload={payload} setPayload={updatePayload} coachId={coachId} /></TabsContent>
             <TabsContent value="workouts" className="mt-4">
-              <BusyWeekStudentCard coachId={coachId} studentId={studentId} studentName={studentName} />
-              <WorkoutsTab payload={payload} setPayload={updatePayload} coachId={coachId} onOpenTemplateLibrary={() => setLibraryOpen(true)} />
+              {/* Treino atual ↔ Semana Corrida: o mesmo editor, um de cada vez. */}
+              <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/50 p-1 w-full sm:w-auto" role="radiogroup" aria-label="Qual treino editar">
+                  {([
+                    { v: "main", label: "Treino atual" },
+                    { v: "busy", label: "Semana corrida" },
+                  ] as const).map((o) => (
+                    <button
+                      key={o.v}
+                      type="button"
+                      role="radio"
+                      aria-checked={workoutsView === o.v}
+                      onClick={() => { setWorkoutsView(o.v); if (o.v === "busy") setBusyMounted(true); }}
+                      className={cn(
+                        "h-8 px-4 rounded-md text-sm font-semibold transition inline-flex items-center justify-center gap-1.5",
+                        workoutsView === o.v ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground",
+                      )}
+                      data-testid={`workouts-view-${o.v}`}
+                    >
+                      {o.label}
+                      {o.v === "busy" && busyDirty && <span className="w-1.5 h-1.5 rounded-full bg-primary" aria-label="alterações não salvas" />}
+                      {o.v === "busy" && !busyDirty && busyStatus && (
+                        <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">{busyStatus}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                {workoutsView === "busy" && (
+                  <p className="text-[11px] text-muted-foreground">Treino secundário para semanas apertadas — salva separado do protocolo.</p>
+                )}
+              </div>
+              <div className={workoutsView === "main" ? undefined : "hidden"}>
+                <WorkoutsTab payload={payload} setPayload={updatePayload} coachId={coachId} onOpenTemplateLibrary={() => setLibraryOpen(true)} />
+              </div>
+              {busyMounted && (
+                <div className={workoutsView === "busy" ? undefined : "hidden"}>
+                  <BusyWeekInlineEditor
+                    coachId={coachId}
+                    studentId={studentId}
+                    studentName={studentName}
+                    protocolWorkouts={payload.workouts}
+                    onDirtyChange={setBusyDirty}
+                  />
+                </div>
+              )}
             </TabsContent>
             <TabsContent value="diet" className="mt-4"><DietTab payload={payload} setPayload={updatePayload} onOpenTemplateLibrary={() => setLibraryOpen(true)} /></TabsContent>
           </Tabs>

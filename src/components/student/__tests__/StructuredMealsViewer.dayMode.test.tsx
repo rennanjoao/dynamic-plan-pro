@@ -113,39 +113,45 @@ describe("Dieta — 'Hoje não vou treinar'", () => {
   });
 
   describe("Semana Corrida", () => {
-    const yesterday = () => { const d = new Date(); d.setDate(d.getDate() - 1); d.setHours(10); return d.toISOString(); };
-    const busyOn = (sessions: Array<{ workout_key: string; started_at: string }>) => ({
-      active: true,
-      sessions,
-      assignment: { payload: { dietRule: { training: "high", rest: "off" }, workouts: [{ key: "SC_A" }] } },
-    });
+    // Plano secundário com a faixa da semana própria (dias + carbo), como no treino atual.
+    const busyOn = (todayIsTraining: boolean, carb: "high" | "base" | "off") => {
+      const t = todayKey();
+      return {
+        active: true,
+        sessions: [],
+        assignment: {
+          payload: {
+            workouts: [{ key: "SC_A", focus: "Full Body A", exercises: [] }],
+            weekDays: { [t]: todayIsTraining ? "SC_A" : "REST" },
+            carbCycle: { [t]: carb },
+          },
+        },
+      };
+    };
 
-    it("treinou ontem: sugere descanso, carbo do descanso e refeições de descanso; sem a faixa da semana", async () => {
-      busy.value = busyOn([{ workout_key: "SC_A", started_at: yesterday() }]);
+    it("dia de descanso na semana do plano: refeições de descanso e carbo do plano, mesmo com treino no protocolo", async () => {
+      busy.value = busyOn(false, "off");
       render(<StructuredMealsViewer payload={payload(true)} />);
-      expect(screen.getByTestId("busy-diet-day")).toBeTruthy();
-      expect(screen.getByRole("radio", { name: /Descanso ·sugerido/ }).getAttribute("aria-checked")).toBe("true");
-      expect(within(screen.getByText("Hoje · Carbo").parentElement as HTMLElement).getByText("Baixo")).toBeTruthy();
+      expect(screen.getByTestId("busy-diet-week")).toBeTruthy();
       expect(screen.getByText("Lanche do descanso")).toBeTruthy();
       expect(screen.queryByText("Pré-treino")).toBeNull();
-      expect(screen.queryByRole("button", { name: "Hoje não vou treinar" })).toBeNull();
+      expect(within(screen.getByText("Hoje · Carbo").parentElement as HTMLElement).getByText("Baixo")).toBeTruthy();
     });
 
-    it("a aluna troca para treino: refeições de treino e carbo do dia de treino, lembrado hoje", async () => {
-      busy.value = busyOn([{ workout_key: "SC_A", started_at: yesterday() }]);
-      const first = render(<StructuredMealsViewer payload={payload(false)} />);
-      await userEvent.click(screen.getByRole("radio", { name: "Treino" }));
+    it("dia de treino na semana do plano: mostra a letra do treino e os mesmos botões do dia a dia", async () => {
+      busy.value = busyOn(true, "high");
+      render(<StructuredMealsViewer payload={payload(false)} />);
       expect(screen.getByText("Pré-treino")).toBeTruthy();
       expect(within(screen.getByText("Hoje · Carbo").parentElement as HTMLElement).getByText("Alto")).toBeTruthy();
-      first.unmount();
-      render(<StructuredMealsViewer payload={payload(false)} />);
-      expect(await screen.findByText("Pré-treino")).toBeTruthy();
+      expect(screen.queryByText(/SC_A/)).toBeNull();
+      await userEvent.click(await screen.findByRole("button", { name: "Hoje não vou treinar" }));
+      expect(screen.getByText("Lanche do descanso")).toBeTruthy();
     });
 
-    it("sem treino ontem: sugere treino", () => {
-      busy.value = busyOn([]);
-      render(<StructuredMealsViewer payload={payload(false)} />);
-      expect(screen.getByRole("radio", { name: /Treino ·sugerido/ }).getAttribute("aria-checked")).toBe("true");
+    it("Semana Corrida desligada: segue o protocolo normal", async () => {
+      busy.value = { ...busyOn(false, "off"), active: false };
+      render(<StructuredMealsViewer payload={payload(true)} />);
+      expect(screen.queryByTestId("busy-diet-week")).toBeNull();
       expect(screen.getByText("Pré-treino")).toBeTruthy();
     });
   });

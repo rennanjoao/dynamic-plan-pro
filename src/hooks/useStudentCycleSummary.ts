@@ -3,6 +3,7 @@ import { sb } from "@/integrations/supabase/untyped";
 import { queryKeys } from "@/lib/queryKeys";
 import type { MealCheckLite, SessionLite } from "@/lib/coachCycleSummary";
 import { isFeltRegion, type FeelRow } from "@/lib/exerciseFeel";
+import { normalizeBusyPayload } from "@/lib/busyWeek";
 
 export interface StudentNote {
   sessionId: string;
@@ -132,7 +133,8 @@ export function useStudentCycleSummary(studentId: string | null) {
             plan_name: string; enabled: boolean; student_on: boolean; student_on_since: string | null; payload: { sessionsPerWeek?: unknown } | null;
           } | null);
           if (!b) return null;
-          const spw = Number(b.payload?.sessionsPerWeek);
+          // Dias de treino da faixa da semana do plano (planos antigos: campo legado).
+          const spw = normalizeBusyPayload(b.payload).sessionsPerWeek;
           return {
             planName: b.plan_name,
             enabled: !!b.enabled,

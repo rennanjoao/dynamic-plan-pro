@@ -91,14 +91,15 @@ describe("WorkoutsTab — inverter a ordem e modo Semana Corrida", () => {
     expect(screen.getByTestId("invert-all")).toBeTruthy();
   });
 
-  it("modo Semana Corrida esconde dias da semana, descanso e aeróbicos", () => {
+  it("modo Semana Corrida: mesma faixa da semana (dias + carbo) e descanso; sem aeróbicos", () => {
     render(
       <ConfirmProvider>
         <WorkoutsTab payload={payloadWith()} setPayload={vi.fn()} coachId="c1" variant="busyWeek" />
       </ConfirmProvider>,
     );
-    expect(screen.queryByTitle("Dias da semana deste treino")).toBeNull();
-    expect(screen.queryByText(/Dia sem treino — vincule/)).toBeNull();
+    expect(screen.getByText("Semana")).toBeTruthy();
+    expect(screen.getAllByTitle("Dias da semana deste treino").length).toBeGreaterThan(0);
+    expect(screen.getByText(/Dia sem treino — vincule/)).toBeTruthy();
     expect(screen.queryByText(/Aeróbicos gerais/)).toBeNull();
     expect(screen.queryByText(/Aeróbico neste treino/)).toBeNull();
     expect(screen.getByTestId("invert-select-A")).toBeTruthy();
