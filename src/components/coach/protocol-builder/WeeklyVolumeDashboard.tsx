@@ -195,7 +195,7 @@ function WeeklyVolumeDashboardImpl({ workouts, weekDays, periodization }: Weekly
     <Card className="bg-card/40 border-border p-2.5">
       <Accordion type="single" collapsible>
         <AccordionItem value="weekly-volume" className="border-none">
-          <AccordionTrigger className="px-1.5 py-1.5 text-sm hover:no-underline">
+          <AccordionTrigger className="px-1.5 py-1.5 text-sm hover:no-underline min-w-0 overflow-hidden">
             <div className="flex flex-1 items-center justify-between pr-2 min-w-0">
               <div className="flex items-center gap-2 min-w-0">
                 <TrendingUp className="h-4 w-4 text-muted-foreground shrink-0" />

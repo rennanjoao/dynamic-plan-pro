@@ -1,4 +1,5 @@
 import type { ProtocolPayload } from "./protocolSchema";
+import { resolveExerciseInWeek, type PeriodizationLike } from "./prescriptionResolve";
 
 export type WeekFieldError = {
   weekIndex: number;
@@ -158,7 +159,7 @@ export function validatePeriodization(payload: ProtocolPayload): PeriodizationVa
   };
 }
 
-// Resolve um exercício considerando overrides + meta da semana como fallback.
+// Resolve um exercício numa semana (prévia do coach).
 export function resolveExerciseForWeek(
   payload: ProtocolPayload,
   weekIndex: number,
@@ -168,16 +169,22 @@ export function resolveExerciseForWeek(
   const day = payload.workouts.find((d) => d.key === dayKey);
   const base = day?.exercises[exerciseIndex];
   if (!base) return null;
-  const p = payload.periodization;
-  const weekMeta = p.weeks[weekIndex];
-  const ov = findExerciseOverride(payload, weekIndex, dayKey, exerciseIndex) || {};
+  // MESMA regra do Plano e do Modo Treino (src/lib/prescriptionResolve.ts):
+  // exceção da semana > valor da semana > exercício.
+  const r = resolveExerciseInWeek(
+    base as unknown as Parameters<typeof resolveExerciseInWeek>[0],
+    { ...(payload.periodization as unknown as PeriodizationLike), enabled: true },
+    weekIndex,
+    dayKey,
+    exerciseIndex,
+  );
   return {
-    name: ov.name || base.name || "",
-    sets:    ov.sets    || base.sets    || weekMeta?.sets    || "",
-    reps:    ov.reps    || base.reps    || weekMeta?.reps    || "",
-    cadence: ov.cadence || base.cadence || weekMeta?.cadence || "",
-    rest:    ov.rest    || base.rest    || weekMeta?.rest    || "",
-    notes:   ov.notes   || base.notes   || "",
-    overridden: Object.keys(ov).length > 0,
+    name: r.name || "",
+    sets: r.sets,
+    reps: r.reps,
+    cadence: r.cadence,
+    rest: r.rest,
+    notes: r.notes || "",
+    overridden: r.overridden,
   };
 }

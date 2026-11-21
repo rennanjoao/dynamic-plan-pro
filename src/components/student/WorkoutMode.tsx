@@ -58,6 +58,7 @@ import {
 import { classifyExerciseByName, MUSCLE_GROUP_LABELS, type MuscleGroup } from "@/lib/muscleGroupClassifier";
 import { parseRestTime } from "@/lib/timeParser";
 import { isBusyKey, workoutKeyLabel } from "@/lib/busyWeek";
+import { resolveExerciseInWeek } from "@/lib/prescriptionResolve";
 
 /* ── Constantes ─────────────────────────────────────────────────────────────── */
 const GOLD = "#C9A84C";
@@ -251,12 +252,15 @@ export default function WorkoutMode({ workouts, userId, coachId, coachName, team
 
   const elapsedSec = Math.floor((now - startedAt) / 1000);
   const day = workouts.find((d: any) => d.key === (initialDay ?? workouts[0]?.key)) ?? workouts[0];
-  const dayExercises = ((day?.exercises ?? []) as any[]).filter((ex: any) => !isMobilityExercise(ex));
-  const exercises = dayExercises.map((ex: any, idx: number) => {
+  // Posição no treino CONTANDO a mobilidade: é a chave das exceções antigas da periodização.
+  const dayStrength = ((day?.exercises ?? []) as any[])
+    .map((ex: any, fullIdx: number) => ({ ex, fullIdx }))
+    .filter(({ ex }) => !isMobilityExercise(ex));
+  const dayExercises = dayStrength.map(({ ex }) => ex);
+  // Mesma regra do Plano de Treino e da prévia do coach (src/lib/prescriptionResolve.ts).
+  const exercises = dayStrength.map(({ ex, fullIdx }) => {
     if (!isPeriodizationOn) return ex;
-    const override = periodization?.overrides?.[String(activeWeek)]?.[`${day!.key}_${idx}`] ?? {};
-    const wm = weeks[activeWeek];
-    return { ...ex, sets: override.sets ?? wm.sets ?? ex.sets, reps: override.reps ?? wm.reps ?? ex.reps, rest: override.rest ?? wm.rest ?? ex.rest };
+    return resolveExerciseInWeek(ex, { ...(periodization ?? {}), enabled: true, weeks }, activeWeek, day!.key, fullIdx);
   }).map((ex: any, idx: number) => {
     const sw = swapMap[`${day?.key}::${idx}`];
     return sw ? { ...ex, name: sw.name, gifKey: sw.gifKey, swappedFrom: dayExercises[idx]?.name } : ex;

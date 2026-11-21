@@ -66,9 +66,11 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
   // Estado para controlar a expansão das substituições de cada semana individualmente
   const [expandedWeeks, setExpandedWeeks] = useState<Record<number, boolean>>({});
 
+  // Minimizada por padrão (auditoria 20/11/2026): ocupava ~900 px acima dos
+  // treinos. O coach abre quando precisa; a escolha fica lembrada.
   const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("perio_collapsed") === "true";
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("perio_collapsed") !== "false";
   });
 
   const toggleCollapsed = () => {
@@ -277,6 +279,11 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
               <p className="text-[11px] text-muted-foreground truncate">
                 {p.weeks.map((w, i) => `S${i + 1}: ${w.sets || "?"}×${w.reps || "?"}`).join(" · ")}
               </p>
+              {!validation.ok && (
+                <p className="text-[11px] text-destructive" data-testid="periodization-collapsed-error">
+                  {validation.weekErrors.length + validation.overrideErrors.length} erro(s) — abra para corrigir
+                </p>
+              )}
             </div>
           </div>
           <span className="text-[11px] text-primary flex items-center gap-1 shrink-0">
@@ -296,6 +303,11 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
               <RefreshCcw className="w-3 h-3 mr-1" /> Resetar tudo
             </Button>
           )}
+          {p.enabled && (
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={toggleCollapsed} aria-label="Minimizar periodização">
+              <Minimize2 className="w-3 h-3 mr-1" /> Minimizar
+            </Button>
+          )}
           <div className="flex items-center gap-2 pl-2 border-l border-border/40">
             <Switch
               id="periodization-enabled"
@@ -308,20 +320,9 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
           </div>
         </div>
       </div>
-      {p.enabled && (
-        <div className="flex justify-end mb-2">
-          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={toggleCollapsed}>
-            <Minimize2 className="w-3 h-3 mr-1" /> Minimizar periodização
-          </Button>
-        </div>
-      )}
 
       {p.enabled && (
         <>
-          <p className="text-[11px] text-muted-foreground mb-3">
-            O aluno verá as 4 semanas. Os exercícios da aba Treino servem de base e podem ser
-            substituídos por semana abaixo.
-          </p>
 
           {!validation.ok && (
             <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 mb-3 flex items-start gap-2">
@@ -421,7 +422,7 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
                   >
                     <span className="flex items-center gap-1.5">
                       <ArrowRightLeft className="w-3 h-3" /> 
-                      Substituições Específicas
+                      Trocar só nesta semana
                       {isWeekDirty(i) && (
                         <span className="w-1.5 h-1.5 rounded-full bg-primary" title="Há alterações não salvas" />
                       )}
@@ -486,16 +487,6 @@ export default function WorkoutPeriodizationEditor({ payload, setPayload, coachI
           </div>
         </>
       )}
-
-      {/* Templates de periodização: aplicar/salvar rápido aqui; biblioteca completa (treinos, dietas e protocolos) vive no diálogo compartilhado do Protocolo */}
-      <div className="flex items-center justify-between gap-2 flex-wrap mt-3 pt-3 border-t border-border/40">
-        <PeriodizationTemplateQuickPicker payload={payload} setPayload={setPayload} coachId={coachId} />
-        {onOpenTemplateLibrary && (
-          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onOpenTemplateLibrary}>
-            <Library className="w-3.5 h-3.5 mr-1.5" /> Biblioteca completa
-          </Button>
-        )}
-      </div>
 
       <WeekPreviewDialog
         open={previewWeek !== null}

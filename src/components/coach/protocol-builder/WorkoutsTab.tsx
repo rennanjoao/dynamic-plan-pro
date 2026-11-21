@@ -5,14 +5,11 @@ import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import {
-  Plus, Trash2, ArrowUp, ArrowDown, ChevronDown, CheckCircle2, GripVertical, Activity,
-  StretchHorizontal, Dumbbell, Library, CopyPlus, Copy, ArrowUpDown,
+  Plus, Trash2, ChevronDown, CheckCircle2, GripVertical,
+  StretchHorizontal, Dumbbell, Library, CopyPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
@@ -25,10 +22,13 @@ import { WeeklyVolumeDashboard } from "./WeeklyVolumeDashboard";
 import { ProtocolPayload, makeEmptyExercise, isMobilityExercise, isLegacyMobilityExercise } from "@/lib/protocolSchema";
 import { applyDayExercisesChange, buildExercisesWithLibraryAdditions } from "@/lib/workoutExerciseOps";
 import { duplicateWorkoutDay, nextWorkoutKey } from "@/lib/workoutDayOps";
-import { normalizeCarb, cycleCarb, CARB_LABEL, DAY_KEYS } from "@/lib/weekCycle";
+import { normalizeCarb, cycleCarb, DAY_KEYS } from "@/lib/weekCycle";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { WorkoutTemplateQuickPicker } from "@/components/coach/WorkoutTemplateQuickPicker";
-import { INVERT_OPTIONS, INVERT_LABEL, makeInvertSetting, type InvertMode } from "@/lib/workoutInversion";
+import { makeInvertSetting, type InvertMode } from "@/lib/workoutInversion";
+import { PeriodizationTemplateQuickPicker } from "@/components/coach/PeriodizationTemplateQuickPicker";
+import { RX_FIELDS, exceptionValue, setExceptionAllWeeks, type RxField } from "@/lib/prescriptionResolve";
+import { CardioSection, ExerciseMenu, InvertBadge, RxInput, TemplatesMenu, WeekStripEditor, WorkoutMenu } from "./WorkoutsTabParts";
 
 import {
   DndContext, closestCenter, PointerSensor, KeyboardSensor,
@@ -58,36 +58,14 @@ function SortableExerciseRow({
   );
 }
 
-/** Seletor "inverter a ordem" de um treino (mobilidade fica sempre no começo). */
-function InvertSelect({ value, onChange, testId }: { value: InvertMode; onChange: (m: InvertMode) => void; testId?: string }) {
-  return (
-    <Select value={value} onValueChange={(v) => onChange(v as InvertMode)}>
-      <SelectTrigger
-        className={cn("h-7 w-auto gap-1 text-[11px] rounded-full px-2.5", value !== "off" ? "border-primary/50 text-primary bg-primary/5" : "text-muted-foreground")}
-        title="Inverter a ordem dos exercícios (a mobilidade continua antes)"
-        data-testid={testId}
-      >
-        <ArrowUpDown className="w-3 h-3" />
-        <SelectValue>{value === "off" ? "Ordem normal" : `Inverter: ${INVERT_LABEL[value].toLowerCase()}`}</SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        {INVERT_OPTIONS.map((o) => (
-          <SelectItem key={o.value} value={o.value}>
-            <span className="flex flex-col">
-              <span className="text-xs font-medium">{o.label}</span>
-              <span className="text-[10px] text-muted-foreground">{o.hint}</span>
-            </span>
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
 /**
  * `variant="busyWeek"`: mesmo editor, usado na Semana Corrida — com a mesma
  * faixa da semana (dias + carbo), só sem aeróbicos e sem o atalho da
  * biblioteca de protocolos.
+ *
+ * Limpeza de 20/11/2026 (auditoria aprovada): dias só na faixa da semana,
+ * ações em menus ⋯, um botão "Modelos", aeróbicos num lugar só, campos com
+ * rótulo no celular e a regra única da periodização (prescriptionResolve).
  */
 export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrary, variant = "protocol" }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void; coachId: string | null; onOpenTemplateLibrary?: () => void; variant?: "protocol" | "busyWeek" }) {
   const isBusy = variant === "busyWeek";
@@ -266,10 +244,11 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
   const ABBR: Record<string, string> = { seg: "Seg", ter: "Ter", qua: "Qua", qui: "Qui", sex: "Sex", sab: "Sáb", dom: "Dom" };
   const today = (["dom","seg","ter","qua","qui","sex","sab"] as const)[new Date().getDay()];
 
-  const setWeekday = (weekdayKey: string, workoutKey: string) => {
+  /** Faixa da semana: "" limpa o dia, "REST" = descanso, senão a chave do treino. */
+  const setDay = (weekdayKey: string, value: string) => {
     const next: Record<string, string> = { ...weekDays };
-    if (workoutKey === "" || next[weekdayKey] === workoutKey) delete next[weekdayKey];
-    else next[weekdayKey] = workoutKey;
+    if (!value) delete next[weekdayKey];
+    else next[weekdayKey] = value;
     setPayload({ ...payload, weekDays: next } as any);
   };
 
@@ -281,207 +260,126 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
     });
   };
 
-  const dayChipText = (workoutKey: string) => {
-    const linked = DAY_KEYS.filter((k) => weekDays[k] === workoutKey);
-    return linked.length === 0 ? "Sem dia" : linked.map((k) => ABBR[k]).join(", ");
-  };
-
   const positionLetter = (i: number) => String.fromCharCode(65 + i);
 
-  // Aeróbicos já exibidos dentro do card do treino não se repetem na lista geral.
-  // Os que apontam para um treino que não existe mais continuam aparecendo aqui,
-  // para o coach conseguir revisar ou excluir.
-  const workoutKeySet = new Set(payload.workouts.map((w) => w.key));
-  const generalCardio = (payload.cardio ?? [])
-    .map((c, ci) => ({ c, ci }))
-    .filter(({ c }) => !(c.associationType === "workout" && workoutKeySet.has(c.workoutKey)));
   const workoutKeyToLetter: Record<string, string> = {};
   payload.workouts.forEach((w, i) => { workoutKeyToLetter[w.key] = positionLetter(i); });
   const displayLetter = (workoutKey: string) => workoutKeyToLetter[workoutKey] ?? workoutKey;
 
+  const restDays = DAY_KEYS.filter((k) => weekDays[k] === "REST");
+  /** "4 a 5 séries" → "4–5": cabe no campo estreito (o valor inteiro está na periodização). */
+  const compactWeekValue = (v: string) =>
+    String(v ?? "").replace(/\s*(séries|série|reps|rep|repetições)\b/gi, "").replace(/\s+a\s+/gi, "–").trim();
+  const w1 = payload.periodization?.weeks?.[0];
+
+  /** Valor e marca de cada campo de prescrição (regra única: src/lib/prescriptionResolve.ts). */
+  const rxView = (day: ProtocolPayload["workouts"][number], ex: { __id?: string } & Partial<Record<RxField, string>>, ei: number, field: RxField) => {
+    if (!periodOn) {
+      return {
+        value: ex[field] ?? "",
+        placeholder: ({ sets: "Ex: 4", reps: "Ex: 8-12", cadence: "Ex: 3010", rest: "Ex: 60s" } as const)[field],
+        exception: false,
+        mixed: false,
+      };
+    }
+    const exc = exceptionValue(payload.periodization as never, day.key, ei, ex.__id, field);
+    return {
+      value: exc.value,
+      placeholder: w1?.[field] ? `S1 ${compactWeekValue(w1[field])}` : "pela semana",
+      exception: !!exc.value,
+      mixed: exc.mixed,
+    };
+  };
+  const setRx = (di: number, ei: number, field: RxField, value: string) => {
+    if (!periodOn) { updEx(di, ei, { [field]: value }); return; }
+    const day = payload.workouts[di];
+    const ex = day.exercises[ei] as { __id?: string };
+    setPayload({
+      ...payload,
+      periodization: setExceptionAllWeeks(payload.periodization as never, day.key, ei, ex.__id, field, value) as never,
+    });
+  };
+
+  const [altOpen, setAltOpen] = useState<string | null>(null);
+  const [obsOpen, setObsOpen] = useState<Record<string, boolean>>({});
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <WorkoutTemplateQuickPicker payload={payload} setPayload={setPayload} coachId={coachId} />
-        {onOpenTemplateLibrary && !isBusy && (
-          <button
-            type="button"
-            onClick={onOpenTemplateLibrary}
-            className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
-          >
-            biblioteca completa (dietas, periodizações e protocolos)
-          </button>
-        )}
+      <div className="flex items-center gap-2 flex-wrap">
+        <TemplatesMenu
+          workoutPicker={<WorkoutTemplateQuickPicker payload={payload} setPayload={setPayload} coachId={coachId} />}
+          periodizationPicker={<PeriodizationTemplateQuickPicker payload={payload} setPayload={setPayload} coachId={coachId} />}
+          onOpenLibrary={!isBusy ? onOpenTemplateLibrary : undefined}
+        />
       </div>
-      <WorkoutPeriodizationEditor payload={payload} setPayload={setPayload} coachId={coachId} onOpenTemplateLibrary={onOpenTemplateLibrary} />
 
+      <WeekStripEditor
+        workouts={payload.workouts}
+        weekDays={weekDays}
+        carbCycle={(payload.carbCycle ?? {}) as Record<string, unknown>}
+        today={today}
+        letterOf={displayLetter}
+        onSetDay={setDay}
+        onCycleCarb={cyclePillCarb}
+      />
 
-      {/* ── Inverter a ordem: aplicar em todos de uma vez ── */}
-      {payload.workouts.length > 0 && (() => {
-        const modes = new Set(payload.workouts.map((w) => w.invert?.mode ?? "off"));
-        const common: InvertMode = modes.size === 1 ? ([...modes][0] as InvertMode) : "off";
-        return (
-          <div className="flex items-center justify-between gap-2 flex-wrap rounded-lg border border-border/60 bg-card/40 px-3 py-2" data-testid="invert-all">
-            <p className="text-[11px] text-muted-foreground">
-              <span className="font-semibold text-foreground">Inverter a ordem</span> para variar o estímulo (mobilidade sempre antes).
-              {modes.size > 1 && " Cada treino está com uma regra."}
-            </p>
-            <InvertSelect
-              value={common}
-              testId="invert-all-select"
-              onChange={(m) => setPayload({ ...payload, workouts: payload.workouts.map((w) => ({ ...w, invert: makeInvertSetting(m) })) })}
-            />
-          </div>
-        );
-      })()}
-
-      {/* ── Week strip: pílulas Seg→Dom ── */}
-      <Card className="bg-card/40 border-border p-2.5">
-        <div className="flex items-center justify-between mb-1.5 px-1">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Semana</p>
-          <p className="text-[9px] text-muted-foreground">Clique no carbo p/ alternar Alto · Base · Off</p>
-        </div>
-        <div className="grid grid-cols-7 gap-1">
-          {DAY_KEYS.map((k) => {
-            const carb = normalizeCarb((payload.carbCycle as any)?.[k]);
-            const wk = weekDays[k] ?? "";
-            const isToday = k === today;
-            return (
-              <div
-                key={k}
-                className={cn(
-                  "rounded-lg border bg-background/60 px-1 py-1 flex flex-col items-center gap-0.5",
-                  isToday ? "border-[#CC0000]" : "border-border/40"
-                )}
-              >
-                <span className="text-[9px] uppercase text-muted-foreground tracking-wider">{ABBR[k]}</span>
-                <span className="text-[12px] font-bold text-foreground leading-none">{wk ? displayLetter(wk) : "—"}</span>
-                <button
-                  type="button"
-                  onClick={() => cyclePillCarb(k)}
-                  title={`Carbo ${CARB_LABEL[carb]} — clique para alternar`}
-                  className={cn(
-                    "text-[8px] font-bold uppercase tracking-wider px-1 py-px rounded border leading-none mt-0.5",
-                    carb === "high"
-                      ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/40"
-                      : "bg-muted/40 text-muted-foreground border-border/50"
-                  )}
-                >
-                  {CARB_LABEL[carb]}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
+      <WorkoutPeriodizationEditor payload={payload} setPayload={setPayload} coachId={coachId} />
 
       <WeeklyVolumeDashboard workouts={payload.workouts} weekDays={weekDays} periodization={payload.periodization} />
 
       {periodOn && payload.workouts.length > 0 && (
-        <p className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-[11px] text-foreground/80">
-          Periodização ativa: os campos de séries, reps, cadência e descanso exibirão os valores preenchidos na sua Semana 1.
+        <p className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-[11px] text-foreground/80" data-testid="periodization-rule-note">
+          Periodização ligada: séries, reps, cadência e descanso seguem a semana (em cinza). Digitar num exercício cria uma
+          exceção só para ele, nas 4 semanas (campo com borda dourada).
         </p>
       )}
 
       {payload.workouts.map((day, di) => {
       const { strength: strengthList, mobility: mobilityList } = splitExercises(day);
       const isCollapsed = !!collapsedDays[day.key];
+      const linkedDays = DAY_KEYS.filter((k) => weekDays[k] === day.key).map((k) => ABBR[k]);
+      const invertMode = (day.invert?.mode ?? "off") as InvertMode;
       return (
-        <Card key={day.key} id={`workout-day-${day.key}`} className="bg-card/60 border-border p-4 scroll-mt-20">
+        <Card key={day.key} id={`workout-day-${day.key}`} className="bg-card/60 border-border p-3 sm:p-4 scroll-mt-20" data-testid={`workout-card-${day.key}`}>
 
-          <div className="flex items-center gap-3 mb-3 flex-wrap">
-            <div className="flex flex-col -my-1 shrink-0">
-              <button
-                type="button"
-                onClick={() => moveDay(di, "up")}
-                disabled={di === 0}
-                className="text-muted-foreground hover:text-primary p-0.5 disabled:opacity-20"
-                title="Mover treino para cima"
-              >
-                <ArrowUp className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => moveDay(di, "down")}
-                disabled={di === payload.workouts.length - 1}
-                className="text-muted-foreground hover:text-primary p-0.5 disabled:opacity-20"
-                title="Mover treino para baixo"
-              >
-                <ArrowDown className="w-3.5 h-3.5" />
-              </button>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-black text-base shrink-0">{positionLetter(di)}</div>
+            <div className="flex-1 min-w-0">
+              <Input
+                value={day.focus}
+                onChange={(e) => updDay(di, { focus: e.target.value })}
+                placeholder="Nome do treino (ex: Inferiores · glúteo)"
+                className="h-9 text-base font-bold w-full border-0 bg-transparent focus-visible:ring-1 focus-visible:ring-primary/40 px-2"
+              />
+              <p className="px-2 text-[11px] text-muted-foreground flex items-center gap-1.5 flex-wrap" data-testid={`workout-days-${day.key}`}>
+                {linkedDays.length ? linkedDays.join(" · ") : "Sem dia na semana"}
+                <InvertBadge mode={invertMode} />
+              </p>
             </div>
-            <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-black text-base shrink-0">{positionLetter(di)}</div>
-            <Input
-              value={day.focus}
-              onChange={(e) => updDay(di, { focus: e.target.value })}
-              placeholder="Nome do treino (ex: Dorsal · Peito · Inferiores)"
-              className="h-10 text-base font-bold flex-1 min-w-0 border-0 bg-transparent focus-visible:ring-1 focus-visible:ring-primary/40 px-2"
+            <button
+              type="button"
+              onClick={() => toggleCollapsed(day.key)}
+              className="text-muted-foreground hover:text-primary p-1.5 shrink-0"
+              title={isCollapsed ? "Expandir treino" : "Minimizar treino"}
+              aria-label={isCollapsed ? "Expandir treino" : "Minimizar treino"}
+            >
+              <ChevronDown className={cn("w-4 h-4 transition-transform", isCollapsed && "-rotate-90")} />
+            </button>
+            <WorkoutMenu
+              letter={positionLetter(di)}
+              invertMode={invertMode}
+              canMoveUp={di > 0}
+              canMoveDown={di < payload.workouts.length - 1}
+              onInvert={(m) => updDay(di, { invert: makeInvertSetting(m) })}
+              onInvertAll={() => {
+                const setting = day.invert?.mode && day.invert.mode !== "off" ? makeInvertSetting(day.invert.mode) : undefined;
+                setPayload({ ...payload, workouts: payload.workouts.map((w) => ({ ...w, invert: setting })) });
+                toast.success("Regra de inverter aplicada em todos os treinos.");
+              }}
+              onDuplicate={() => duplicateDay(di)}
+              onMove={(dir) => moveDay(di, dir)}
+              onDelete={() => removeDay(di)}
             />
-            <InvertSelect
-              value={(day.invert?.mode ?? "off") as InvertMode}
-              testId={`invert-select-${day.key}`}
-              onChange={(m) => updDay(di, { invert: makeInvertSetting(m) })}
-            />
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  className="shrink-0 inline-flex items-center gap-1 text-[11px] text-muted-foreground bg-muted/40 hover:bg-muted/60 border border-border/40 rounded-full px-2.5 py-1"
-                  title="Dias da semana deste treino"
-                >
-                  {dayChipText(day.key)} <ChevronDown className="w-3 h-3" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-44 p-2">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 px-1">Aparece em</p>
-                <div className="space-y-0.5">
-                  {DAY_KEYS.map((k) => {
-                    const checked = weekDays[k] === day.key;
-                    const takenBy = weekDays[k];
-                    return (
-                      <button
-                        key={k}
-                        type="button"
-                        onClick={() => setWeekday(k, day.key)}
-                        className={cn(
-                          "w-full flex items-center justify-between gap-2 px-2 py-1 rounded text-xs hover:bg-muted/60",
-                          checked && "bg-primary/10 text-primary font-semibold"
-                        )}
-                      >
-                        <span>{ABBR[k]}</span>
-                        {checked ? <CheckCircle2 className="w-3.5 h-3.5" /> : takenBy ? <span className="text-[9px] text-muted-foreground">→ {takenBy}</span> : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              </PopoverContent>
-            </Popover>
-            <div className="flex items-center gap-0.5 shrink-0">
-              <button
-                type="button"
-                onClick={() => toggleCollapsed(day.key)}
-                className="text-muted-foreground hover:text-primary p-1.5"
-                title={isCollapsed ? "Expandir treino" : "Minimizar treino"}
-              >
-                <ChevronDown className={cn("w-4 h-4 transition-transform", isCollapsed && "-rotate-90")} />
-              </button>
-              <button
-                type="button"
-                onClick={() => duplicateDay(di)}
-                className="text-muted-foreground hover:text-primary p-1.5"
-                title="Duplicar este treino (vai para o fim da lista)"
-              >
-                <Copy className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => removeDay(di)}
-                className="text-muted-foreground hover:text-destructive p-1.5"
-                title="Excluir este treino"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
           </div>
 
           {isCollapsed && (
@@ -495,11 +393,11 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
             {/* ── Mobilidade / Alongamento ── */}
             {mobilityList.length > 0 && (
               <div className="mb-3 rounded-lg border border-dashed border-sky-500/40 bg-sky-500/5 p-2 space-y-2">
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => setMobOpen((s) => ({ ...s, [di]: s[di] === false ? true : false }))}
-                    className="flex items-center gap-1.5 text-xs font-bold text-sky-500"
+                    className="flex items-center gap-1.5 text-xs font-bold text-sky-500 whitespace-nowrap"
                   >
                     <StretchHorizontal className="w-3.5 h-3.5" /> Mobilidade pré-treino
                     <span className="text-[10px] font-normal text-muted-foreground">({mobilityList.length})</span>
@@ -519,17 +417,21 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                 </div>
 
                 {mobOpen[di] !== false && mobilityList.map(({ ex, ei }) => (
-                  <div key={(ex as any).__id ?? `mob-${ei}`} className="grid grid-cols-1 md:grid-cols-[1.8fr_0.8fr_0.8fr_1.4fr_auto] gap-2 items-center rounded-lg border border-sky-500/20 bg-background/40 p-2">
-                    <ExercisePickerInput
-                      value={ex.name}
-                      gifKey={(ex as any).gifKey}
-                      onChange={(patch) => updEx(di, ei, patch)}
-                      placeholder="Ex: Mobilidade de quadril"
-                    />
-                    <Input value={ex.sets ?? ""} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder="Séries (Ex: 2)" className="h-8 text-base md:text-sm" />
-                    <Input value={ex.reps ?? ""} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder="Tempo/Reps (Ex: 30s)" className="h-8 text-base md:text-sm" />
-                    <Input value={ex.notes ?? ""} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-base md:text-sm" />
-                    <div className="flex items-center gap-0.5 justify-self-end">
+                  <div key={(ex as any).__id ?? `mob-${ei}`} className="grid grid-cols-2 md:grid-cols-[1.8fr_0.8fr_0.8fr_1.4fr_auto] gap-2 items-end md:items-center rounded-lg border border-sky-500/20 bg-background/40 p-2">
+                    <div className="col-span-2 md:col-span-1 min-w-0">
+                      <ExercisePickerInput
+                        value={ex.name}
+                        gifKey={(ex as any).gifKey}
+                        onChange={(patch) => updEx(di, ei, patch)}
+                        placeholder="Ex: Mobilidade de quadril"
+                      />
+                    </div>
+                    <label className="block"><span className="md:hidden block text-[10px] uppercase text-muted-foreground mb-0.5">Séries</span>
+                      <Input value={ex.sets ?? ""} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder="Ex: 2" className="h-8 text-base md:text-sm" aria-label="Séries" /></label>
+                    <label className="block"><span className="md:hidden block text-[10px] uppercase text-muted-foreground mb-0.5">Tempo/Reps</span>
+                      <Input value={ex.reps ?? ""} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder="Ex: 30s" className="h-8 text-base md:text-sm" aria-label="Tempo ou repetições" /></label>
+                    <Input value={ex.notes ?? ""} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-base md:text-sm col-span-2 md:col-span-1" />
+                    <div className="flex items-center gap-0.5 justify-self-end col-span-2 md:col-span-1">
                       {isLegacyMobilityExercise(ex) && (
                         <button
                           type="button"
@@ -564,17 +466,18 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
 
             {/* ── Força ── */}
             {strengthList.length > 0 && (
-              <div className="hidden md:grid gap-2 px-1 pb-1 grid-cols-[1.8fr_0.7fr_0.6fr_0.6fr_0.6fr_1fr_auto]">
+              <div className="hidden md:grid gap-2 px-1 pb-1 grid-cols-[auto_1.8fr_0.7fr_0.6fr_0.6fr_0.6fr_1fr_auto]">
+                <span className="w-5"></span>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Exercício</span>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Séries</span>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Reps</span>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground cursor-help flex items-center gap-1" title="3010 = Excêntrico / Pausa / Concêntrico / Pausa">Cadência ⓘ</span>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Descanso</span>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Obs</span>
-                <span className="w-6"></span>
+                <span className="w-8"></span>
               </div>
             )}
-            
+
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
@@ -585,92 +488,119 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                 strategy={verticalListSortingStrategy}
               >
             {strengthList.map(({ ex, ei }, si) => {
-              const w1 = payload.periodization?.weeks?.[0];
-              // Preenche campos visualmente baseados na periodização
-              const effSets    = ex.sets    || (periodOn && w1?.sets    ? w1.sets    : "");
-              const effReps    = ex.reps    || (periodOn && w1?.reps    ? w1.reps    : "");
-              const effCadence = ex.cadence || (periodOn && w1?.cadence ? w1.cadence : "");
-              const effRest    = ex.rest    || (periodOn && w1?.rest    ? w1.rest    : "");
-              
               const rowId = (ex as any).__id ?? `${day.key}-${ei}`;
+              const subs = ((ex as any).allowed_substitutes ?? []) as string[];
+              const showObs = !!ex.notes || !!obsOpen[rowId];
               return (
               <SortableExerciseRow
                 key={rowId}
                 id={rowId}
-                className="grid grid-cols-2 gap-2 items-center md:grid-cols-[1.8fr_0.7fr_0.6fr_0.6fr_0.6fr_1fr_auto]"
+                className="rounded-lg md:rounded-none border md:border-0 border-border/40 p-2 md:p-0 grid grid-cols-[auto_1fr_auto] gap-x-1.5 gap-y-1.5 items-center md:grid-cols-[auto_1.8fr_0.7fr_0.6fr_0.6fr_0.6fr_1fr_auto]"
               >
               {({ attributes, listeners }) => (<>
-                <div className="min-w-0">
-                  <ExercisePickerInput
-                    value={ex.name}
-                    gifKey={(ex as any).gifKey}
-                    onChange={(patch) => updEx(di, ei, patch)}
-                    placeholder="Ex: Supino reto"
-                  />
-                  {si === 0 && strengthList.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => replicateBaseConfig(di, strengthList)}
-                      className="mt-1 inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
-                      title="Copia séries, reps, cadência e descanso deste exercício para os demais de força do treino"
-                    >
-                      <CopyPlus className="w-3 h-3" /> Replicar configuração ⬇️
-                    </button>
-                  )}
-                </div>
-                
-                <Input value={effSets} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder={periodOn && w1?.sets ? `S1: ${w1.sets}` : "Séries (Ex: 4)"} className="h-8 text-base md:text-sm" />
-                <Input value={effReps} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder={periodOn && w1?.reps ? `S1: ${w1.reps}` : "Reps (Ex: 8-12)"} className="h-8 text-base md:text-sm" />
-                <Input value={effCadence} onChange={(e) => updEx(di, ei, { cadence: e.target.value })} placeholder="Ex: 3010" className="h-8 text-base md:text-sm" />
-                <Input value={effRest} onChange={(e) => updEx(di, ei, { rest: e.target.value })} placeholder={periodOn && w1?.rest ? `S1: ${w1.rest}` : "Descanso (Ex: 60s)"} className="h-8 text-base md:text-sm" />
-                
-                <Input value={ex.notes} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-base md:text-sm min-w-0" />
-                
-                <div className="flex items-center gap-0.5 flex-wrap justify-end shrink-0">
+                <button
+                  type="button"
+                  {...attributes}
+                  {...listeners}
+                  className="text-muted-foreground hover:text-primary p-0.5 cursor-grab active:cursor-grabbing touch-none self-center"
+                  title="Arrastar para reordenar"
+                  aria-label="Arrastar exercício"
+                >
+                  <GripVertical className="w-4 h-4" />
+                </button>
+                <div className="min-w-0 flex items-center gap-1">
+                  <div className="min-w-0 flex-1">
+                    <ExercisePickerInput
+                      value={ex.name}
+                      gifKey={(ex as any).gifKey}
+                      onChange={(patch) => updEx(di, ei, patch)}
+                      placeholder="Ex: Supino reto"
+                      coachId={coachId}
+                      onPrescriptionRestore={periodOn ? undefined : (rx) => {
+                        // Memória de prescrição: preenche só o que está vazio.
+                        const patch: Record<string, string> = {};
+                        for (const k of RX_FIELDS) if (!String(ex[k] ?? "").trim() && rx[k]) patch[k] = String(rx[k]);
+                        if (Object.keys(patch).length) updEx(di, ei, patch);
+                      }}
+                      onQuickPreset={periodOn || !(String(ex.name ?? "").trim()) || ex.sets || ex.reps ? undefined : (preset) => updEx(di, ei, preset)}
+                    />
+                  </div>
                   <ExerciseSubstitutesPopover
                     exerciseName={ex.name}
                     gifKey={(ex as any).gifKey}
-                    value={((ex as any).allowed_substitutes ?? []) as string[]}
+                    value={subs}
                     onChange={(next) => updEx(di, ei, { allowed_substitutes: next } as any)}
+                    open={altOpen === rowId}
+                    onOpenChange={(v) => setAltOpen(v ? rowId : null)}
+                    hideWhenEmpty
                   />
-                  <button
-                    type="button"
-                    onClick={() => { updEx(di, ei, { is_mobility: true }); setMobOpen((s) => ({ ...s, [di]: true })); }}
-                    className="text-muted-foreground hover:text-sky-500 p-1"
-                    title="É mobilidade/alongamento — mover para o bloco de mobilidade"
-                  >
-                    <StretchHorizontal className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    {...attributes}
-                    {...listeners}
-                    className="text-muted-foreground hover:text-primary p-1 cursor-grab active:cursor-grabbing touch-none"
-                    title="Arrastar para reordenar"
-                    aria-label="Arrastar exercício"
-                  >
-                    <GripVertical className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => swapStrength(di, strengthList, si, "up")}
-                    disabled={si === 0}
-                    className="text-muted-foreground hover:text-primary p-1 disabled:opacity-30"
-                    title="Mover para cima"
-                  >
-                    <ArrowUp className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => swapStrength(di, strengthList, si, "down")}
-                    disabled={si === strengthList.length - 1}
-                    className="text-muted-foreground hover:text-primary p-1 disabled:opacity-30"
-                    title="Mover para baixo"
-                  >
-                    <ArrowDown className="w-3.5 h-3.5" />
-                  </button>
-                  <button onClick={() => removeExerciseAt(di, ei)} className="text-muted-foreground hover:text-destructive p-1.5"><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>
+                <div className="md:hidden justify-self-end">
+                  <ExerciseMenu
+                    name={ex.name}
+                    substitutesCount={subs.length}
+                    canMoveUp={si > 0}
+                    canMoveDown={si < strengthList.length - 1}
+                    onAlternatives={() => setTimeout(() => setAltOpen(rowId), 0)}
+                    onToMobility={() => { updEx(di, ei, { is_mobility: true }); setMobOpen((s) => ({ ...s, [di]: true })); }}
+                    onMove={(dir) => swapStrength(di, strengthList, si, dir)}
+                    onDelete={() => removeExerciseAt(di, ei)}
+                  />
+                </div>
+
+                <div className="col-span-3 md:col-span-4 grid grid-cols-4 gap-1.5 md:contents">
+                  {RX_FIELDS.map((field) => {
+                    const v = rxView(day, ex, ei, field);
+                    return (
+                      <RxInput
+                        key={field}
+                        field={field}
+                        value={v.value}
+                        placeholder={v.placeholder}
+                        exception={v.exception}
+                        mixed={v.mixed}
+                        onChange={(val) => setRx(di, ei, field, val)}
+                      />
+                    );
+                  })}
+                </div>
+
+                <div className={cn("col-span-3 md:col-span-1 min-w-0", !showObs && "hidden md:block")}>
+                  <Input value={ex.notes} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-base md:text-sm min-w-0" aria-label="Observação" />
+                </div>
+                {!showObs && (
+                  <button
+                    type="button"
+                    onClick={() => setObsOpen((s) => ({ ...s, [rowId]: true }))}
+                    className="md:hidden col-span-3 justify-self-start text-[11px] text-primary"
+                  >
+                    + obs
+                  </button>
+                )}
+
+                <div className="hidden md:block justify-self-end">
+                  <ExerciseMenu
+                    name={ex.name}
+                    substitutesCount={subs.length}
+                    canMoveUp={si > 0}
+                    canMoveDown={si < strengthList.length - 1}
+                    onAlternatives={() => setTimeout(() => setAltOpen(rowId), 0)}
+                    onToMobility={() => { updEx(di, ei, { is_mobility: true }); setMobOpen((s) => ({ ...s, [di]: true })); }}
+                    onMove={(dir) => swapStrength(di, strengthList, si, dir)}
+                    onDelete={() => removeExerciseAt(di, ei)}
+                  />
+                </div>
+
+                {si === 0 && strengthList.length > 1 && !periodOn && (
+                  <button
+                    type="button"
+                    onClick={() => replicateBaseConfig(di, strengthList)}
+                    className="col-span-3 md:col-start-2 md:col-span-6 justify-self-start inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
+                    title="Copia séries, reps, cadência e descanso deste exercício para os demais de força do treino"
+                  >
+                    <CopyPlus className="w-3 h-3" /> Replicar configuração para os outros ⬇️
+                  </button>
+                )}
               </>)}
               </SortableExerciseRow>
               );
@@ -679,20 +609,21 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
             </DndContext>
 
             <div className="flex flex-wrap gap-2 mt-1">
-              <Button size="sm" variant="outline" onClick={() => setLibraryDayIndex(di)} className="h-7 text-xs border-primary/40 text-primary hover:bg-primary/10"><Library className="w-3 h-3 mr-1" /> Abrir Biblioteca</Button>
               <Button size="sm" variant="outline" onClick={() => setPayload(applyDayExercisesChange(payload, di, [...day.exercises, makeEmptyExercise()]))} className="h-7 text-xs"><Plus className="w-3 h-3 mr-1" /> Exercício</Button>
+              <Button size="sm" variant="outline" onClick={() => setLibraryDayIndex(di)} className="h-7 text-xs border-primary/40 text-primary hover:bg-primary/10"><Library className="w-3 h-3 mr-1" /> Buscar exercício</Button>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => setPayload(applyDayExercisesChange(payload, di, [...day.exercises, makeEmptyExercise({ isMobility: true })]))}
                 className="h-7 text-xs border-sky-500/50 text-sky-500 hover:bg-sky-500/10 hover:text-sky-400"
               >
-                <StretchHorizontal className="w-3 h-3 mr-1" /> Adicionar Mobilidade
+                <StretchHorizontal className="w-3 h-3 mr-1" /> Mobilidade
               </Button>
               {mobilityList.length === 0 && (
                 <MobilityTemplateBar
                   coachId={coachId}
                   currentMobility={[]}
+                  applyOnly
                   onApply={(exercises) => {
                     const additions = exercises.map((exercise) => exercise.__id ? exercise : { ...exercise, __id: makeEmptyExercise().__id });
                     setPayload(applyDayExercisesChange(payload, di, [...day.exercises, ...additions]));
@@ -700,174 +631,27 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                   }}
                 />
               )}
-
-              {!isBusy && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs"
-                onClick={() =>
-                  setPayload({
-                    ...payload,
-                    cardio: [
-                      ...(payload.cardio ?? []),
-                      {
-                        type: "",
-                        duration: "",
-                        intensity: "",
-                        workoutKey: day.key,
-                        associationType: "workout" as const,
-                        notes: "",
-                      },
-                    ],
-                  })
-                }
-              >
-                <Activity className="w-3 h-3 mr-1" /> Aeróbico neste treino
-              </Button>
-              )}
             </div>
-
-            {!isBusy && (payload.cardio ?? []).filter((c) => c.workoutKey === day.key && c.associationType === "workout").length > 0 && (
-              <div className="mt-3 pt-3 border-t border-border/40 space-y-2">
-                <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                  <Activity className="w-3.5 h-3.5 text-primary" /> Aeróbico do Treino {positionLetter(di)}
-                </p>
-                {(payload.cardio ?? []).map((c, ci) => {
-                  if (c.workoutKey !== day.key || c.associationType !== "workout") return null;
-                  return (
-                    <div key={ci} className="bg-background border border-border/50 rounded-lg p-2 space-y-2">
-                      <div className="grid grid-cols-[1fr_auto] gap-2">
-                        <Select
-                          value={c.type || "Outro"}
-                          onValueChange={(v) => {
-                            const n = [...(payload.cardio ?? [])];
-                            n[ci] = { ...n[ci], type: v };
-                            setPayload({ ...payload, cardio: n });
-                          }}
-                        >
-                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Tipo" /></SelectTrigger>
-                          <SelectContent>
-                            {["AEJ","LISS","HIIT","Caminhada","Bicicleta","Outro"].map((t) => (
-                              <SelectItem key={t} value={t} className="text-xs">{t}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <button
-                          onClick={() => setPayload({ ...payload, cardio: (payload.cardio ?? []).filter((_, j) => j !== ci) })}
-                          className="text-muted-foreground hover:text-destructive p-1.5"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <Label className="text-[10px] uppercase text-muted-foreground">Duração</Label>
-                          <Input
-                            value={c.duration}
-                            onChange={(e) => {
-                              const n = [...(payload.cardio ?? [])];
-                              n[ci] = { ...n[ci], duration: e.target.value };
-                              setPayload({ ...payload, cardio: n });
-                            }}
-                            placeholder="40 min"
-                            className="h-8 text-base md:text-sm mt-1"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-[10px] uppercase text-muted-foreground">Intensidade</Label>
-                          <Select
-                            value={c.intensity || "Moderada"}
-                            onValueChange={(v) => {
-                              const n = [...(payload.cardio ?? [])];
-                              n[ci] = { ...n[ci], intensity: v };
-                              setPayload({ ...payload, cardio: n });
-                            }}
-                          >
-                            <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              {["Leve","Moderada","Alta"].map((t) => (
-                                <SelectItem key={t} value={t} className="text-xs">{t}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <Input
-                        value={c.notes}
-                        onChange={(e) => {
-                          const n = [...(payload.cardio ?? [])];
-                          n[ci] = { ...n[ci], notes: e.target.value };
-                          setPayload({ ...payload, cardio: n });
-                        }}
-                        placeholder="Observações do aeróbico"
-                        className="h-8 text-base md:text-sm"
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </div>
           </>)}
         </Card>
-      ); })}
+      );
+      })}
 
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={addDay}
-        className="w-full h-9 text-xs border-dashed"
-      >
-        <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar bloco de treino ({positionLetter(payload.workouts.length)})
+      <Button variant="outline" className="w-full border-dashed" onClick={addDay}>
+        <Plus className="w-4 h-4 mr-2" /> Adicionar treino ({positionLetter(payload.workouts.length)})
       </Button>
 
-
-
-      {/* ── Card especial: Descanso (key reservada "REST") ── */}
+      {/* ── Descanso: observação dos dias de descanso (os dias escolhem-se na faixa da semana) ── */}
       <Card className="bg-card/40 border-dashed border-border/60 p-4">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-full bg-muted text-muted-foreground flex items-center justify-center font-black text-[11px] shrink-0 uppercase tracking-wider">
-            Off
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 rounded-full bg-muted text-muted-foreground flex items-center justify-center font-black text-xs shrink-0">OFF</div>
+          <div className="flex-1 min-w-0">
+            <p className="text-base font-bold leading-tight">Descanso</p>
+            <p className="text-[11px] text-muted-foreground">
+              {restDays.length ? restDays.map((k) => ABBR[k]).join(" · ") : "Nenhum dia de descanso marcado"} — escolha os dias na faixa da semana.
+            </p>
           </div>
-          <div className="flex-1">
-            <p className="text-base font-bold text-foreground leading-tight">Descanso</p>
-            <p className="text-[11px] text-muted-foreground">Dia sem treino — vincule aos dias da semana como qualquer outro treino.</p>
-          </div>
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="shrink-0 inline-flex items-center gap-1 text-[11px] text-muted-foreground bg-muted/40 hover:bg-muted/60 border border-border/40 rounded-full px-2.5 py-1"
-                title="Dias da semana de descanso"
-              >
-                {dayChipText("REST")} <ChevronDown className="w-3 h-3" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-44 p-2">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 px-1">Aparece em</p>
-              <div className="space-y-0.5">
-                {DAY_KEYS.map((k) => {
-                  const checked = weekDays[k] === "REST";
-                  const takenBy = weekDays[k];
-                  return (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => setWeekday(k, "REST")}
-                      className={cn(
-                        "w-full flex items-center justify-between gap-2 px-2 py-1 rounded text-xs hover:bg-muted/60",
-                        checked && "bg-muted/60 text-foreground font-semibold"
-                      )}
-                    >
-                      <span>{ABBR[k]}</span>
-                      {checked ? <CheckCircle2 className="w-3.5 h-3.5" /> : takenBy ? <span className="text-[9px] text-muted-foreground">→ {takenBy}</span> : null}
-                    </button>
-                  );
-                })}
-              </div>
-            </PopoverContent>
-          </Popover>
         </div>
         <Textarea
           value={(payload as any).restNotes ?? ""}
@@ -876,37 +660,16 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
           className="min-h-[60px] text-base md:text-sm bg-background/60"
         />
       </Card>
-      {!isBusy && (<>
-      <div className="mt-4 space-y-2">
-        <div className="flex items-center justify-between">
-          <Label className="text-sm font-semibold flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> Aeróbicos gerais</Label>
-          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setPayload({ ...payload, cardio: [...(payload.cardio ?? []), { type: "", duration: "", intensity: "", workoutKey: "", associationType: "workout", notes: "" }] })}><Plus className="w-3 h-3 mr-1" /> Aeróbico</Button>
-        </div>
-        {generalCardio.length === 0 && <p className="text-xs text-muted-foreground italic text-center py-3 border border-dashed border-border/40 rounded-lg">Nenhum aeróbico geral. O aeróbico de cada treino fica dentro do card do treino.</p>}
-        {generalCardio.map(({ c, ci }) => (
-          <Card key={ci} className="bg-card/60 border-border p-3">
-            <div className="grid grid-cols-[1fr_auto] gap-2 mb-2">
-              <Select value={c.type || "Outro"} onValueChange={(v) => { const n = [...(payload.cardio ?? [])]; n[ci] = { ...n[ci], type: v }; setPayload({ ...payload, cardio: n }); }}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Tipo" /></SelectTrigger>
-                <SelectContent>{["AEJ","LISS","HIIT","Caminhada","Bicicleta","Outro"].map((t) => <SelectItem key={t} value={t} className="text-xs">{t}</SelectItem>)}</SelectContent>
-              </Select>
-              <button onClick={() => setPayload({ ...payload, cardio: (payload.cardio ?? []).filter((_, j) => j !== ci) })} className="text-muted-foreground hover:text-destructive p-1.5"><Trash2 className="w-3.5 h-3.5" /></button>
-            </div>
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <div><Label className="text-[10px] uppercase text-muted-foreground">Duração</Label><Input value={c.duration} onChange={(e) => { const n = [...(payload.cardio ?? [])]; n[ci] = { ...n[ci], duration: e.target.value }; setPayload({ ...payload, cardio: n }); }} placeholder="40 min" className="h-8 text-base md:text-sm mt-1" /></div>
-              <div>
-                <Label className="text-[10px] uppercase text-muted-foreground">Intensidade</Label>
-                <Select value={c.intensity || "Moderada"} onValueChange={(v) => { const n = [...(payload.cardio ?? [])]; n[ci] = { ...n[ci], intensity: v }; setPayload({ ...payload, cardio: n }); }}>
-                  <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
-                  <SelectContent>{["Leve","Moderada","Alta"].map((t) => <SelectItem key={t} value={t} className="text-xs">{t}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-            </div>
-            <Input value={c.notes} onChange={(e) => { const n = [...(payload.cardio ?? [])]; n[ci] = { ...n[ci], notes: e.target.value }; setPayload({ ...payload, cardio: n }); }} placeholder="Observações" className="h-8 text-base md:text-sm mt-2" />
-          </Card>
-        ))}
-      </div>
-      </>)}
+
+      {!isBusy && (
+        <CardioSection
+          cardio={payload.cardio ?? []}
+          workouts={payload.workouts}
+          weekDays={weekDays}
+          letterOf={displayLetter}
+          onChange={(next) => setPayload({ ...payload, cardio: next })}
+        />
+      )}
 
       <CoachExerciseLibraryDialog
         open={libraryDayIndex !== null}

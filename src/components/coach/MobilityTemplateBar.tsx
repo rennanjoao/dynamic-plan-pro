@@ -25,8 +25,11 @@ export function MobilityTemplateBar({
   coachId,
   currentMobility,
   onApply,
+  applyOnly = false,
 }: {
   coachId: string | null;
+  /** Treino sem mobilidade: só "Usar bloco salvo" (não há o que salvar). */
+  applyOnly?: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   currentMobility: any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -109,6 +112,7 @@ export function MobilityTemplateBar({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
+      {!applyOnly && (
       <Popover open={saveOpen} onOpenChange={setSaveOpen}>
         <PopoverTrigger asChild>
           <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px] text-sky-500 hover:bg-sky-500/10">
@@ -129,11 +133,12 @@ export function MobilityTemplateBar({
           </Button>
         </PopoverContent>
       </Popover>
+      )}
 
       <Popover open={listOpen} onOpenChange={setListOpen}>
         <PopoverTrigger asChild>
           <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px] text-sky-500 hover:bg-sky-500/10">
-            <FolderOpen className="w-3 h-3 mr-1" /> Usar salva
+            <FolderOpen className="w-3 h-3 mr-1" /> {applyOnly ? "Usar bloco salvo" : "Usar salva"}
           </Button>
         </PopoverTrigger>
         <PopoverContent align="end" className="w-72 p-2">

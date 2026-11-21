@@ -34,6 +34,7 @@ import { LoadProgressionDrawer } from "@/components/student/LoadProgressionDrawe
 import { isSessionStale } from "@/hooks/useWorkoutSession";
 import { useStudentBusyWeek, useSetMyBusyWeekMode } from "@/hooks/useBusyWeek";
 import { applyWorkoutInversion, trainedYesterday } from "@/lib/workoutInversion";
+import { resolveExerciseInWeek } from "@/lib/prescriptionResolve";
 import { BUSY_KIND_LABEL, isBusyKey, nextBusyWorkoutKey } from "@/lib/busyWeek";
 import { toast } from "sonner";
 
@@ -279,7 +280,7 @@ export default function WorkoutPlan() {
   const todayDateKey = new Date().toDateString();
   type PlanDay = { key: string; focus?: string; exercises?: Array<{ name: string; [k: string]: unknown }>; __inverted?: boolean; [k: string]: unknown };
   type PlanWeek = WeekMeta & { isDeload?: boolean };
-  type PlanPeriodization = { enabled?: boolean; weeks?: PlanWeek[]; overrides?: Record<string, Record<string, unknown>>; [k: string]: unknown } | undefined;
+  type PlanPeriodization = { enabled?: boolean; weeks?: PlanWeek[]; overrides?: Record<string, Record<string, Record<string, unknown>>>; [k: string]: unknown } | undefined;
   const effective = useMemo(() => {
     const baseWorkouts = (busyActive ? busyAssignment!.payload.workouts : protocolWorkouts) as PlanDay[];
     const basePer = (busyActive ? busyAssignment!.payload.periodization : safePayload?.periodization) as PlanPeriodization;
@@ -392,7 +393,15 @@ export default function WorkoutPlan() {
           <AccordionContent className="px-4 pb-4 border-t border-border/40">
             <MobilityBlock exercises={Array.isArray(day.exercises) ? day.exercises : []} />
             <div className="space-y-4 mt-4">
-              {Array.isArray(day.exercises) && day.exercises.filter((ex: any) => !isMobilityExercise(ex)).map((ex: any, idx: number) => (
+              {Array.isArray(day.exercises) && day.exercises
+                .map((raw, fullIdx) => ({ raw, fullIdx }))
+                .filter(({ raw }) => !isMobilityExercise(raw as never))
+                .map(({ raw, fullIdx }, idx) => {
+                // Mesma regra do Modo Treino: exceção da semana > semana > exercício.
+                const ex = periodizationEnabled
+                  ? resolveExerciseInWeek(raw, { ...(effectivePeriodization ?? {}), enabled: true, weeks }, currentWeek, day.key, fullIdx)
+                  : raw;
+                return (
                 <div
                   key={idx}
                   id={`workout-${day.key}-exercise-${slug(ex.name)}`}
@@ -407,10 +416,10 @@ export default function WorkoutPlan() {
                     // Com periodização ativa, os blocos refletem a semana
                     // vigente (o aluno perde a barra de topo ao rolar a tela).
                     const wm = periodizationEnabled ? weeks[currentWeek] : null;
-                    const vSets = wm?.sets || ex.sets;
-                    const vReps = wm?.reps || ex.reps;
-                    const vCadence = wm?.cadence || ex.cadence;
-                    const vRest = wm?.rest || ex.rest;
+                    const vSets = ex.sets;
+                    const vReps = ex.reps;
+                    const vCadence = ex.cadence;
+                    const vRest = ex.rest;
                     return (
                       <>
                         {wm && (
@@ -454,7 +463,8 @@ export default function WorkoutPlan() {
                     </p>
                   )}
                 </div>
-              ))}
+              );
+              })}
             </div>
             {Array.isArray(safePayload?.cardio) &&
               safePayload.cardio.filter(

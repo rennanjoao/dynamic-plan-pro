@@ -18,10 +18,17 @@ interface Props {
   gifKey?: string;
   value: string[];
   onChange: (next: string[]) => void;
+  /** Aberto por fora (menu ⋯ do exercício). */
+  open?: boolean;
+  onOpenChange?: (v: boolean) => void;
+  /** Sem alternativas definidas, não mostra o ícone (abre só pelo menu). */
+  hideWhenEmpty?: boolean;
 }
 
-export function ExerciseSubstitutesPopover({ exerciseName, gifKey, value, onChange }: Props) {
-  const [open, setOpen] = useState(false);
+export function ExerciseSubstitutesPopover({ exerciseName, gifKey, value, onChange, open: openProp, onOpenChange, hideWhenEmpty }: Props) {
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;
+  const setOpen = (v: boolean) => { if (onOpenChange) onOpenChange(v); else setOpenState(v); };
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<Array<{ key: string; displayName: string }>>([]);
   const selected = value ?? [];
@@ -56,28 +63,33 @@ export function ExerciseSubstitutesPopover({ exerciseName, gifKey, value, onChan
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          title={
-            selected.length
-              ? `${selected.length} substituição(ões) permitida(s)`
-              : "Definir substituições permitidas (opcional)"
-          }
-          className={cn(
-            "p-1 rounded transition-colors",
-            selected.length ? "text-primary" : "text-muted-foreground hover:text-primary",
-          )}
-        >
-          <Repeat2 className="w-3.5 h-3.5" />
-          {selected.length > 0 && (
-            <span className="ml-0.5 text-[9px] font-bold align-top">{selected.length}</span>
-          )}
-        </button>
+        {hideWhenEmpty && selected.length === 0 ? (
+          <span className="inline-block w-0 h-0" aria-hidden />
+        ) : (
+          <button
+            type="button"
+            title={
+              selected.length
+                ? `${selected.length} alternativa(s) para a aluna`
+                : "Alternativas para a aluna (opcional)"
+            }
+            className={cn(
+              "p-1 rounded transition-colors inline-flex items-center",
+              selected.length ? "text-primary" : "text-muted-foreground hover:text-primary",
+            )}
+            data-testid="substitutes-chip"
+          >
+            <Repeat2 className="w-3.5 h-3.5" />
+            {selected.length > 0 && (
+              <span className="ml-0.5 text-[9px] font-bold align-top">{selected.length}</span>
+            )}
+          </button>
+        )}
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[280px] p-2 space-y-2">
-        <p className="text-[11px] font-semibold text-foreground">Substituições permitidas</p>
+        <p className="text-[11px] font-semibold text-foreground">Alternativas para a aluna</p>
         <p className="text-[10px] text-muted-foreground leading-tight">
-          Opcional. Se vazio, o aluno pode trocar livremente por exercícios do mesmo grupo muscular.
+          Opcional. Se vazio, a aluna pode trocar por exercícios do mesmo grupo muscular.
         </p>
         {selected.length > 0 && (
           <div className="flex flex-wrap gap-1">

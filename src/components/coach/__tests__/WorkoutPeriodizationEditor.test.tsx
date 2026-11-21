@@ -22,7 +22,7 @@
  *      gravar direto no payload (o que apagaria silenciosamente edições
  *      de linha ainda não salvas na mesma semana).
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { useState } from "react";
 import { render, screen, within, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -74,13 +74,16 @@ function weekCardByLabel(labelText: string) {
 }
 
 describe("WorkoutPeriodizationEditor — rascunho único + salvar por semana", () => {
+  // Minimizada por padrão desde 20/11/2026; estes testes trabalham com ela aberta.
+  beforeEach(() => localStorage.setItem("perio_collapsed", "false"));
+
   it("duas edições em exercícios diferentes sobrevivem a um único Salvar (corrige a corrida de estado)", async () => {
     const user = userEvent.setup();
     let latest: ProtocolPayload | null = null;
     render(<Harness onPayload={(p) => (latest = p)} />);
 
     const week1 = weekCardByLabel("Semana 1 — Carga Máxima");
-    await user.click(week1.getByRole("button", { name: /Substituições Específicas/i }));
+    await user.click(week1.getByRole("button", { name: /Trocar só nesta semana/i }));
 
     const repsInputs = week1.getAllByPlaceholderText("reps");
     const restInputs = week1.getAllByPlaceholderText("descanso");
@@ -105,7 +108,7 @@ describe("WorkoutPeriodizationEditor — rascunho único + salvar por semana", (
     render(<Harness onPayload={(p) => (latest = p)} />);
 
     const week1 = weekCardByLabel("Semana 1 — Carga Máxima");
-    await user.click(week1.getByRole("button", { name: /Substituições Específicas/i }));
+    await user.click(week1.getByRole("button", { name: /Trocar só nesta semana/i }));
 
     const repsInputs = week1.getAllByPlaceholderText("reps");
     await user.type(repsInputs[0], "20");
@@ -132,7 +135,7 @@ describe("WorkoutPeriodizationEditor — rascunho único + salvar por semana", (
     render(<Harness onPayload={() => {}} />);
 
     const week1 = weekCardByLabel("Semana 1 — Carga Máxima");
-    await user.click(week1.getByRole("button", { name: /Substituições Específicas/i }));
+    await user.click(week1.getByRole("button", { name: /Trocar só nesta semana/i }));
     await user.type(week1.getAllByPlaceholderText("reps")[0], "20"); // não salvo
 
     await user.click(week1.getByTitle("Resetar padrão"));
@@ -145,7 +148,7 @@ describe("WorkoutPeriodizationEditor — rascunho único + salvar por semana", (
     render(<Harness onPayload={(p) => (latest = p)} />);
 
     const week1 = weekCardByLabel("Semana 1 — Carga Máxima");
-    await user.click(week1.getByRole("button", { name: /Substituições Específicas/i }));
+    await user.click(week1.getByRole("button", { name: /Trocar só nesta semana/i }));
 
     // Edição de linha ainda não salva no exercício 0 (Supino Reto).
     await user.type(week1.getAllByPlaceholderText("séries")[0], "5");
@@ -162,5 +165,19 @@ describe("WorkoutPeriodizationEditor — rascunho único + salvar por semana", (
     expect(overrides["A_0"]?.sets).toBe("5"); // sobreviveu ao bulk
     expect(overrides["A_0"]?.rest).toBe("45s");
     expect(overrides["A_1"]?.rest).toBe("45s");
+  });
+});
+
+
+describe("WorkoutPeriodizationEditor — minimizada por padrão", () => {
+  it("abre minimizada com o resumo das semanas e expande ao tocar", async () => {
+    localStorage.removeItem("perio_collapsed");
+    const user = userEvent.setup();
+    render(<Harness onPayload={() => {}} />);
+    expect(screen.getByText(/Periodização ativa — 4 semanas/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Trocar só nesta semana/i })).toBeNull();
+    await user.click(screen.getByText(/Expandir/));
+    expect(screen.getAllByRole("button", { name: /Trocar só nesta semana/i }).length).toBe(4);
+    expect(screen.queryByText(/O aluno verá as 4 semanas/)).toBeNull();
   });
 });
