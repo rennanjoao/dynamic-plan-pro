@@ -82,7 +82,7 @@ import { pruneOrphanWeekDays } from "@/lib/weekDaysOps";
 import { MacrosTab } from "./protocol-builder/MacrosTab";
 import { GuidelinesTab } from "./protocol-builder/GuidelinesTab";
 import { WorkoutsTab } from "./protocol-builder/WorkoutsTab";
-import { BusyWeekInlineEditor } from "./busy-week/BusyWeekInlineEditor";
+import { BusyWeekInlineEditor, type BusyWeekInlineHandle } from "./busy-week/BusyWeekInlineEditor";
 import { useBusyWeekAssignments } from "@/hooks/useBusyWeek";
 import { DietTab } from "./protocol-builder/DietTab";
 import { calcMealMacros, calcDayMacros, tacoGroupToKind, parseWeightString, optionMacros, compareOptions, type SubstitutionSeverity } from "@/lib/macroCalc";
@@ -188,6 +188,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [workoutsView, setWorkoutsView] = useState<"main" | "busy">("main");
   const [busyMounted, setBusyMounted] = useState(false);
   const [busyDirty, setBusyDirty] = useState(false);
+  const busyRef = useRef<BusyWeekInlineHandle>(null);
   const { data: busyAssignments = [] } = useBusyWeekAssignments(coachId);
   const busyMine = busyAssignments.find((a) => a.student_id === studentId && a.enabled);
   const busyStatus = busyMine ? (busyMine.student_on ? "em uso" : "ativa") : "";
@@ -313,14 +314,14 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   } as const;
 
   useEffect(() => {
-    if (!isDirty) return;
+    if (!isDirty && !busyDirty) return;
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = '';
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [isDirty]);
+  }, [isDirty, busyDirty]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {   const id = data.session?.user?.id ?? null;   setCoachId(id);   loadCoachProfile(id); });
@@ -777,6 +778,12 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
 
   async function save(opts: { asDraft?: boolean } = {}) {
     if (!payload) return;
+    // Semana Corrida com alterações: o Salvar/Publicar do protocolo salva junto
+    // (antes eram dois botões e a edição podia se perder ao publicar).
+    if (busyDirty && busyRef.current) {
+      const ok = await busyRef.current.saveIfDirty();
+      if (!ok) { setWorkoutsView("busy"); return; }
+    }
     if (!name.trim()) { toast.error("Dê um nome ao protocolo"); return; }
     if (!opts.asDraft && !active) {
       toast.error("Protocolo está Inativo — ative no topo antes de publicar.");
@@ -1159,6 +1166,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
               {busyMounted && (
                 <div className={workoutsView === "busy" ? undefined : "hidden"}>
                   <BusyWeekInlineEditor
+                    ref={busyRef}
                     coachId={coachId}
                     studentId={studentId}
                     studentName={studentName}

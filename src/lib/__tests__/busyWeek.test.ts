@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  normalizeBusyForSave, sanitizeBusyRaw, busyContentCount, assertNoContentLoss,
   BUSY_KEY_PREFIX, busyCarbFor, busyFromProtocolWorkouts, busyToEditorPayload, busyTrainingDays, defaultBusyWeek, editorToBusyPayload, emptyBusyPayload, isAssignmentOutdated, isBusyKey, isBusyWeek,
   nextBusyWorkoutKey, normalizeBusyPayload, suggestBusyDayType, workoutKeyLabel,
 } from "../busyWeek";
@@ -212,5 +213,58 @@ describe("Semana Corrida — faixa da semana (dias + carbo) igual ao treino atua
     expect(p.workouts[0].key).toBe("SC_A");
     expect(p.workouts[0].invert?.mode).toBe("consecutive");
     expect(p.weekDays.seg).toBe("SC_A");
+  });
+});
+
+
+describe("Semana Corrida — nunca some (bug Mayane 21/11/2026)", () => {
+  const raw = (exercise: Record<string, unknown>) => ({
+    workouts: [
+      { key: "SC_A", focus: "Glúteo", exercises: [{ __id: "e1", name: "Agachamento", sets: "3", reps: "10" }, exercise] },
+      { key: "SC_B", focus: "Costas", exercises: [{ __id: "e3", name: "Remada", sets: "3", reps: "12" }] },
+    ],
+    periodization: { enabled: false },
+  });
+
+  it.each([
+    ["gifKey null", { __id: "e2", name: "Stiff", gifKey: null }],
+    ["séries como número", { __id: "e2", name: "Stiff", sets: 4, reps: 10 }],
+    ["obs null", { __id: "e2", name: "Stiff", notes: null }],
+    ["alternativas null", { __id: "e2", name: "Stiff", allowed_substitutes: null }],
+    ["__id null", { __id: null, name: "Stiff" }],
+  ])("campo fora do formato (%s) não apaga o plano", (_label, bad) => {
+    const p = normalizeBusyPayload(raw(bad));
+    expect(p.workouts).toHaveLength(2);
+    expect(p.workouts[0].exercises.map((e) => e.name)).toEqual(["Agachamento", "Stiff"]);
+    expect(() => normalizeBusyForSave(raw(bad))).not.toThrow();
+  });
+
+  it("números viram texto (séries 4 → '4')", () => {
+    const p = normalizeBusyPayload(raw({ name: "Stiff", sets: 4, reps: 10 }));
+    expect(p.workouts[0].exercises[1]).toMatchObject({ sets: "4", reps: "10" });
+  });
+
+  it("periodização com exceção malformada não derruba o resto", () => {
+    const p = normalizeBusyPayload({
+      ...raw({ name: "Stiff" }),
+      periodization: { enabled: true, overrides: { "0": { SC_A_0: { exerciseId: "e1", reps: 12, sets: null } }, "1": "lixo" } },
+    });
+    expect(p.workouts).toHaveLength(2);
+    expect(p.periodization.enabled).toBe(true);
+    expect(p.periodization.overrides["0"].SC_A_0).toEqual({ exerciseId: "e1", reps: "12" });
+  });
+
+  it("salvar recusa se ainda assim fosse perder exercício (erro na tela, nada gravado)", () => {
+    const bad = raw({ name: { texto: "Stiff" } });
+    expect(busyContentCount(bad).exercises).toBe(2); // o objeto não conta como nome
+    const withNamedObject = { workouts: [{ key: "SC_A", exercises: [{ name: "Agachamento" }, { name: "Stiff" }] }] };
+    expect(() => normalizeBusyForSave(withNamedObject)).not.toThrow();
+    // Inversão com data em formato errado também não derruba o treino.
+    const broken = { workouts: [{ key: "SC_A", exercises: [{ name: "Agachamento" }] }, { key: "SC_B", exercises: [{ name: "Remada" }], invert: { mode: "weekly", since: 123 } }] };
+    expect(sanitizeBusyRaw(broken).workouts).toHaveLength(2);
+    expect(normalizeBusyForSave(broken).workouts).toHaveLength(2);
+    // A trava: se algo ainda se perdesse, o salvar dá erro em vez de gravar.
+    expect(() => assertNoContentLoss({ workouts: 2, exercises: 5 }, { workouts: 0, exercises: 0 })).toThrow(/Não salvei/);
+    expect(() => assertNoContentLoss({ workouts: 2, exercises: 5 }, { workouts: 2, exercises: 5 })).not.toThrow();
   });
 });

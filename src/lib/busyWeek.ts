@@ -73,8 +73,13 @@ export function busyLetter(index: number): string {
  * inversão "dias seguidos" como padrão de cada treino.
  */
 export function normalizeBusyPayload(raw: unknown): BusyWeekPayload {
-  const parsed = BusyWeekPayloadSchema.safeParse(raw ?? {});
-  const base = parsed.success ? parsed.data : BusyWeekPayloadSchema.parse({});
+  // Nunca zerar o plano por causa de UM campo fora do formato (ex.: gifKey
+  // null, séries como número vindas de modelo/importação). Antes, qualquer
+  // campo assim fazia o plano inteiro virar vazio — e era salvo vazio
+  // (bug "o treino sumiu", Mayane, 21/11/2026).
+  const clean = sanitizeBusyRaw(raw);
+  const parsed = BusyWeekPayloadSchema.safeParse(clean);
+  const base = parsed.success ? parsed.data : parseBusyLeniently(clean);
   const renames = new Map<string, string>();
   const workouts = base.workouts.map((w, i) => {
     const key = `${BUSY_KEY_PREFIX}${busyLetter(i)}`;
@@ -161,6 +166,141 @@ export function busyFromProtocolWorkouts(workouts: ProtocolPayload["workouts"]):
     workouts: copy.map((w) => ({ ...w, invert: w.invert ?? { mode: "consecutive" } })),
     periodization: { enabled: false },
   });
+}
+
+// ── Limpeza defensiva do que vem do banco / de modelos / do editor ───────────
+
+const asStr = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" && Number.isFinite(v) ? String(v) : "");
+const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+
+function sanitizeExercise(raw: unknown): Record<string, unknown> | null {
+  if (!isObj(raw)) return null;
+  const out: Record<string, unknown> = { ...raw };
+  for (const k of ["name", "sets", "reps", "cadence", "rest", "notes"]) {
+    if (k in out) out[k] = asStr(out[k]);
+  }
+  if ("gifKey" in out) {
+    const g = asStr(out.gifKey);
+    if (g) out.gifKey = g; else delete out.gifKey;
+  }
+  if ("__id" in out) {
+    const id = asStr(out.__id);
+    if (id) out.__id = id; else delete out.__id;
+  }
+  out.allowed_substitutes = Array.isArray(out.allowed_substitutes)
+    ? (out.allowed_substitutes as unknown[]).map(asStr).filter(Boolean)
+    : [];
+  if ("is_mobility" in out) out.is_mobility = out.is_mobility === true || out.is_mobility === "true";
+  return out;
+}
+
+function sanitizeOverrides(raw: unknown): Record<string, Record<string, Record<string, string>>> {
+  if (!isObj(raw)) return {};
+  const out: Record<string, Record<string, Record<string, string>>> = {};
+  for (const [week, byEx] of Object.entries(raw)) {
+    if (!isObj(byEx)) continue;
+    const next: Record<string, Record<string, string>> = {};
+    for (const [slot, patch] of Object.entries(byEx)) {
+      if (!isObj(patch)) continue;
+      const clean: Record<string, string> = {};
+      for (const k of ["exerciseId", "name", "sets", "reps", "cadence", "rest", "notes"]) {
+        const v = asStr(patch[k]);
+        if (v) clean[k] = v;
+      }
+      if (Object.keys(clean).length) next[slot] = clean;
+    }
+    if (Object.keys(next).length) out[week] = next;
+  }
+  return out;
+}
+
+/** Deixa o plano no formato esperado sem perder nada que dê para aproveitar. */
+export function sanitizeBusyRaw(raw: unknown): Record<string, unknown> {
+  const src = isObj(raw) ? raw : {};
+  const out: Record<string, unknown> = { ...src };
+  out.workouts = Array.isArray(src.workouts)
+    ? (src.workouts as unknown[]).filter(isObj).map((w, i) => {
+        const wo: Record<string, unknown> = { ...w };
+        wo.key = asStr(w.key) || `${BUSY_KEY_PREFIX}${busyLetter(i)}`;
+        wo.focus = asStr(w.focus);
+        wo.exercises = Array.isArray(w.exercises)
+          ? (w.exercises as unknown[]).map(sanitizeExercise).filter((e): e is Record<string, unknown> => !!e)
+          : [];
+        if ("invert" in wo) {
+          if (!isObj(wo.invert)) delete wo.invert;
+          else {
+            const inv = wo.invert as Record<string, unknown>;
+            const since = asStr(inv.since);
+            wo.invert = { mode: asStr(inv.mode) || "off", ...(since ? { since } : {}) };
+          }
+        }
+        return wo;
+      })
+    : [];
+  if (isObj(src.periodization)) {
+    const per: Record<string, unknown> = { ...src.periodization };
+    per.enabled = per.enabled === true;
+    if (!Array.isArray(per.weeks) || per.weeks.length !== 4) delete per.weeks;
+    else per.weeks = (per.weeks as unknown[]).map((w) => {
+      const o = isObj(w) ? w : {};
+      return { label: asStr(o.label), sets: asStr(o.sets), reps: asStr(o.reps), rest: asStr(o.rest), cadence: asStr(o.cadence) };
+    });
+    per.overrides = sanitizeOverrides(per.overrides);
+    out.periodization = per;
+  } else {
+    delete out.periodization;
+  }
+  for (const k of ["weekDays", "carbCycle"]) {
+    if (isObj(src[k])) {
+      out[k] = Object.fromEntries(Object.entries(src[k] as Record<string, unknown>).map(([d, v]) => [d, asStr(v)]).filter(([, v]) => v));
+    } else delete out[k];
+  }
+  if ("restNotes" in out) out.restNotes = asStr(out.restNotes);
+  if ("note" in out) out.note = asStr(out.note);
+  return out;
+}
+
+/** Último recurso: aproveita treino por treino (nunca devolve vazio se havia treino válido). */
+function parseBusyLeniently(clean: Record<string, unknown>): BusyWeekPayload {
+  const base = BusyWeekPayloadSchema.parse({});
+  const workouts = (Array.isArray(clean.workouts) ? clean.workouts : [])
+    .map((w) => WorkoutDaySchema.safeParse(w))
+    .filter((r) => r.success)
+    .map((r) => (r as { data: BusyWeekPayload["workouts"][number] }).data);
+  const per = PeriodizationSchema.safeParse(clean.periodization ?? {});
+  const rest = BusyWeekPayloadSchema.safeParse({ ...clean, workouts: [], periodization: undefined });
+  return {
+    ...(rest.success ? rest.data : base),
+    workouts,
+    periodization: per.success ? per.data : base.periodization,
+  };
+}
+
+/** Quantos treinos e exercícios com nome o plano tem (trava contra perda ao salvar). */
+export function busyContentCount(raw: unknown): { workouts: number; exercises: number } {
+  const ws = isObj(raw) && Array.isArray(raw.workouts) ? (raw.workouts as unknown[]).filter(isObj) : [];
+  let exercises = 0;
+  for (const w of ws) {
+    const list = Array.isArray(w.exercises) ? (w.exercises as unknown[]) : [];
+    exercises += list.filter((e) => isObj(e) && asStr(e.name).trim()).length;
+  }
+  return { workouts: ws.length, exercises };
+}
+
+/**
+ * Normaliza para SALVAR: se a normalização perderia treino ou exercício,
+ * recusa (melhor um erro na tela do que gravar o plano vazio).
+ */
+export function normalizeBusyForSave(raw: unknown): BusyWeekPayload {
+  const out = normalizeBusyPayload(raw);
+  assertNoContentLoss(busyContentCount(raw), busyContentCount(out));
+  return out;
+}
+
+export function assertNoContentLoss(before: { workouts: number; exercises: number }, after: { workouts: number; exercises: number }) {
+  if (after.workouts < before.workouts || after.exercises < before.exercises) {
+    throw new Error("Não salvei para não perder exercícios: algum campo do treino veio num formato inválido. Me avise com um print.");
+  }
 }
 
 /** Plano em branco para o coach começar (2 treinos, inversão em dias seguidos). */

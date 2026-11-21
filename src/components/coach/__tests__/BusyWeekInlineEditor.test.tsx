@@ -18,6 +18,7 @@ vi.mock("@/hooks/useBusyWeek", () => {
   const m = (fn: (v: unknown) => void) => ({
     isPending: false,
     mutate: (vars: unknown, opts?: { onSuccess?: (r: unknown) => void }) => { fn(vars); opts?.onSuccess?.(undefined); },
+    mutateAsync: async (vars: unknown) => { fn(vars); },
   });
   return {
     BUSY_SQL_MISSING_MSG: "Rode o SQL da Semana Corrida",
@@ -57,7 +58,9 @@ vi.mock("@/components/ui/select", async () => {
 });
 
 import { ConfirmProvider } from "@/components/ConfirmProvider";
-import { BusyWeekInlineEditor } from "../busy-week/BusyWeekInlineEditor";
+import { createRef } from "react";
+import { act } from "@testing-library/react";
+import { BusyWeekInlineEditor, type BusyWeekInlineHandle } from "../busy-week/BusyWeekInlineEditor";
 import { emptyBusyPayload, normalizeBusyPayload } from "@/lib/busyWeek";
 
 const filled = normalizeBusyPayload({
@@ -146,5 +149,44 @@ describe("Protocolo → Treinos → Semana corrida", () => {
 
   it("plano vazio de Upper/Lower tem nomes próprios", () => {
     expect(emptyBusyPayload("upper_lower").workouts[1].focus).toMatch(/Lower/);
+  });
+
+  it("Salvar/Publicar do protocolo salva junto a Semana Corrida pendente (bug Mayane)", async () => {
+    h.assignments = [assignment()];
+    const ref = createRef<BusyWeekInlineHandle>();
+    render(
+      <ConfirmProvider>
+        <BusyWeekInlineEditor ref={ref} coachId="c1" studentId="s1" studentName="Mayane" protocolWorkouts={protocolWorkouts} />
+      </ConfirmProvider>,
+    );
+    // Sem mudança: nada a salvar, segue o publish.
+    await act(async () => { expect(await ref.current!.saveIfDirty()).toBe(true); });
+    expect(h.upsert).not.toHaveBeenCalled();
+    const ed = h.editorPayload as Editor;
+    act(() => h.setPayload!({ ...ed, workouts: ed.workouts.map((w, i) => (i === 0 ? { ...w, focus: "Glúteo foco" } : w)) }));
+    expect(ref.current!.hasUnsaved()).toBe(true);
+    await act(async () => { expect(await ref.current!.saveIfDirty()).toBe(true); });
+    expect(h.upsert).toHaveBeenCalledTimes(1);
+    expect(h.upsert.mock.calls[0][0].payload.workouts[0].focus).toBe("Glúteo foco");
+    expect(h.upsert.mock.calls[0][0].payload.workouts).toHaveLength(2);
+  });
+
+  it("dados com campo nulo vindos do treino atual não somem ao copiar e salvar", async () => {
+    show();
+    const dirty = [
+      { key: "A", focus: "Pernas", exercises: [{ name: "Leg press", __id: "x1", gifKey: null, notes: null, sets: 4 }] },
+    ] as never;
+    render(
+      <ConfirmProvider>
+        <BusyWeekInlineEditor coachId="c1" studentId="s2" studentName="Bia" protocolWorkouts={dirty} />
+      </ConfirmProvider>,
+    );
+    const buttons = screen.getAllByTestId("busy-inline-from-protocol");
+    await userEvent.click(buttons[buttons.length - 1]);
+    const saves = screen.getAllByTestId("busy-inline-save");
+    await userEvent.click(saves[saves.length - 1]);
+    const call = h.upsert.mock.calls.at(-1)![0];
+    expect(call.studentId).toBe("s2");
+    expect(call.payload.workouts[0].exercises[0]).toMatchObject({ name: "Leg press", sets: "4" });
   });
 });
