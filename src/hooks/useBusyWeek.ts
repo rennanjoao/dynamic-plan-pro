@@ -202,6 +202,42 @@ export function useSaveAssignmentPayload(coachId: string | null) {
   });
 }
 
+/**
+ * Salva a Semana Corrida de UMA aluna direto do protocolo (montada do zero,
+ * copiada do treino atual ou a partir de um plano da biblioteca). Cria a
+ * cópia dela se ainda não existir e já deixa liberada.
+ */
+export function useUpsertStudentBusyWeek(coachId: string | null) {
+  const invalidate = useInvalidateBusy(coachId);
+  return useMutation({
+    mutationFn: async (input: {
+      studentId: string;
+      planId: string | null;
+      planName: string;
+      kind: BusyKind;
+      payload: BusyWeekPayload;
+      /** true quando ela tem plano da biblioteca e o coach mudou só a dela. */
+      customized: boolean;
+      planSyncedAt?: string | null;
+    }) => {
+      const row: Record<string, unknown> = {
+        student_id: input.studentId,
+        coach_id: coachId,
+        plan_id: input.planId,
+        plan_name: input.planName.slice(0, 120),
+        kind: input.kind,
+        payload: normalizeBusyPayload(input.payload),
+        customized: input.customized,
+        enabled: true,
+      };
+      if (input.planSyncedAt !== undefined) row.plan_synced_at = input.planSyncedAt;
+      const { error } = await sb.from("busy_week_assignments").upsert(row, { onConflict: "student_id" });
+      if (error) throw new Error(isMissingTableError(error) ? BUSY_SQL_MISSING_MSG : error.message);
+    },
+    onSuccess: invalidate,
+  });
+}
+
 // ── Aluna ────────────────────────────────────────────────────────────────────
 
 export interface StudentBusyWeek {

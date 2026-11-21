@@ -85,9 +85,9 @@ function InvertSelect({ value, onChange, testId }: { value: InvertMode; onChange
 }
 
 /**
- * `variant="busyWeek"`: mesmo editor, usado na Semana Corrida — sem dias da
- * semana, carbo por dia, volume semanal, descanso e aeróbicos (o plano usa
- * rotação A/B/C e a dieta segue treino/descanso).
+ * `variant="busyWeek"`: mesmo editor, usado na Semana Corrida — com a mesma
+ * faixa da semana (dias + carbo), só sem aeróbicos e sem o atalho da
+ * biblioteca de protocolos.
  */
 export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrary, variant = "protocol" }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void; coachId: string | null; onOpenTemplateLibrary?: () => void; variant?: "protocol" | "busyWeek" }) {
   const isBusy = variant === "busyWeek";
@@ -336,7 +336,6 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
       })()}
 
       {/* ── Week strip: pílulas Seg→Dom ── */}
-      {!isBusy && (<>
       <Card className="bg-card/40 border-border p-2.5">
         <div className="flex items-center justify-between mb-1.5 px-1">
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Semana</p>
@@ -377,7 +376,6 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
       </Card>
 
       <WeeklyVolumeDashboard workouts={payload.workouts} weekDays={weekDays} periodization={payload.periodization} />
-      </>)}
 
       {periodOn && payload.workouts.length > 0 && (
         <p className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-[11px] text-foreground/80">
@@ -424,7 +422,6 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
               testId={`invert-select-${day.key}`}
               onChange={(m) => updDay(di, { invert: makeInvertSetting(m) })}
             />
-            {!isBusy && (
             <Popover>
               <PopoverTrigger asChild>
                 <button
@@ -459,7 +456,6 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
                 </div>
               </PopoverContent>
             </Popover>
-            )}
             <div className="flex items-center gap-0.5 shrink-0">
               <button
                 type="button"
@@ -829,7 +825,6 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
 
 
       {/* ── Card especial: Descanso (key reservada "REST") ── */}
-      {!isBusy && (<>
       <Card className="bg-card/40 border-dashed border-border/60 p-4">
         <div className="flex items-center gap-3 mb-2">
           <div className="w-10 h-10 rounded-full bg-muted text-muted-foreground flex items-center justify-center font-black text-[11px] shrink-0 uppercase tracking-wider">
@@ -881,6 +876,7 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
           className="min-h-[60px] text-base md:text-sm bg-background/60"
         />
       </Card>
+      {!isBusy && (<>
       <div className="mt-4 space-y-2">
         <div className="flex items-center justify-between">
           <Label className="text-sm font-semibold flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> Aeróbicos gerais</Label>
