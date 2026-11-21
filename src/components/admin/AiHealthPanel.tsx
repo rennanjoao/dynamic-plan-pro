@@ -97,7 +97,12 @@ export function AiHealthPanel() {
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{r.uso}</span>
-                    <Badge variant={r.state === "ok" ? "secondary" : "destructive"}>{STATE_LABEL[r.state]}</Badge>
+                    <Badge
+                      variant={r.state === "ok" ? "outline" : "destructive"}
+                      className={r.state === "ok" ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : undefined}
+                    >
+                      {STATE_LABEL[r.state]}
+                    </Badge>
                   </div>
                   <p className="text-sm">{r.message}</p>
                   <p className="text-xs text-muted-foreground break-all">
