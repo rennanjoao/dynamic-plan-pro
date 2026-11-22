@@ -1,14 +1,16 @@
 /**
- * CopyProtocolDialog.tsx — Fase 5
+ * CopyProtocolDialog.tsx — copiar o protocolo atual (ou um modelo da
+ * biblioteca) para UM ou VÁRIOS alunos, como rascunho individual de cada um
+ * (auditoria de 21/11/2026, Pacote C: "aplicar um modelo a vários alunos").
  *
- * Permite copiar o protocolo atual (ou apenas seções: treino/dieta/suplementos)
- * para outro aluno do coach. Cria SEMPRE uma nova linha em `protocols` com
- * `active: false` — o coach precisa revisar e publicar manualmente.
+ * Regras (src/lib/protocolBulkCopy.ts): aluno com protocolo recebe as seções
+ * marcadas no RASCUNHO dele; aluno sem protocolo ganha um protocolo INATIVO.
+ * Nada vai para nenhum aluno até o coach abrir, revisar e publicar — o
+ * "Abrir o 1º e seguir a fila" leva direto a esse trabalho, um a um.
  */
-import { useMemo, useState } from "react";
-import { sb } from "@/integrations/supabase/untyped";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Copy, Search } from "lucide-react";
+import { CheckCircle2, Copy, Loader2, Search, XCircle } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -16,208 +18,247 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useCoachStudentsLite } from "@/hooks/useCoachStudents";
-import { ProtocolPayloadSchema, type ProtocolPayload } from "@/lib/protocolSchema";
-import { buildSaveProtocolArgs } from "@/lib/protocolSave";
-import { blankProtocolPayload, copyProtocolSections, type CopySection } from "@/lib/protocolCopy";
+import type { ProtocolPayload } from "@/lib/protocolSchema";
+import type { CopySection } from "@/lib/protocolCopy";
+import { copyToTarget, planBulkCopy, type BulkResult, type BulkTargetPlan } from "@/lib/protocolBulkCopy";
 
 const SECTION_LABELS: Record<CopySection, string> = {
   workout: "Treino", diet: "Dieta", supplements: "Suplementos", guidelines: "Diretrizes",
 };
 
+type Step = "select" | "confirm" | "running" | "done";
+
+function resultText(r: BulkResult): string {
+  if ("error" in r) return `não copiado: ${r.error}`;
+  return r.mode === "draft" ? "rascunho atualizado" : "protocolo inativo criado";
+}
+
 export default function CopyProtocolDialog({
-  open, onOpenChange, coachId, payload, sourceStudentId, protocolName,
+  open, onOpenChange, coachId, payload, sourceStudentId, protocolName, sourceLabel, onOpenQueue,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   coachId: string | null;
   payload: ProtocolPayload | null;
-  sourceStudentId: string;
+  /** Aluno aberto no construtor (fica fora da lista). */
+  sourceStudentId?: string;
   protocolName: string;
+  /** Quando vem da biblioteca: "Modelo: <nome>". */
+  sourceLabel?: string;
+  /** Abre o 1º aluno e usa os demais como fila do "Próximo aluno". */
+  onOpenQueue?: (studentIds: string[]) => void;
 }) {
   const { data: students = [], isLoading } = useCoachStudentsLite(open ? coachId : null);
   const [search, setSearch] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
   const [sections, setSections] = useState<Record<CopySection, boolean>>({
     workout: true, diet: true, supplements: true, guidelines: true,
   });
-  const [copying, setCopying] = useState(false);
   // Calorias/macros são individuais (peso, objetivo): por padrão NÃO viajam junto com a dieta.
   const [copyMacros, setCopyMacros] = useState(false);
+  const [step, setStep] = useState<Step>("select");
+  const [plans, setPlans] = useState<BulkTargetPlan[]>([]);
+  const [results, setResults] = useState<BulkResult[]>([]);
+  const [busy, setBusy] = useState(false);
 
+  // Reabrir começa do zero.
+  useEffect(() => {
+    if (!open) return;
+    setStep("select"); setSelected([]); setSearch(""); setPlans([]); setResults([]); setBusy(false);
+  }, [open]);
+
+  const candidates = useMemo(
+    () => students.filter((st) => st.id !== sourceStudentId),
+    [students, sourceStudentId],
+  );
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
-    return students
-      .filter((st) => st.id !== sourceStudentId)
-      .filter((st) => !s || st.name.toLowerCase().includes(s));
-  }, [students, search, sourceStudentId]);
+    return candidates.filter((st) => !s || st.name.toLowerCase().includes(s));
+  }, [candidates, search]);
+  const nameOf = (id: string) => candidates.find((s) => s.id === id)?.name || "Aluno";
+  const pickedSections = (Object.keys(sections) as CopySection[]).filter((k) => sections[k]);
+  const allFilteredSelected = filtered.length > 0 && filtered.every((s) => selected.includes(s.id));
 
-  function toggle(k: CopySection) {
-    setSections((prev) => ({ ...prev, [k]: !prev[k] }));
-  }
+  const toggleStudent = (id: string) =>
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const toggleAllFiltered = () =>
+    setSelected((prev) => (allFilteredSelected
+      ? prev.filter((id) => !filtered.some((s) => s.id === id))
+      : [...new Set([...prev, ...filtered.map((s) => s.id)])]));
 
-  async function handleCopy() {
-    if (!coachId || !payload || !selectedId) return;
-    if (!Object.values(sections).some(Boolean)) {
-      toast.error("Selecione ao menos uma seção");
-      return;
-    }
-    setCopying(true);
+  async function review() {
+    if (!payload || selected.length === 0) return;
+    if (pickedSections.length === 0) { toast.error("Selecione ao menos uma seção"); return; }
+    setBusy(true);
     try {
-      const src: any = JSON.parse(JSON.stringify(payload));
-      const targetName = students.find((s) => s.id === selectedId)?.name || "aluno";
-
-      // [FIX crítico] Antes o copy SEMPRE inseria uma nova linha em `protocols`.
-      // Como o builder carrega o protocolo mais recente do aluno, essa linha
-      // nova "escondia" o protocolo real do destinatário (parecia que os dados
-      // tinham sido apagados). Agora, se o aluno já tem protocolo, fazemos
-      // MERGE PARCIAL das seções escolhidas dentro do rascunho dele — o
-      // conteúdo publicado e as seções não selecionadas ficam intactos.
-      const { data: target } = await sb
-        .from("protocols")
-        .select("id, payload, revision, name, active")
-        .eq("student_id", selectedId)
-        .eq("is_template", false)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (target?.id) {
-        const { data: targetDraft, error: draftError } = await sb
-          .from("protocol_drafts")
-          .select("payload")
-          .eq("protocol_id", target.id)
-          .maybeSingle();
-        if (draftError) throw draftError;
-        const base: any = JSON.parse(
-          JSON.stringify(targetDraft?.payload ?? target.payload ?? {})
-        );
-        const picked = (Object.keys(sections) as CopySection[]).filter((k) => sections[k]).map((k) => SECTION_LABELS[k]).join(", ");
-        if (!window.confirm(`Substituir ${picked} no rascunho de ${targetName}? O que você não marcou fica como está.`)) return;
-        const merged = copyProtocolSections(base, src, sections);
-        if (!copyMacros) merged.macros = base.macros;
-        const checked = ProtocolPayloadSchema.safeParse(merged);
-        if (!checked.success) throw new Error("O protocolo resultante ficou inválido — nada foi copiado");
-        const { error } = await sb.rpc("save_protocol_with_plan", buildSaveProtocolArgs({
-          protocolId: target.id,
-          studentId: selectedId,
-          coachId,
-          name: target.name || protocolName || "Protocolo",
-          payload: checked.data,
-          active: target.active ?? false,
-          asDraft: true,
-          expectedRevision: target.revision ?? 0,
-        }));
-        if (error) throw error;
-        toast.success(
-          `Seções copiadas para ${targetName} como rascunho — o restante do protocolo dele foi preservado`
-        );
-      } else {
-        const blank = blankProtocolPayload();
-        const next = copyProtocolSections(blank, src, sections);
-        if (!copyMacros) next.macros = blank.macros;
-        const { error } = await sb.from("protocols").insert({
-          coach_id: coachId,
-          student_id: selectedId,
-          name: `${protocolName || "Protocolo"} (cópia)`,
-          is_template: false,
-          payload: next,
-          active: false,
-        });
-        if (error) throw error;
-        toast.success(`Protocolo copiado para ${targetName} como rascunho inativo`);
-      }
-
-      onOpenChange(false);
-      setSelectedId(null);
-      setSearch("");
-    } catch (e: any) {
-      toast.error(e?.message || "Falha ao copiar");
-    } finally {
-      setCopying(false);
-    }
+      setPlans(await planBulkCopy(selected.map((id) => ({ id, name: nameOf(id) }))));
+      setStep("confirm");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao verificar os alunos");
+    } finally { setBusy(false); }
   }
+
+  async function run() {
+    if (!coachId || !payload) return;
+    setStep("running");
+    const out: BulkResult[] = [];
+    for (const plan of plans) {
+      // Um de cada vez: cada aluno tem a própria revisão/rascunho.
+      out.push(await copyToTarget(plan, { coachId, src: payload as never, sections, copyMacros }));
+      setResults([...out]);
+    }
+    setStep("done");
+    const ok = out.filter((r) => r.ok).length;
+    if (ok === out.length) toast.success(`${ok} ${ok === 1 ? "rascunho pronto" : "rascunhos prontos"} — nada foi para os alunos ainda`);
+    else toast.error(`${out.length - ok} de ${out.length} não foram copiados — veja a lista`);
+  }
+
+  const withDraft = plans.filter((p) => p.protocol && p.draftPayload);
+  const withProtocol = plans.filter((p) => p.protocol && !p.draftPayload);
+  const withoutProtocol = plans.filter((p) => !p.protocol);
+  const okIds = results.filter((r) => r.ok).map((r) => r.id);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px] max-h-[85vh] flex flex-col">
+    <Dialog open={open} onOpenChange={(v) => { if (step !== "running") onOpenChange(v); }}>
+      <DialogContent className="sm:max-w-[560px] max-h-[88vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Copiar protocolo para outro aluno</DialogTitle>
+          <DialogTitle>{sourceLabel ? "Aplicar modelo a alunos" : "Copiar para alunos"}</DialogTitle>
           <DialogDescription className="text-xs">
-            As seções marcadas entram como rascunho no protocolo do aluno de destino; o que você não marcar fica como está. Se ele ainda não tiver protocolo, é criado um inativo. Nada vai para o aluno até você revisar e publicar.
+            {sourceLabel ? <><strong>{sourceLabel}</strong> · </> : null}
+            Cada aluno recebe um rascunho próprio para você individualizar. Nada vai para os alunos até você abrir, revisar e publicar.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 py-2 flex-1 overflow-y-auto">
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">O que copiar</p>
-            <div className="flex flex-wrap gap-3">
-              {(Object.keys(SECTION_LABELS) as CopySection[]).map((k) => (
-                <label key={k} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <Checkbox checked={sections[k]} onCheckedChange={() => toggle(k)} />
-                  {SECTION_LABELS[k]}
-                </label>
-              ))}
-            </div>
-            {sections.diet && (
-              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer mt-2">
-                <Checkbox checked={copyMacros} onCheckedChange={() => setCopyMacros((v) => !v)} />
-                Copiar também calorias e macros do aluno de origem
-              </label>
-            )}
-          </div>
-
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Aluno de destino</p>
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Buscar aluno..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-9 text-sm pl-8"
-              />
-            </div>
-
-            <div className="mt-2 border border-border/60 rounded-md max-h-64 overflow-y-auto">
-              {isLoading ? (
-                <div className="flex justify-center py-6">
-                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                </div>
-              ) : filtered.length === 0 ? (
-                <p className="text-xs text-muted-foreground py-6 text-center">
-                  Nenhum aluno encontrado.
-                </p>
-              ) : (
-                <ul className="divide-y divide-border/40">
-                  {filtered.map((st) => (
-                    <li key={st.id}>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedId(st.id)}
-                        className={`w-full text-left px-3 py-2 text-sm hover:bg-accent/40 transition-colors ${
-                          selectedId === st.id ? "bg-primary/10 text-primary" : ""
-                        }`}
-                      >
-                        {st.name}
-                      </button>
-                    </li>
+        {step === "select" && (
+          <>
+            <div className="space-y-3 py-1 flex-1 overflow-y-auto">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">O que copiar</p>
+                <div className="flex flex-wrap gap-3">
+                  {(Object.keys(SECTION_LABELS) as CopySection[]).map((k) => (
+                    <label key={k} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <Checkbox checked={sections[k]} onCheckedChange={() => setSections((p) => ({ ...p, [k]: !p[k] }))} />
+                      {SECTION_LABELS[k]}
+                    </label>
                   ))}
-                </ul>
+                </div>
+                {sections.diet && (
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer mt-2">
+                    <Checkbox checked={copyMacros} onCheckedChange={() => setCopyMacros((v) => !v)} />
+                    Copiar também calorias e macros (por padrão cada aluno mantém os dele)
+                  </label>
+                )}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Alunos ({selected.length} selecionado{selected.length === 1 ? "" : "s"})</p>
+                  {filtered.length > 0 && (
+                    <button type="button" className="text-[11px] text-primary hover:underline" onClick={toggleAllFiltered}>
+                      {allFilteredSelected ? "Limpar" : search ? "Marcar os filtrados" : "Marcar todos"}
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input placeholder="Buscar aluno..." value={search} onChange={(e) => setSearch(e.target.value)} className="h-9 text-sm pl-8" />
+                </div>
+                <div className="mt-2 border border-border/60 rounded-md max-h-64 overflow-y-auto">
+                  {isLoading ? (
+                    <div className="flex justify-center py-6"><Loader2 className="w-4 h-4 animate-spin text-primary" /></div>
+                  ) : filtered.length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-6 text-center">Nenhum aluno encontrado.</p>
+                  ) : (
+                    <ul className="divide-y divide-border/40">
+                      {filtered.map((st) => (
+                        <li key={st.id}>
+                          <label className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-accent/40 cursor-pointer">
+                            <Checkbox checked={selected.includes(st.id)} onCheckedChange={() => toggleStudent(st.id)} aria-label={st.name} />
+                            <span className="truncate">{st.name}</span>
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="pt-2 border-t border-border/40">
+              <Button onClick={review} disabled={selected.length === 0 || !payload || busy} className="w-full" data-testid="bulk-review">
+                {busy ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
+                Revisar e copiar para {selected.length || ""} {selected.length === 1 ? "aluno" : "alunos"}
+              </Button>
+            </div>
+          </>
+        )}
+
+        {step === "confirm" && (
+          <>
+            <div className="space-y-3 py-1 flex-1 overflow-y-auto text-sm" data-testid="bulk-confirm">
+              <p>
+                Copiar <strong>{pickedSections.map((k) => SECTION_LABELS[k]).join(", ")}</strong>
+                {sections.diet && !copyMacros ? " (sem calorias/macros)" : ""} para <strong>{plans.length}</strong> {plans.length === 1 ? "aluno" : "alunos"}:
+              </p>
+              {withDraft.length > 0 && (
+                <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-amber-800 dark:text-amber-200">
+                  <p className="text-xs font-semibold">Já têm rascunho não publicado — essas seções do rascunho serão substituídas:</p>
+                  <p className="text-xs mt-1">{withDraft.map((p) => p.name).join(", ")}</p>
+                </div>
+              )}
+              {withProtocol.length > 0 && (
+                <div className="rounded-md border border-border/60 p-2.5">
+                  <p className="text-xs font-semibold">Têm protocolo publicado — vira rascunho; o aluno continua vendo o atual:</p>
+                  <p className="text-xs text-muted-foreground mt-1">{withProtocol.map((p) => p.name).join(", ")}</p>
+                </div>
+              )}
+              {withoutProtocol.length > 0 && (
+                <div className="rounded-md border border-border/60 p-2.5">
+                  <p className="text-xs font-semibold">Ainda sem protocolo — será criado um protocolo inativo:</p>
+                  <p className="text-xs text-muted-foreground mt-1">{withoutProtocol.map((p) => p.name).join(", ")}</p>
+                </div>
               )}
             </div>
-          </div>
-        </div>
+            <div className="pt-2 border-t border-border/40 flex gap-2">
+              <Button variant="outline" onClick={() => setStep("select")} className="flex-1">Voltar</Button>
+              <Button onClick={run} className="flex-1" data-testid="bulk-run">Confirmar</Button>
+            </div>
+          </>
+        )}
 
-        <div className="pt-2 border-t border-border/40">
-          <Button
-            onClick={handleCopy}
-            disabled={!selectedId || !payload || copying}
-            className="w-full"
-          >
-            {copying ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
-            Copiar como rascunho
-          </Button>
-        </div>
+        {(step === "running" || step === "done") && (
+          <>
+            <ul className="space-y-1 py-1 flex-1 overflow-y-auto" data-testid="bulk-results">
+              {plans.map((p) => {
+                const r = results.find((x) => x.id === p.id);
+                return (
+                  <li key={p.id} className="flex items-start gap-2 text-sm">
+                    {!r ? <Loader2 className="w-4 h-4 mt-0.5 animate-spin text-muted-foreground shrink-0" />
+                      : r.ok ? <CheckCircle2 className="w-4 h-4 mt-0.5 text-emerald-500 shrink-0" />
+                      : <XCircle className="w-4 h-4 mt-0.5 text-rose-500 shrink-0" />}
+                    <span className="min-w-0">
+                      <span className="font-medium">{p.name}</span>
+                      {r && (
+                        <span className="text-xs text-muted-foreground">
+                          {" — "}{resultText(r)}
+                        </span>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            {step === "done" && (
+              <div className="pt-2 border-t border-border/40 flex flex-col sm:flex-row gap-2">
+                <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">Fechar</Button>
+                {onOpenQueue && okIds.length > 0 && (
+                  <Button onClick={() => { onOpenChange(false); onOpenQueue(okIds); }} className="flex-1" data-testid="bulk-open-queue">
+                    Abrir o 1º e seguir a fila ({okIds.length})
+                  </Button>
+                )}
+              </div>
+            )}
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

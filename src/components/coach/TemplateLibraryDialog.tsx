@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Loader2, BookmarkPlus, Trash2, Dumbbell, Utensils, FileText, ClipboardList, Eye, History, Pencil, Salad, CalendarRange } from "lucide-react";
+import { Loader2, BookmarkPlus, Trash2, Dumbbell, Utensils, FileText, ClipboardList, Eye, History, Pencil, Salad, CalendarRange, Users } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { ProtocolPayloadSchema, WorkoutBlockPayloadSchema, DietBlockPayloadSchema, PeriodizationBlockPayloadSchema, type ProtocolPayload } from "@/lib/protocolSchema";
 import { checkMuscleRecovery } from "@/lib/muscleRecovery";
@@ -77,7 +77,7 @@ const PROFILES: { value: string; label: string }[] = [
 ];
 
 export default function TemplateLibraryDialog({
-  open, onOpenChange, coachId, payload, setPayload, protocolName,
+  open, onOpenChange, coachId, payload, setPayload, protocolName, onApplyToStudents,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -85,6 +85,8 @@ export default function TemplateLibraryDialog({
   payload: ProtocolPayload | null;
   setPayload: (p: ProtocolPayload) => void;
   protocolName: string;
+  /** Modelo de protocolo → rascunho para vários alunos (Pacote C da auditoria). */
+  onApplyToStudents?: (payload: ProtocolPayload, modelName: string) => void;
 }) {
   const confirm = useConfirm();
   const [loading, setLoading] = useState(false);
@@ -472,7 +474,7 @@ export default function TemplateLibraryDialog({
             ) : filtered.length === 0 ? (
               <div className="text-center py-10 text-xs text-muted-foreground">
                 <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                Nenhum template {filter === "all" ? "" : `de ${TYPE_META[filter as TplType].label.toLowerCase()} `}salvo ainda.
+                Nenhum modelo {filter === "all" ? "" : `de ${TYPE_META[filter as TplType].label.toLowerCase()} `}salvo ainda.
               </div>
             ) : (
               <ul className="space-y-1.5">
@@ -540,6 +542,23 @@ export default function TemplateLibraryDialog({
                         ) : (
                           <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => applyItem(item)}>
                             Aplicar
+                          </Button>
+                        )}
+                        {item.type === "protocol" && onApplyToStudents && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs"
+                            title="Cria um rascunho deste modelo para cada aluno escolhido"
+                            data-testid={`apply-to-students-${item.id}`}
+                            onClick={() => {
+                              const parsed = ProtocolPayloadSchema.safeParse(item.raw.payload);
+                              if (!parsed.success) { toast.error("Modelo com conteúdo inválido"); return; }
+                              onOpenChange(false);
+                              onApplyToStudents(parsed.data, item.name);
+                            }}
+                          >
+                            <Users className="w-3.5 h-3.5 mr-1" /> Vários alunos
                           </Button>
                         )}
                         {item.type === "workout" && !item.isSystem && item.isLegacy && (

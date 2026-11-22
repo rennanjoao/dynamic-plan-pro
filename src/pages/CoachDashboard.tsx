@@ -8,7 +8,7 @@ import { lazyWithRetry } from "@/lib/lazyWithRetry";
  * apenas roteamento, tabs, listagem de alunos e diálogos.
  */
 
-import { useState, useEffect, lazy, Suspense, type CSSProperties } from "react";
+import { useState, useEffect, useRef, useCallback, lazy, Suspense, type CSSProperties } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -18,7 +18,7 @@ import {
 import {
   AlertTriangle, CheckCircle2, Search, Filter, Users,
   ArrowLeft, Loader2, DollarSign, User, LogOut, Activity, Sparkles, UserPlus, MessageSquareReply,
-  CalendarClock,
+  CalendarClock, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import CoachNotificationBell from "@/components/coach/CoachNotificationBell";
 import { Input } from "@/components/ui/input";
@@ -101,6 +101,7 @@ function CoachDashboardInner() {
   const {
     students: pagedStudents,
     awaitingQueue,
+    filteredAll,
     filteredCount,
     stats,
     isLoading,
@@ -120,7 +121,26 @@ function CoachDashboardInner() {
   const { data: platformCharges = [] } = usePlatformBilling(coachId);
   const platformStatus = worstPlatformStatus(platformCharges);
 
-  const goBack = () => { setView("list"); setSelectedStudent(null); };
+  // ─── Fila do "Próximo aluno" (Pacote C da auditoria) ─────────────────────
+  // Ao abrir um protocolo, a fila é a lista como está na tela (busca e filtro,
+  // todas as páginas). "Aplicar a vários alunos" troca a fila pelos alunos
+  // que receberam o rascunho. Trocar de aluno passa pelo guarda do construtor
+  // (grava o rascunho pendente; pergunta se a Semana corrida não foi salva).
+  const [queue, setQueue] = useState<StudentStatus[]>([]);
+  const leaveGuardRef = useRef<(() => Promise<boolean>) | null>(null);
+  const registerLeaveGuard = useCallback((guard: (() => Promise<boolean>) | null) => { leaveGuardRef.current = guard; }, []);
+  const canLeaveProtocol = async () => (leaveGuardRef.current ? leaveGuardRef.current() : true);
+
+  const goBack = async () => {
+    if (!(await canLeaveProtocol())) return;
+    setView("list");
+    setSelectedStudent(null);
+  };
+  const goToStudent = async (st: StudentStatus) => {
+    if (!(await canLeaveProtocol())) return;
+    setSelectedStudent(st);
+    window.scrollTo({ top: 0 });
+  };
 
   const openProfile = (st: StudentStatus, tab: StudentProfileTab = "resumo") => {
     setProfileTab(tab);
@@ -132,6 +152,7 @@ function CoachDashboardInner() {
   };
   const openProtocol = (st: StudentStatus) => {
     setProfileStudent(null);
+    setQueue(filteredAll.some((s) => s.id === st.id) ? filteredAll : [st, ...filteredAll]);
     setSelectedStudent(st);
     setView("protocol");
   };
@@ -145,6 +166,12 @@ function CoachDashboardInner() {
       id: lite.id, name: lite.name, alertLevel: "ok", daysInactive: 0, daysSinceLastFeedback: 0,
       currentWeight: null, lastFeedback: null, awaitingReply: null,
     } as unknown as StudentStatus;
+  };
+  const openQueue = (ids: string[]) => {
+    const list = ids.map((id) => studentById(id)).filter((x): x is StudentStatus => !!x);
+    if (!list.length) return;
+    setQueue(list);
+    void goToStudent(list[0]);
   };
   // Próximo da fila "aguardando resposta" (fora o aluno aberto agora).
   const nextAwaiting = latestFbStudent
@@ -199,15 +226,51 @@ function CoachDashboardInner() {
       >
         <header className="bg-card border-b border-border sticky top-0 z-10" style={{ height: EDIT_HEADER_PX }}>
           <div className="max-w-4xl mx-auto px-4 h-full flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={goBack}><ArrowLeft className="w-4 h-4" /></Button>
-            <h1 className="text-sm font-bold text-foreground">
+            <Button variant="ghost" size="icon" onClick={() => void goBack()} aria-label="Voltar à lista de alunos"><ArrowLeft className="w-4 h-4" /></Button>
+            <h1 className="text-sm font-bold text-foreground truncate min-w-0 flex-1">
               {view === "protocol" ? "Protocolo" : ""} — <Private>{selectedStudent.name || "Aluno"}</Private>
             </h1>
+            {(() => {
+              const idx = queue.findIndex((q) => q.id === selectedStudent.id);
+              if (queue.length < 2 || idx < 0) return null;
+              const prev = idx > 0 ? queue[idx - 1] : null;
+              const next = idx < queue.length - 1 ? queue[idx + 1] : null;
+              return (
+                <div className="flex items-center gap-1 shrink-0" data-testid="student-queue-nav">
+                  <Button
+                    variant="outline" size="sm" className="h-8 px-2"
+                    disabled={!prev} onClick={() => prev && void goToStudent(prev)}
+                    aria-label="Aluno anterior" title={prev ? `Anterior: ${prev.name}` : undefined}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <span className="text-xs text-muted-foreground tabular-nums px-1">{idx + 1}/{queue.length}</span>
+                  <Button
+                    size="sm" className="h-8 px-2 sm:px-3 gap-1"
+                    disabled={!next} onClick={() => next && void goToStudent(next)}
+                    data-testid="next-student"
+                  >
+                    <span className="sm:hidden">Próx.</span>
+                    <span className="hidden sm:inline">Próximo{next ? ":" : ""}</span>
+                    {next && <span className="hidden sm:inline max-w-[140px] truncate"><Private>{next.name}</Private></span>}
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              );
+            })()}
           </div>
         </header>
         <main className="max-w-4xl mx-auto px-4 py-6">
           <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
-            {view === "protocol" && <ProtocolBuilder key={selectedStudent.id} studentId={selectedStudent.id} studentName={selectedStudent.name} />}
+            {view === "protocol" && (
+              <ProtocolBuilder
+                key={selectedStudent.id}
+                studentId={selectedStudent.id}
+                studentName={selectedStudent.name}
+                registerLeaveGuard={registerLeaveGuard}
+                onOpenQueue={openQueue}
+              />
+            )}
           </Suspense>
         </main>
       </div>

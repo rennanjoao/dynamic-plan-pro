@@ -502,6 +502,9 @@ export function useCoachStudentsPaged(
   return {
     students: enrichedPage,
     awaitingQueue,
+    // Lista inteira já buscada/filtrada, na ordem da tela (todas as páginas).
+    // Vira a fila do "Próximo aluno" na edição de protocolo.
+    filteredAll: filtered,
     totalCount,
     filteredCount,
     stats,
