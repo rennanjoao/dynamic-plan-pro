@@ -43,10 +43,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Popover, PopoverContent, PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
 import { lazy, Suspense } from "react";
@@ -56,8 +53,8 @@ import {
 import {
   Loader2, Save, Plus, Trash2, FileText, Dumbbell, UtensilsCrossed,
   Sparkles, BarChart3, Activity, Pill, TrendingUp,
-  CheckCircle2, ChevronDown, Copy, BookmarkPlus, Library, ClipboardList,
-  ArrowUp, ArrowDown, Eye, Settings2, History, AlertCircle, GripVertical, RefreshCw
+  CheckCircle2, Copy, BookmarkPlus, Library, ClipboardList,
+  ArrowUp, ArrowDown, Eye, Settings2, History, GripVertical, RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
 import { ExercisePickerInput } from "@/components/coach/ExercisePickerInput";
@@ -85,6 +82,8 @@ import { WorkoutsTab } from "./protocol-builder/WorkoutsTab";
 import { BusyWeekInlineEditor, type BusyWeekInlineHandle } from "./busy-week/BusyWeekInlineEditor";
 import { useBusyWeekAssignments } from "@/hooks/useBusyWeek";
 import { DietTab } from "./protocol-builder/DietTab";
+import { PublishBar } from "./protocol-builder/PublishBar";
+import { useConfirm } from "@/components/ConfirmProvider";
 import { calcMealMacros, calcDayMacros, tacoGroupToKind, parseWeightString, optionMacros, compareOptions, type SubstitutionSeverity } from "@/lib/macroCalc";
 import {
   detectProtocolChanges,
@@ -105,7 +104,6 @@ import { CSS } from "@dnd-kit/utilities";
 
 import { TACO_FOODS } from "@/data/tacoFoods";
 import { ENRICHED_FOODS } from "@/data/enrichedFoods";
-import { Private } from "@/components/coach/PrivacyMode";
 import { triageClasses, triageLabel } from "@/lib/protocolRenewalTriage";
 import { functionErrorMessage } from "@/lib/functionError";
 import {
@@ -221,6 +219,8 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
+  const [importExportOpen, setImportExportOpen] = useState(false);
+  const confirm = useConfirm();
   const ENABLE_AI_INITIAL_DRAFT = true;
   const [aiSuggestion, setAiSuggestion] = useState<{
     calories: number; protein: number; carbs: number; fat: number; water: number; goal: string; rationale: string;
@@ -587,6 +587,13 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
 
   async function discardDraft() {
     if (!protocolId || !existing) return;
+    const ok = await confirm({
+      title: "Descartar rascunho",
+      description: "As alterações ainda não publicadas serão perdidas. O aluno continua vendo a última versão publicada.",
+      confirmLabel: "Descartar",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       const { error } = await sb.from("protocol_drafts").delete().eq("protocol_id", protocolId);
       if (error) throw error;
@@ -786,7 +793,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
     }
     if (!name.trim()) { toast.error("Dê um nome ao protocolo"); return; }
     if (!opts.asDraft && !active) {
-      toast.error("Protocolo está Inativo — ative no topo antes de publicar.");
+      toast.error("Protocolo inativo — clique em Ativar (na barra de baixo) antes de publicar.");
       return;
     }
     if (!opts.asDraft) {
@@ -950,130 +957,101 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
 
   return (
     <div className="space-y-4">
-      <Card className="bg-card/60 border-border p-3 sm:p-4">
-        <div className="flex flex-col gap-3">
-          {/* Top row: Ativo + Modo Avançado left, student chip right */}
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-2 flex-wrap min-w-0">
-              {payload && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Switch checked={active} onCheckedChange={setActive} id="active-top" />
-                  <Label htmlFor="active-top" className="text-xs cursor-pointer select-none">
-                    {active ? "Ativo" : "Inativo"}
-                  </Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        size="sm"
-                        className="h-8 bg-emerald-500 hover:bg-emerald-600 text-white border-0"
-                      >
-                        <Settings2 className="w-3.5 h-3.5 mr-1.5" /> Importar / Exportar
-                        <ChevronDown className="w-3.5 h-3.5 ml-1 opacity-80" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent align="start" className="w-80 p-1">
-                      <div className="px-2 py-1.5">
-                        <ProtocolImportExport payload={payload} studentName={studentName} onImport={(p) => { updatePayload(mergeImportedPayload(payload, p)); setProtocolId(protocolId); }} />
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              )}
+      {/* Topo enxuto (auditoria 21/11/2026): nome + 3 ações diretas + Mais.
+          Ativo e Importar/Exportar (raros) foram para o menu Mais; o nome do
+          aluno já está no cabeçalho da página. */}
+      {payload && (
+        <Card className="bg-card/60 border-border p-3 sm:p-4" data-testid="protocol-top">
+          <div className="flex flex-col sm:flex-row sm:items-end gap-2">
+            <div className="flex-1 min-w-0">
+              <Label htmlFor="protocol-name" className="text-[10px] uppercase tracking-wider text-muted-foreground">Nome do protocolo</Label>
+              <Input id="protocol-name" value={name} onChange={(e) => setName(e.target.value)} className="mt-1 h-9 text-sm w-full" />
             </div>
-
-            <div className="flex items-center gap-2 min-w-0 max-w-[55%] sm:max-w-[40%] shrink-0">
-              <div className="min-w-0 text-right">
-                <p className="text-[9px] uppercase tracking-wider text-muted-foreground leading-none mb-0.5">Aluno</p>
-                <Private as="p" className="text-sm font-semibold text-foreground truncate">{studentName}</Private>
-              </div>
-              <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold uppercase text-xs shrink-0">
-                <Private>{studentName.slice(0, 2)}</Private>
-              </div>
+            <div className="grid grid-cols-4 sm:flex sm:items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-11 sm:h-9 flex-col sm:flex-row gap-0.5 sm:gap-1.5 text-[10px] sm:text-xs px-1 sm:px-3"
+                onClick={() => window.open(`/student-area?previewAs=${studentId}&draftPreview=1`, "_blank")}
+                title="Ver como aluno"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span className="sm:hidden">Prévia</span>
+                <span className="hidden sm:inline">Ver como aluno</span>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-11 sm:h-9 flex-col sm:flex-row gap-0.5 sm:gap-1.5 text-[10px] sm:text-xs px-1 sm:px-3"
+                onClick={() => setChangeHistoryOpen(true)}
+                title="Histórico de alterações"
+              >
+                <History className="w-3.5 h-3.5" />
+                <span>Alterações</span>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-11 sm:h-9 flex-col sm:flex-row gap-0.5 sm:gap-1.5 text-[10px] sm:text-xs px-1 sm:px-3"
+                onClick={() => setConsultOpen(true)}
+                title="Abrir anamnese do aluno"
+              >
+                <ClipboardList className="w-3.5 h-3.5" />
+                <span>Anamnese</span>
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-11 sm:h-9 flex-col sm:flex-row gap-0.5 sm:gap-1.5 text-[10px] sm:text-xs px-1 sm:px-3"
+                    title="Mais ações"
+                    data-testid="protocol-more-menu"
+                  >
+                    <MoreHorizontal className="w-3.5 h-3.5" />
+                    <span>Mais</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-60">
+                  <DropdownMenuItem onSelect={() => setSetupOpen(true)} className="text-xs">
+                    <Sparkles className="w-3.5 h-3.5 mr-2" /> Recriar base
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setLibraryOpen(true)} className="text-xs">
+                    <Library className="w-3.5 h-3.5 mr-2" /> Biblioteca de templates
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setCopyOpen(true)} className="text-xs">
+                    <Copy className="w-3.5 h-3.5 mr-2" /> Copiar para outro aluno
+                  </DropdownMenuItem>
+                  {isEditMode && (
+                    <DropdownMenuItem onSelect={() => setHistoryOpen(true)} className="text-xs">
+                      <History className="w-3.5 h-3.5 mr-2" /> Histórico de versões
+                    </DropdownMenuItem>
+                  )}
+                  {isEditMode && (
+                    <DropdownMenuItem onSelect={openRenewalSuggestion} className="text-xs">
+                      <RefreshCw className="w-3.5 h-3.5 mr-2" /> Renovar ciclo (IA)
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => setImportExportOpen(true)} className="text-xs" data-testid="menu-import-export">
+                    <Settings2 className="w-3.5 h-3.5 mr-2" /> Importar / Exportar
+                  </DropdownMenuItem>
+                  {/* Só "Ativar": desligar por aqui nunca chegava ao aluno (o rascunho não
+                      grava "ativo" e publicar exige ativo) — o protocolo seguia visível. */}
+                  {!active && (
+                    <DropdownMenuItem onSelect={() => setActive(true)} className="text-xs" data-testid="menu-activate">
+                      <CheckCircle2 className="w-3.5 h-3.5 mr-2" /> Ativar protocolo
+                    </DropdownMenuItem>
+                  )}
+                  {isEditMode && hasDraft && (
+                    <DropdownMenuItem onSelect={() => void discardDraft()} className="text-xs text-destructive focus:text-destructive">
+                      <Trash2 className="w-3.5 h-3.5 mr-2" /> Descartar rascunho
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
-
-          {/* Name input + ações (cabeçalho enxuto: 2 ações diretas + menu) */}
-          {payload && (
-            <div>
-              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Nome do protocolo</Label>
-              <div className="mt-1 flex items-center gap-2">
-                <Input value={name} onChange={(e) => setName(e.target.value)} className="h-9 text-sm flex-1" />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-9 text-xs"
-                  onClick={() => window.open(`/student-area?previewAs=${studentId}&draftPreview=1`, "_blank")}
-                  title="Ver como aluno"
-                >
-                  <Eye className="w-3.5 h-3.5 sm:mr-1.5" />
-                  <span className="hidden sm:inline">Ver como aluno</span>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-9 text-xs"
-                  onClick={() => setChangeHistoryOpen(true)}
-                  title="Histórico de alterações"
-                >
-                  <History className="w-3.5 h-3.5 sm:mr-1.5" />
-                  <span className="hidden sm:inline">Alterações</span>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-9 text-xs"
-                  onClick={() => setConsultOpen(true)}
-                  title="Abrir anamnese do aluno"
-                >
-                  <ClipboardList className="w-3.5 h-3.5 sm:mr-1.5" />
-                  <span className="hidden sm:inline">Anamnese</span>
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="sm" variant="outline" className="h-9 text-xs" title="Mais ações">
-                      <MoreHorizontal className="w-3.5 h-3.5 sm:mr-1.5" />
-                      <span className="hidden sm:inline">Mais</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuItem onSelect={() => setSetupOpen(true)} className="text-xs">
-                      <Sparkles className="w-3.5 h-3.5 mr-2" /> Recriar base
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => setLibraryOpen(true)} className="text-xs">
-                      <Library className="w-3.5 h-3.5 mr-2" /> Biblioteca de templates
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => setCopyOpen(true)} className="text-xs">
-                      <Copy className="w-3.5 h-3.5 mr-2" /> Copiar para outro aluno
-                    </DropdownMenuItem>
-                    {isEditMode && (
-                      <DropdownMenuItem onSelect={() => setHistoryOpen(true)} className="text-xs">
-                        <History className="w-3.5 h-3.5 mr-2" /> Histórico de versões
-                      </DropdownMenuItem>
-                    )}
-                    {isEditMode && (
-                      <DropdownMenuItem onSelect={openRenewalSuggestion} className="text-xs">
-                        <RefreshCw className="w-3.5 h-3.5 mr-2" /> Renovar ciclo (IA)
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          )}
-        </div>
-      </Card>
-
-      {isEditMode && hasDraft && (
-        <Card className="border-amber-500/40 bg-amber-500/5 p-3 flex items-start gap-3">
-          <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-foreground/90">
-              Você está editando um <strong>rascunho não publicado</strong>. O aluno continua vendo a última versão publicada.
-            </p>
-          </div>
-          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={discardDraft}>
-            Descartar rascunho
-          </Button>
         </Card>
       )}
 
@@ -1099,29 +1077,22 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             <div className={cn("space-y-4", !active && "opacity-60 saturate-50")}>
 
           <Tabs value={activeTab} onValueChange={handleTabChange}>
-            {(() => {
-              const completion = computeCompletion(payload);
-              const flags = [completion.macros, completion.guidelines, completion.workouts, completion.diet];
-              const doneCount = flags.filter(Boolean).length;
-              return doneCount < 4 ? (
-                <div className="mb-2 px-1 text-[11px] text-muted-foreground">
-                  {doneCount} de 4 seções preenchidas
-                </div>
-              ) : null;
-            })()}
-            <TabsList className="flex w-full overflow-x-auto gap-0 h-auto p-1">
+            {/* Celular: 4 colunas sem rolagem (antes a 1ª aba aparecia cortada). */}
+            <TabsList className="grid grid-cols-4 w-full h-auto p-1 gap-0.5 sm:flex sm:justify-center">
               {(() => {
                 const c = computeCompletion(payload);
-                const tabs: Array<{ v: "macros"|"guidelines"|"workouts"|"diet"; label: string; icon: JSX.Element; done: boolean }> = [
-                  { v: "workouts",   label: "1 · Treino",     icon: <Dumbbell className="w-3.5 h-3.5 mr-1" />,         done: c.workouts },
-                  { v: "macros",     label: "2 · Macros",     icon: <BarChart3 className="w-3.5 h-3.5 mr-1" />,        done: c.macros },
-                  { v: "diet",       label: "3 · Dieta",      icon: <UtensilsCrossed className="w-3.5 h-3.5 mr-1" />,  done: c.diet },
-                  { v: "guidelines", label: "4 · Diretrizes", icon: <FileText className="w-3.5 h-3.5 mr-1" />,         done: c.guidelines },
+                const tabs: Array<{ v: "macros"|"guidelines"|"workouts"|"diet"; n: number; label: string; icon: JSX.Element; done: boolean }> = [
+                  { v: "workouts",   n: 1, label: "Treino",     icon: <Dumbbell className="w-3.5 h-3.5 mr-1" />,         done: c.workouts },
+                  { v: "macros",     n: 2, label: "Macros",     icon: <BarChart3 className="w-3.5 h-3.5 mr-1" />,        done: c.macros },
+                  { v: "diet",       n: 3, label: "Dieta",      icon: <UtensilsCrossed className="w-3.5 h-3.5 mr-1" />,  done: c.diet },
+                  { v: "guidelines", n: 4, label: "Diretrizes", icon: <FileText className="w-3.5 h-3.5 mr-1" />,         done: c.guidelines },
                 ];
                 return tabs.map((t) => (
-                  <TabsTrigger key={t.v} value={t.v} className="shrink-0">
-                    {t.icon}{t.label}
-                    {t.done && <CheckCircle2 className="w-3 h-3 ml-1 text-emerald-500" />}
+                  <TabsTrigger key={t.v} value={t.v} className="min-w-0 px-1 sm:px-3 text-xs sm:text-sm">
+                    <span className="hidden sm:inline-flex">{t.icon}</span>
+                    <span className="hidden sm:inline">{t.n} ·&nbsp;</span>
+                    <span className="truncate">{t.label}</span>
+                    {t.done && <CheckCircle2 className="w-3 h-3 ml-1 shrink-0 text-emerald-500" aria-label="preenchido" />}
                   </TabsTrigger>
                 ));
               })()}
@@ -1182,73 +1153,45 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
             </div>
           </div>
 
-          <div className="sticky bottom-4 z-40 space-y-2">
-            {isEditMode && pendingChanges.length > 0 && (
-              <Card className="bg-background/95 backdrop-blur border-primary/30 shadow-lg overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setPendingOpen((v) => !v)}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-primary/5 transition"
-                >
-                  <AlertCircle className="w-4 h-4 text-primary" />
-                  <span className="text-xs font-semibold flex-1">
-                    {pendingChanges.length} {pendingChanges.length === 1 ? "alteração pendente" : "alterações pendentes"}
-                  </span>
-                  <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", pendingOpen && "rotate-180")} />
-                </button>
-                {pendingOpen && (
-                  <ul className="border-t border-border max-h-52 overflow-y-auto divide-y divide-border">
-                    {pendingChanges.slice(0, 30).map((c, i) => (
-                      <li key={i} className="px-3 py-2 text-[11px]">
-                        <div className="font-medium text-foreground/90">{c.label}</div>
-                        {c.detail && <div className="text-muted-foreground mt-0.5">{c.detail}</div>}
-                      </li>
-                    ))}
-                    {pendingChanges.length > 30 && (
-                      <li className="px-3 py-2 text-[11px] italic text-muted-foreground">
-                        + {pendingChanges.length - 30} outras alterações…
-                      </li>
-                    )}
-                  </ul>
-                )}
-              </Card>
-            )}
-            {/* C1: deixa explícito o que o aluno está vendo. Antes era uma
-                legenda de 10px — origem do "minhas observações sumiram". */}
-            {isEditMode && (hasDraft || isDirty) && saveStatus !== "saving" && (
-              <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800 px-3 py-2 text-sm text-amber-900 dark:text-amber-200 flex items-start gap-2 shadow-sm" role="status">
-                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                <span>
-                  <strong>O aluno ainda NÃO vê estas mudanças.</strong> Elas estão guardadas como rascunho — toque em <strong>Publicar para o aluno</strong> quando terminar.
-                </span>
-              </div>
-            )}
-            {!active && (
-              <div className="rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm text-foreground flex items-start gap-2" role="status">
-                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />
-                <span>Protocolo marcado como <strong>Inativo</strong> (no topo). Ative para poder publicar.</span>
-              </div>
-            )}
-            <div className="flex flex-wrap items-center gap-2">
-              {isEditMode && (
-                <span className="text-xs text-muted-foreground px-1" aria-live="polite">
-                  {saveStatus === "saving" || isAutosaving ? "Salvando…"
-                    : saveStatus === "conflict" ? "Conflito: recarregue a versão mais recente"
-                    : saveStatus === "error" ? "Erro ao salvar"
-                    : isDirty ? "Alterações não salvas"
-                    : hasDraft ? `Rascunho salvo${lastAutosavedAt ? ` às ${lastAutosavedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : ""} — aluno vê a versão anterior`
-                    : "Publicado"}
-                </span>
-              )}
-              {/* Não desativa quando "Inativo": o clique explica o motivo (antes nada acontecia). */}
-              <Button onClick={() => save()} disabled={saving} size="lg" className="shadow-lg">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                {isEditMode ? "Publicar para o aluno" : "Criar e publicar"}
-              </Button>
-            </div>
-          </div>
+          <PublishBar
+            status={{
+              isEditMode,
+              active,
+              publishing: saving,
+              autosaving: isAutosaving,
+              saveStatus,
+              isDirty,
+              hasDraft,
+              lastAutosavedAt,
+            }}
+            pendingChanges={pendingChanges}
+            publishLabel={isEditMode ? { full: "Publicar para o aluno", short: "Publicar" } : { full: "Criar e publicar", short: "Criar e publicar" }}
+            publishing={saving}
+            onPublish={() => save()}
+            onActivate={() => setActive(true)}
+            onDiscardDraft={isEditMode && hasDraft ? () => void discardDraft() : undefined}
+          />
         </>
       )}
+
+      <Dialog open={importExportOpen} onOpenChange={setImportExportOpen}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>Importar / Exportar</DialogTitle>
+            <DialogDescription className="text-xs">
+              Baixe o protocolo em Excel ou JSON, ou importe um JSON — a importação só troca as seções que vierem no arquivo.
+            </DialogDescription>
+          </DialogHeader>
+          {payload && (
+            <ProtocolImportExport
+              hideHeading
+              payload={payload}
+              studentName={studentName}
+              onImport={(p) => { updatePayload(mergeImportedPayload(payload, p)); setProtocolId(protocolId); setImportExportOpen(false); }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Recuperação de rascunho local (protocolo novo, não salvo no banco) */}
       <Dialog open={localDraftOpen} onOpenChange={() => { /* bloqueante: exige escolha */ }}>

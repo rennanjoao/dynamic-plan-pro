@@ -45,6 +45,8 @@ interface Props {
   studentName: string;
   onImport: (next: ProtocolPayload) => void;
   studentId?: string | null;
+  /** Dentro de um diálogo que já tem título, esconde o rótulo interno repetido. */
+  hideHeading?: boolean;
 }
 
 /** Estados explícitos da máquina de estados do fluxo de importação. */
@@ -496,7 +498,7 @@ function buildTemplateNotes(p: ProtocolPayload) {
   };
 }
 
-export default function ProtocolImportExport({ payload, studentName, onImport }: Props) {
+export default function ProtocolImportExport({ payload, studentName, onImport, hideHeading = false }: Props) {
   const jsonRef = useRef<HTMLInputElement>(null);
   const [importState, setImportState] = useState<ImportState>({ stage: "IDLE" });
 
@@ -714,10 +716,12 @@ export default function ProtocolImportExport({ payload, studentName, onImport }:
           void commit(next);
         }}
       />
-      <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground px-1 pb-1.5">
-        <Settings2 className="w-3 h-3" />
-        Importar / Exportar protocolo
-      </div>
+      {!hideHeading && (
+        <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground px-1 pb-1.5">
+          <Settings2 className="w-3 h-3" />
+          Importar / Exportar protocolo
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-lg bg-muted/20 border border-border/40">
         <Button variant="outline" size="sm" onClick={downloadXlsx} type="button" title="Baixar esboço .xlsx">
           <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Excel
