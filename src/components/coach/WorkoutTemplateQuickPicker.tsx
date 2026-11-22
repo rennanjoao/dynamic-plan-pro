@@ -30,7 +30,7 @@ export function WorkoutTemplateQuickPicker({
     const hasContent = payload.workouts.some((d) => d.exercises.length > 0);
     if (hasContent && !(await confirm({
       title: "Substituir dias de treino",
-      description: "Os dias de treino atuais serão substituídos pelos do template. Dieta, macros, suplementos e diretrizes não são afetados. Continuar?",
+      description: "Os dias de treino atuais serão substituídos pelos do modelo. Dieta, macros, suplementos e diretrizes não são afetados. Continuar?",
       confirmLabel: "Aplicar",
     }))) return false;
     setPayload(injectWorkoutBlock(payload, tpl.payload, mode));
@@ -43,8 +43,8 @@ export function WorkoutTemplateQuickPicker({
     <SectionTemplateQuickPicker<WorkoutBlockTemplate>
       coachId={coachId}
       applyLabel="Aplicar treino"
-      applyPlaceholder="Buscar template de treino..."
-      emptyLabel="Nenhum template encontrado."
+      applyPlaceholder="Buscar modelo de treino..."
+      emptyLabel="Nenhum modelo encontrado."
       loadItems={listWorkoutBlockTemplates}
       onApply={(tpl) => applyTemplate(tpl, "filled")}
       searchValue={(tpl) => `${tpl.name} ${tpl.division ?? ""} ${tpl.profile ?? ""}`}
@@ -55,7 +55,7 @@ export function WorkoutTemplateQuickPicker({
       }}
       canSave={canSave}
       saveLabel="Salvar treino"
-      savingHint="Salvar dias de treino atuais como template"
+      savingHint="Salvar dias de treino atuais como modelo"
       defaultSaveName={() => `Treino ${formatDatePtBR(new Date())}`}
       onSave={({ name, existingId }) =>
         saveWorkoutBlockAsTemplate({

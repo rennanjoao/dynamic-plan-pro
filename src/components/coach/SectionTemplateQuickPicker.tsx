@@ -68,7 +68,7 @@ export function SectionTemplateQuickPicker<T extends BaseTemplate>({
     setLoading(true);
     loadItems(coachId)
       .then((r) => { if (active) setItems(r); })
-      .catch((e) => toast.error(e?.message || "Falha ao carregar templates"))
+      .catch((e) => toast.error(e?.message || "Falha ao carregar modelos"))
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -91,7 +91,7 @@ export function SectionTemplateQuickPicker<T extends BaseTemplate>({
       setSaving(true);
       try {
         await onSave({ name: saveName, existingId: savingAsId });
-        toast.success("Template atualizado");
+        toast.success("Modelo atualizado");
       } catch (e: any) {
         toast.error(e?.message || "Falha ao salvar");
       } finally { setSaving(false); }
@@ -163,11 +163,11 @@ export function SectionTemplateQuickPicker<T extends BaseTemplate>({
                           <button
                             type="button"
                             className="text-muted-foreground hover:text-destructive shrink-0 p-1"
-                            title="Excluir template"
+                            title="Excluir modelo"
                             onClick={async (e) => {
                               e.stopPropagation();
                               if (!(await confirm({
-                                title: "Excluir template",
+                                title: "Excluir modelo",
                                 description: `"${tpl.name}" será excluído para todos os seus alunos. Protocolos já criados com ele não mudam.`,
                                 confirmLabel: "Excluir",
                                 destructive: true,
@@ -175,7 +175,7 @@ export function SectionTemplateQuickPicker<T extends BaseTemplate>({
                               try {
                                 await onDelete(tpl);
                                 setItems((prev) => prev.filter((i) => i.id !== tpl.id));
-                                toast.success("Template excluído");
+                                toast.success("Modelo excluído");
                               } catch (err) {
                                 toast.error(err instanceof Error ? err.message : "Falha ao excluir");
                               }
@@ -200,7 +200,7 @@ export function SectionTemplateQuickPicker<T extends BaseTemplate>({
             size="sm" variant="outline" className="h-8 text-xs"
             disabled={!canSave || saving}
             onClick={quickSave}
-            title={savingAsId ? "Atualizar template vinculado" : savingHint}
+            title={savingAsId ? "Atualizar o modelo vinculado" : savingHint}
           >
             {saving ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
               : savingAsId ? <Check className="w-3.5 h-3.5 mr-1.5" />
@@ -209,7 +209,7 @@ export function SectionTemplateQuickPicker<T extends BaseTemplate>({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[300px] p-3" align="start">
-          <p className="text-xs text-muted-foreground mb-2">Nome do template</p>
+          <p className="text-xs text-muted-foreground mb-2">Nome do modelo</p>
           <div className="flex gap-1.5">
             <Input
               autoFocus value={saveName} onChange={(e) => setSaveName(e.target.value)}

@@ -28,7 +28,7 @@ export function MobilityTemplateBar({
   applyOnly = false,
 }: {
   coachId: string | null;
-  /** Treino sem mobilidade: só "Usar bloco salvo" (não há o que salvar). */
+  /** Treino sem mobilidade: só "Modelo de mobilidade" (não há o que salvar). */
   applyOnly?: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   currentMobility: any[];
@@ -84,7 +84,7 @@ export function MobilityTemplateBar({
     setName("");
     setSaveOpen(false);
     qc.invalidateQueries({ queryKey: ["mobility-templates", coachId] });
-    toast({ title: "Bloco de mobilidade salvo" });
+    toast({ title: "Modelo de mobilidade salvo" });
   };
 
   const remove = async (id: string) => {
@@ -116,11 +116,11 @@ export function MobilityTemplateBar({
       <Popover open={saveOpen} onOpenChange={setSaveOpen}>
         <PopoverTrigger asChild>
           <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px] text-sky-500 hover:bg-sky-500/10">
-            <Save className="w-3 h-3 mr-1" /> Salvar bloco
+            <Save className="w-3 h-3 mr-1" /> Salvar modelo
           </Button>
         </PopoverTrigger>
         <PopoverContent align="end" className="w-64 space-y-2">
-          <p className="text-xs font-semibold">Salvar bloco de mobilidade</p>
+          <p className="text-xs font-semibold">Salvar mobilidade como modelo</p>
           <p className="text-[11px] text-muted-foreground">{cleaned.length} exercício(s) serão salvos.</p>
           <Input
             value={name}
@@ -138,14 +138,14 @@ export function MobilityTemplateBar({
       <Popover open={listOpen} onOpenChange={setListOpen}>
         <PopoverTrigger asChild>
           <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px] text-sky-500 hover:bg-sky-500/10">
-            <FolderOpen className="w-3 h-3 mr-1" /> {applyOnly ? "Usar bloco salvo" : "Usar salva"}
+            <FolderOpen className="w-3 h-3 mr-1" /> {applyOnly ? "Modelo de mobilidade" : "Usar modelo"}
           </Button>
         </PopoverTrigger>
         <PopoverContent align="end" className="w-72 p-2">
-          <p className="text-xs font-semibold mb-2">Blocos salvos</p>
+          <p className="text-xs font-semibold mb-2">Modelos de mobilidade</p>
           {isLoading && <p className="text-[11px] text-muted-foreground">Carregando…</p>}
           {!isLoading && templates.length === 0 && (
-            <p className="text-[11px] text-muted-foreground">Nenhum bloco salvo ainda.</p>
+            <p className="text-[11px] text-muted-foreground">Nenhum modelo de mobilidade salvo ainda.</p>
           )}
           <div className="space-y-1 max-h-64 overflow-y-auto">
             {templates.map((tpl) => (
@@ -164,7 +164,7 @@ export function MobilityTemplateBar({
                   type="button"
                   onClick={() => remove(tpl.id)}
                   className="p-1.5 text-muted-foreground hover:text-destructive"
-                  title="Excluir bloco salvo"
+                  title="Excluir modelo"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>

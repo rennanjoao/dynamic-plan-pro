@@ -29,7 +29,7 @@ export function GuidelinesTemplateQuickPicker({
   async function applyTemplate(tpl: GuidelinesTemplate) {
     if (hasAnyGuideline(payload.guidelines) && !(await confirm({
       title: "Substituir diretrizes",
-      description: "As diretrizes atuais (treino, dieta, semana e sono) serão substituídas pelas do template. Treino, dieta e suplementos não são afetados. Continuar?",
+      description: "As diretrizes atuais (treino, dieta, semana e sono) serão substituídas pelas do modelo. Treino, dieta e suplementos não são afetados. Continuar?",
       confirmLabel: "Aplicar",
     }))) return false;
     setPayload(injectGuidelines(payload, tpl.payload));
@@ -40,14 +40,14 @@ export function GuidelinesTemplateQuickPicker({
     <SectionTemplateQuickPicker<GuidelinesTemplate>
       coachId={coachId}
       applyLabel="Aplicar diretrizes"
-      applyPlaceholder="Buscar template de diretrizes..."
-      emptyLabel="Nenhum template encontrado."
+      applyPlaceholder="Buscar modelo de diretrizes..."
+      emptyLabel="Nenhum modelo encontrado."
       loadItems={listGuidelinesTemplates}
       onApply={applyTemplate}
       onDelete={(tpl) => deleteGuidelinesTemplate(tpl.id, coachId as string)}
       canSave={hasAnyGuideline(payload.guidelines)}
       saveLabel="Salvar diretrizes"
-      savingHint="Salvar diretrizes atuais como template"
+      savingHint="Salvar diretrizes atuais como modelo"
       defaultSaveName={() => `Diretrizes ${formatDatePtBR(new Date())}`}
       onSave={({ name, existingId }) =>
         saveGuidelinesAsTemplate({

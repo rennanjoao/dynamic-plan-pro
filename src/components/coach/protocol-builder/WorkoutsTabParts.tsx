@@ -8,12 +8,11 @@
  *    marca de exceção quando a periodização está ligada.
  *  - CardioSection: aeróbicos num lugar só, vinculados a treino, a qualquer
  *    dia da semana (inclusive descanso) ou sem vínculo.
- *  - TemplatesMenu: um botão "Modelos" com aplicar/salvar treino e
- *    periodização + biblioteca completa.
+ *  - O botão "Modelos" agora é o ModelsMenu (mesmo botão em todas as abas).
  */
 import { useState } from "react";
 import {
-  Activity, ArrowDown, ArrowUp, ArrowUpDown, Copy, LayoutTemplate, Library, MoreHorizontal, Plus,
+  Activity, ArrowDown, ArrowUp, ArrowUpDown, Copy, MoreHorizontal, Plus,
   Repeat2, StretchHorizontal, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -45,6 +44,8 @@ export function WeekStripEditor({
   letterOf,
   onSetDay,
   onCycleCarb,
+  showCarb = true,
+  onOpenMacros,
 }: {
   workouts: Array<{ key?: string; focus?: string }>;
   weekDays: Record<string, string>;
@@ -54,13 +55,30 @@ export function WeekStripEditor({
   /** value "" = sem treino definido; "REST" = descanso. */
   onSetDay: (day: string, value: string) => void;
   onCycleCarb: (day: string) => void;
+  /**
+   * Carbo por dia só aparece com o ciclo ligado (aba Macros). Desligado, os
+   * selos "BASE" não faziam nada para o aluno — e clicar neles confundia.
+   */
+  showCarb?: boolean;
+  /** Atalho "ligar em Macros" quando o ciclo está desligado. */
+  onOpenMacros?: () => void;
 }) {
   const [openDay, setOpenDay] = useState<string | null>(null);
   return (
     <Card className="bg-card/40 border-border p-2.5" data-testid="week-strip">
       <div className="flex items-center justify-between mb-1.5 px-1 gap-2">
         <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Semana</p>
-        <p className="text-[9px] text-muted-foreground text-right">Toque no dia para escolher o treino · no carbo para Alto · Base · Baixo</p>
+        <p className="text-[9px] text-muted-foreground text-right">
+          Toque no dia para escolher o treino
+          {showCarb ? " · no carbo para Alto · Base · Baixo" : (
+            <>
+              {" · ciclo de carbo desligado"}
+              {onOpenMacros && (
+                <> (<button type="button" onClick={onOpenMacros} className="underline underline-offset-2 hover:text-foreground" data-testid="week-strip-open-macros">ligar em Macros</button>)</>
+              )}
+            </>
+          )}
+        </p>
       </div>
       <div className="grid grid-cols-7 gap-1">
         {DAY_KEYS.map((k) => {
@@ -122,6 +140,7 @@ export function WeekStripEditor({
                   )}
                 </PopoverContent>
               </Popover>
+              {showCarb && (
               <button
                 type="button"
                 onClick={() => onCycleCarb(k)}
@@ -136,6 +155,7 @@ export function WeekStripEditor({
               >
                 {CARB_LABEL[carb]}
               </button>
+              )}
             </div>
           );
         })}
@@ -415,44 +435,3 @@ export function CardioSection({
   );
 }
 
-// ── Botão "Modelos" ─────────────────────────────────────────────────────────
-
-export function TemplatesMenu({
-  workoutPicker,
-  periodizationPicker,
-  onOpenLibrary,
-}: {
-  workoutPicker: React.ReactNode;
-  periodizationPicker: React.ReactNode;
-  onOpenLibrary?: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" data-testid="templates-menu">
-          <LayoutTemplate className="w-3.5 h-3.5" /> Modelos
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-[320px] p-3 space-y-3">
-        <div className="space-y-1.5">
-          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Treino</p>
-          {workoutPicker}
-        </div>
-        <div className="space-y-1.5">
-          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Periodização</p>
-          {periodizationPicker}
-        </div>
-        {onOpenLibrary && (
-          <button
-            type="button"
-            onClick={() => { setOpen(false); onOpenLibrary(); }}
-            className="w-full flex items-center gap-1.5 rounded-md border border-border/60 px-2 py-1.5 text-xs hover:bg-muted"
-          >
-            <Library className="w-3.5 h-3.5" /> Biblioteca completa (dietas, periodizações e protocolos)
-          </button>
-        )}
-      </PopoverContent>
-    </Popover>
-  );
-}

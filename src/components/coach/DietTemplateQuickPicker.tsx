@@ -30,7 +30,7 @@ export function DietTemplateQuickPicker({
     const hasContent = payload.meals.length > 0;
     if (hasContent && !(await confirm({
       title: "Substituir refeições",
-      description: "As refeições atuais serão substituídas pelas do template. Treino, macros, suplementos, periodização e diretrizes não são afetados. Continuar?",
+      description: "As refeições atuais serão substituídas pelas do modelo. Treino, macros, suplementos, periodização e diretrizes não são afetados. Continuar?",
       confirmLabel: "Aplicar",
     }))) return false;
     setPayload(injectDietBlock(payload, tpl.payload));
@@ -43,13 +43,13 @@ export function DietTemplateQuickPicker({
     <SectionTemplateQuickPicker<DietBlockTemplate>
       coachId={coachId}
       applyLabel="Aplicar dieta"
-      applyPlaceholder="Buscar template de dieta..."
-      emptyLabel="Nenhum template encontrado."
+      applyPlaceholder="Buscar modelo de dieta..."
+      emptyLabel="Nenhum modelo encontrado."
       loadItems={listDietBlockTemplates}
       onApply={applyTemplate}
       canSave={canSave}
       saveLabel="Salvar dieta"
-      savingHint="Salvar refeições atuais como template"
+      savingHint="Salvar refeições atuais como modelo"
       defaultSaveName={() => `Dieta ${formatDatePtBR(new Date())}`}
       onSave={({ name, existingId }) =>
         saveDietBlockAsTemplate({

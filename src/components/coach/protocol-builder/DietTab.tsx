@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { toIndependentMeal } from "@/lib/mealCopy";
 import { DietTemplateQuickPicker } from "@/components/coach/DietTemplateQuickPicker";
+import { ModelsMenu } from "./ModelsMenu";
 import {
   ProtocolPayload, makeEmptyMeal, MEAL_NAME_PRESETS, SUPPLEMENT_OBJECTIVES, genItemId,
 } from "@/lib/protocolSchema";
@@ -372,27 +373,35 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <DietTemplateQuickPicker payload={payload} setPayload={setPayload} coachId={coachId} />
-        {onOpenTemplateLibrary && (
-          <button
-            type="button"
-            onClick={onOpenTemplateLibrary}
-            className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
-          >
-            biblioteca completa (treinos, periodizações e protocolos)
-          </button>
-        )}
-      </div>
-
-      {/* Fica abaixo do cabeçalho fixo da tela de edição (--coach-header-h, definido no CoachDashboard). */}
-      <div className="sticky top-[var(--coach-header-h,0px)] z-[60] -mx-2 px-2 pb-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+      {/* Fica abaixo do cabeçalho fixo da tela de edição (--coach-header-h, definido no CoachDashboard).
+          z-40: acima da refeição em edição (z-30) e abaixo de menus e diálogos (z-50) —
+          antes era z-60 e cobria o topo da biblioteca e dos menus abertos daqui. */}
+      <div className="sticky top-[var(--coach-header-h,0px)] z-40 -mx-2 px-2 pb-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <Card className="bg-card/80 border-border p-3">
           <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
             <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Macros do dia (auto) vs meta</p>
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setLoadTplOpen(true)} title="Anexa UMA refeição de um modelo salvo — pra aplicar a dieta inteira, use 'Aplicar dieta' acima">
-              <Library className="w-3 h-3 mr-1" /> Carregar modelo
-            </Button>
+            {/* Modelos: mesmo botão e mesmo canto das outras abas (Pacote B da auditoria). */}
+            <ModelsMenu
+              sections={[
+                { title: "Dieta inteira", content: <DietTemplateQuickPicker payload={payload} setPayload={setPayload} coachId={coachId} /> },
+                {
+                  title: "Uma refeição",
+                  content: (close) => (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs"
+                      onClick={() => { close(); setLoadTplOpen(true); }}
+                      title="Adiciona UMA refeição salva no fim da dieta"
+                      data-testid="add-saved-meal"
+                    >
+                      <Library className="w-3.5 h-3.5 mr-1.5" /> Adicionar refeição salva
+                    </Button>
+                  ),
+                },
+              ]}
+              onOpenLibrary={onOpenTemplateLibrary}
+            />
           </div>
           <div className="grid grid-cols-5 gap-2">
             {bars.map((b) => {
@@ -537,7 +546,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
         <SortableMealCard key={mealId} id={mealId}>
         {({ attributes, listeners }) => (
         <Card
-          className={`bg-card/60 border-border ${isOpen ? "overflow-visible relative focus-within:z-50 border-primary/30" : "overflow-hidden"}`}
+          className={`bg-card/60 border-border ${isOpen ? "overflow-visible relative focus-within:z-30 border-primary/30" : "overflow-hidden"}`}
           data-testid={`meal-card-${mealIdx}`}
         >
           {!isOpen ? (
@@ -1005,11 +1014,11 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
       <Dialog open={loadTplOpen} onOpenChange={setLoadTplOpen}>
         <DialogContent className="sm:max-w-[520px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Biblioteca de refeições</DialogTitle>
-            <DialogDescription className="text-xs">Clique em um modelo para anexar como nova refeição.</DialogDescription>
+            <DialogTitle>Refeições salvas</DialogTitle>
+            <DialogDescription className="text-xs">Clique em uma para adicionar no fim da dieta.</DialogDescription>
           </DialogHeader>
           {templates.length === 0 ? (
-            <p className="text-xs text-muted-foreground italic text-center py-8">Nenhum modelo salvo ainda.</p>
+            <p className="text-xs text-muted-foreground italic text-center py-8">Nenhuma refeição salva ainda — use ⋯ → "Salvar como modelo" em uma refeição.</p>
           ) : (
             <div className="space-y-2 py-2">
               {templates.map((t) => {

@@ -16,13 +16,14 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ProtocolPayload, SUPPLEMENT_OBJECTIVES, SUPPLEMENT_PURCHASE_TYPES } from "@/lib/protocolSchema";
 import { GuidelinesTemplateQuickPicker } from "@/components/coach/GuidelinesTemplateQuickPicker";
+import { ModelsMenu } from "./ModelsMenu";
 
 /**
  * GuidelinesTab + SupplementsSection — extraídos de ProtocolBuilder.tsx
  * sem qualquer mudança de comportamento. Mantidos juntos por acoplamento direto
  * (SupplementsSection é renderizado dentro do GuidelinesTab).
  */
-export function GuidelinesTab({ payload, setPayload, coachId = null }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void; coachId?: string | null }) {
+export function GuidelinesTab({ payload, setPayload, coachId = null, onOpenTemplateLibrary }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void; coachId?: string | null; onOpenTemplateLibrary?: () => void }) {
   const upd = (k: keyof ProtocolPayload["guidelines"], v: string) => setPayload({ ...payload, guidelines: { ...payload.guidelines, [k]: v } });
   const [openMap, setOpenMap] = useState<Record<string, boolean>>({
     training: false, diet: false, weekOrganization: false, supplementation: false,
@@ -38,10 +39,12 @@ export function GuidelinesTab({ payload, setPayload, coachId = null }: { payload
   const setShowToStudent = (v: boolean) => setPayload({ ...payload, showGuidelines: v } as any);
   return (
     <Card className="bg-card/60 border-border p-4 space-y-4">
-      {/* Templates de diretrizes: salvar as atuais / aplicar em qualquer aluno */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <p className="text-xs font-semibold text-muted-foreground">Biblioteca de diretrizes</p>
-        <GuidelinesTemplateQuickPicker payload={payload} setPayload={setPayload} coachId={coachId} />
+      {/* Modelos: mesmo botão e mesmo canto das outras abas (Pacote B da auditoria). */}
+      <div className="flex items-center justify-end gap-2">
+        <ModelsMenu
+          sections={[{ title: "Diretrizes", content: <GuidelinesTemplateQuickPicker payload={payload} setPayload={setPayload} coachId={coachId} /> }]}
+          onOpenLibrary={onOpenTemplateLibrary}
+        />
       </div>
 
       {/* Controle de visibilidade para o aluno */}

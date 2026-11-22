@@ -1,5 +1,5 @@
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
-const ProtocolChangeHistoryDialog = lazyWithRetry(() => import("@/components/coach/ProtocolChangeHistoryDialog"));
+const ProtocolHistoryDialog = lazyWithRetry(() => import("@/components/coach/ProtocolHistoryDialog"));
 /**
  * ProtocolBuilder.tsx — Master Protocol Builder (Fase 2).
  *
@@ -71,14 +71,13 @@ import ProtocolImportExport from "./ProtocolImportExport";
 import ProtocolImportHistory from "./ProtocolImportHistory";
 import WorkoutPeriodizationEditor from "./WorkoutPeriodizationEditor";
 import StudentProtocolPreview from "./StudentProtocolPreview";
-import ProtocolVersionHistoryDialog from "./ProtocolVersionHistoryDialog";
 import TemplateLibraryDialog from "./TemplateLibraryDialog";
 import CopyProtocolDialog from "./CopyProtocolDialog";
 import { buildSaveProtocolArgs } from "@/lib/protocolSave";
 import { pruneOrphanWeekDays } from "@/lib/weekDaysOps";
 import { MacrosTab } from "./protocol-builder/MacrosTab";
 import { GuidelinesTab } from "./protocol-builder/GuidelinesTab";
-import { WorkoutsTab } from "./protocol-builder/WorkoutsTab";
+import { WorkoutsTab, WorkoutModelsMenu } from "./protocol-builder/WorkoutsTab";
 import { BusyWeekInlineEditor, type BusyWeekInlineHandle } from "./busy-week/BusyWeekInlineEditor";
 import { useBusyWeekAssignments } from "@/hooks/useBusyWeek";
 import { DietTab } from "./protocol-builder/DietTab";
@@ -211,7 +210,6 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [setupMeals, setSetupMeals] = useState(5);
   const [setupCarbCycle, setSetupCarbCycle] = useState(false);
   const [consultOpen, setConsultOpen] = useState(false);
-  const [changeHistoryOpen, setChangeHistoryOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   // Ordem do trabalho: Treino → Macros → Dieta → Diretrizes (as diretrizes
   // explicam o que já foi montado). Abre no Treino.
@@ -583,6 +581,20 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const handleTabChange = (v: string) => {
     void flushAutosave();
     setActiveTab(v as typeof activeTab);
+  };
+
+  // Macros → "Editar na semana": a faixa da semana do Treino é o único lugar
+  // de editar treino e carbo por dia (Pacote B da auditoria).
+  const goToWeekStrip = () => {
+    handleTabChange("workouts");
+    setWorkoutsView("main");
+    window.setTimeout(() => {
+      const el = document.querySelector<HTMLElement>('[data-testid="week-strip"]');
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-primary");
+      window.setTimeout(() => el.classList.remove("ring-2", "ring-primary"), 1600);
+    }, 80);
   };
 
   async function discardDraft() {
@@ -983,11 +995,12 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                 size="sm"
                 variant="outline"
                 className="h-11 sm:h-9 flex-col sm:flex-row gap-0.5 sm:gap-1.5 text-[10px] sm:text-xs px-1 sm:px-3"
-                onClick={() => setChangeHistoryOpen(true)}
-                title="Histórico de alterações"
+                onClick={() => setHistoryOpen(true)}
+                title="Histórico: alterações enviadas ao aluno e versões publicadas"
+                data-testid="protocol-history"
               >
                 <History className="w-3.5 h-3.5" />
-                <span>Alterações</span>
+                <span>Histórico</span>
               </Button>
               <Button
                 size="sm"
@@ -1017,16 +1030,11 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                     <Sparkles className="w-3.5 h-3.5 mr-2" /> Recriar base
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => setLibraryOpen(true)} className="text-xs">
-                    <Library className="w-3.5 h-3.5 mr-2" /> Biblioteca de templates
+                    <Library className="w-3.5 h-3.5 mr-2" /> Biblioteca de modelos
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => setCopyOpen(true)} className="text-xs">
                     <Copy className="w-3.5 h-3.5 mr-2" /> Copiar para outro aluno
                   </DropdownMenuItem>
-                  {isEditMode && (
-                    <DropdownMenuItem onSelect={() => setHistoryOpen(true)} className="text-xs">
-                      <History className="w-3.5 h-3.5 mr-2" /> Histórico de versões
-                    </DropdownMenuItem>
-                  )}
                   {isEditMode && (
                     <DropdownMenuItem onSelect={openRenewalSuggestion} className="text-xs">
                       <RefreshCw className="w-3.5 h-3.5 mr-2" /> Renovar ciclo (IA)
@@ -1097,8 +1105,8 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                 ));
               })()}
             </TabsList>
-            <TabsContent value="macros" className="mt-4"><MacrosTab payload={payload} setPayload={updatePayload} /></TabsContent>
-            <TabsContent value="guidelines" className="mt-4"><GuidelinesTab payload={payload} setPayload={updatePayload} coachId={coachId} /></TabsContent>
+            <TabsContent value="macros" className="mt-4"><MacrosTab payload={payload} setPayload={updatePayload} onEditWeek={goToWeekStrip} /></TabsContent>
+            <TabsContent value="guidelines" className="mt-4"><GuidelinesTab payload={payload} setPayload={updatePayload} coachId={coachId} onOpenTemplateLibrary={() => setLibraryOpen(true)} /></TabsContent>
             <TabsContent value="workouts" className="mt-4">
               {/* Treino atual ↔ Semana Corrida: o mesmo editor, um de cada vez. */}
               <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -1130,9 +1138,21 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                 {workoutsView === "busy" && (
                   <p className="text-[11px] text-muted-foreground">Treino secundário para semanas apertadas — salva separado do protocolo.</p>
                 )}
+                {workoutsView === "main" && (
+                  <div className="ml-auto">
+                    <WorkoutModelsMenu payload={payload} setPayload={updatePayload} coachId={coachId} onOpenLibrary={() => setLibraryOpen(true)} />
+                  </div>
+                )}
               </div>
               <div className={workoutsView === "main" ? undefined : "hidden"}>
-                <WorkoutsTab payload={payload} setPayload={updatePayload} coachId={coachId} onOpenTemplateLibrary={() => setLibraryOpen(true)} />
+                <WorkoutsTab
+                  payload={payload}
+                  setPayload={updatePayload}
+                  coachId={coachId}
+                  onOpenTemplateLibrary={() => setLibraryOpen(true)}
+                  hideModelsMenu
+                  onOpenMacros={() => handleTabChange("macros")}
+                />
               </div>
               {busyMounted && (
                 <div className={workoutsView === "busy" ? undefined : "hidden"}>
@@ -1426,12 +1446,15 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         </DialogContent>
       </Dialog>
 
-      {changeHistoryOpen && (
+      {historyOpen && (
         <Suspense fallback={null}>
-          <ProtocolChangeHistoryDialog
-            student={{ id: studentId, name: studentName || "Aluno", lastAnamnesis: null, isExempt: false }}
-            open={changeHistoryOpen}
-            onClose={() => setChangeHistoryOpen(false)}
+          <ProtocolHistoryDialog
+            open={historyOpen}
+            onOpenChange={setHistoryOpen}
+            studentId={studentId}
+            studentName={studentName}
+            protocolId={protocolId}
+            onRestore={(p) => { updatePayload(p); }}
           />
         </Suspense>
       )}
@@ -1456,16 +1479,6 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
           section={activeTab}
         />
       )}
-
-      <ProtocolVersionHistoryDialog
-        open={historyOpen}
-        onOpenChange={setHistoryOpen}
-        protocolId={protocolId}
-        protocolName={name}
-        onRestore={(p) => {
-          updatePayload(p);
-        }}
-      />
 
       <TemplateLibraryDialog
         open={libraryOpen}

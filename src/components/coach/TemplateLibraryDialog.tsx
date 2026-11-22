@@ -192,7 +192,7 @@ export default function TemplateLibraryDialog({
         periodization: treinos.periodization,
       });
       if (!parsedBlock.success || parsedBlock.data.workouts.length === 0) {
-        toast.error("Template sem dias de treino salvos");
+        toast.error("Modelo sem dias de treino salvos");
         return;
       }
       setPayload(injectWorkoutBlock(payload, parsedBlock.data, mode));
@@ -206,7 +206,7 @@ export default function TemplateLibraryDialog({
     } else if (item.type === "diet") {
       const parsed = DietBlockPayloadSchema.safeParse(item.raw.dieta);
       if (!parsed.success || parsed.data.meals.length === 0) {
-        toast.error("Template sem refeições salvas");
+        toast.error("Modelo sem refeições salvas");
         return;
       }
       setPayload(injectDietBlock(payload, parsed.data));
@@ -214,7 +214,7 @@ export default function TemplateLibraryDialog({
     } else if (item.type === "periodization") {
       const parsed = PeriodizationBlockPayloadSchema.safeParse(item.raw.periodizacao);
       if (!parsed.success) {
-        toast.error("Template de periodização inválido");
+        toast.error("Modelo de periodização inválido");
         return;
       }
       const { payload: next, applied, skipped } = injectPeriodizationBlock(payload, parsed.data);
@@ -227,12 +227,12 @@ export default function TemplateLibraryDialog({
     } else {
       if (!(await confirm({
         title: "Aplicar protocolo completo",
-        description: "Isso substitui treino, dieta, suplementos e macros pelos deste template. Continuar?",
+        description: "Isso substitui treino, dieta, suplementos e macros pelos deste modelo. Continuar?",
         destructive: true,
         confirmLabel: "Aplicar",
       }))) return;
       const parsed = ProtocolPayloadSchema.safeParse(item.raw.payload);
-      if (!parsed.success) { toast.error("Template com payload inválido"); return; }
+      if (!parsed.success) { toast.error("Modelo com conteúdo inválido"); return; }
       setPayload(parsed.data);
       toast.success("Protocolo aplicado");
     }
@@ -242,7 +242,7 @@ export default function TemplateLibraryDialog({
   async function deleteItem(item: TplItem) {
     if (item.isSystem) return;
     if (!(await confirm({
-      title: `Excluir template`,
+      title: `Excluir modelo`,
       description: `Excluir "${item.name}"? Essa ação não pode ser desfeita.`,
       destructive: true,
       confirmLabel: "Excluir",
@@ -264,7 +264,7 @@ export default function TemplateLibraryDialog({
         const { error } = await supabase.from(table).delete().eq("id", item.id);
         if (error) throw error;
       }
-      toast.success("Template excluído");
+      toast.success("Modelo excluído");
       reload();
     } catch (e: any) {
       toast.error(e?.message || "Falha ao excluir");
@@ -275,13 +275,13 @@ export default function TemplateLibraryDialog({
   async function editItem(item: TplItem) {
     if (!payload || item.isSystem || item.type !== "protocol") return;
     if (!(await confirm({
-      title: "Editar template no builder",
-      description: "Isso substitui TODO o conteúdo atual (treino, dieta, suplementos e macros) pelo do template. Se você estava editando o protocolo de um aluno, essa edição em andamento será perdida. Continuar?",
+      title: "Editar modelo no construtor",
+      description: "Isso substitui TODO o conteúdo atual (treino, dieta, suplementos e macros) pelo do modelo. Se você estava editando o protocolo de um aluno, essa edição em andamento será perdida. Continuar?",
       destructive: true,
-      confirmLabel: "Carregar template",
+      confirmLabel: "Carregar modelo",
     }))) return;
     const parsed = ProtocolPayloadSchema.safeParse(item.raw.payload);
-    if (!parsed.success) { toast.error("Template com payload inválido"); return; }
+    if (!parsed.success) { toast.error("Modelo com conteúdo inválido"); return; }
     setPayload(parsed.data);
     setEditingTemplate({ id: item.id, name: item.name });
     onOpenChange(false);
@@ -303,11 +303,11 @@ export default function TemplateLibraryDialog({
           .eq("is_template", true)
           .eq("coach_id", coachId);
         if (error) throw error;
-        toast.success("Template atualizado");
+        toast.success("Modelo atualizado");
         setEditingTemplate(null);
       } else {
         await saveProtocolAsTemplate(coachId, trimmed, payload);
-        toast.success("Protocolo salvo como template");
+        toast.success("Protocolo salvo como modelo");
       }
       setSaveOpen(null);
       setSaveName("");
@@ -403,7 +403,7 @@ export default function TemplateLibraryDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-[640px] max-h-[85vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>Biblioteca de Templates</DialogTitle>
+            <DialogTitle>Biblioteca de modelos</DialogTitle>
             <DialogDescription className="text-xs">
               Treinos, dietas, refeições, periodizações e protocolos salvos por você — e uma biblioteca de treinos prontos do sistema.
             </DialogDescription>
@@ -432,7 +432,7 @@ export default function TemplateLibraryDialog({
                 onClick={() => { setSaveName(editingTemplate?.name || protocolName || "Protocolo"); setSaveOpen("protocol"); }}
                 disabled={!payload}
               >
-                <BookmarkPlus className="w-3.5 h-3.5 mr-1" /> {editingTemplate ? "Atualizar template" : "Salvar protocolo"}
+                <BookmarkPlus className="w-3.5 h-3.5 mr-1" /> {editingTemplate ? "Atualizar modelo" : "Salvar protocolo"}
               </Button>
             </div>
           </div>
@@ -505,7 +505,7 @@ export default function TemplateLibraryDialog({
                             ) : item.isLegacy ? (
                               <span
                                 className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-muted text-muted-foreground"
-                                title="Biblioteca antiga, somente leitura. Novos templates devem ser salvos como protocolo."
+                                title="Biblioteca antiga, somente leitura. Novos modelos devem ser salvos como protocolo."
                               >
                                 Legado
                               </span>
@@ -564,7 +564,7 @@ export default function TemplateLibraryDialog({
                           <button
                             onClick={() => editItem(item)}
                             className="text-muted-foreground hover:text-primary p-1"
-                            title="Editar template"
+                            title="Editar modelo"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
@@ -597,7 +597,7 @@ export default function TemplateLibraryDialog({
       <Dialog open={!!saveOpen} onOpenChange={(v) => !v && setSaveOpen(null)}>
         <DialogContent className="sm:max-w-[420px]">
           <DialogHeader>
-            <DialogTitle>Salvar protocolo como template</DialogTitle>
+            <DialogTitle>Salvar protocolo como modelo</DialogTitle>
             <DialogDescription className="text-xs">
               Guarda o protocolo completo (treino, dieta, suplementos, macros) na sua biblioteca.
             </DialogDescription>
