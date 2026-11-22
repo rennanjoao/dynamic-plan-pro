@@ -52,19 +52,14 @@ function fmt(iso: string | null): string {
   return formatDateTimePtBR(iso);
 }
 
-export default function ProtocolChangeHistoryDialog({
-  student, open, onClose,
-}: {
-  student: StudentStatus | StudentLite | null;
-  open: boolean;
-  onClose: () => void;
-}) {
-  const studentId = student?.id ?? null;
-  const studentName = student?.name ?? "Aluno";
-
+/**
+ * Lista das alterações enviadas ao aluno (mais recente primeiro). Usada no
+ * diálogo antigo e na aba "Alterações enviadas" do Histórico único.
+ */
+export function ChangeHistoryList({ studentId, enabled }: { studentId: string | null; enabled: boolean }) {
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["coach-protocol-change-history", studentId],
-    enabled: !!studentId && open,
+    enabled: !!studentId && enabled,
     queryFn: async () => {
       const { data, error } = await sb
         .from("protocol_change_events")
@@ -77,65 +72,83 @@ export default function ProtocolChangeHistoryDialog({
     },
   });
 
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-10">
+        <Loader2 className="w-5 h-5 animate-spin text-primary" />
+      </div>
+    );
+  }
+  if (rows.length === 0) {
+    return (
+      <div className="text-center py-10 text-sm text-muted-foreground">
+        Nenhuma alteração de protocolo registrada para este aluno ainda.
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      {rows.map((row) => {
+        const changes = Array.isArray(row.changes) ? row.changes : [];
+        return (
+          <div key={row.id} className="rounded-xl border border-border bg-card p-4 space-y-3">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <p className="text-sm font-semibold text-foreground">
+                {fmt(row.created_at)}
+              </p>
+              {row.seen_at ? (
+                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                  Visto pelo aluno em {fmt(row.seen_at)}
+                </span>
+              ) : (
+                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                  Ainda não visto pelo aluno
+                </span>
+              )}
+            </div>
+
+            <ul className="space-y-2">
+              {changes.map((item, idx) => {
+                const Icon = iconForCategory(item.category);
+                return (
+                  <li key={idx} className="flex gap-3 p-2.5 rounded-lg bg-accent/30">
+                    <Icon className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <p className="text-sm text-foreground">{item.label}</p>
+                      {item.detail && (
+                        <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                          {item.detail}
+                        </p>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export default function ProtocolChangeHistoryDialog({
+  student, open, onClose,
+}: {
+  student: StudentStatus | StudentLite | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const studentId = student?.id ?? null;
+  const studentName = student?.name ?? "Aluno";
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Histórico de Alterações — <Private>{studentName}</Private></DialogTitle>
         </DialogHeader>
-
-        {isLoading ? (
-          <div className="flex justify-center py-10">
-            <Loader2 className="w-5 h-5 animate-spin text-primary" />
-          </div>
-        ) : rows.length === 0 ? (
-          <div className="text-center py-10 text-sm text-muted-foreground">
-            Nenhuma alteração de protocolo registrada para este aluno ainda.
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {rows.map((row) => {
-              const changes = Array.isArray(row.changes) ? row.changes : [];
-              return (
-                <div key={row.id} className="rounded-xl border border-border bg-card p-4 space-y-3">
-                  <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <p className="text-sm font-semibold text-foreground">
-                      {fmt(row.created_at)}
-                    </p>
-                    {row.seen_at ? (
-                      <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                        Visto pelo aluno em {fmt(row.seen_at)}
-                      </span>
-                    ) : (
-                      <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                        Ainda não visto pelo aluno
-                      </span>
-                    )}
-                  </div>
-
-                  <ul className="space-y-2">
-                    {changes.map((item, idx) => {
-                      const Icon = iconForCategory(item.category);
-                      return (
-                        <li key={idx} className="flex gap-3 p-2.5 rounded-lg bg-accent/30">
-                          <Icon className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                          <div className="flex-1 min-w-0 space-y-1">
-                            <p className="text-sm text-foreground">{item.label}</p>
-                            {item.detail && (
-                              <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
-                                {item.detail}
-                              </p>
-                            )}
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <ChangeHistoryList studentId={studentId} enabled={open} />
       </DialogContent>
     </Dialog>
   );

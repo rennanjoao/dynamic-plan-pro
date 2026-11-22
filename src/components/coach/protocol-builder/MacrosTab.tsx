@@ -7,12 +7,12 @@ import { Switch } from "@/components/ui/switch";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ChevronDown, SplitSquareHorizontal } from "lucide-react";
+import { CalendarDays, SplitSquareHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { ProtocolPayload, WEEKDAYS } from "@/lib/protocolSchema";
-import { normalizeCarb, cycleCarb, CARB_LABEL, CARB_COLOR, type CarbLevel } from "@/lib/weekCycle";
+import { normalizeCarb, CARB_LABEL, CARB_COLOR, type CarbLevel } from "@/lib/weekCycle";
+import { trainingDaysFromWeek } from "@/lib/weekTraining";
 import { calcDayMacros, scaleOptionForMacroDelta, type OptionKind } from "@/lib/macroCalc";
 
 /**
@@ -25,9 +25,15 @@ import { calcDayMacros, scaleOptionForMacroDelta, type OptionKind } from "@/lib/
  */
 const CARB_LEVELS: CarbLevel[] = ["high", "base", "off"];
 
-export function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void }) {
+export function MacrosTab({
+  payload, setPayload, onEditWeek,
+}: {
+  payload: ProtocolPayload;
+  setPayload: (p: ProtocolPayload) => void;
+  /** Leva até a faixa da semana (aba Treino): único lugar de editar treino e carbo por dia. */
+  onEditWeek?: () => void;
+}) {
   const m = payload.macros;
-  const [dayListOpen, setDayListOpen] = useState(false);
   const [distributeOpen, setDistributeOpen] = useState(false);
 
   // Compara a meta de macro (painel) com o que já está de fato montado nas
@@ -50,7 +56,10 @@ export function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; s
     () => payload.meals.some((mm) => dayTypeOf(mm) !== "all"),
     [payload.meals],
   );
-  const trainingDays = Math.min(7, Math.max(0, Number(payload.setup?.trainingDaysPerWeek ?? 5)));
+  // Da semana do Treino (Pacote B da auditoria); o número salvo só vale
+  // enquanto a semana não foi montada.
+  const weekTrainingDays = trainingDaysFromWeek(payload.weekDays, payload.workouts);
+  const trainingDays = weekTrainingDays ?? Math.min(7, Math.max(0, Number(payload.setup?.trainingDaysPerWeek ?? 5)));
   const kcalOf = (mac: { kcal: number }) => Math.round(mac.kcal);
 
   // excludeFromDayTotal serve a 2 cenários diferentes:
@@ -174,24 +183,23 @@ export function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; s
 
       {/* ── Treino vs Descanso — só aparece quando há refeições marcadas ── */}
       <div className="border-t border-border/40 pt-3 mt-4">
-        <div className="flex items-end justify-between gap-3 flex-wrap">
+        <div className="flex items-center justify-between gap-3 flex-wrap" data-testid="training-days">
           <div>
             <Label className="text-xs font-semibold">Dias de treino por semana</Label>
             <p className="text-[10px] text-muted-foreground mt-0.5">
-              Usado na média calórica semanal das refeições de treino/descanso.
+              {weekTrainingDays != null
+                ? "Contado da semana do Treino. Usado na média calórica semanal das refeições de treino/descanso."
+                : "Monte a semana no Treino para contar automaticamente (até lá vale o número salvo)."}
             </p>
           </div>
-          <Input
-            type="number"
-            min={0}
-            max={7}
-            value={trainingDays}
-            onChange={(e) => {
-              const v = Math.min(7, Math.max(0, Math.round(Number(e.target.value) || 0)));
-              setPayload({ ...payload, setup: { ...payload.setup, trainingDaysPerWeek: v } });
-            }}
-            className="h-9 text-sm w-20"
-          />
+          <div className="flex items-center gap-2">
+            <span className="text-lg font-bold tabular-nums text-foreground" data-testid="training-days-value">{trainingDays}</span>
+            {onEditWeek && (
+              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onEditWeek}>
+                <CalendarDays className="w-3.5 h-3.5 mr-1.5" /> {weekTrainingDays != null ? "Ver semana" : "Montar semana"}
+              </Button>
+            )}
+          </div>
         </div>
 
         {hasDayVariation && (
@@ -261,41 +269,34 @@ export function MacrosTab({ payload, setPayload }: { payload: ProtocolPayload; s
               </div>
             </div>
 
-            <Collapsible open={dayListOpen} onOpenChange={setDayListOpen} className="border-t border-border/40 pt-3">
-              <CollapsibleTrigger asChild>
-                <button type="button" className="flex items-center justify-between w-full text-left">
-                  <span>
-                    <Label className="text-[10px] uppercase tracking-wider text-muted-foreground cursor-pointer">Tipo de cada dia</Label>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {dayCounts.high} Alto · {dayCounts.base} Base · {dayCounts.off} Baixo — toque para {dayListOpen ? "recolher" : "editar dia a dia"}
-                    </p>
-                  </span>
-                  <ChevronDown className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${dayListOpen ? "rotate-180" : ""}`} />
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-1.5 mt-2">
+            {/* Tipo de cada dia: só leitura aqui — edita-se na faixa da semana do
+                Treino (antes dava para mudar nos dois lugares). */}
+            <div className="border-t border-border/40 pt-3" data-testid="carb-week-summary">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div>
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Tipo de cada dia</Label>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {dayCounts.high} Alto · {dayCounts.base} Base · {dayCounts.off} Baixo — edite na semana do Treino
+                  </p>
+                </div>
+                {onEditWeek && (
+                  <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onEditWeek} data-testid="edit-carb-week">
+                    <CalendarDays className="w-3.5 h-3.5 mr-1.5" /> Editar na semana
+                  </Button>
+                )}
+              </div>
+              <div className="grid grid-cols-7 gap-1 mt-2">
                 {WEEKDAYS.map((d) => {
                   const cur = normalizeCarb(payload.carbCycle?.[d.key]);
                   return (
-                    <div key={d.key} className="flex items-center gap-2">
-                      <span className="w-16 text-xs font-medium text-foreground shrink-0">{d.label}</span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setPayload({
-                            ...payload,
-                            carbCycle: { ...(payload.carbCycle || {}), [d.key]: cycleCarb(cur) },
-                          })
-                        }
-                        className={`flex-1 h-7 rounded-md border text-[11px] font-bold transition-colors ${CARB_COLOR[cur].bg} ${CARB_COLOR[cur].border} ${CARB_COLOR[cur].text}`}
-                      >
-                        {CARB_LABEL[cur]}
-                      </button>
+                    <div key={d.key} className={`rounded-md border px-0.5 py-1 text-center ${CARB_COLOR[cur].bg} ${CARB_COLOR[cur].border}`}>
+                      <p className="text-[9px] uppercase text-muted-foreground">{d.label.slice(0, 3)}</p>
+                      <p className={`text-[10px] font-bold ${CARB_COLOR[cur].text}`}>{CARB_LABEL[cur]}</p>
                     </div>
                   );
                 })}
-              </CollapsibleContent>
-            </Collapsible>
+              </div>
+            </div>
           </div>
         )}
       </div>

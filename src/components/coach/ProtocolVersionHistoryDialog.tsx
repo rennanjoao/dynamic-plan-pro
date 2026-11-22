@@ -26,15 +26,26 @@ interface Props {
   onRestore: (payload: ProtocolPayload) => void;
 }
 
-export default function ProtocolVersionHistoryDialog({
-  open, onOpenChange, protocolId, protocolName, onRestore,
-}: Props) {
+/**
+ * Lista das versões publicadas, com "Restaurar" (carrega para edição, não
+ * publica). Usada no diálogo antigo e na aba "Versões publicadas" do
+ * Histórico único.
+ */
+export function VersionHistoryList({
+  protocolId, enabled, onRestore, onRestored,
+}: {
+  protocolId: string | null;
+  enabled: boolean;
+  onRestore: (payload: ProtocolPayload) => void;
+  /** Chamado depois de restaurar (ex.: fechar o diálogo). */
+  onRestored?: () => void;
+}) {
   const [versions, setVersions] = useState<Version[]>([]);
   const [loading, setLoading] = useState(false);
   const confirm = useConfirm();
 
   useEffect(() => {
-    if (!open || !protocolId) return;
+    if (!enabled || !protocolId) return;
     let active = true;
     (async () => {
       setLoading(true);
@@ -50,7 +61,7 @@ export default function ProtocolVersionHistoryDialog({
       }
     })();
     return () => { active = false; };
-  }, [open, protocolId]);
+  }, [enabled, protocolId]);
 
   async function handleRestore(v: Version) {
     const ok = await confirm({
@@ -60,10 +71,58 @@ export default function ProtocolVersionHistoryDialog({
     });
     if (!ok) return;
     onRestore(v.payload);
-    onOpenChange(false);
+    onRestored?.();
     toast.success(`Versão ${v.version} carregada — revise e publique`);
   }
 
+  if (!protocolId) {
+    return (
+      <p className="text-xs italic text-muted-foreground text-center py-8">
+        As versões aparecem aqui depois da primeira publicação.
+      </p>
+    );
+  }
+
+  return (
+    <>
+      {loading && (
+        <div className="py-8 flex justify-center text-muted-foreground">
+          <Loader2 className="w-5 h-5 animate-spin" />
+        </div>
+      )}
+
+      {!loading && versions.length === 0 && (
+        <p className="text-xs italic text-muted-foreground text-center py-8">
+          Nenhuma versão anterior registrada ainda.
+        </p>
+      )}
+
+      <div className="space-y-2">
+        {versions.map((v) => (
+          <div key={v.id} className="border border-border rounded-lg p-3 flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-semibold text-sm">v{v.version}</span>
+                {v.revision != null && <span className="text-[10px] text-muted-foreground">revisão {v.revision}</span>}
+                <span className="text-[10px] text-muted-foreground">{v.active === false ? "Inativo" : "Publicado"}</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                {formatDateTimePtBR(v.created_at)}
+              </p>
+            </div>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleRestore(v)}>
+              <RotateCcw className="w-3 h-3 mr-1" /> Restaurar
+            </Button>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+export default function ProtocolVersionHistoryDialog({
+  open, onOpenChange, protocolId, protocolName, onRestore,
+}: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[560px] max-h-[80vh] overflow-y-auto">
@@ -75,38 +134,7 @@ export default function ProtocolVersionHistoryDialog({
             Cada publicação gera uma nova versão. Restaurar carrega o conteúdo antigo pra edição — nada é publicado sem seu clique.
           </DialogDescription>
         </DialogHeader>
-
-        {loading && (
-          <div className="py-8 flex justify-center text-muted-foreground">
-            <Loader2 className="w-5 h-5 animate-spin" />
-          </div>
-        )}
-
-        {!loading && versions.length === 0 && (
-          <p className="text-xs italic text-muted-foreground text-center py-8">
-            Nenhuma versão anterior registrada ainda.
-          </p>
-        )}
-
-        <div className="space-y-2">
-          {versions.map((v) => (
-            <div key={v.id} className="border border-border rounded-lg p-3 flex items-center gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-semibold text-sm">v{v.version}</span>
-                  {v.revision != null && <span className="text-[10px] text-muted-foreground">revisão {v.revision}</span>}
-                  <span className="text-[10px] text-muted-foreground">{v.active === false ? "Inativo" : "Publicado"}</span>
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  {formatDateTimePtBR(v.created_at)}
-                </p>
-              </div>
-              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleRestore(v)}>
-                <RotateCcw className="w-3 h-3 mr-1" /> Restaurar
-              </Button>
-            </div>
-          ))}
-        </div>
+        <VersionHistoryList protocolId={protocolId} enabled={open} onRestore={onRestore} onRestored={() => onOpenChange(false)} />
       </DialogContent>
     </Dialog>
   );

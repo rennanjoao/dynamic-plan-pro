@@ -30,7 +30,7 @@ export function PeriodizationTemplateQuickPicker({
   async function applyTemplate(tpl: PeriodizationBlockTemplate) {
     if (payload.periodization?.enabled && !(await confirm({
       title: "Substituir periodização",
-      description: "O esquema de semanas e os overrides por exercício atuais serão substituídos pelos do template. Treino, dieta, macros e suplementos não são afetados. Continuar?",
+      description: "O esquema de semanas e os overrides por exercício atuais serão substituídos pelos do modelo. Treino, dieta, macros e suplementos não são afetados. Continuar?",
       confirmLabel: "Aplicar",
     }))) return false;
     const { payload: next, applied, skipped } = injectPeriodizationBlock(payload, tpl.payload);
@@ -50,13 +50,13 @@ export function PeriodizationTemplateQuickPicker({
     <SectionTemplateQuickPicker<PeriodizationBlockTemplate>
       coachId={coachId}
       applyLabel="Aplicar periodização"
-      applyPlaceholder="Buscar template de periodização..."
-      emptyLabel="Nenhum template encontrado."
+      applyPlaceholder="Buscar modelo de periodização..."
+      emptyLabel="Nenhum modelo encontrado."
       loadItems={listPeriodizationBlockTemplates}
       onApply={applyTemplate}
       canSave={canSave}
       saveLabel="Salvar periodização"
-      savingHint={canSave ? "Salvar periodização atual como template" : "Ative a periodização antes de salvar"}
+      savingHint={canSave ? "Salvar periodização atual como modelo" : "Ative a periodização antes de salvar"}
       defaultSaveName={() => `Periodização ${formatDatePtBR(new Date())}`}
       onSave={({ name, existingId }) =>
         savePeriodizationBlockAsTemplate({

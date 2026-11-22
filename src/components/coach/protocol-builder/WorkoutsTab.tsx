@@ -28,7 +28,8 @@ import { WorkoutTemplateQuickPicker } from "@/components/coach/WorkoutTemplateQu
 import { makeInvertSetting, type InvertMode } from "@/lib/workoutInversion";
 import { PeriodizationTemplateQuickPicker } from "@/components/coach/PeriodizationTemplateQuickPicker";
 import { RX_FIELDS, exceptionValue, setExceptionAllWeeks, type RxField } from "@/lib/prescriptionResolve";
-import { CardioSection, ExerciseMenu, InvertBadge, RxInput, TemplatesMenu, WeekStripEditor, WorkoutMenu } from "./WorkoutsTabParts";
+import { CardioSection, ExerciseMenu, InvertBadge, RxInput, WeekStripEditor, WorkoutMenu } from "./WorkoutsTabParts";
+import { ModelsMenu } from "./ModelsMenu";
 
 import {
   DndContext, closestCenter, PointerSensor, KeyboardSensor,
@@ -67,7 +68,43 @@ function SortableExerciseRow({
  * ações em menus ⋯, um botão "Modelos", aeróbicos num lugar só, campos com
  * rótulo no celular e a regra única da periodização (prescriptionResolve).
  */
-export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrary, variant = "protocol" }: { payload: ProtocolPayload; setPayload: (p: ProtocolPayload) => void; coachId: string | null; onOpenTemplateLibrary?: () => void; variant?: "protocol" | "busyWeek" }) {
+/**
+ * Botão "Modelos" do Treino: aplicar/salvar treino e periodização + biblioteca.
+ * No protocolo ele fica na linha do "Treino atual | Semana corrida" (canto
+ * direito, como nas outras abas); na Semana corrida, dentro do editor.
+ */
+export function WorkoutModelsMenu({
+  payload, setPayload, coachId, onOpenLibrary,
+}: {
+  payload: ProtocolPayload;
+  setPayload: (p: ProtocolPayload) => void;
+  coachId: string | null;
+  onOpenLibrary?: () => void;
+}) {
+  return (
+    <ModelsMenu
+      sections={[
+        { title: "Treino", content: <WorkoutTemplateQuickPicker payload={payload} setPayload={setPayload} coachId={coachId} /> },
+        { title: "Periodização", content: <PeriodizationTemplateQuickPicker payload={payload} setPayload={setPayload} coachId={coachId} /> },
+      ]}
+      onOpenLibrary={onOpenLibrary}
+    />
+  );
+}
+
+export function WorkoutsTab({
+  payload, setPayload, coachId, onOpenTemplateLibrary, variant = "protocol", hideModelsMenu = false, onOpenMacros,
+}: {
+  payload: ProtocolPayload;
+  setPayload: (p: ProtocolPayload) => void;
+  coachId: string | null;
+  onOpenTemplateLibrary?: () => void;
+  variant?: "protocol" | "busyWeek";
+  /** O protocolo desenha o "Modelos" na linha de cima (mesmo canto das outras abas). */
+  hideModelsMenu?: boolean;
+  /** Atalho da faixa da semana para ligar o ciclo de carbo em Macros. */
+  onOpenMacros?: () => void;
+}) {
   const isBusy = variant === "busyWeek";
   useEffect(() => {
     const needs = payload.workouts.some((d) => d.exercises.some((e: any) => !e.__id));
@@ -305,13 +342,11 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 flex-wrap">
-        <TemplatesMenu
-          workoutPicker={<WorkoutTemplateQuickPicker payload={payload} setPayload={setPayload} coachId={coachId} />}
-          periodizationPicker={<PeriodizationTemplateQuickPicker payload={payload} setPayload={setPayload} coachId={coachId} />}
-          onOpenLibrary={!isBusy ? onOpenTemplateLibrary : undefined}
-        />
-      </div>
+      {!hideModelsMenu && (
+        <div className="flex items-center justify-end gap-2 flex-wrap">
+          <WorkoutModelsMenu payload={payload} setPayload={setPayload} coachId={coachId} onOpenLibrary={!isBusy ? onOpenTemplateLibrary : undefined} />
+        </div>
+      )}
 
       <WeekStripEditor
         workouts={payload.workouts}
@@ -321,6 +356,9 @@ export function WorkoutsTab({ payload, setPayload, coachId, onOpenTemplateLibrar
         letterOf={displayLetter}
         onSetDay={setDay}
         onCycleCarb={cyclePillCarb}
+        // Semana corrida: o carbo por dia continua sempre visível (pedido de 20/11).
+        showCarb={isBusy || !!payload.setup?.carbCycle}
+        onOpenMacros={!isBusy ? onOpenMacros : undefined}
       />
 
       <WorkoutPeriodizationEditor payload={payload} setPayload={setPayload} coachId={coachId} />
