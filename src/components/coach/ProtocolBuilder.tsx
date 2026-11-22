@@ -53,7 +53,7 @@ import {
 import {
   Loader2, Save, Plus, Trash2, FileText, Dumbbell, UtensilsCrossed,
   Sparkles, BarChart3, Activity, Pill, TrendingUp,
-  CheckCircle2, Copy, BookmarkPlus, Library, ClipboardList,
+  CheckCircle2, Copy, BookmarkPlus, Library,
   ArrowUp, ArrowDown, Eye, Settings2, History, GripVertical, RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
@@ -82,6 +82,7 @@ import { BusyWeekInlineEditor, type BusyWeekInlineHandle } from "./busy-week/Bus
 import { useBusyWeekAssignments } from "@/hooks/useBusyWeek";
 import { DietTab } from "./protocol-builder/DietTab";
 import { PublishBar } from "./protocol-builder/PublishBar";
+import { StudentContextStrip } from "./protocol-builder/StudentContextStrip";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { calcMealMacros, calcDayMacros, tacoGroupToKind, parseWeightString, optionMacros, compareOptions, type SubstitutionSeverity } from "@/lib/macroCalc";
 import {
@@ -113,6 +114,14 @@ import {
 interface Props {
   studentId: string;
   studentName: string;
+  /**
+   * Trocar de aluno ("Próximo aluno") ou voltar à lista chama este guarda
+   * antes: ele grava o rascunho pendente e pergunta se a Semana corrida tem
+   * algo não salvo. Devolve false para ficar.
+   */
+  registerLeaveGuard?: (guard: (() => Promise<boolean>) | null) => void;
+  /** "Aplicar a vários alunos" → abrir o 1º e seguir a fila. */
+  onOpenQueue?: (studentIds: string[]) => void;
 }
 
 const CheckinFeedbackPanel = lazyWithRetry(() => import("./CheckinFeedbackPanel"));
@@ -178,7 +187,7 @@ function computeCompletion(payload: ProtocolPayload | null) {
   };
 }
 
-export default function ProtocolBuilder({ studentId, studentName }: Props) {
+export default function ProtocolBuilder({ studentId, studentName, registerLeaveGuard, onOpenQueue }: Props) {
   const qc = useQueryClient();
   const [coachId, setCoachId] = useState<string | null>(null);
   // Aba Treinos: "Treino atual" (protocolo) ou "Semana corrida" (treino secundário).
@@ -217,6 +226,8 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
+  // Origem da cópia para alunos: o protocolo atual (padrão) ou um modelo da biblioteca.
+  const [copySource, setCopySource] = useState<{ payload: ProtocolPayload; label: string } | null>(null);
   const [importExportOpen, setImportExportOpen] = useState(false);
   const confirm = useConfirm();
   const ENABLE_AI_INITIAL_DRAFT = true;
@@ -582,6 +593,33 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
     void flushAutosave();
     setActiveTab(v as typeof activeTab);
   };
+
+  // ─── Guarda ao trocar de aluno / voltar à lista ─────────────────────────
+  // Antes, sair do construtor podia perder o último 1,5 s de edição (autosave
+  // ainda no timer) e TODA a Semana corrida não salva. Agora: grava o
+  // rascunho pendente na hora e pergunta antes de largar a Semana corrida.
+  const leaveGuard = async (): Promise<boolean> => {
+    if (busyDirty) {
+      const ok = await confirm({
+        title: "Semana corrida não salva",
+        description: "As alterações da Semana corrida deste aluno ainda não foram salvas e serão perdidas. Sair mesmo assim?",
+        confirmLabel: "Sair sem salvar",
+        destructive: true,
+      });
+      if (!ok) { setActiveTab("workouts"); setWorkoutsView("busy"); return false; }
+    }
+    if (isEditMode) {
+      await flushAutosave();
+    } else if (payload && isDirty) {
+      try { localStorage.setItem(localDraftKey, JSON.stringify({ name, payload, savedAt: Date.now() })); } catch { /* quota/privado */ }
+      if (coachId && studentId && !remoteDraftClosedRef.current) void saveRemoteNewDraft(coachId, studentId, { name, payload });
+    }
+    return true;
+  };
+  useEffect(() => {
+    registerLeaveGuard?.(leaveGuard);
+    return () => registerLeaveGuard?.(null);
+  });
 
   // Macros → "Editar na semana": a faixa da semana do Treino é o único lugar
   // de editar treino e carbo por dia (Pacote B da auditoria).
@@ -972,6 +1010,9 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
       {/* Topo enxuto (auditoria 21/11/2026): nome + 3 ações diretas + Mais.
           Ativo e Importar/Exportar (raros) foram para o menu Mais; o nome do
           aluno já está no cabeçalho da página. */}
+      {/* Faixa do aluno (Pacote C): o essencial da anamnese e do último check-in. */}
+      <StudentContextStrip studentId={studentId} onOpenAnamnesis={() => setConsultOpen(true)} />
+
       {payload && (
         <Card className="bg-card/60 border-border p-3 sm:p-4" data-testid="protocol-top">
           <div className="flex flex-col sm:flex-row sm:items-end gap-2">
@@ -979,7 +1020,7 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
               <Label htmlFor="protocol-name" className="text-[10px] uppercase tracking-wider text-muted-foreground">Nome do protocolo</Label>
               <Input id="protocol-name" value={name} onChange={(e) => setName(e.target.value)} className="mt-1 h-9 text-sm w-full" />
             </div>
-            <div className="grid grid-cols-4 sm:flex sm:items-center gap-2">
+            <div className="grid grid-cols-3 sm:flex sm:items-center gap-2">
               <Button
                 size="sm"
                 variant="outline"
@@ -1002,16 +1043,6 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                 <History className="w-3.5 h-3.5" />
                 <span>Histórico</span>
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-11 sm:h-9 flex-col sm:flex-row gap-0.5 sm:gap-1.5 text-[10px] sm:text-xs px-1 sm:px-3"
-                onClick={() => setConsultOpen(true)}
-                title="Abrir anamnese do aluno"
-              >
-                <ClipboardList className="w-3.5 h-3.5" />
-                <span>Anamnese</span>
-              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -1032,8 +1063,8 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
                   <DropdownMenuItem onSelect={() => setLibraryOpen(true)} className="text-xs">
                     <Library className="w-3.5 h-3.5 mr-2" /> Biblioteca de modelos
                   </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setCopyOpen(true)} className="text-xs">
-                    <Copy className="w-3.5 h-3.5 mr-2" /> Copiar para outro aluno
+                  <DropdownMenuItem onSelect={() => { setCopySource(null); setCopyOpen(true); }} className="text-xs">
+                    <Copy className="w-3.5 h-3.5 mr-2" /> Copiar para outros alunos
                   </DropdownMenuItem>
                   {isEditMode && (
                     <DropdownMenuItem onSelect={openRenewalSuggestion} className="text-xs">
@@ -1487,15 +1518,19 @@ export default function ProtocolBuilder({ studentId, studentName }: Props) {
         payload={payload}
         setPayload={updatePayload}
         protocolName={name}
+        onApplyToStudents={(p, modelName) => { setCopySource({ payload: p, label: `Modelo: ${modelName}` }); setCopyOpen(true); }}
       />
 
       <CopyProtocolDialog
         open={copyOpen}
-        onOpenChange={setCopyOpen}
+        onOpenChange={(v) => { setCopyOpen(v); if (!v) setCopySource(null); }}
         coachId={coachId}
-        payload={payload}
+        payload={copySource?.payload ?? payload}
+        // O aluno aberto fica sempre fora: para ele, o modelo se aplica direto ("Aplicar" na biblioteca).
         sourceStudentId={studentId}
-        protocolName={name}
+        protocolName={copySource ? copySource.label : name}
+        sourceLabel={copySource?.label}
+        onOpenQueue={onOpenQueue}
       />
     </div>
   );
