@@ -301,11 +301,13 @@ export const MealSubstitutionsSchema = z.object({
   fat: z.array(MealSubFoodSchema).default([{ name: "", weight: "" }, { name: "", weight: "" }]),
 });
 
-// Default options: 2 of each kind (carb, protein, fat)
+// Opções padrão de uma refeição nova: só a Opção 1 de cada grupo (carbo,
+// proteína, gordura). Antes vinha também uma Opção 2 vazia em cada grupo, que
+// o aluno nunca via e que enchia a aba Dieta de campos em branco; agora a
+// alternativa é criada só quando o coach pede ("+ Opção 2").
 function defaultOptions() {
   const mk = (kind: "carb" | "protein" | "fat") => [
     { kind, title: `Opção 1`, items: [{ name: "", weight: "" }] },
-    { kind, title: `Opção 2`, items: [{ name: "", weight: "" }] },
   ];
   return [...mk("carb"), ...mk("protein"), ...mk("fat")];
 }

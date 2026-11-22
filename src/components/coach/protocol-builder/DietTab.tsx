@@ -44,6 +44,7 @@ import {
   optionMacros, compareOptions, suggestProportionalWeights, type SubstitutionSeverity,
 } from "@/lib/macroCalc";
 import { searchFoods, type FoodHit } from "@/lib/foodSearch";
+import { isDefaultOptionTitle, mealFoodsPreview, visibleOptionIndexes } from "@/lib/dietEditorView";
 import { TACO_FOODS } from "@/data/tacoFoods";
 import { ENRICHED_FOODS } from "@/data/enrichedFoods";
 
@@ -128,22 +129,42 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
     setPayload({ ...payload, meals: arrayMove(payload.meals, oldIndex, newIndex) });
   }
 
-  // Reordenação manual por botões (alternativa acessível ao drag-and-drop).
+  // Reordenação manual (menu ⋯ da refeição) — alternativa acessível ao drag-and-drop.
   function moveMeal(index: number, direction: -1 | 1) {
     const target = index + direction;
     if (target < 0 || target >= payload.meals.length) return;
     const next = [...payload.meals];
     [next[index], next[target]] = [next[target], next[index]];
     setPayload({ ...payload, meals: next });
-    // O estado de colapso é indexado por posição — troca junto pra o card
-    // continuar visualmente no mesmo estado após o swap.
-    setCollapsedMeals((prev) => ({ ...prev, [index]: !!prev[target], [target]: !!prev[index] }));
   }
 
   const [saveTplFor, setSaveTplFor] = useState<{ idx: number; name: string; kind: string } | null>(null);
   const [loadTplOpen, setLoadTplOpen] = useState(false);
   const [templates, setTemplates] = useState<any[]>([]);
-  const [collapsedMeals, setCollapsedMeals] = useState<Record<number, boolean>>({});
+
+  // ── Dieta enxuta: uma refeição aberta por vez ──────────────────────────
+  // Fechada, a refeição vira uma linha (nome · horário · alimentos · kcal).
+  // O estado é por __id (não por posição), então reordenar não troca qual
+  // refeição está aberta.
+  const mealIdOf = (meal: any, i: number): string => meal?.__id ?? `meal-${i}`;
+  const [openMealId, setOpenMealId] = useState<string | null>(null);
+  // Com uma refeição só, ela já abre (também depois do backfill de __id).
+  const onlyMealId = payload.meals.length === 1 ? mealIdOf(payload.meals[0], 0) : null;
+  useEffect(() => { if (onlyMealId) setOpenMealId(onlyMealId); }, [onlyMealId]);
+
+  // O que o coach pediu para mostrar mesmo vazio nesta sessão: "+ Opção 2",
+  // "+ obs" e "+ Observação da refeição". Chaves: "<mealId>|<kind>|<opt>[|notes]".
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+  const reveal = (key: string) => setRevealed((prev) => ({ ...prev, [key]: true }));
+  const optKey = (mealId: string, kind: string, optIdx: number) => `${mealId}|${kind}|${optIdx}`;
+  const forgetGroupReveals = (mealId: string, kind: string) =>
+    setRevealed((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${mealId}|${kind}|`))));
+
+  function addMeal() {
+    const meal = makeEmptyMeal(`Refeição ${payload.meals.length + 1}`);
+    setPayload({ ...payload, meals: [...payload.meals, meal] });
+    setOpenMealId(meal.__id ?? null);
+  }
   // Controla quais grupos de macros estão minimizados: key = "mealIdx:kind"
   const [collapsedKinds, setCollapsedKinds] = useState<Record<string, boolean>>({});
   const toggleKind = (mealIdx: number, kind: string) =>
@@ -177,6 +198,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
       const meal = toIndependentMeal(tpl.meal_data);
       meal.name = meal.name || tpl.name;
       setPayload({ ...payload, meals: [...payload.meals, meal] });
+      setOpenMealId(meal.__id);
       toast.success("Modelo adicionado");
       setLoadTplOpen(false);
     } catch { toast.error("Modelo inválido"); }
@@ -188,6 +210,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
     const next = [...payload.meals];
     next.splice(mealIdx + 1, 0, copy);
     setPayload({ ...payload, meals: next });
+    setOpenMealId(copy.__id);
   }
 
   function createDayTypeVersion(mealIdx: number) {
@@ -218,7 +241,8 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
     next[mealIdx] = nextSource;
     next.splice(mealIdx + 1, 0, variant);
     setPayload({ ...payload, meals: next });
-    toast.success("Versão sem treino criada. Edite a cópia e salve o protocolo.");
+    setOpenMealId(variant.__id);
+    toast.success(`Versão ${variantType === "rest" ? "sem" : "com"} treino criada. Edite a cópia e salve o protocolo.`);
   }
 
   const dayMacros = useMemo(
@@ -339,11 +363,11 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
     updOption(mealIdx, kind, optIdx, { items });
   }
 
-  const KIND: Record<"carb" | "protein" | "fat", { label: string; color: string; bg: string; border: string }> = {
+  const KIND: Record<"carb" | "protein" | "fat", { label: string; short: string; color: string; bg: string; border: string }> = {
     // Cores iguais às do placar do dia e da visão do aluno: carbo = âmbar, proteína = azul, gordura = rosa.
-    carb:    { label: "ESCOLHA UM CARBOIDRATO", color: "text-amber-600",  bg: "bg-amber-500/5",  border: "border-amber-500/20" },
-    protein: { label: "ESCOLHA UMA PROTEÍNA",   color: "text-blue-600",   bg: "bg-blue-500/5",   border: "border-blue-500/20" },
-    fat:     { label: "ESCOLHA UMA GORDURA",    color: "text-rose-600",   bg: "bg-rose-500/5",   border: "border-rose-500/20" },
+    carb:    { label: "ESCOLHA UM CARBOIDRATO", short: "CARBOIDRATO", color: "text-amber-600",  bg: "bg-amber-500/5",  border: "border-amber-500/20" },
+    protein: { label: "ESCOLHA UMA PROTEÍNA",   short: "PROTEÍNA",    color: "text-blue-600",   bg: "bg-blue-500/5",   border: "border-blue-500/20" },
+    fat:     { label: "ESCOLHA UMA GORDURA",    short: "GORDURA",     color: "text-rose-600",   bg: "bg-rose-500/5",   border: "border-rose-500/20" },
   };
 
   return (
@@ -401,13 +425,25 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
 
       <DndContext sensors={mealSensors} collisionDetection={closestCenter} onDragEnd={handleMealDragEnd}>
       <SortableContext
-        items={payload.meals.map((m: any, i) => m.__id ?? `meal-${i}`)}
+        items={payload.meals.map((m: any, i) => mealIdOf(m, i))}
         strategy={verticalListSortingStrategy}
       >
+      <div className="space-y-2">
       {payload.meals.map((m, mealIdx) => {
-        const isCollapsed = !!collapsedMeals[mealIdx];
+        const mealId = mealIdOf(m, mealIdx);
+        const isOpen = openMealId === mealId;
         const mealM = calcMealMacros(m);
-        const mealId = (m as any).__id ?? `meal-${mealIdx}`;
+        const dayType = ((m as any).day_type ?? "all") as "all" | "training" | "rest";
+        const cycleOn = !!payload.setup.carbCycle && !!(m as any).carbCycle;
+        const excluded = !!(m as any).excludeFromDayTotal;
+        const myPairId = typeof (m as any).pairId === "string" ? (m as any).pairId : "";
+        // pairId preenchido mas sem parceira real: a aluna não vê o botão de
+        // alternar (por design, desde a correção do "botão fantasma"). Provável
+        // causa: a outra metade foi apagada/editada fora do fluxo "Criar sem
+        // treino", ou é um par antigo criado antes dessa correção.
+        const pairBroken = !!myPairId && !payload.meals.some(
+          (mm, idx) => idx !== mealIdx && (mm as any).pairId === myPairId,
+        );
         const deleteMeal = () => {
                 const target = payload.meals[mealIdx] as any;
                 const targetPairId = typeof target?.pairId === "string" ? target.pairId : null;
@@ -424,185 +460,243 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                     return mm;
                   });
                 setPayload({ ...payload, meals: nextMeals });
+                if (isOpen) setOpenMealId(null);
         };
+        const gripHandle = (attributes: any, listeners: any) => (
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            className="text-muted-foreground hover:text-primary p-1.5 shrink-0 cursor-grab active:cursor-grabbing touch-none"
+            title="Arrastar para reordenar"
+            aria-label="Arrastar refeição"
+          >
+            <GripVertical className="w-3.5 h-3.5" />
+          </button>
+        );
+        const pairBrokenButton = pairBroken ? (
+          <button
+            type="button"
+            onClick={() => updMealField(mealIdx, { pairId: undefined, excludeFromDayTotal: false, day_type: "all" } as any)}
+            className="h-7 px-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-600 text-[10px] font-semibold transition-colors flex items-center gap-1 shrink-0 hover:bg-amber-500/20"
+            title="Esta refeição tem um par configurado, mas a outra metade não existe mais (ou nunca teve o mesmo pairId). Por isso a aluna não vê o botão de alternar. Clique para desfazer esse vínculo quebrado e, se quiser, crie o par de novo."
+          >
+            ⚠ Par quebrado — corrigir
+          </button>
+        ) : null;
+        const excludedBadge = excluded ? (
+          <span
+            className="h-7 px-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-600 text-[10px] font-semibold flex items-center gap-1 shrink-0 whitespace-nowrap"
+            title="Esta refeição não entra nas kcal/macros do dia. Use o menu ⋯ para voltar a contabilizar."
+          >
+            <Eye className="w-3.5 h-3.5" /> Fora do total
+          </span>
+        ) : null;
+        const mealMenu = (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" className="text-muted-foreground hover:text-primary p-1.5 shrink-0" title="Mais ações da refeição" aria-label="Mais ações da refeição" data-testid={`meal-menu-${mealIdx}`}>
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuItem onClick={() => duplicateMeal(mealIdx)}><Copy className="w-3.5 h-3.5 mr-2" /> Duplicar refeição</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSaveTplFor({ idx: mealIdx, name: m.name || "Modelo", kind: "mixed" })}><BookmarkPlus className="w-3.5 h-3.5 mr-2" /> Salvar como modelo</DropdownMenuItem>
+              {!myPairId && (
+                <DropdownMenuItem onClick={() => createDayTypeVersion(mealIdx)}>
+                  <Copy className="w-3.5 h-3.5 mr-2" /> {dayType === "rest" ? "Criar versão com treino" : "Criar versão sem treino"}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => updMealField(mealIdx, { excludeFromDayTotal: !excluded } as any)}>
+                <Eye className="w-3.5 h-3.5 mr-2" /> {excluded ? "Voltar a contabilizar nas kcal" : "Não contabilizar nas kcal"}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled={mealIdx === 0} onClick={() => moveMeal(mealIdx, -1)}><ArrowUp className="w-3.5 h-3.5 mr-2" /> Mover para cima</DropdownMenuItem>
+              <DropdownMenuItem disabled={mealIdx === payload.meals.length - 1} onClick={() => moveMeal(mealIdx, 1)}><ArrowDown className="w-3.5 h-3.5 mr-2" /> Mover para baixo</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={deleteMeal}><Trash2 className="w-3.5 h-3.5 mr-2" /> Excluir refeição</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
+        const kcalBadge = mealM.kcal > 0 ? (
+          <span
+            className="text-[10px] font-semibold tabular-nums text-muted-foreground shrink-0 px-1.5 py-0.5 rounded bg-muted/40 border border-border/40 flex items-center gap-1.5"
+            title="Total desta refeição (primeira opção de cada grupo)"
+          >
+            <b className="text-foreground">{Math.round(mealM.kcal)} kcal</b>
+            <span className="hidden sm:inline text-blue-500">{Math.round(mealM.protein)}p</span>
+            <span className="hidden sm:inline text-amber-500">{Math.round(mealM.carbs)}c</span>
+            <span className="hidden sm:inline text-rose-500">{Math.round(mealM.fat)}g</span>
+            <span className="hidden sm:inline text-emerald-600">{mealM.fiber.toFixed(1)}f{mealM.fiberUnknown ? "*" : ""}</span>
+          </span>
+        ) : null;
+        const foods = mealFoodsPreview(m);
+        const mealNotesKey = `${mealId}|notes`;
+        const showMealNotes = !!String((m as any).notes ?? "").trim() || !!revealed[mealNotesKey];
         return (
         <SortableMealCard key={mealId} id={mealId}>
         {({ attributes, listeners }) => (
-        <Card className={`bg-card/60 border-border ${isCollapsed ? "overflow-hidden" : "overflow-visible relative focus-within:z-50"}`}>
-          <div className={`flex flex-wrap items-center gap-2 px-4 py-3 border-b border-border/40 bg-muted/10 ${isCollapsed ? "" : "rounded-t-xl"}`}>
-            <button
-              type="button"
-              {...attributes}
-              {...listeners}
-              className="text-muted-foreground hover:text-primary p-1.5 shrink-0 cursor-grab active:cursor-grabbing touch-none"
-              title="Arrastar para reordenar"
-              aria-label="Arrastar refeição"
-            >
-              <GripVertical className="w-3.5 h-3.5" />
-            </button>
-            {/* Reordenação manual (sem drag) — swap simples no array */}
-            <div className="flex flex-col shrink-0">
+        <Card
+          className={`bg-card/60 border-border ${isOpen ? "overflow-visible relative focus-within:z-50 border-primary/30" : "overflow-hidden"}`}
+          data-testid={`meal-card-${mealIdx}`}
+        >
+          {!isOpen ? (
+            // ── Fechada: uma linha ─────────────────────────────────────────
+            <div className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5">
+              {gripHandle(attributes, listeners)}
               <button
                 type="button"
-                onClick={() => moveMeal(mealIdx, -1)}
-                disabled={mealIdx === 0}
-                className="text-muted-foreground hover:text-primary disabled:opacity-30 disabled:hover:text-muted-foreground p-0.5"
-                title="Mover refeição para cima"
-                aria-label="Mover refeição para cima"
+                onClick={() => setOpenMealId(mealId)}
+                className="flex-1 min-w-0 text-left flex flex-col sm:flex-row sm:items-center gap-x-3 gap-y-0.5 py-1 rounded-md hover:bg-muted/30 px-1"
+                aria-expanded={false}
+                data-testid={`meal-summary-${mealIdx}`}
               >
-                <ChevronUp className="w-3.5 h-3.5" />
+                <span className="flex items-baseline gap-2 min-w-0 sm:shrink-0 sm:max-w-[38%]">
+                  <span className="text-sm font-bold text-primary truncate">{m.name || `Refeição ${mealIdx + 1}`}</span>
+                  {m.time && <span className="text-xs text-muted-foreground tabular-nums shrink-0">{m.time}</span>}
+                  {dayType !== "all" && (
+                    <span className={`text-[10px] font-semibold px-1.5 rounded border shrink-0 ${dayType === "training" ? "border-primary/40 text-primary" : "border-sky-500/40 text-sky-500"}`}>
+                      {dayType === "training" ? "Treino" : "Descanso"}
+                    </span>
+                  )}
+                  {mealM.kcal > 0 && <span className="sm:hidden text-[10px] text-muted-foreground tabular-nums shrink-0">{Math.round(mealM.kcal)} kcal</span>}
+                </span>
+                <span className={`text-xs truncate min-w-0 flex-1 ${foods.length ? "text-foreground/80" : "text-muted-foreground italic"}`}>
+                  {foods.length ? foods.join(" · ") : "Sem alimentos ainda"}
+                </span>
               </button>
+              {mealM.kcal > 0 && (
+                <span className="hidden sm:inline-flex text-[10px] font-semibold tabular-nums text-muted-foreground shrink-0 items-center gap-1.5" title="Total desta refeição (primeira opção de cada grupo)">
+                  <b className="text-foreground">{Math.round(mealM.kcal)} kcal</b>
+                  <span className="text-blue-500">{Math.round(mealM.protein)}p</span>
+                  <span className="text-amber-500">{Math.round(mealM.carbs)}c</span>
+                  <span className="text-rose-500">{Math.round(mealM.fat)}g</span>
+                </span>
+              )}
+              {cycleOn && (
+                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-500 shrink-0" title="Entra no ciclo de carboidratos">
+                  <TrendingUp className="w-3 h-3" /> ciclo
+                </span>
+              )}
+              {excludedBadge}
+              {pairBrokenButton}
               <button
                 type="button"
-                onClick={() => moveMeal(mealIdx, 1)}
-                disabled={mealIdx === payload.meals.length - 1}
-                className="text-muted-foreground hover:text-primary disabled:opacity-30 disabled:hover:text-muted-foreground p-0.5"
-                title="Mover refeição para baixo"
-                aria-label="Mover refeição para baixo"
+                onClick={() => setOpenMealId(mealId)}
+                className="text-muted-foreground hover:text-primary p-1.5 shrink-0"
+                title="Abrir refeição"
+                aria-label="Abrir refeição"
               >
-                <ChevronDown className="w-3.5 h-3.5" />
+                <ChevronDown className="w-4 h-4" />
               </button>
+              {mealMenu}
             </div>
-            {/* Dia em que a refeição se aplica — independente do ciclo de carbo */}
-            {(() => {
-              const dayType = ((m as any).day_type ?? "all") as "all" | "training" | "rest";
-              const DAY_TYPE_STYLE: Record<string, string> = {
-                all: "border-border/50 text-muted-foreground",
-                training: "bg-primary/15 border-primary/40 text-primary",
-                rest: "bg-sky-500/15 border-sky-500/40 text-sky-500",
-              };
-              return (
-                <Select
-                  value={dayType}
-                  onValueChange={(v) => updMealField(mealIdx, { day_type: v } as any)}
-                >
-                  <SelectTrigger
-                    className={`h-8 w-[132px] shrink-0 text-xs font-semibold ${DAY_TYPE_STYLE[dayType]}`}
-                    title="Em que dias esta refeição se aplica"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os Dias</SelectItem>
-                    <SelectItem value="training">Dia de Treino</SelectItem>
-                    <SelectItem value="rest">Dia de Descanso</SelectItem>
-                  </SelectContent>
-                </Select>
-              );
-            })()}
-            <Input
-              list="meal-name-presets"
-              value={m.name}
-              onChange={(e) => updMealField(mealIdx, { name: e.target.value })}
-              placeholder="Nome (Café, Almoço...)"
-              className="h-8 text-sm font-bold text-primary flex-1 min-w-[140px]"
-            />
-            <Input value={m.time} onChange={(e) => updMealField(mealIdx, { time: e.target.value })} placeholder="07:00" className="h-8 text-sm w-20 shrink-0" />
-            {mealM.kcal > 0 && (
-              <span
-                className="text-[10px] font-semibold tabular-nums text-muted-foreground shrink-0 px-1.5 py-0.5 rounded bg-muted/40 border border-border/40 flex items-center gap-1.5"
-                title="Total desta refeição (primeira opção de cada grupo)"
+          ) : (
+          <>
+          {/* ── Aberta: cabeçalho editável ─────────────────────────────── */}
+          {/* Celular: linha 1 = nome, horário, fechar e ⋯; linha 2 = dia, kcal, ciclo.
+              Computador: tudo numa linha só. */}
+          <div className="flex flex-wrap items-center gap-2 px-2 sm:px-3 py-2.5 border-b border-border/40 bg-muted/10 rounded-t-xl">
+            <div className="order-1 flex items-center gap-1.5 flex-1 min-w-0 sm:min-w-[260px]">
+              {gripHandle(attributes, listeners)}
+              <Input
+                list="meal-name-presets"
+                value={m.name}
+                onChange={(e) => updMealField(mealIdx, { name: e.target.value })}
+                placeholder="Nome (Café, Almoço...)"
+                aria-label="Nome da refeição"
+                className="h-8 text-sm font-bold text-primary flex-1 min-w-0"
+              />
+              <Input value={m.time} onChange={(e) => updMealField(mealIdx, { time: e.target.value })} placeholder="07:00" aria-label="Horário" className="h-8 text-sm w-[72px] shrink-0" />
+            </div>
+            <div className="order-3 sm:order-2 w-full sm:w-auto flex items-center gap-2 flex-wrap">
+              {/* Dia em que a refeição se aplica — independente do ciclo de carbo */}
+              <Select
+                value={dayType}
+                onValueChange={(v) => updMealField(mealIdx, { day_type: v } as any)}
               >
-                <b className="text-foreground">{Math.round(mealM.kcal)} kcal</b>
-                <span className="text-blue-500">{Math.round(mealM.protein)}p</span>
-                <span className="text-amber-500">{Math.round(mealM.carbs)}c</span>
-                <span className="text-rose-500">{Math.round(mealM.fat)}g</span>
-                <span className="text-emerald-600">{mealM.fiber.toFixed(1)}f{mealM.fiberUnknown ? "*" : ""}</span>
-              </span>
-            )}
-            {payload.setup.carbCycle && (
-              <button type="button"
-                onClick={() => updMealField(mealIdx, { carbCycle: !(m as any).carbCycle } as any)}
-                className={`h-8 px-2.5 rounded-lg border text-xs font-semibold transition-colors flex items-center gap-1 shrink-0 ${(m as any).carbCycle ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-500" : "border-border/50 text-muted-foreground"}`}>
-                <TrendingUp className="w-3.5 h-3.5" /> Ciclo
+                <SelectTrigger
+                  className={`h-8 w-[124px] sm:w-[148px] shrink-0 text-xs font-semibold ${({
+                    all: "border-border/50 text-muted-foreground",
+                    training: "bg-primary/15 border-primary/40 text-primary",
+                    rest: "bg-sky-500/15 border-sky-500/40 text-sky-500",
+                  } as Record<string, string>)[dayType]}`}
+                  title="Em que dias esta refeição se aplica"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os Dias</SelectItem>
+                  <SelectItem value="training">Dia de Treino</SelectItem>
+                  <SelectItem value="rest">Dia de Descanso</SelectItem>
+                </SelectContent>
+              </Select>
+              {kcalBadge}
+              {payload.setup.carbCycle && (
+                <button type="button"
+                  onClick={() => updMealField(mealIdx, { carbCycle: !(m as any).carbCycle } as any)}
+                  title="Esta refeição entra no ciclo de carboidratos?"
+                  aria-label="Ciclo de carbo nesta refeição"
+                  className={`h-8 px-2.5 rounded-lg border text-xs font-semibold transition-colors flex items-center gap-1 shrink-0 ${(m as any).carbCycle ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-500" : "border-border/50 text-muted-foreground"}`}>
+                  <TrendingUp className="w-3.5 h-3.5" /> Ciclo
+                </button>
+              )}
+              {excludedBadge}
+              {pairBrokenButton}
+            </div>
+            <div className="order-2 sm:order-3 flex items-center sm:ml-auto">
+              <button
+                type="button"
+                onClick={() => setOpenMealId(null)}
+                className="text-muted-foreground hover:text-primary p-1.5 shrink-0"
+                title="Fechar refeição"
+                aria-label="Fechar refeição"
+                data-testid={`meal-close-${mealIdx}`}
+              >
+                <ChevronUp className="w-4 h-4" />
               </button>
-            )}
-            {(m as any).excludeFromDayTotal && (
-              <span
-                className="h-8 px-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-600 text-[10px] font-semibold flex items-center gap-1 shrink-0 whitespace-nowrap"
-                title="Esta refeição não entra nas kcal/macros do dia. Use o menu ⋯ para voltar a contabilizar."
-              >
-                <Eye className="w-3.5 h-3.5" /> Fora do total
-              </span>
-            )}
-
-            {(() => {
-              const myPairId = typeof (m as any).pairId === "string" ? (m as any).pairId : "";
-              if (!myPairId) return null;
-              const partnerExists = payload.meals.some(
-                (mm, idx) => idx !== mealIdx && (mm as any).pairId === myPairId,
-              );
-              if (partnerExists) return null;
-              // pairId preenchido mas sem parceira real: a aluna não vê o botão de
-              // alternar (por design, desde a correção do "botão fantasma"). Provável
-              // causa: a outra metade foi apagada/editada fora do fluxo "Criar sem
-              // treino", ou é um par antigo criado antes dessa correção.
-              return (
-                <button
-                  type="button"
-                  onClick={() => updMealField(mealIdx, { pairId: undefined, excludeFromDayTotal: false, day_type: "all" } as any)}
-                  className="h-8 px-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-600 text-[10px] font-semibold transition-colors flex items-center gap-1 shrink-0 hover:bg-amber-500/20"
-                  title="Esta refeição tem um par configurado, mas a outra metade não existe mais (ou nunca teve o mesmo pairId). Por isso a aluna não vê o botão de alternar. Clique para desfazer esse vínculo quebrado e, se quiser, crie o par de novo."
-                >
-                  ⚠ Par quebrado — corrigir
-                </button>
-              );
-            })()}
-
-            <button
-              type="button"
-              onClick={() => setCollapsedMeals((prev) => ({ ...prev, [mealIdx]: !isCollapsed }))}
-              className="text-muted-foreground hover:text-primary p-1.5 shrink-0"
-              title={isCollapsed ? "Expandir refeição" : "Minimizar refeição"}
-            >
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isCollapsed ? "" : "rotate-180"}`} />
-            </button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button type="button" className="text-muted-foreground hover:text-primary p-1.5 shrink-0" title="Mais ações da refeição" aria-label="Mais ações da refeição">
-                  <MoreHorizontal className="w-4 h-4" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-60">
-                <DropdownMenuItem onClick={() => duplicateMeal(mealIdx)}><Copy className="w-3.5 h-3.5 mr-2" /> Duplicar refeição</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSaveTplFor({ idx: mealIdx, name: m.name || "Modelo", kind: "mixed" })}><BookmarkPlus className="w-3.5 h-3.5 mr-2" /> Salvar como modelo</DropdownMenuItem>
-                {!((m as any).pairId) && (
-                  <DropdownMenuItem onClick={() => createDayTypeVersion(mealIdx)}>
-                    <Copy className="w-3.5 h-3.5 mr-2" /> {(m as any).day_type === "rest" ? "Criar versão com treino" : "Criar versão sem treino"}
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={() => updMealField(mealIdx, { excludeFromDayTotal: !(m as any).excludeFromDayTotal } as any)}>
-                  <Eye className="w-3.5 h-3.5 mr-2" /> {(m as any).excludeFromDayTotal ? "Voltar a contabilizar nas kcal" : "Não contabilizar nas kcal"}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={deleteMeal}><Trash2 className="w-3.5 h-3.5 mr-2" /> Excluir refeição</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              {mealMenu}
+            </div>
           </div>
 
-          {!isCollapsed && (
-          <div className="p-4 space-y-3">
+          <div className="p-3 sm:p-4 space-y-3">
             {(["carb", "protein", "fat"] as const).map((kind) => {
               const cfg = KIND[kind];
               const hidden = Array.isArray((m as any).hiddenKinds) && (m as any).hiddenKinds.includes(kind);
               if (hidden) return null;
               const opts = getOptsForKind(m, kind);
               const kindCollapsed = isKindCollapsed(mealIdx, kind);
+              const visible = visibleOptionIndexes(opts, (i) => !!revealed[optKey(mealId, kind, i)]);
+              // Opção vazia escondida (ex.: Opção 2 em branco de protocolos antigos):
+              // "+ Opção" mostra ela em vez de criar mais uma.
+              const hiddenBlankIdx = opts.findIndex((_, i) => i > 0 && !visible.includes(i));
+              const addOrRevealOption = () => {
+                if (hiddenBlankIdx > 0) { reveal(optKey(mealId, kind, hiddenBlankIdx)); return; }
+                if (opts.length >= 3) return;
+                addOption(mealIdx, kind);
+                reveal(optKey(mealId, kind, opts.length));
+              };
               return (
-                <div key={kind} className={`rounded-xl border ${cfg.border} ${cfg.bg} p-3`}>
-                  <div className="flex items-center justify-between mb-2.5">
+                <div key={kind} className={`rounded-xl border ${cfg.border} ${cfg.bg} p-2.5 sm:p-3`}>
+                  <div className="flex items-center justify-between mb-2">
                     <button
                       type="button"
                       onClick={() => toggleKind(mealIdx, kind)}
                       className={`flex items-center gap-1.5 text-[11px] uppercase tracking-widest font-bold ${cfg.color} hover:opacity-80`}
                     >
                       <ChevronDown className={`w-3.5 h-3.5 transition-transform ${kindCollapsed ? "-rotate-90" : ""}`} />
-                      {cfg.label}
+                      <span className="hidden sm:inline">{cfg.label}</span>
+                      <span className="sm:hidden">{cfg.short}</span>
                     </button>
-                    <div className="flex items-center gap-2">
-                      {!kindCollapsed && opts.length < 3 && (
-                        <button type="button" onClick={() => addOption(mealIdx, kind)} className={`text-[10px] flex items-center gap-1 ${cfg.color} opacity-60 hover:opacity-100 transition-opacity`}>
-                          <Plus className="w-3 h-3" /> + opção
+                    <div className="flex items-center gap-3 shrink-0">
+                      {!kindCollapsed && visible.length < 3 && (
+                        <button
+                          type="button"
+                          onClick={addOrRevealOption}
+                          className={`text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap ${cfg.color} opacity-70 hover:opacity-100 transition-opacity`}
+                          data-testid={`add-option-${mealIdx}-${kind}`}
+                        >
+                          <Plus className="w-3 h-3" /> Opção {visible.length + 1}
                         </button>
                       )}
                       <button
@@ -620,8 +714,9 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                     </div>
                   </div>
 
-                  {!kindCollapsed && <div className="space-y-2.5">
-                    {opts.map((opt: any, optIdx: number) => {
+                  {!kindCollapsed && <div className="space-y-2">
+                    {visible.map((optIdx) => {
+                      const opt: any = opts[optIdx];
                       const items: any[] = Array.isArray(opt.items) ? opt.items : [];
                       const optM = optionMacros(opt);
                       const mainM = optIdx === 0 ? optM : optionMacros(opts[0]);
@@ -634,11 +729,32 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                       const sevLabel: Record<SubstitutionSeverity, string> = {
                         ok: "equivalente", warn: "atenção", err: "desbalanceada",
                       };
+                      const notesKey = `${optKey(mealId, kind, optIdx)}|notes`;
+                      const showNotes = !!String(opt.notes ?? "").trim() || !!revealed[notesKey];
                       return (
-                        <div key={optIdx} className="relative focus-within:z-[60] bg-card rounded-lg border border-border/50 p-2.5">
+                        <div key={optIdx} className="relative focus-within:z-[60] bg-card rounded-lg border border-border/50 p-2 sm:p-2.5" data-testid={`option-${mealIdx}-${kind}-${optIdx}`}>
                           <div className="flex items-center gap-1.5 mb-1.5">
                             <span className={`text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded ${cfg.bg} ${cfg.color} border ${cfg.border}`}>Op {optIdx + 1}</span>
-                            <Input value={opt.title || ""} onChange={(e) => updOption(mealIdx, kind, optIdx, { title: e.target.value })} placeholder="Título (ex: versão off-season)" className="h-6 text-[11px] flex-1 bg-transparent border-0 border-b border-dashed rounded-none px-1" />
+                            {/* O aluno não vê este título (vê "Opção principal", "Opção 2"…):
+                                o padrão "Opção N" fica escondido pra não repetir o selo. */}
+                            <Input
+                              value={isDefaultOptionTitle(opt.title) ? "" : (opt.title || "")}
+                              onChange={(e) => updOption(mealIdx, kind, optIdx, { title: e.target.value })}
+                              placeholder="nome (opcional)"
+                              aria-label="Nome da opção"
+                              className="h-6 text-[11px] flex-1 min-w-0 bg-transparent border-0 border-b border-dashed border-transparent hover:border-border focus:border-border rounded-none px-1 placeholder:text-muted-foreground/50"
+                            />
+                            {!showNotes && (
+                              <button
+                                type="button"
+                                onClick={() => reveal(notesKey)}
+                                className="shrink-0 text-[10px] text-muted-foreground hover:text-foreground px-1"
+                                title="Observação desta opção (o aluno vê)"
+                                data-testid={`option-notes-add-${mealIdx}-${kind}-${optIdx}`}
+                              >
+                                + obs
+                              </button>
+                            )}
                             {optIdx > 0 && (
                               <button
                                 type="button"
@@ -650,14 +766,31 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                               </button>
                             )}
                             {optIdx > 0 && (
-                              <button type="button" onClick={() => removeOption(mealIdx, kind, optIdx)} className="text-muted-foreground hover:text-destructive p-0.5 shrink-0"><Trash2 className="w-3 h-3" /></button>
+                              <button
+                                type="button"
+                                onClick={() => { removeOption(mealIdx, kind, optIdx); forgetGroupReveals(mealId, kind); }}
+                                className="text-muted-foreground hover:text-destructive p-0.5 shrink-0"
+                                title={`Remover a Opção ${optIdx + 1}`}
+                                aria-label={`Remover a Opção ${optIdx + 1}`}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
                             )}
                           </div>
-                          <Input value={(opt as any).notes || ""} onChange={(e) => updOption(mealIdx, kind, optIdx, { notes: e.target.value })} placeholder="Observação (ex: usar nos dias de treino pesado)" className="h-6 text-[11px] w-full bg-transparent border-0 border-b border-dashed rounded-none px-1 mb-2 text-muted-foreground" />
+                          {showNotes && (
+                            <Input
+                              autoFocus={!String(opt.notes ?? "").trim()}
+                              value={opt.notes || ""}
+                              onChange={(e) => updOption(mealIdx, kind, optIdx, { notes: e.target.value })}
+                              placeholder="Observação (ex: usar nos dias de treino pesado)"
+                              aria-label="Observação da opção"
+                              className="h-6 text-[11px] w-full bg-transparent border-0 border-b border-dashed rounded-none px-1 mb-2 text-muted-foreground"
+                            />
+                          )}
 
                           <div className="space-y-1.5">
                             {items.map((it: any, ii: number) => (
-                              <div key={ii} className="relative focus-within:z-[70] bg-background rounded border border-border/40 px-2 py-2 space-y-1.5">
+                              <div key={ii} className="relative focus-within:z-[70] bg-background rounded border border-border/40 px-2 py-1.5 space-y-1">
                                 {(it as any).optional && (
                                   <span className="text-[9px] text-amber-500 font-bold uppercase tracking-wider">
                                     ⚡ Opcional (não soma) — legado
@@ -696,24 +829,17 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                                     updItem(mealIdx, kind, optIdx, ii, patch);
                                   }}
                                   onRemove={() => rmItem(mealIdx, kind, optIdx, ii)}
+                                  // Substituição opcional só pelo menu ⋯ do alimento (decisão 4 da auditoria).
+                                  onAddSubstitution={it.substitution ? null : () => updItem(mealIdx, kind, optIdx, ii, { substitution: { name: "", baseName: "", weight: "", rawWeight: 0, cookFactor: 1, isTaco: false } })}
+                                  testId={`food-${mealIdx}-${kind}-${optIdx}-${ii}`}
                                 />
 
                                 {/* Substituição opcional anexada (máx. 1 por alimento) */}
-                                {it.substitution ? (
-                                  <div className="mt-1 ml-2 pl-2.5 border-l-2 border-dashed border-amber-500/40 space-y-1.5">
-                                    <div className="flex items-center justify-between gap-2">
-                                      <span className="text-[9px] text-amber-500 font-bold uppercase tracking-wider">
-                                        ↳ 🔁 Substituição opcional (não soma)
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={() => updItem(mealIdx, kind, optIdx, ii, { substitution: undefined })}
-                                        className="text-[9px] text-muted-foreground hover:text-destructive"
-                                        title="Remover substituição"
-                                      >
-                                        remover
-                                      </button>
-                                    </div>
+                                {it.substitution && (
+                                  <div className="mt-1 ml-2 pl-2.5 border-l-2 border-dashed border-amber-500/40 space-y-1">
+                                    <span className="text-[9px] text-amber-500 font-bold uppercase tracking-wider">
+                                      ↳ 🔁 Substituição opcional (não soma)
+                                    </span>
                                     <FoodRow
                                       it={it.substitution}
                                       kind={kind}
@@ -746,17 +872,9 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                                         updSubstitution(mealIdx, kind, optIdx, ii, patch);
                                       }}
                                       onRemove={() => updItem(mealIdx, kind, optIdx, ii, { substitution: undefined })}
+                                      removeLabel="Remover substituição"
                                     />
                                   </div>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => updItem(mealIdx, kind, optIdx, ii, { substitution: { name: "", baseName: "", weight: "", rawWeight: 0, cookFactor: 1, isTaco: false } })}
-                                    className="text-[10px] flex items-center gap-1 px-1 text-amber-600 opacity-70 hover:opacity-100"
-                                    title="Anexa 1 alternativa equivalente em kcal — não soma nos macros"
-                                  >
-                                    <Plus className="w-3 h-3" /> substituição opcional
-                                  </button>
                                 )}
                               </div>
                             ))}
@@ -817,25 +935,39 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
               </div>
             )}
 
-            <div className="pt-1">
-              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Observação da refeição</Label>
-              <Textarea
-                value={(m as any).notes || ""}
-                onChange={(e) => updMealField(mealIdx, { notes: e.target.value } as any)}
-                placeholder="Ex.: tomar 30 min após o treino · evitar líquidos · café sem açúcar..."
-                className="mt-1 min-h-[60px] text-xs"
-              />
-            </div>
+            {showMealNotes ? (
+              <div className="pt-1">
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Observação da refeição</Label>
+                <Textarea
+                  autoFocus={!String((m as any).notes ?? "").trim()}
+                  value={(m as any).notes || ""}
+                  onChange={(e) => updMealField(mealIdx, { notes: e.target.value } as any)}
+                  placeholder="Ex.: tomar 30 min após o treino · evitar líquidos · café sem açúcar..."
+                  className="mt-1 min-h-[60px] text-xs"
+                />
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => reveal(mealNotesKey)}
+                className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1"
+                data-testid={`meal-notes-add-${mealIdx}`}
+              >
+                <Plus className="w-3 h-3" /> Observação da refeição
+              </button>
+            )}
           </div>
+          </>
           )}
         </Card>
         )}
         </SortableMealCard>
         );
       })}
+      </div>
       </SortableContext>
       </DndContext>
-      <Button variant="outline" size="sm" onClick={() => setPayload({ ...payload, meals: [...payload.meals, makeEmptyMeal(`Refeição ${payload.meals.length + 1}`)] })} className="w-full">
+      <Button variant="outline" size="sm" onClick={addMeal} className="w-full">
         <Plus className="w-4 h-4 mr-1.5" /> Adicionar Nova Refeição
       </Button>
 
@@ -918,15 +1050,15 @@ function QuantityFeedback({ it }: { it: any }) {
 
   if (!linked) {
     if (!String(it.baseName || it.name || "").trim()) return null;
-    return <p className="pl-[3.9rem] text-[10px] text-muted-foreground">Alimento fora da tabela — não entra no cálculo de macros nem de fibra.</p>;
+    return <p className="pl-[3.9rem] sm:pl-1 text-[10px] text-muted-foreground">Alimento fora da tabela — não entra no cálculo de macros nem de fibra.</p>;
   }
   if (it.optional === true) {
-    return <p className="pl-[3.9rem] text-[10px] text-muted-foreground">Item opcional (legado) — não soma nos macros.</p>;
+    return <p className="pl-[3.9rem] sm:pl-1 text-[10px] text-muted-foreground">Item opcional (legado) — não soma nos macros.</p>;
   }
   if (!text) {
     const hints = quantityHintsFor(it);
     return (
-      <p className="pl-[3.9rem] text-[10px] text-muted-foreground">
+      <p className="pl-[3.9rem] sm:pl-1 text-[10px] text-muted-foreground">
         Digite g, kg, ml ou uma medida (uni, fatia, colher…){hints.length ? ` · cadastrado: ${hints.join(" · ")}` : ""}
       </p>
     );
@@ -935,7 +1067,7 @@ function QuantityFeedback({ it }: { it: any }) {
   const q = resolveQuantity(it, text);
   if (q.status === "unknown" || q.status === "no-weight") {
     return (
-      <p className="pl-[3.9rem] flex items-start gap-1 text-[10px] text-amber-600">
+      <p className="pl-[3.9rem] sm:pl-1 flex items-start gap-1 text-[10px] text-amber-600">
         <AlertCircle className="w-3 h-3 mt-px shrink-0" />
         <span>{q.hint}</span>
       </p>
@@ -946,7 +1078,7 @@ function QuantityFeedback({ it }: { it: any }) {
   const gramsTxt = `${Math.round(q.grams * 10) / 10} g`;
   const understood = q.isUnit && q.canonicalText ? `${q.canonicalText} = ${gramsTxt}` : q.isUnit && q.label ? `${q.value} ${q.label} = ${gramsTxt}` : gramsTxt;
   return (
-    <p className="pl-[3.9rem] flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] tabular-nums text-muted-foreground">
+    <p className="pl-[3.9rem] sm:pl-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] tabular-nums text-muted-foreground">
       <span className="inline-flex items-center gap-1 text-emerald-600 font-medium"><CheckCircle2 className="w-3 h-3" />{understood}</span>
       <span>{Math.round(m.kcal)} kcal</span>
       <span className="text-blue-500">{m.protein.toFixed(1)}p</span>
@@ -962,7 +1094,7 @@ function QuantityFeedback({ it }: { it: any }) {
 }
 
 function FoodRow({
-  it, onPickTaco, onChangeName, onChangeWeight, onRemove,
+  it, onPickTaco, onChangeName, onChangeWeight, onRemove, onAddSubstitution, removeLabel = "Remover alimento", testId,
 }: {
   it: any;
   kind: "carb" | "protein" | "fat";
@@ -970,6 +1102,14 @@ function FoodRow({
   onChangeName: (s: string) => void;
   onChangeWeight: (s: string) => void;
   onRemove: () => void;
+  /**
+   * Alimento principal: mostra o menu ⋯ (remover + "Adicionar substituição"
+   * quando for função; `null` = já tem substituição). Sem a prop (linha da
+   * própria substituição), fica só a lixeira.
+   */
+  onAddSubstitution?: (() => void) | null;
+  removeLabel?: string;
+  testId?: string;
 }) {
   const [focused, setFocused] = useState(false);
   const rawQ = (it.baseName || it.name || "").toString().trim();
@@ -981,11 +1121,36 @@ function FoodRow({
 
   const showSuggestions = focused && matches.length > 0 && !it.isTaco && !it.isIndustrial;
 
+  // Menu ⋯ do alimento principal (Dieta enxuta): a substituição opcional sai
+  // do link fixo embaixo de cada alimento e entra aqui, junto com remover.
+  const menu = onAddSubstitution !== undefined ? (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button type="button" className="text-muted-foreground hover:text-primary p-1 shrink-0" title="Ações do alimento" aria-label="Ações do alimento" data-testid={testId ? `${testId}-menu` : undefined}>
+          <MoreHorizontal className="w-3.5 h-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        {onAddSubstitution && (
+          <DropdownMenuItem onClick={onAddSubstitution}>
+            <Plus className="w-3.5 h-3.5 mr-2" /> Adicionar substituição
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={onRemove}>
+          <Trash2 className="w-3.5 h-3.5 mr-2" /> {removeLabel}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  ) : (
+    <button type="button" onClick={onRemove} className="text-muted-foreground hover:text-destructive p-1 shrink-0" title={removeLabel} aria-label={removeLabel}><Trash2 className="w-3.5 h-3.5" /></button>
+  );
+
   return (
     <>
-      <div className="flex items-center gap-1.5 relative">
-        <div className="relative flex-1">
+      <div className="flex flex-col sm:flex-row sm:items-start gap-1.5 relative" data-testid={testId}>
+        <div className="relative flex-1 min-w-0">
           <Input
+            aria-label="Alimento"
             value={it.baseName || it.name || ""}
             onChange={(e) => onChangeName(e.target.value)}
             onFocus={() => setFocused(true)}
@@ -1045,30 +1210,31 @@ function FoodRow({
             </div>
           )}
         </div>
-        {it.isTaco && (
-          <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/30 shrink-0" title="Vinculado à tabela TACO">TACO</span>
-        )}
-        {it.isIndustrial && (
-          <span className="text-[9px] px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-500 border border-violet-500/30 shrink-0" title="Alimento industrializado (rótulo do fabricante)">IND</span>
-        )}
-        <button onClick={onRemove} className="text-muted-foreground hover:text-destructive p-1 shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
-      </div>
-      <div className="flex items-center gap-2">
-        <label className="text-[10px] text-muted-foreground shrink-0">Quantidade</label>
-        <Input
-          value={it.weight ?? ""}
-          onChange={(e) => onChangeWeight(e.target.value)}
-          onBlur={() => {
-            // Ao sair do campo, padroniza a medida reconhecida ("2 uni" → "2 unidades"):
-            // a visão do aluno exibe o texto digitado pelo coach, então abreviação não pode vazar para lá.
-            if (!(it.isTaco || it.isIndustrial)) return;
-            const current = String(it.weight ?? "").trim();
-            const q = resolveQuantity(it, current);
-            if (q.status === "ok" && q.canonicalText && q.canonicalText !== current) onChangeWeight(q.canonicalText);
-          }}
-          placeholder={it.isTaco || it.isIndustrial ? "ex: 150g · 2 uni · 1 colher · 3 fatias" : "ex: 8 unidades, 200g, 2 fatias…"}
-          className="h-7 text-xs flex-1"
-        />
+        <div className="flex items-center gap-1.5 sm:w-[240px] sm:shrink-0">
+          <label className="sm:hidden text-[10px] text-muted-foreground shrink-0">Quantidade</label>
+          <Input
+            aria-label="Quantidade"
+            value={it.weight ?? ""}
+            onChange={(e) => onChangeWeight(e.target.value)}
+            onBlur={() => {
+              // Ao sair do campo, padroniza a medida reconhecida ("2 uni" → "2 unidades"):
+              // a visão do aluno exibe o texto digitado pelo coach, então abreviação não pode vazar para lá.
+              if (!(it.isTaco || it.isIndustrial)) return;
+              const current = String(it.weight ?? "").trim();
+              const q = resolveQuantity(it, current);
+              if (q.status === "ok" && q.canonicalText && q.canonicalText !== current) onChangeWeight(q.canonicalText);
+            }}
+            placeholder={it.isTaco || it.isIndustrial ? "ex: 150g · 2 uni · 3 fatias" : "ex: 8 unidades, 200g…"}
+            className="h-8 text-xs flex-1 min-w-0"
+          />
+          {it.isTaco && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/30 shrink-0" title="Vinculado à tabela TACO">TACO</span>
+          )}
+          {it.isIndustrial && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-500 border border-violet-500/30 shrink-0" title="Alimento industrializado (rótulo do fabricante)">IND</span>
+          )}
+          {menu}
+        </div>
       </div>
       <QuantityFeedback it={it} />
     </>
