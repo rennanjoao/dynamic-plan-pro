@@ -10,6 +10,8 @@
  */
 
 import { applyCookedTwins } from "./cookedTwins";
+import { ENRICHED_FOODS } from "./enrichedFoods";
+import { applyHouseholdMeasures } from "./householdMeasures";
 
 export interface TacoFood {
   name: string;
@@ -290,6 +292,8 @@ export const TACO_FOODS_MEASURED: TacoFood[] = [
 ];
 
 export const TACO_FOODS: TacoFood[] = applyCookedTwins(TACO_FOODS_MEASURED);
+// Medidas caseiras (IBGE) + nomes duplicados compartilhando as mesmas medidas.
+applyHouseholdMeasures(ENRICHED_FOODS, TACO_FOODS);
 
 // ─── FUNÇÕES ──────────────────────────────────────────────────────────────────
 

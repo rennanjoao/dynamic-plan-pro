@@ -46,6 +46,7 @@ import {
 } from "@/lib/macroCalc";
 import { searchFoods, type FoodHit } from "@/lib/foodSearch";
 import { isDefaultOptionTitle, mealFoodsPreview, visibleOptionIndexes } from "@/lib/dietEditorView";
+import { householdApprox } from "@/lib/householdMeasures";
 import { TACO_FOODS } from "@/data/tacoFoods";
 import { ENRICHED_FOODS } from "@/data/enrichedFoods";
 
@@ -431,6 +432,21 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
           )}
         </Card>
       </div>
+      {/* Por aluno: medida caseira aproximada ao lado dos gramas, na tela do aluno. */}
+      <label className="flex items-start gap-2.5 rounded-lg border border-border/60 bg-card/40 px-3 py-2 cursor-pointer" data-testid="household-toggle">
+        <Switch
+          checked={!!payload.setup.showHouseholdMeasures}
+          onCheckedChange={(v) => setPayload({ ...payload, setup: { ...payload.setup, showHouseholdMeasures: v } })}
+          aria-label="Mostrar medidas caseiras ao aluno"
+          className="mt-0.5"
+        />
+        <span className="min-w-0">
+          <span className="block text-xs font-semibold">Mostrar medidas caseiras ao aluno</span>
+          <span className="block text-[10px] text-muted-foreground">
+            Você continua prescrevendo em gramas; o aluno vê "120 g ≈ 5 colheres de sopa" (medidas do IBGE, quando o alimento tem).
+          </span>
+        </span>
+      </label>
 
       <DndContext sensors={mealSensors} collisionDetection={closestCenter} onDragEnd={handleMealDragEnd}>
       <SortableContext
@@ -841,6 +857,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                                   // Substituição opcional só pelo menu ⋯ do alimento (decisão 4 da auditoria).
                                   onAddSubstitution={it.substitution ? null : () => updItem(mealIdx, kind, optIdx, ii, { substitution: { name: "", baseName: "", weight: "", rawWeight: 0, cookFactor: 1, isTaco: false } })}
                                   testId={`food-${mealIdx}-${kind}-${optIdx}-${ii}`}
+                                  showHousehold={!!payload.setup.showHouseholdMeasures}
                                 />
 
                                 {/* Substituição opcional anexada (máx. 1 por alimento) */}
@@ -882,6 +899,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                                       }}
                                       onRemove={() => updItem(mealIdx, kind, optIdx, ii, { substitution: undefined })}
                                       removeLabel="Remover substituição"
+                                      showHousehold={!!payload.setup.showHouseholdMeasures}
                                     />
                                   </div>
                                 )}
@@ -1053,7 +1071,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
  * ("2 uni" → 2 unidades = 100 g) e os macros do item, incluindo fibra. Substitui o antigo
  * seletor de medida/unidade: a unidade é reconhecida pelo próprio texto.
  */
-function QuantityFeedback({ it }: { it: any }) {
+function QuantityFeedback({ it, showHousehold = false }: { it: any; showHousehold?: boolean }) {
   const linked = it.isTaco === true || it.isIndustrial === true;
   const text = String(it.weight ?? "").trim();
 
@@ -1086,9 +1104,12 @@ function QuantityFeedback({ it }: { it: any }) {
   const m = calcItemMacros({ ...it, rawWeight: q.grams });
   const gramsTxt = `${Math.round(q.grams * 10) / 10} g`;
   const understood = q.isUnit && q.canonicalText ? `${q.canonicalText} = ${gramsTxt}` : q.isUnit && q.label ? `${q.value} ${q.label} = ${gramsTxt}` : gramsTxt;
+  // O que o aluno vai ver ao lado dos gramas (só com "Mostrar medidas caseiras ao aluno" ligado).
+  const approx = showHousehold && !q.isUnit ? householdApprox(String(it.baseName || it.name || ""), q.grams) : null;
   return (
     <p className="pl-[3.9rem] sm:pl-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] tabular-nums text-muted-foreground">
       <span className="inline-flex items-center gap-1 text-emerald-600 font-medium"><CheckCircle2 className="w-3 h-3" />{understood}</span>
+      {approx && <span className="text-foreground/70" title="O aluno vê esta medida ao lado dos gramas">aluno vê {approx}</span>}
       <span>{Math.round(m.kcal)} kcal</span>
       <span className="text-blue-500">{m.protein.toFixed(1)}p</span>
       <span className="text-amber-500">{m.carbs.toFixed(1)}c</span>
@@ -1103,7 +1124,7 @@ function QuantityFeedback({ it }: { it: any }) {
 }
 
 function FoodRow({
-  it, onPickTaco, onChangeName, onChangeWeight, onRemove, onAddSubstitution, removeLabel = "Remover alimento", testId,
+  it, onPickTaco, onChangeName, onChangeWeight, onRemove, onAddSubstitution, removeLabel = "Remover alimento", testId, showHousehold = false,
 }: {
   it: any;
   kind: "carb" | "protein" | "fat";
@@ -1119,6 +1140,7 @@ function FoodRow({
   onAddSubstitution?: (() => void) | null;
   removeLabel?: string;
   testId?: string;
+  showHousehold?: boolean;
 }) {
   const [focused, setFocused] = useState(false);
   const rawQ = (it.baseName || it.name || "").toString().trim();
@@ -1245,7 +1267,7 @@ function FoodRow({
           {menu}
         </div>
       </div>
-      <QuantityFeedback it={it} />
+      <QuantityFeedback it={it} showHousehold={showHousehold} />
     </>
   );
 }
