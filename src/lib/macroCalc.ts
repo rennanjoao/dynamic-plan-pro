@@ -427,7 +427,8 @@ const DISPLAY_NAME: Record<string, [string, string]> = {
   pedaco: ["pedaço", "pedaços"], file: ["filé", "filés"], bife: ["bife", "bifes"], castanha: ["castanha", "castanhas"],
   concha: ["concha", "conchas"], escumadeira: ["escumadeira", "escumadeiras"], punhado: ["punhado", "punhados"],
   pegador: ["pegador", "pegadores"], prato: ["prato", "pratos"], posta: ["posta", "postas"], rodela: ["rodela", "rodelas"],
-  folha: ["folha", "folhas"], ramo: ["ramo", "ramos"], cacho: ["cacho", "cachos"], gomo: ["gomo", "gomos"], ponta: ["ponta", "pontas"],
+  folha: ["folha", "folhas"], ramo: ["ramo", "ramos"], cacho: ["cacho", "cachos"], gomo: ["gomo", "gomos"],
+  ponta: ["ponta de faca", "pontas de faca"],
 };
 const QUAL_DISPLAY: Record<string, string> = { sopa: "de sopa", cha: "de chá", sobremesa: "de sobremesa", cafe: "de café", servir: "de servir" };
 
@@ -521,7 +522,19 @@ export function parseWeightString(
         });
       }
     }
-    const pick = qual ? cands.find((c) => c.q === qual) : (cands.find((c) => c.p.grams > 0 && Math.abs(c.per - c.p.grams) < 1e-9) ?? cands[0]);
+    let pick: (typeof cands)[number] | undefined;
+    if (qual) {
+      pick = cands.find((c) => c.q === qual);
+    } else if (unit?.canon === "colher" && new Set(cands.map((c) => c.q)).size > 1) {
+      // "1 colher" sem dizer qual: vale a colher de sopa (a usual); sem ela, pede para escolher.
+      pick = cands.find((c) => c.q === "sopa");
+      if (!pick) {
+        const opts = [...new Set(cands.map((c) => measureLabel("colher", c.q)))].join(", ");
+        return noWeight(`Diga qual colher: ${opts}.`);
+      }
+    } else {
+      pick = cands.find((c) => c.p.grams > 0 && Math.abs(c.per - c.p.grams) < 1e-9) ?? cands[0];
+    }
     if (pick) {
       const pickQ = pick.q ?? qual;
       if (pick.canon) return ok(qty * pick.per, "unit", true, measureLabel(pick.canon, pickQ), canonicalFor(pick.canon, pickQ));
