@@ -15,6 +15,7 @@
  *      para sinalizar anomalia no import em vez de tentar match inválido.
  */
 
+import { FOOD_DENSITY_G_PER_ML } from "@/data/foodDensity";
 import { TACO_FOODS, type TacoFood } from "@/data/tacoFoods";
 import { ENRICHED_FOODS } from "@/data/enrichedFoods";
 import { INDUSTRIAL_FOODS, industrialByName, type IndustrialFood } from "@/data/industrialFoods";
@@ -288,6 +289,11 @@ function foodByName(name: string): TacoFood | IndustrialFood | undefined {
   return tacoByName(name) || industrialByName(name);
 }
 
+/** Alimento do catálogo pelo nome exato (TACO enriquecida, TACO legada ou industrializado). */
+export function findFoodByName(name: string): TacoFood | IndustrialFood | undefined {
+  return foodByName(String(name || ""));
+}
+
 /**
  * Parser numérico seguro para a string de quantidade do alimento.
  * Extrai o valor numérico e detecta se é unidade (un, unidade, fatia, ovo)
@@ -350,6 +356,8 @@ interface UnitCanon { kind: UnitKind; canon: string; qual?: string }
 const MEASURE_CANON = [
   "unidade", "fatia", "ovo", "clara", "colher", "copo", "porcao", "scoop", "dosador",
   "lata", "pote", "xicara", "pedaco", "file", "bife", "castanha",
+  // Medidas da Tabela de Medidas Referidas do IBGE (POF 2008-2009).
+  "concha", "escumadeira", "punhado", "pegador", "prato", "posta", "rodela", "folha", "ramo", "cacho", "gomo", "ponta",
 ];
 // Abreviações curtas que não seguem a regra de prefixo.
 const SHORT_ALIASES: Record<string, UnitCanon> = {
@@ -398,7 +406,7 @@ function canonUnit(rawTok: string): UnitCanon | null {
   return null;
 }
 
-/** Qualificador de colher: "sopa" | "cha" | "sobremesa" | "cafe" (aceita parcial e pontuação: "sop", "(sopa)"). */
+/** Qualificador de colher: "sopa" | "cha" | "sobremesa" | "cafe" | "servir" (aceita parcial e pontuação: "sop", "(sopa)"). */
 function canonQualifier(words: string[]): string | null {
   for (const raw of words) {
     const w = raw.replace(/[^a-z]/g, "");
@@ -406,6 +414,8 @@ function canonQualifier(words: string[]): string | null {
     if (w === "cha" || w === "ch") return "cha";
     if (/^sobr/.test(w)) return "sobremesa";
     if (/^caf/.test(w)) return "cafe";
+    // IBGE: "colher de arroz/servir" é a mesma colher grande de servir.
+    if (/^serv/.test(w) || /^arroz$/.test(w)) return "servir";
   }
   return null;
 }
@@ -415,8 +425,12 @@ const DISPLAY_NAME: Record<string, [string, string]> = {
   colher: ["colher", "colheres"], copo: ["copo", "copos"], porcao: ["porção", "porções"], scoop: ["scoop", "scoops"],
   dosador: ["dosador", "dosadores"], lata: ["lata", "latas"], pote: ["pote", "potes"], xicara: ["xícara", "xícaras"],
   pedaco: ["pedaço", "pedaços"], file: ["filé", "filés"], bife: ["bife", "bifes"], castanha: ["castanha", "castanhas"],
+  concha: ["concha", "conchas"], escumadeira: ["escumadeira", "escumadeiras"], punhado: ["punhado", "punhados"],
+  pegador: ["pegador", "pegadores"], prato: ["prato", "pratos"], posta: ["posta", "postas"], rodela: ["rodela", "rodelas"],
+  folha: ["folha", "folhas"], ramo: ["ramo", "ramos"], cacho: ["cacho", "cachos"], gomo: ["gomo", "gomos"],
+  ponta: ["ponta de faca", "pontas de faca"],
 };
-const QUAL_DISPLAY: Record<string, string> = { sopa: "de sopa", cha: "de chá", sobremesa: "de sobremesa", cafe: "de café" };
+const QUAL_DISPLAY: Record<string, string> = { sopa: "de sopa", cha: "de chá", sobremesa: "de sobremesa", cafe: "de café", servir: "de servir" };
 
 function measureLabel(canon: string, qual: string | null, plural = false): string {
   const names = DISPLAY_NAME[canon];
@@ -436,6 +450,14 @@ export function parseWeightString(
   raw: unknown,
   unitWeight?: number,
   portions?: Array<{ label: string; grams: number }>,
+  /**
+   * Regras do alimento escolhido (ver parseFoodQuantity). Sem isso (texto solto, sem alimento),
+   * vale o comportamento antigo: ml = g e o peso da unidade serve para a medida digitada.
+   *  - density: g por ml. Número → converte ml; null → o alimento não é líquido e "ml" não vale.
+   *  - foodName: o peso de "1 unidade" só vale para "unidade" ou para a palavra do próprio
+   *    alimento ("1 ovo" de ovo, "1 castanha" de castanha) — nunca para colher, xícara, copo…
+   */
+  food?: { density: number | null; foodName: string },
 ): ParsedQuantity {
   const text = String(raw ?? "").trim();
   const base = (over: Partial<ParsedQuantity>): ParsedQuantity => ({
@@ -458,8 +480,17 @@ export function parseWeightString(
 
   if (unit && unit.kind === "g") return ok(qty, "g");
   if (unit && unit.kind === "kg") return ok(qty * 1000, "kg");
-  if (unit && unit.kind === "ml") return ok(qty, "ml");
-  if (unit && unit.kind === "l") return ok(qty * 1000, "l");
+  if (unit && (unit.kind === "ml" || unit.kind === "l")) {
+    const ml = unit.kind === "l" ? qty * 1000 : qty;
+    if (!food) return ok(ml, unit.kind); // sem alimento: comportamento antigo (1 ml = 1 g)
+    if (typeof food.density === "number" && food.density > 0) {
+      return ok(Math.round(ml * food.density * 10) / 10, unit.kind);
+    }
+    return {
+      value: qty, grams: 0, isUnit: false, unit: unit.kind, original: text, convertible: false, status: "no-weight",
+      label: unit.kind, hint: "ml só vale para líquidos — para este alimento, use g ou uma medida caseira.",
+    };
+  }
 
   // ── Medida caseira ──
   const qual = unit && unit.canon === "colher" ? (unit.qual ?? canonQualifier(words.slice(1))) : null;
@@ -491,7 +522,19 @@ export function parseWeightString(
         });
       }
     }
-    const pick = qual ? cands.find((c) => c.q === qual) : (cands.find((c) => c.p.grams > 0 && Math.abs(c.per - c.p.grams) < 1e-9) ?? cands[0]);
+    let pick: (typeof cands)[number] | undefined;
+    if (qual) {
+      pick = cands.find((c) => c.q === qual);
+    } else if (unit?.canon === "colher" && new Set(cands.map((c) => c.q)).size > 1) {
+      // "1 colher" sem dizer qual: vale a colher de sopa (a usual); sem ela, pede para escolher.
+      pick = cands.find((c) => c.q === "sopa");
+      if (!pick) {
+        const opts = [...new Set(cands.map((c) => measureLabel("colher", c.q)))].join(", ");
+        return noWeight(`Diga qual colher: ${opts}.`);
+      }
+    } else {
+      pick = cands.find((c) => c.p.grams > 0 && Math.abs(c.per - c.p.grams) < 1e-9) ?? cands[0];
+    }
     if (pick) {
       const pickQ = pick.q ?? qual;
       if (pick.canon) return ok(qty * pick.per, "unit", true, measureLabel(pick.canon, pickQ), canonicalFor(pick.canon, pickQ));
@@ -503,7 +546,12 @@ export function parseWeightString(
 
   // 2) Peso unitário médio cadastrado. Colher "de chá/sobremesa/café" nunca herda peso de colher de sopa.
   if (unit.canon === "colher" && qual && qual !== "sopa") return noWeight();
-  if (typeof unitWeight === "number" && unitWeight > 0) return ok(qty * unitWeight, "unit", true, label, canonicalFor(unit.canon, qual));
+  if (typeof unitWeight === "number" && unitWeight > 0) {
+    // Com alimento: o peso da unidade só vale para "unidade" ou para a palavra do próprio alimento
+    // ("1 ovo", "1 castanha"). Antes "1 xícara de azeite" virava 13 g e "1 colher de banana", 70 g.
+    const unitApplies = !food || unit.canon === "unidade" || normTxt(food.foodName).split(/[^a-z]+/).some((w) => singularForms(w).includes(unit.canon));
+    if (unitApplies) return ok(qty * unitWeight, "unit", true, label, canonicalFor(unit.canon, qual));
+  }
   return noWeight();
 }
 
@@ -514,8 +562,20 @@ export function parseWeightString(
  */
 export function resolveQuantity(item: any, text: string): ParsedQuantity {
   const food: any = foodByName(String(item?.baseName || item?.name || ""));
-  const unitW = typeof food?.unitWeight === "number" ? food.unitWeight : undefined;
-  return parseWeightString(text, unitW, food?.portions);
+  return parseFoodQuantity(food, text);
+}
+
+/**
+ * Converte o texto de quantidade usando as regras DO alimento: peso da unidade, medidas
+ * caseiras (portions) e densidade (ml → g). Sem alimento, cai no parser genérico.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function parseFoodQuantity(food: any, text: unknown): ParsedQuantity {
+  if (!food) return parseWeightString(text);
+  const unitW = typeof food.unitWeight === "number" ? food.unitWeight : undefined;
+  const d = FOOD_DENSITY_G_PER_ML[String(food.name || "")];
+  const density = typeof d === "number" && d > 0 ? d : null;
+  return parseWeightString(text, unitW, food.portions, { density, foodName: String(food.name || "") });
 }
 
 /** Medidas caseiras que o alimento aceita (para o texto de ajuda quando o campo está vazio). */
@@ -592,10 +652,7 @@ export function resolveFiberPer100(food: any): { value: number; source: FiberSou
 /** Peso (g) de um item de alimento, usando rawWeight ou o texto digitado + medidas caseiras do alimento. */
 function itemGrams(item: any, food: any): number {
   if (typeof item.rawWeight === "number" && item.rawWeight > 0) return item.rawWeight;
-  if (item.weight != null) {
-    const unitW = typeof food?.unitWeight === "number" ? food.unitWeight : undefined;
-    return parseWeightString(item.weight, unitW, food?.portions).grams;
-  }
+  if (item.weight != null) return parseFoodQuantity(food, item.weight).grams;
   return 0;
 }
 

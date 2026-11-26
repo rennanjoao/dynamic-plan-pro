@@ -211,7 +211,9 @@ describe("quantidade: unidade/medida reconhecida enquanto digita", () => {
   it("industrializado: resolveQuantity usa o cadastro dele; sem medida cadastrada avisa em vez de inventar", () => {
     const item = { isIndustrial: true, baseName: "Requeijão Light Tirolez" };
     expect(resolveQuantity(item, "30g")).toMatchObject({ grams: 30, status: "ok" });
-    expect(resolveQuantity(item, "2 colh")).toMatchObject({ grams: 0, status: "no-weight" });
+    // Colher de sopa cheia de requeijão (IBGE POF 2008-2009) = 30 g; xícara não tem peso cadastrado.
+    expect(resolveQuantity(item, "2 colh")).toMatchObject({ grams: 60, status: "ok" });
+    expect(resolveQuantity(item, "2 xícaras")).toMatchObject({ grams: 0, status: "no-weight" });
     expect(industrialByName("Requeijão Light Tirolez")).toBeDefined();
   });
 

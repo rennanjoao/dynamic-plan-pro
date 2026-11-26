@@ -9,12 +9,16 @@
  * se a refeição participa do ciclo e dimensionando resíduos (proteína/gordura) da fonte de carbo.
  */
 
-import { useEffect, useState, useMemo } from "react";
+import { createContext, useContext, useEffect, useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Clock, Flame, Dna, Wheat, Droplets, Salad, Check } from "lucide-react";
 import { type CarbMode } from "@/components/student/CarbCycleSelector";
 import StickyDietBar from "@/components/student/StickyDietBar";
 import { calcItemMacros } from "@/lib/macroCalc";
+import { hasHouseholdWord, householdApprox } from "@/lib/householdMeasures";
+
+// "Mostrar medidas caseiras ao aluno" (protocolo deste aluno → setup.showHouseholdMeasures).
+const HouseholdCtx = createContext(false);
 import { cookInfo, displayFoodName } from "@/lib/cooking";
 import { buildWeekStrip, CARB_LABEL, CARB_COLOR, todayKey, tomorrowKey } from "@/lib/weekCycle";
 import {
@@ -317,11 +321,28 @@ function humanizeUnit(weight: string): string {
 }
 
 // ─── MacroSection ─────────────────────────────────────────────────────────────
+/**
+ * Medida caseira aproximada para o peso JÁ exibido ("270g" no modo cozido etc.). Só para gramas
+ * puros; usa o alimento no estado mostrado (cozido no modo Cozido) — medida de cru não serve
+ * para peso cozido.
+ */
+function householdFor(weightText: string, rawName: string, isCooked: boolean): string | null {
+  const w = String(weightText || "").trim();
+  if (!w || hasHouseholdWord(w)) return null;
+  const m = /^(\d+(?:[.,]\d+)?)\s*g$/i.exec(w);
+  if (!m) return null;
+  const grams = parseFloat(m[1].replace(",", "."));
+  const shown = displayFoodName(rawName, isCooked);
+  if (isCooked && shown === rawName && cookInfo(rawName).state === "raw" && cookInfo(rawName).factor !== 1) return null;
+  return householdApprox(shown, grams);
+}
+
 function MacroSection({
   kind, opts, mode, isCooked, highPct, lowPct, mealName,
 }: {
   kind: Kind; opts: any[]; mode: CarbMode; isCooked: boolean; highPct: number; lowPct: number; mealName: string;
 }) {
+  const showHousehold = useContext(HouseholdCtx);
   const cfg = KIND_META[kind];
   const isCarb = kind === "carb";
   const [showAlternatives, setShowAlternatives] = useState(false);
@@ -361,16 +382,19 @@ function MacroSection({
         };
         const sub = it?.substitution;
         const subName = stripHtml(sub?.baseName || sub?.name || "");
+        const weight = resolveWeight(it, name);
+        const subWeight = subName ? resolveWeight(sub, subName) : "";
         return {
           // No modo Cozido o nome acompanha o peso: "(cru)" → "(cozido)".
           name: displayFoodName(name, isCooked),
-          weight: resolveWeight(it, name),
+          weight,
+          household: showHousehold ? householdFor(weight, name, isCooked) : null,
           sub: subName
-            ? { name: displayFoodName(subName, isCooked), weight: resolveWeight(sub, subName) }
+            ? { name: displayFoodName(subName, isCooked), weight: subWeight, household: showHousehold ? householdFor(subWeight, subName, isCooked) : null }
             : null,
         };
       })
-      .filter(Boolean) as { name: string; weight: string; sub: { name: string; weight: string } | null }[];
+      .filter(Boolean) as { name: string; weight: string; household: string | null; sub: { name: string; weight: string; household: string | null } | null }[];
     return items;
   };
 
@@ -405,8 +429,11 @@ function MacroSection({
                         {item.name}
                       </span>
                       {item.weight && (
-                        <span className={`text-xs tabular-nums shrink-0 font-bold ${cfg.color}`}>
+                        <span className={`text-xs tabular-nums shrink-0 font-bold ${cfg.color} text-right`}>
                           {humanizeUnit(item.weight)}
+                          {item.household && (
+                            <span className="block text-[10px] font-medium text-muted-foreground" data-testid="household-approx">{item.household}</span>
+                          )}
                         </span>
                       )}
                     </div>
@@ -417,8 +444,11 @@ function MacroSection({
                           {item.sub.name}
                         </span>
                         {item.sub.weight && (
-                          <span className="text-[11px] tabular-nums shrink-0 font-bold text-amber-500">
+                          <span className="text-[11px] tabular-nums shrink-0 font-bold text-amber-500 text-right">
                             {humanizeUnit(item.sub.weight)}
+                            {item.sub.household && (
+                              <span className="block text-[10px] font-medium text-muted-foreground">{item.sub.household}</span>
+                            )}
                           </span>
                         )}
                       </div>
@@ -799,6 +829,7 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
   const carbCfgT = CARB_COLOR[tomorrowInfo.carb];
 
   return (
+    <HouseholdCtx.Provider value={!!safeData?.setup?.showHouseholdMeasures}>
     <div className="w-full max-w-full overflow-x-hidden">
       {/* ── Card de contexto do dia — saudação + carbo + treino ── */}
       <div className={cn(
@@ -984,5 +1015,6 @@ export default function StructuredMealsViewer({ payload, studentName }: { payloa
         </p>
       </div>
     </div>
+    </HouseholdCtx.Provider>
   );
 }

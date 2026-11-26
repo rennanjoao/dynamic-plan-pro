@@ -10,6 +10,9 @@
  */
 
 import { applyCookedTwins } from "./cookedTwins";
+import { ENRICHED_FOODS } from "./enrichedFoods";
+import { applyHouseholdMeasures } from "./householdMeasures";
+import { INDUSTRIAL_FOODS } from "./industrialFoods";
 
 export interface TacoFood {
   name: string;
@@ -101,7 +104,7 @@ export const TACO_FOODS_MEASURED: TacoFood[] = [
   { name: "Pipoca (estourada sem óleo)",     kcal: 387, p: 13.0, c: 77.0, g: 4.5, group: "carb" },
   { name: "Açúcar branco / refinado",        kcal: 387, p: 0.0,  c: 99.9, g: 0.0, group: "carb" },
   { name: "Açúcar mascavo",                  kcal: 362, p: 0.0,  c: 93.0, g: 0.0, group: "carb" },
-  { name: "Mel de abelha",                   kcal: 320, p: 0.3,  c: 82.0, g: 0.0, group: "carb", unitWeight: 15 }, // colher
+  { name: "Mel de abelha",                   kcal: 320, p: 0.3,  c: 82.0, g: 0.0, group: "carb" }, // medidas: householdMeasures.ts
 
   // ─── PROTEÍNAS - AVES & OVOS ─────────────────────────────────────────────────
   { name: "Frango peito s/ pele (cru)",      kcal: 119, p: 21.5, c: 0.0, g: 3.0, group: "protein", cookFactor: 0.7 },
@@ -187,16 +190,16 @@ export const TACO_FOODS_MEASURED: TacoFood[] = [
   { name: "Camarão (cru)",                   kcal: 90,  p: 20.0, c: 0.0,  g: 1.0,  group: "protein", cookFactor: 0.75 },
 
   // ─── SUPLEMENTOS PROTÉICOS ───────────────────────────────────────────────────
-  { name: "Whey Protein Concentrado (80%)",  kcal: 400, p: 80.0, c: 8.0,  g: 6.0,  group: "protein", unitWeight: 30, portions: [{ label: "1 scoop", grams: 30 }] },
-  { name: "Whey Protein Isolado (90%+)",     kcal: 367, p: 90.0, c: 2.0,  g: 1.0,  group: "protein", unitWeight: 30, portions: [{ label: "1 scoop", grams: 30 }] },
-  { name: "Albumina em pó",                  kcal: 350, p: 80.0, c: 4.0,  g: 0.0,  group: "protein", unitWeight: 30 },
-  { name: "Proteína de Soja isolada",        kcal: 375, p: 88.0, c: 2.0,  g: 1.0,  group: "protein", unitWeight: 30 },
+  { name: "Whey Protein Concentrado (80%)",  kcal: 400, p: 80.0, c: 8.0,  g: 6.0,  group: "protein" , portions: [{ label: "1 scoop", grams: 30 }] },
+  { name: "Whey Protein Isolado (90%+)",     kcal: 367, p: 90.0, c: 2.0,  g: 1.0,  group: "protein" , portions: [{ label: "1 scoop", grams: 30 }] },
+  { name: "Albumina em pó",                  kcal: 350, p: 80.0, c: 4.0,  g: 0.0,  group: "protein" }, // medidas: householdMeasures.ts
+  { name: "Proteína de Soja isolada",        kcal: 375, p: 88.0, c: 2.0,  g: 1.0,  group: "protein" }, // medidas: householdMeasures.ts
 
   // ─── GORDURAS & OLEAGINOSAS ──────────────────────────────────────────────────
-  { name: "Azeite de oliva extra virgem",    kcal: 884, p: 0.0,  c: 0.0,  g: 100.0,group: "fat", unitWeight: 13 }, // 1 colher sopa
-  { name: "Óleo de coco",                    kcal: 892, p: 0.0,  c: 0.0,  g: 99.1, group: "fat", unitWeight: 13 },
-  { name: "Manteiga integral (com ou s/ sal)",kcal: 726, p: 0.4,  c: 0.1,  g: 82.4, group: "fat", unitWeight: 10 },
-  { name: "Pasta de amendoim integral",      kcal: 588, p: 25.0, c: 20.0, g: 50.0, group: "fat", unitWeight: 15 , portions: [{ label: "1 colher de sopa", grams: 20 }]},
+  { name: "Azeite de oliva extra virgem",    kcal: 884, p: 0.0,  c: 0.0,  g: 100.0,group: "fat" }, // medidas: householdMeasures.ts
+  { name: "Óleo de coco",                    kcal: 892, p: 0.0,  c: 0.0,  g: 99.1, group: "fat" }, // medidas: householdMeasures.ts
+  { name: "Manteiga integral (com ou s/ sal)",kcal: 726, p: 0.4,  c: 0.1,  g: 82.4, group: "fat" }, // medidas: householdMeasures.ts
+  { name: "Pasta de amendoim integral",      kcal: 588, p: 25.0, c: 20.0, g: 50.0, group: "fat" , portions: [{ label: "1 colher de sopa", grams: 20 }]},
   { name: "Amendoim torrado (s/ pele/sal)",  kcal: 585, p: 23.0, c: 21.0, g: 49.0, group: "fat" },
   { name: "Castanha de caju (torrada)",      kcal: 570, p: 18.5, c: 28.7, g: 43.8, group: "fat" },
   { name: "Castanha do Pará / Brasil",       kcal: 643, p: 14.5, c: 15.1, g: 63.5, group: "fat", unitWeight: 4 }, // 1 castanha
@@ -221,43 +224,43 @@ export const TACO_FOODS_MEASURED: TacoFood[] = [
   { name: "Iogurte natural desnatado",       kcal: 41,  p: 4.1,  c: 5.9,  g: 0.1,  group: "dairy" },
   { name: "Iogurte grego tradicional",       kcal: 135, p: 9.0,  c: 3.6,  g: 9.8,  group: "dairy" },
   { name: "Iogurte proteico (tipo YoPRO)",   kcal: 65,  p: 10.0, c: 5.0,  g: 0.5,  group: "dairy" },
-  { name: "Queijo Muçarela",                 kcal: 300, p: 21.6, c: 2.4,  g: 23.0, group: "dairy", unitWeight: 30 },
-  { name: "Queijo Prato",                    kcal: 358, p: 22.6, c: 1.6,  g: 29.3, group: "dairy", unitWeight: 30 },
-  { name: "Queijo Minas Frescal",            kcal: 264, p: 17.4, c: 3.2,  g: 20.2, group: "dairy", unitWeight: 30 },
-  { name: "Queijo Minas Padrão",             kcal: 350, p: 22.0, c: 2.0,  g: 28.0, group: "dairy", unitWeight: 30 },
-  { name: "Queijo Coalho",                   kcal: 336, p: 22.0, c: 2.0,  g: 26.0, group: "dairy", unitWeight: 30 },
+  { name: "Queijo Muçarela",                 kcal: 300, p: 21.6, c: 2.4,  g: 23.0, group: "dairy" }, // medidas: householdMeasures.ts
+  { name: "Queijo Prato",                    kcal: 358, p: 22.6, c: 1.6,  g: 29.3, group: "dairy" }, // medidas: householdMeasures.ts
+  { name: "Queijo Minas Frescal",            kcal: 264, p: 17.4, c: 3.2,  g: 20.2, group: "dairy" }, // medidas: householdMeasures.ts
+  { name: "Queijo Minas Padrão",             kcal: 350, p: 22.0, c: 2.0,  g: 28.0, group: "dairy" }, // medidas: householdMeasures.ts
+  { name: "Queijo Coalho",                   kcal: 336, p: 22.0, c: 2.0,  g: 26.0, group: "dairy" }, // medidas: householdMeasures.ts
   { name: "Queijo Parmesão (ralado)",        kcal: 431, p: 38.0, c: 4.0,  g: 29.0, group: "dairy" },
   { name: "Queijo Cottage",                  kcal: 88,  p: 11.7, c: 2.5,  g: 4.0,  group: "dairy" },
   { name: "Ricota fresca",                   kcal: 135, p: 11.3, c: 3.2,  g: 8.5,  group: "dairy" },
-  { name: "Requeijão cremoso tradicional",   kcal: 250, p: 7.5,  c: 3.0,  g: 23.5, group: "dairy", unitWeight: 30 },
-  { name: "Requeijão light",                 kcal: 140, p: 8.0,  c: 4.0,  g: 10.5, group: "dairy", unitWeight: 30 },
-  { name: "Cream cheese tradicional",        kcal: 342, p: 6.2,  c: 4.1,  g: 34.0, group: "dairy", unitWeight: 30 },
-  { name: "Cream cheese light",              kcal: 200, p: 7.0,  c: 5.0,  g: 16.0, group: "dairy", unitWeight: 30 },
+  { name: "Requeijão cremoso tradicional",   kcal: 250, p: 7.5,  c: 3.0,  g: 23.5, group: "dairy" }, // medidas: householdMeasures.ts
+  { name: "Requeijão light",                 kcal: 140, p: 8.0,  c: 4.0,  g: 10.5, group: "dairy" }, // medidas: householdMeasures.ts
+  { name: "Cream cheese tradicional",        kcal: 342, p: 6.2,  c: 4.1,  g: 34.0, group: "dairy" }, // medidas: householdMeasures.ts
+  { name: "Cream cheese light",              kcal: 200, p: 7.0,  c: 5.0,  g: 16.0, group: "dairy" }, // medidas: householdMeasures.ts
   { name: "Creme de leite (lata/caixa)",     kcal: 249, p: 2.7,  c: 3.7,  g: 25.5, group: "dairy" },
 
   // ─── FRUTAS ──────────────────────────────────────────────────────────────────
-  { name: "Banana prata (crua)",             kcal: 89,  p: 1.3,  c: 23.8, g: 0.1, group: "fruit", unitWeight: 70 },
+  { name: "Banana prata (crua)",             kcal: 89,  p: 1.3,  c: 23.8, g: 0.1, group: "fruit", unitWeight: 75 }, // unidade média (IBGE POF 2008-2009)
   { name: "Banana nanica (crua)",            kcal: 92,  p: 1.4,  c: 23.4, g: 0.1, group: "fruit", unitWeight: 80 },
   { name: "Banana da terra (crua)",          kcal: 122, p: 1.5,  c: 31.9, g: 0.2, group: "fruit", unitWeight: 90 },
-  { name: "Maçã fuji (com casca)",           kcal: 56,  p: 0.3,  c: 15.2, g: 0.0, group: "fruit", unitWeight: 130 },
-  { name: "Maçã gala (com casca)",           kcal: 52,  p: 0.3,  c: 13.7, g: 0.2, group: "fruit", unitWeight: 130 },
+  { name: "Maçã fuji (com casca)",           kcal: 56,  p: 0.3,  c: 15.2, g: 0.0, group: "fruit", unitWeight: 150 }, // unidade média (IBGE POF 2008-2009)
+  { name: "Maçã gala (com casca)",           kcal: 52,  p: 0.3,  c: 13.7, g: 0.2, group: "fruit", unitWeight: 150 }, // unidade média (IBGE POF 2008-2009)
   { name: "Mamão papaia",                    kcal: 40,  p: 0.5,  c: 10.4, g: 0.1, group: "fruit" },
   { name: "Mamão formosa",                   kcal: 45,  p: 0.8,  c: 11.6, g: 0.1, group: "fruit" },
   { name: "Morango",                         kcal: 30,  p: 0.9,  c:  6.8, g: 0.3, group: "fruit" },
-  { name: "Abacaxi",                         kcal: 48,  p: 0.9,  c: 12.3, g: 0.1, group: "fruit", unitWeight: 75 }, // fatia média
+  { name: "Abacaxi",                         kcal: 48,  p: 0.9,  c: 12.3, g: 0.1, group: "fruit", unitWeight: 750 }, // unidade média (IBGE POF 2008-2009); fatia = 75 g
   { name: "Manga palmer / tommy",            kcal: 51, p: 0.9, c: 12.8, g: 0.2, group: "fruit" }, // TACO
   { name: "Uva itália / rubi",               kcal: 53, p: 0.7, c: 13.6, g: 0.2, group: "fruit" }, // TACO
   { name: "Uva thompson / sem semente",      kcal: 75,  p: 0.7,  c: 18.1, g: 0.2, group: "fruit" },
   { name: "Uva-passa (sem semente)",         kcal: 299, p: 3.1,  c: 79.2, g: 0.5, group: "fruit" },
-  { name: "Suco de uva integral",            kcal: 58,  p: 0.0,  c: 14.7, g: 0.0, group: "fruit", unitWeight: 200 }, // 200ml = 1 copo
+  { name: "Suco de uva integral",            kcal: 58,  p: 0.0,  c: 14.7, g: 0.0, group: "fruit" }, // medidas: householdMeasures.ts
   { name: "Melancia",                        kcal: 30,  p: 0.6,  c:  7.5, g: 0.1, group: "fruit" },
   { name: "Melão",                           kcal: 34,  p: 0.8,  c:  8.1, g: 0.2, group: "fruit" },
-  { name: "Laranja pera",                    kcal: 37,  p: 1.0,  c:  8.9, g: 0.1, group: "fruit", unitWeight: 140 },
-  { name: "Suco de laranja pera (integral)", kcal: 33,  p: 0.7,  c:  7.6, g: 0.1, group: "fruit", unitWeight: 200 }, // 200ml = 1 copo
+  { name: "Laranja pera",                    kcal: 37,  p: 1.0,  c:  8.9, g: 0.1, group: "fruit", unitWeight: 180 }, // unidade média (IBGE POF 2008-2009)
+  { name: "Suco de laranja pera (integral)", kcal: 33,  p: 0.7,  c:  7.6, g: 0.1, group: "fruit" }, // medidas: householdMeasures.ts
   { name: "Limão tahiti",                    kcal: 22,  p: 0.9,  c:  7.3, g: 0.1, group: "fruit" },
-  { name: "Kiwi",                            kcal: 51, p: 1.3, c: 11.5, g: 0.6, group: "fruit", unitWeight: 75 }, // TACO
+  { name: "Kiwi",                            kcal: 51, p: 1.3, c: 11.5, g: 0.6, group: "fruit", unitWeight: 94 }, // unidade média (IBGE POF 2008-2009)
   { name: "Pera (com casca)",                kcal: 57,  p: 0.4,  c: 15.2, g: 0.1, group: "fruit", unitWeight: 130 },
-  { name: "Goiaba",                          kcal: 54,  p: 2.5,  c: 14.3, g: 0.9, group: "fruit", unitWeight: 100 },
+  { name: "Goiaba",                          kcal: 54,  p: 2.5,  c: 14.3, g: 0.9, group: "fruit", unitWeight: 170 }, // unidade média (IBGE POF 2008-2009)
   { name: "Maracujá (polpa)",                kcal: 97,  p: 2.2,  c: 23.3, g: 0.7, group: "fruit" },
 
   // ─── VEGETAIS & SALADAS ──────────────────────────────────────────────────────
@@ -290,6 +293,8 @@ export const TACO_FOODS_MEASURED: TacoFood[] = [
 ];
 
 export const TACO_FOODS: TacoFood[] = applyCookedTwins(TACO_FOODS_MEASURED);
+// Medidas caseiras (IBGE) + nomes duplicados compartilhando as mesmas medidas.
+applyHouseholdMeasures(ENRICHED_FOODS, TACO_FOODS, INDUSTRIAL_FOODS);
 
 // ─── FUNÇÕES ──────────────────────────────────────────────────────────────────
 

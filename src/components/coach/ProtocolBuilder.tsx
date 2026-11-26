@@ -84,7 +84,7 @@ import { DietTab } from "./protocol-builder/DietTab";
 import { PublishBar } from "./protocol-builder/PublishBar";
 import { StudentContextStrip } from "./protocol-builder/StudentContextStrip";
 import { useConfirm } from "@/components/ConfirmProvider";
-import { calcMealMacros, calcDayMacros, tacoGroupToKind, parseWeightString, optionMacros, compareOptions, type SubstitutionSeverity } from "@/lib/macroCalc";
+import { calcMealMacros, calcDayMacros, tacoGroupToKind, parseFoodQuantity, optionMacros, compareOptions, type SubstitutionSeverity } from "@/lib/macroCalc";
 import {
   detectProtocolChanges,
   summarizeProtocolChanges,
@@ -773,8 +773,7 @@ export default function ProtocolBuilder({ studentId, studentName, registerLeaveG
               const tacoRef = [...ENRICHED_FOODS, ...TACO_FOODS].find(
                 (t) => t.name.toLowerCase() === String(item.baseName || item.name).toLowerCase()
               );
-              const unitW = tacoRef && typeof (tacoRef as any).unitWeight === "number" ? (tacoRef as any).unitWeight : undefined;
-              const { grams } = parseWeightString(valor, unitW, (tacoRef as any)?.portions);
+              const { grams } = parseFoodQuantity(tacoRef, valor);
               item.rawWeight = isFinite(grams) && grams > 0 ? grams : 0;
             }
             count++;

@@ -433,6 +433,11 @@ export const ProtocolPayloadSchema = z.object({
     mealsCount: z.number().int().min(2).max(10).default(5),
     carbCycle: z.boolean().default(false),
     trainingDaysPerWeek: z.number().int().min(0).max(7).default(5),
+    /**
+     * Por aluno: mostrar ao aluno a medida caseira aproximada ao lado dos gramas
+     * ("120 g ≈ 5 colheres de sopa"). O coach continua prescrevendo em gramas.
+     */
+    showHouseholdMeasures: z.boolean().default(false),
   }),
   macros: z.object({
     calories: z.number().default(2200),

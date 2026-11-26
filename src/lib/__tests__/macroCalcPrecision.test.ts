@@ -17,7 +17,9 @@ describe("parseWeightString", () => {
   });
 
   it("não trata unidade desconhecida como gramas", () => {
-    expect(parseWeightString("2 conchas")).toMatchObject({ grams: 0, unit: "unknown", convertible: false });
+    expect(parseWeightString("2 bacias")).toMatchObject({ grams: 0, unit: "unknown", convertible: false });
+    // "concha" agora é medida conhecida (IBGE), mas sem peso cadastrado continua sem gramas.
+    expect(parseWeightString("2 conchas")).toMatchObject({ grams: 0, status: "no-weight", convertible: false });
     expect(parseWeightString("75")).toMatchObject({ grams: 75, convertible: true });
   });
 
