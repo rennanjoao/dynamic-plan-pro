@@ -12,6 +12,9 @@ import { PhotoGuideTips } from "@/components/shared/PhotoGuideTips";
 import { cn } from "@/lib/utils";
 import { ShieldCheck, ArrowRight } from "lucide-react";
 import { stripSecretsFromDraft, validateAnamnesisStep1 } from "@/lib/anamnesisValidation";
+import { ConsentFields } from "@/components/legal/ConsentFields";
+import { consentIssue, recordConsent, type ConsentState } from "@/lib/consent";
+import { isMinor } from "@/lib/age";
 import { translateAuthError } from "@/lib/authErrors";
 
 /* ── tipos ─────────────────────────────────────────────────── */
@@ -99,6 +102,8 @@ const Anamnesis = () => {
   const [fotoPreviews, setFotoPreviews] = useState<Record<string, string | null>>({ frente: null, lateral_dir: null, lateral_esq: null, costas: null, shape_inspiracao: null });
 
   const [d, setD] = useState<Record<string, string>>({});
+  // Consentimento LGPD (dados de saúde e fotos) — nunca vem marcado.
+  const [consent, setConsent] = useState<Omit<ConsentState, "minor">>({ accepted: false, guardianName: "", guardianAccepted: false });
   const set = (k: string) => (v: string) => setD(p => ({ ...p, [k]: v }));
   const g = (k: string) => d[k] ?? "";
 
@@ -364,6 +369,15 @@ const Anamnesis = () => {
     if (!coach) return;
     const issue = validateAnamnesisStep1({ values: d, gender, hasAccount: !!loggedUserId });
     if (issue) { goToStep1Field(issue.field, issue.message); return; }
+    const minor = isMinor(d.data_nasc);
+    if (!isEditMode) {
+      const cIssue = consentIssue({ ...consent, minor });
+      if (cIssue) {
+        setToast(cIssue); setTimeout(() => setToast(""), 3500);
+        document.querySelector<HTMLElement>('[data-testid="consent-box"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+    }
 
     setSaving(true);
     try {
@@ -417,7 +431,8 @@ const Anamnesis = () => {
 
       const coachIdOrNull = coach.id || null;
       const payload: Record<string, unknown> = {
-        ...d, gender, tpm: tpm.join(", "), queda_capilar_f: quedaF.join(", "), ...groups, fotos, coach_id: coachIdOrNull,
+        // A senha é só para criar a conta: nunca entra na ficha (nem no e-mail ao coach, nem na IA).
+        ...stripSecretsFromDraft(d), gender, tpm: tpm.join(", "), queda_capilar_f: quedaF.join(", "), ...groups, fotos, coach_id: coachIdOrNull,
       };
 
       const baseline: Record<string, number> = {};
@@ -545,6 +560,13 @@ const Anamnesis = () => {
         photos: fotos,
       });
 
+      // Registro do aceite (data/hora do servidor + versão do texto). Se falhar,
+      // a área do aluno pede o aceite de novo no próximo acesso.
+      if (!isEditMode && studentId) {
+        try { await recordConsent(studentId, { guardianName: minor ? consent.guardianName : null }); }
+        catch (consentErr) { console.warn("registro do consentimento falhou", consentErr); }
+      }
+
       setPostWarnings(avisos);
       setVinculoOk(!vinculoFalhou);
       if (isEditMode) {
@@ -567,7 +589,7 @@ const Anamnesis = () => {
     }
   // [FIX MÉDIO] 'g' adicionado às dependências — é uma função que lê 'd',
   // mas como está definida fora do useCallback, o linter a exige aqui.
-  }, [d, g, gender, tpm, quedaF, groups, fotoFiles, fotoPreviews, coach, loggedUserId, isEditMode, editingAnamnesisId, studentEditCount, navigate, resolvedAccessCode, goToStep1Field]);
+  }, [d, g, gender, tpm, quedaF, groups, fotoFiles, fotoPreviews, coach, loggedUserId, isEditMode, editingAnamnesisId, studentEditCount, navigate, resolvedAccessCode, goToStep1Field, consent]);
 
   const chBtn = (id: string) => cn("px-5 py-2.5 rounded-xl text-sm font-bold border-2 transition-all", gender === id ? "border-primary bg-primary/15 text-primary" : "border-border/50 text-muted-foreground hover:border-primary/40");
 
@@ -1037,6 +1059,15 @@ const Anamnesis = () => {
           </Card>
         </section>
         </>)}
+
+        {formStep === TOTAL_FORM_STEPS && !isEditMode && (
+          <div className="mb-4">
+            <ConsentFields
+              value={{ ...consent, minor: isMinor(g("data_nasc")) }}
+              onChange={({ minor: _m, ...rest }) => setConsent(rest)}
+            />
+          </div>
+        )}
 
         {/* Navegação entre etapas */}
         <div className="flex gap-3">

@@ -12,6 +12,7 @@ import type {
   StaticObservations,
   ViewAngle,
 } from "@/types/postureAssessment";
+import { reencodeImage } from "@/lib/imageSanitize";
 
 const BUCKET = "student-media";
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
@@ -88,8 +89,10 @@ export function useSavePostureAssessment(studentId: string) {
           if (!file) continue;
           if (!file.type.startsWith("image/")) throw new Error("Envie apenas imagens.");
           if (file.size > MAX_PHOTO_BYTES) throw new Error("Cada foto deve ter no máximo 10 MB.");
-          const path = postureStoragePath(studentId, id, view, file.name);
-          const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: false, contentType: file.type });
+          // Sem metadados (localização, aparelho) — mesma regra das fotos de progresso.
+          const clean = await reencodeImage(file);
+          const path = postureStoragePath(studentId, id, view, clean.name);
+          const { error } = await supabase.storage.from(BUCKET).upload(path, clean, { upsert: false, contentType: clean.type });
           if (error) throw error;
           uploaded.push(path);
           photoPaths[view] = path;

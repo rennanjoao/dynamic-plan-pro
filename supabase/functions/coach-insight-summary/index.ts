@@ -17,6 +17,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCorsHeaders } from "../_shared/cors.ts";
 import { groqChat, groqErrorMessage } from "../_shared/groq.ts";
+import { redactForAI } from "../_shared/aiPrivacy.ts";
 
 type Situacao = "boa" | "atencao" | "risco" | "dados_insuficientes";
 type Confianca = "alta" | "media" | "baixa";
@@ -154,7 +155,7 @@ Responda SOMENTE com JSON válido, sem markdown:
         body: {
           messages: [
             { role: "system", content: ANAMNESE_PROMPT },
-            { role: "user", content: JSON.stringify(anamnesis.payload).slice(0, 12000) },
+            { role: "user", content: JSON.stringify(redactForAI(anamnesis.payload)).slice(0, 12000) },
           ],
           stream: false,
           temperature: 0.2,

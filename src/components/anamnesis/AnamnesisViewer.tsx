@@ -24,6 +24,7 @@ import PrescriptionProfileSection from "@/components/coach/PrescriptionProfileSe
 import { exportAnamnesisPDF } from "@/lib/coachPdfExport";
 import { Private, PrivateImg, usePrivacyMode } from "@/components/coach/PrivacyMode";
 import { formatDatePtBR } from "@/lib/formatDate";
+import { ageFromBirthDate, formatBirthDate } from "@/lib/age";
 
 interface Props {
   studentId: string;
@@ -378,7 +379,12 @@ export default function AnamnesisViewer({ studentId, studentName, showProgressCh
                         />
                       </div>
                     ) : (
-                      PERSONAL_FIELD_KEYS.has(f.key) ? (
+                      f.key === "data_nasc" && ageFromBirthDate(data[f.key]) !== null ? (
+                        <span className="flex flex-col items-end text-right max-w-[55%]">
+                          <Private className="font-medium text-foreground">{formatBirthDate(data[f.key])}</Private>
+                          <span data-testid="anamnesis-age" className="text-xs text-muted-foreground"><Private>{ageFromBirthDate(data[f.key])} anos</Private></span>
+                        </span>
+                      ) : PERSONAL_FIELD_KEYS.has(f.key) ? (
                         <Private className="font-medium text-right max-w-[55%] text-foreground">{fmt(data[f.key])}</Private>
                       ) : (
                         <span className="font-medium text-right max-w-[55%] text-foreground">{fmt(data[f.key])}</span>

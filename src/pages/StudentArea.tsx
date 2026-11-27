@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SimpleProfileDialog } from "@/components/SimpleProfileDialog";
+import { StudentPrivacySection } from "@/components/legal/StudentPrivacySection";
 import { toast } from "sonner";
 import FeedbackCountdownAlert from "@/components/student/FeedbackCountdownAlert";
 import { TrainerAlert } from "@/components/student/TrainerAlert";
@@ -585,7 +586,12 @@ export default function StudentArea() {
       </header>
 
       {userId && (
-        <SimpleProfileDialog userId={userId} open={showProfile} onClose={() => setShowProfile(false)} />
+        <SimpleProfileDialog
+          userId={userId}
+          open={showProfile}
+          onClose={() => setShowProfile(false)}
+          footer={!previewAs ? <StudentPrivacySection studentId={userId} /> : undefined}
+        />
       )}
 
       <main className="max-w-4xl mx-auto px-4 py-5 space-y-4">

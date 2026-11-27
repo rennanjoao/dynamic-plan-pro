@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCorsHeaders } from "../_shared/cors.ts";
 import { hasAestheticTags } from "../_shared/photoAnalysisLogic.ts";
 import { groqChat, groqErrorMessage } from "../_shared/groq.ts";
+import { redactForAI } from "../_shared/aiPrivacy.ts";
 
 serve(async (req) => {
   const corsHeaders = buildCorsHeaders(req.headers.get("origin"));
@@ -84,7 +85,7 @@ Regras:
 - Responda APENAS com o texto do feedback, sem aspas, sem markdown, sem preâmbulo.`;
 
     const userContent = JSON.stringify({
-      checkInAtual: { metrics: current.current_metrics, payload: current.payload, data: current.submitted_at },
+      checkInAtual: { metrics: current.current_metrics, payload: redactForAI(current.payload), data: current.submitted_at },
       resumoIA: insightRow?.summary ?? null,
       contextoAnamnese: anamneseRow?.ai_summary ?? null,
       // Linha sem leitura estética (IA falhou ou só tem postura) não vira "análise visual".

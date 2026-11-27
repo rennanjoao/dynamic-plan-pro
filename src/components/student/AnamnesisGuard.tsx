@@ -2,7 +2,11 @@ import { useEffect, useState } from "react";
 import { Navigate, useLocation, useSearchParams } from "react-router-dom";
 import { Loader2, Ban } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import { fetchCoachBlocked } from "@/lib/coachAccessStatus";
+import { hasCurrentConsent } from "@/lib/consent";
+import { isMinor } from "@/lib/age";
+import { ConsentGate } from "@/components/legal/ConsentGate";
 
 const ANA_DONE_KEY = (uid: string) => `anamnesis_done_${uid}`;
 function readAnamnesisDone(uid: string): boolean | undefined {
@@ -19,6 +23,9 @@ export const AnamnesisGuard = ({ children }: { children: React.ReactNode }) => {
   const [coachBlocked, setCoachBlocked] = useState(false);
   const [checkingCoach, setCheckingCoach] = useState(true);
   const [hasAnamnesis, setHasAnamnesis] = useState<boolean | null>(null);
+  // Consentimento LGPD: só bloqueia quando o servidor CONFIRMA que falta o aceite
+  // (sem internet ou erro, segue como antes).
+  const [consentNeeded, setConsentNeeded] = useState<{ userId: string; minor: boolean } | null>(null);
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const previewAs = searchParams.get("previewAs");
@@ -42,9 +49,10 @@ export const AnamnesisGuard = ({ children }: { children: React.ReactNode }) => {
           return;
         }
         // Verifica se o aluno já submeteu a anamnese
-        const { data: ana, error: anaErr } = await supabase
+        // `sb` (sem tipos): o seletor de campo JSON deixa o tipo gerado pesado demais.
+        const { data: ana, error: anaErr } = await sb
           .from("anamnesis")
-          .select("submitted_at")
+          .select("submitted_at, data_nasc:payload->>data_nasc")
           .eq("student_id", userId)
           .maybeSingle();
         if (anaErr) {
@@ -56,6 +64,13 @@ export const AnamnesisGuard = ({ children }: { children: React.ReactNode }) => {
           const done = !!ana?.submitted_at;
           writeAnamnesisDone(userId, done);
           if (!cancelled) setHasAnamnesis(done);
+          if (done) {
+            const consented = await hasCurrentConsent(userId);
+            if (!cancelled && consented === false) {
+              const nasc = (ana as { data_nasc?: string | null } | null)?.data_nasc;
+              setConsentNeeded({ userId, minor: isMinor(nasc) });
+            }
+          }
         }
 
         // Vínculo oficial (coach_students ativo) + último status conhecido em
@@ -84,6 +99,10 @@ export const AnamnesisGuard = ({ children }: { children: React.ReactNode }) => {
   // Aluno sem anamnese submetida → forçar preenchimento antes de qualquer rota interna.
   if (hasAnamnesis === false && location.pathname !== "/anamnesis") {
     return <Navigate to="/anamnesis" replace />;
+  }
+
+  if (consentNeeded && location.pathname !== "/anamnesis") {
+    return <ConsentGate userId={consentNeeded.userId} minor={consentNeeded.minor} onDone={() => setConsentNeeded(null)} />;
   }
 
   if (coachBlocked) {

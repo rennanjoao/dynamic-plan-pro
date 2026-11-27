@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCorsHeaders } from "../_shared/cors.ts";
 import { reconcileDraft } from "../_shared/macroReconcile.ts";
 import { groqChat, groqErrorMessage } from "../_shared/groq.ts";
+import { redactForAI } from "../_shared/aiPrivacy.ts";
 
 const GOALS = ["hipertrofia", "emagrecer", "recomposicao", "manter"] as const;
 
@@ -19,10 +20,12 @@ function num(v: unknown): number | null {
 }
 
 /** Reduz o payload da anamnese a um texto curto e legível pro modelo. */
-function summarizePayload(payload: Record<string, unknown>): string {
+function summarizePayload(raw: Record<string, unknown>): string {
+  // Sem nome, e-mail, telefone, senha, links de foto; data de nascimento vira idade.
+  const payload = redactForAI(raw);
   const KEYS_OF_INTEREST = [
     "meta_prioridade", "objetivo", "objetivo_principal", "prazo_meta",
-    "sexo", "data_nasc", "idade", "profissao", "rotina",
+    "sexo", "idade", "profissao", "rotina",
     "nivel_treino", "experiencia_treino", "frequencia_treino", "dias_treino", "horario_treino",
     "atividade_fisica", "cardio", "passos_dia",
     "refeicoes_dia", "restricao_alimentar", "alergias", "intolerancias", "alimentos_nao_gosta",
