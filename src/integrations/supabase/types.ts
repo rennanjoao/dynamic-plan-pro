@@ -1192,6 +1192,39 @@ export type Database = {
           },
         ]
       }
+      consent_records: {
+        Row: {
+          accepted_at: string
+          guardian_name: string | null
+          id: string
+          kind: string
+          text_shown: string
+          user_agent: string | null
+          user_id: string
+          version: string
+        }
+        Insert: {
+          accepted_at?: string
+          guardian_name?: string | null
+          id?: string
+          kind?: string
+          text_shown: string
+          user_agent?: string | null
+          user_id: string
+          version: string
+        }
+        Update: {
+          accepted_at?: string
+          guardian_name?: string | null
+          id?: string
+          kind?: string
+          text_shown?: string
+          user_agent?: string | null
+          user_id?: string
+          version?: string
+        }
+        Relationships: []
+      }
       daily_alerts: {
         Row: {
           created_at: string

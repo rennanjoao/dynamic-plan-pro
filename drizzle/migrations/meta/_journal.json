@@ -85,6 +85,13 @@
       "when": 1795250000000,
       "tag": "0011_semana_corrida",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795796239966,
+      "tag": "0012_lgpd_consent_records",
+      "breakpoints": true
     }
   ]
 }
