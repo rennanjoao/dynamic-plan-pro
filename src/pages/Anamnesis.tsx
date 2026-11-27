@@ -15,6 +15,12 @@ import { stripSecretsFromDraft, validateAnamnesisStep1 } from "@/lib/anamnesisVa
 import { ConsentFields } from "@/components/legal/ConsentFields";
 import { consentIssue, recordConsent, type ConsentState } from "@/lib/consent";
 import { isMinor } from "@/lib/age";
+import { SignupContractFields, type SignupContractValue } from "@/components/legal/SignupContractFields";
+import {
+  CONTRACT_TITLE, contractToText, fetchContractPreview, isValidCpf, recordContractAcceptance, signupContractSections,
+  type CatalogPlanLike, type ContractParty,
+} from "@/lib/serviceContract";
+import { formatCents } from "@/lib/studentPlans";
 import { translateAuthError } from "@/lib/authErrors";
 
 /* ── tipos ─────────────────────────────────────────────────── */
@@ -82,6 +88,10 @@ const Anamnesis = () => {
   // aluno NÃO precisa digitar o código de indicação de novo no formulário.
   const [resolvedAccessCode, setResolvedAccessCode] = useState<string | null>(null);
   const [coach, setCoach] = useState<CoachInfo | null>(null);
+  // Contrato de prestação de serviços: aceito no fim da anamnese (CPF + "Li e aceito").
+  // Sem os dados do coach (erro/sem coach), o aceite fica para o pagamento.
+  const [contractPreview, setContractPreview] = useState<{ party: ContractParty; catalog: CatalogPlanLike[] } | null>(null);
+  const [contractValue, setContractValue] = useState<SignupContractValue>({ cpf: "", accepted: false });
   const [loggedUserId, setLoggedUserId] = useState<string | null>(null);
   const [bootstrapping, setBootstrapping] = useState(true);
   const [editingAnamnesisId, setEditingAnamnesisId] = useState<string | null>(null);
@@ -365,6 +375,13 @@ const Anamnesis = () => {
   }
 
   // ETAPA 2: SUBMETER ANAMNESE E CRIAR CONTA
+  useEffect(() => {
+    if (!coach?.id || isEditMode) { setContractPreview(null); return; }
+    let cancelled = false;
+    fetchContractPreview(coach.id).then((p) => { if (!cancelled) setContractPreview(p); });
+    return () => { cancelled = true; };
+  }, [coach?.id, isEditMode]);
+
   const handleSubmit = useCallback(async () => {
     if (!coach) return;
     const issue = validateAnamnesisStep1({ values: d, gender, hasAccount: !!loggedUserId });
@@ -376,6 +393,16 @@ const Anamnesis = () => {
         setToast(cIssue); setTimeout(() => setToast(""), 3500);
         document.querySelector<HTMLElement>('[data-testid="consent-box"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
         return;
+      }
+      if (contractPreview) {
+        const kIssue = !isValidCpf(contractValue.cpf)
+          ? (minor ? "Confira o CPF do responsável." : "Confira o seu CPF.")
+          : !contractValue.accepted ? "Para finalizar, marque \"Li e aceito o contrato\"." : null;
+        if (kIssue) {
+          setToast(kIssue); setTimeout(() => setToast(""), 3500);
+          document.querySelector<HTMLElement>('[data-testid="signup-contract"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
+          return;
+        }
       }
     }
 
@@ -565,6 +592,23 @@ const Anamnesis = () => {
       if (!isEditMode && studentId) {
         try { await recordConsent(studentId, { guardianName: minor ? consent.guardianName : null }); }
         catch (consentErr) { console.warn("registro do consentimento falhou", consentErr); }
+        // Contrato aceito no cadastro (só com o vínculo feito: o registro exige o coach ativo).
+        if (contractPreview && !vinculoFalhou) {
+          try {
+            const sections = signupContractSections({
+              preview: contractPreview,
+              student: { name: d.nome ?? "", email: d.email ?? null, city: d.cidade ?? null, birth: d.data_nasc ?? null },
+              cpf: contractValue.cpf,
+              guardianName: consent.guardianName,
+              minor,
+            });
+            await recordContractAcceptance({
+              studentId, party: contractPreview.party, cpf: contractValue.cpf,
+              guardian: minor ? { name: consent.guardianName, cpf: contractValue.cpf } : null,
+              text: contractToText(CONTRACT_TITLE, sections), stage: "cadastro",
+            });
+          } catch (contractErr) { console.warn("registro do contrato falhou", contractErr); }
+        }
       }
 
       setPostWarnings(avisos);
@@ -589,7 +633,7 @@ const Anamnesis = () => {
     }
   // [FIX MÉDIO] 'g' adicionado às dependências — é uma função que lê 'd',
   // mas como está definida fora do useCallback, o linter a exige aqui.
-  }, [d, g, gender, tpm, quedaF, groups, fotoFiles, fotoPreviews, coach, loggedUserId, isEditMode, editingAnamnesisId, studentEditCount, navigate, resolvedAccessCode, goToStep1Field, consent]);
+  }, [d, g, gender, tpm, quedaF, groups, fotoFiles, fotoPreviews, coach, loggedUserId, isEditMode, editingAnamnesisId, studentEditCount, navigate, resolvedAccessCode, goToStep1Field, consent, contractPreview, contractValue]);
 
   const chBtn = (id: string) => cn("px-5 py-2.5 rounded-xl text-sm font-bold border-2 transition-all", gender === id ? "border-primary bg-primary/15 text-primary" : "border-border/50 text-muted-foreground hover:border-primary/40");
 
@@ -1066,6 +1110,26 @@ const Anamnesis = () => {
               value={{ ...consent, minor: isMinor(g("data_nasc")) }}
               onChange={({ minor: _m, ...rest }) => setConsent(rest)}
             />
+            {contractPreview && (
+              <div className="mt-3">
+                <SignupContractFields
+                  value={contractValue}
+                  onChange={setContractValue}
+                  minor={isMinor(g("data_nasc"))}
+                  valuesLine={[...contractPreview.catalog]
+                    .sort((a, b) => a.duration_months - b.duration_months)
+                    .map((p) => `${p.name} ${formatCents(p.price_cents)}`)
+                    .join(" · ") || null}
+                  sections={signupContractSections({
+                    preview: contractPreview,
+                    student: { name: g("nome"), email: g("email"), city: g("cidade"), birth: g("data_nasc") },
+                    cpf: contractValue.cpf,
+                    guardianName: consent.guardianName,
+                    minor: isMinor(g("data_nasc")),
+                  })}
+                />
+              </div>
+            )}
           </div>
         )}
 

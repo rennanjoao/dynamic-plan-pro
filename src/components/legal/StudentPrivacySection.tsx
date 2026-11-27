@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { DeleteStudentDialog } from "@/components/legal/DeleteStudentDialog";
+import { MyContractButton } from "@/components/legal/MyContractButton";
 
 export function StudentPrivacySection({ studentId }: { studentId: string }) {
   const [open, setOpen] = useState(false);
@@ -16,6 +17,7 @@ export function StudentPrivacySection({ studentId }: { studentId: string }) {
         {" · "}
         <Link to="/termos" className="underline">Termos de Uso</Link>
       </p>
+      <MyContractButton studentId={studentId} />
       <Button variant="ghost" size="sm" className="w-full text-destructive hover:text-destructive" onClick={() => setOpen(true)}>
         Excluir minha conta e meus dados
       </Button>
