@@ -19,6 +19,18 @@ import { CreditCard, ChevronDown, Loader2, RefreshCw, Repeat, Clock, X } from "l
 import { formatCents, toCents } from "@/lib/studentPlans";
 import { formatDatePtBR } from "@/lib/formatDate";
 import { useMyStudentSubscription, useStudentPlanCatalog } from "@/hooks/useStudentPlans";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ContractAccept } from "@/components/legal/ContractAccept";
+import { fetchMyCurrentAcceptance, hasAcceptedContract, recordPlanSilently } from "@/lib/serviceContract";
+
+/** Pagamento esperando o aceite do contrato (um passo antes do checkout). */
+interface PendingContract {
+  body: Record<string, unknown>;
+  key: string;
+  plan: { slug: string; name: string; duration_months: number };
+  cents: number;
+  known: { cpf: string; guardianName?: string | null } | null;
+}
 
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   active:   { label: "Em dia",    cls: "bg-primary/10 text-primary border-primary/30" },
@@ -74,6 +86,7 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
   const [open, setOpen] = useState(false);
   const [showPlans, setShowPlans] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [contractFor, setContractFor] = useState<PendingContract | null>(null);
   const [params, setParams] = useSearchParams();
   const qc = useQueryClient();
   const dismissKey = `student_plan_card_dismissed_${userId ?? "anon"}`;
@@ -165,6 +178,42 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
     }
   };
 
+  // Antes de pagar: se ainda não aceitou o contrato deste plano/valor, mostra o
+  // aceite (CPF + "Li e aceito") e depois segue para o pagamento. Se não der
+  // para verificar, segue direto — nunca trava o pagamento.
+  const payWithContract = async (
+    body: Record<string, unknown>,
+    key: string,
+    plan: PendingContract["plan"] | null,
+    cents: number,
+  ) => {
+    if (!userId || !plan || !cents) return openCheckout(body, key);
+    setBusy(key);
+    const ok = await hasAcceptedContract(userId, plan.slug, cents);
+    if (ok !== false) { setBusy(null); return openCheckout(body, key); }
+    // Aceitou no cadastro? Registra o plano sozinho (sem passo a mais), exceto
+    // com desconto de parceria/promoção, que pede uma confirmação rápida.
+    const prior = await fetchMyCurrentAcceptance(userId);
+    const planCatalog = availablePlans.length ? availablePlans : catalog;
+    if (prior && await recordPlanSilently({ studentId: userId, prior, plan, finalCents: cents, catalog: planCatalog })) {
+      setBusy(null);
+      return openCheckout(body, key);
+    }
+    setBusy(null);
+    setContractFor({ body, key, plan, cents, known: prior?.cpf ? { cpf: prior.cpf, guardianName: prior.guardian_name } : null });
+  };
+
+  const chargePlan = (() => {
+    const slug = pendingPlanCharge.plan_slug ?? sub?.plan_slug ?? null;
+    if (!slug) return null;
+    const fromCatalog = catalog.find((p) => p.slug === slug);
+    return {
+      slug,
+      name: fromCatalog?.name ?? sub?.plan_name ?? "Plano",
+      duration_months: fromCatalog?.duration_months ?? sub?.cycle_months ?? 1,
+    };
+  })();
+
   const status = sub ? (STATUS_LABEL[sub.status] ?? STATUS_LABEL.pending) : null;
   // Só mostra pro aluno os planos que o próprio coach cadastrou no painel
   // ("Meus Planos"). Planos padrão/legado (coach_id null) e o fallback
@@ -253,7 +302,7 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
             <Button
               size="sm"
               disabled={busy === "pending"}
-              onClick={() => openCheckout({ finance_id: pendingPlanCharge.id }, "pending")}
+              onClick={() => payWithContract({ finance_id: pendingPlanCharge.id }, "pending", chargePlan, toCents(Number(pendingPlanCharge.amount)))}
             >
               {busy === "pending" ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : null}
               Pagar {formatCents(toCents(Number(pendingPlanCharge.amount)))}
@@ -271,7 +320,7 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
                 toast.error("Plano atual indisponível no catálogo. Fale com seu treinador.");
                 return;
               }
-              openCheckout({ plan_id: plan.id }, "renew");
+              payWithContract({ plan_id: plan.id }, "renew", plan, plan.price_cents);
             }}
           >
             {busy === "renew" ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1" />}
@@ -311,7 +360,7 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
                   size="sm"
                   variant={plan.slug === sub?.plan_slug ? "outline" : "default"}
                   disabled={busy === plan.id}
-                  onClick={() => openCheckout({ plan_id: plan.id }, plan.id)}
+                  onClick={() => payWithContract({ plan_id: plan.id }, plan.id, plan, plan.price_cents)}
                 >
                   {busy === plan.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Contratar"}
                 </Button>
@@ -351,6 +400,26 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
           )}
         </div>
       )}
+      <Dialog open={!!contractFor} onOpenChange={(o) => { if (!o) setContractFor(null); }}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Antes de pagar</DialogTitle>
+            <DialogDescription>Confirme seu CPF e aceite o contrato do plano.</DialogDescription>
+          </DialogHeader>
+          {contractFor && userId && (
+            <ContractAccept
+              studentId={userId}
+              plan={contractFor.plan}
+              finalCents={contractFor.cents}
+              catalog={availablePlans.length ? availablePlans : catalog}
+              confirmLabel="Aceitar e pagar"
+              known={contractFor.known}
+              onAccepted={() => { const c = contractFor; setContractFor(null); void openCheckout(c.body, c.key); }}
+              onUnavailable={() => { const c = contractFor; setContractFor(null); void openCheckout(c.body, c.key); }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

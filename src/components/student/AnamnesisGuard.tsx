@@ -7,6 +7,8 @@ import { fetchCoachBlocked } from "@/lib/coachAccessStatus";
 import { hasCurrentConsent } from "@/lib/consent";
 import { isMinor } from "@/lib/age";
 import { ConsentGate } from "@/components/legal/ConsentGate";
+import { ContractGate, type ContractGateSub } from "@/components/legal/ContractGate";
+import { fetchMyCurrentAcceptance, hasAcceptedContract, recordPlanSilently } from "@/lib/serviceContract";
 
 const ANA_DONE_KEY = (uid: string) => `anamnesis_done_${uid}`;
 function readAnamnesisDone(uid: string): boolean | undefined {
@@ -26,6 +28,9 @@ export const AnamnesisGuard = ({ children }: { children: React.ReactNode }) => {
   // Consentimento LGPD: só bloqueia quando o servidor CONFIRMA que falta o aceite
   // (sem internet ou erro, segue como antes).
   const [consentNeeded, setConsentNeeded] = useState<{ userId: string; minor: boolean } | null>(null);
+  // Contrato do plano: só bloqueia quando há plano vigente e o servidor CONFIRMA
+  // que falta o aceite desta versão/valor.
+  const [contractNeeded, setContractNeeded] = useState<{ userId: string; sub: ContractGateSub; known: { cpf: string; guardianName?: string | null } | null } | null>(null);
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const previewAs = searchParams.get("previewAs");
@@ -70,6 +75,37 @@ export const AnamnesisGuard = ({ children }: { children: React.ReactNode }) => {
               const nasc = (ana as { data_nasc?: string | null } | null)?.data_nasc;
               setConsentNeeded({ userId, minor: isMinor(nasc) });
             }
+            const { data: sub } = await sb
+              .from("student_subscriptions")
+              .select("coach_id, plan_slug, plan_name, price_cents, cycle_months")
+              .eq("student_id", userId)
+              .in("status", ["active", "overdue"])
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (sub && (sub as ContractGateSub).price_cents > 0) {
+              const s = sub as ContractGateSub;
+              const accepted = await hasAcceptedContract(userId, s.plan_slug, s.price_cents);
+              if (accepted === false) {
+                // Aceitou no cadastro: registra o plano sozinho (sem tela), exceto com
+                // desconto de parceria/promoção, que pede uma confirmação rápida.
+                const prior = await fetchMyCurrentAcceptance(userId);
+                let silent = false;
+                if (prior) {
+                  const { data: cat } = await sb.from("student_plan_catalog")
+                    .select("slug, name, price_cents, duration_months")
+                    .eq("coach_id", s.coach_id).eq("is_active", true);
+                  silent = await recordPlanSilently({
+                    studentId: userId, prior,
+                    plan: { slug: s.plan_slug, name: s.plan_name, duration_months: s.cycle_months },
+                    finalCents: s.price_cents, catalog: cat ?? [],
+                  });
+                }
+                if (!cancelled && !silent) {
+                  setContractNeeded({ userId, sub: s, known: prior?.cpf ? { cpf: prior.cpf, guardianName: prior.guardian_name } : null });
+                }
+              }
+            }
           }
         }
 
@@ -103,6 +139,10 @@ export const AnamnesisGuard = ({ children }: { children: React.ReactNode }) => {
 
   if (consentNeeded && location.pathname !== "/anamnesis") {
     return <ConsentGate userId={consentNeeded.userId} minor={consentNeeded.minor} onDone={() => setConsentNeeded(null)} />;
+  }
+
+  if (contractNeeded && location.pathname !== "/anamnesis") {
+    return <ContractGate userId={contractNeeded.userId} sub={contractNeeded.sub} known={contractNeeded.known} onDone={() => setContractNeeded(null)} />;
   }
 
   if (coachBlocked) {
