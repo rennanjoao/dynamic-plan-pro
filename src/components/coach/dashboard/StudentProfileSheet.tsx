@@ -11,6 +11,7 @@
  * usePostureAssessments, tabela posture_assessments) segue no código, fora da
  * tela, por decisão do coach (longo demais para o dia a dia).
  */
+import { SectionSkeleton } from "@/components/coach/CoachSkeletons";
 import { Suspense, useEffect, useState } from "react";
 import { Loader2, MessageSquareReply, Dumbbell, Eye, Settings2 } from "lucide-react";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
@@ -45,9 +46,7 @@ const TABS: { value: StudentProfileTab; label: string }[] = [
   { value: "anamnese", label: "Anamnese" },
 ];
 
-const Spinner = () => (
-  <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
-);
+const Spinner = () => <SectionSkeleton />;
 
 type PreviewSection = "workouts" | "diet" | "macros" | "guidelines" | "cycle";
 

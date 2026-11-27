@@ -380,7 +380,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
       <div className="sticky top-[var(--coach-header-h,0px)] z-40 -mx-2 px-2 pb-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <Card className="bg-card/80 border-border p-3">
           <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-            <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Macros do dia (auto) vs meta</p>
+            <p className="text-[11px] uppercase tracking-widest font-bold text-muted-foreground">Macros do dia (auto) vs meta</p>
             {/* Modelos: mesmo botão e mesmo canto das outras abas (Pacote B da auditoria). */}
             <ModelsMenu
               sections={[
@@ -411,8 +411,8 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
               return (
                 <div key={b.label}>
                   <div className="flex flex-wrap items-baseline justify-between gap-x-1">
-                    <span className="text-[10px] uppercase font-semibold text-muted-foreground">{b.label}</span>
-                    <span className={`text-[10px] font-bold ${over ? "text-rose-500" : "text-foreground"}`}>{Math.round(b.cur)}/{Math.round(b.goal)}{b.label === "Fibra" && fiberUnknown > 0 ? "*" : ""}</span>
+                    <span className="text-[11px] uppercase font-semibold text-muted-foreground">{b.label}</span>
+                    <span className={`text-[11px] font-bold ${over ? "text-rose-500" : "text-foreground"}`}>{Math.round(b.cur)}/{Math.round(b.goal)}{b.label === "Fibra" && fiberUnknown > 0 ? "*" : ""}</span>
                   </div>
                   <div className="h-1.5 mt-1 rounded-full bg-muted overflow-hidden">
                     <div className={`${over ? "bg-rose-500" : b.color} h-full transition-all`} style={{ width: `${Math.min(100, pct)}%` }} />
@@ -422,7 +422,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
             })}
           </div>
           {fiberUnknown > 0 && (
-            <p className="mt-2 flex items-start gap-1.5 text-[10px] leading-snug text-amber-600">
+            <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-snug text-amber-600">
               <AlertCircle className="w-3 h-3 mt-px shrink-0" />
               <span>
                 * Fibra pode estar subestimada: {fiberUnknown} {fiberUnknown === 1 ? "alimento está" : "alimentos estão"} sem dado de fibra na base e {fiberUnknown === 1 ? "não entrou" : "não entraram"} na soma.
@@ -442,7 +442,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
         />
         <span className="min-w-0">
           <span className="block text-xs font-semibold">Mostrar medidas caseiras ao aluno</span>
-          <span className="block text-[10px] text-muted-foreground">
+          <span className="block text-[11px] text-muted-foreground">
             Você continua prescrevendo em gramas; o aluno vê "120 g ≈ 5 colheres de sopa" (medidas do IBGE, quando o alimento tem).
           </span>
         </span>
@@ -503,7 +503,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
           <button
             type="button"
             onClick={() => updMealField(mealIdx, { pairId: undefined, excludeFromDayTotal: false, day_type: "all" } as any)}
-            className="h-7 px-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-600 text-[10px] font-semibold transition-colors flex items-center gap-1 shrink-0 hover:bg-amber-500/20"
+            className="h-7 px-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-600 text-[11px] font-semibold transition-colors flex items-center gap-1 shrink-0 hover:bg-amber-500/20"
             title="Esta refeição tem um par configurado, mas a outra metade não existe mais (ou nunca teve o mesmo pairId). Por isso a aluna não vê o botão de alternar. Clique para desfazer esse vínculo quebrado e, se quiser, crie o par de novo."
           >
             ⚠ Par quebrado — corrigir
@@ -511,7 +511,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
         ) : null;
         const excludedBadge = excluded ? (
           <span
-            className="h-7 px-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-600 text-[10px] font-semibold flex items-center gap-1 shrink-0 whitespace-nowrap"
+            className="h-7 px-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-600 text-[11px] font-semibold flex items-center gap-1 shrink-0 whitespace-nowrap"
             title="Esta refeição não entra nas kcal/macros do dia. Use o menu ⋯ para voltar a contabilizar."
           >
             <Eye className="w-3.5 h-3.5" /> Fora do total
@@ -545,7 +545,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
         );
         const kcalBadge = mealM.kcal > 0 ? (
           <span
-            className="text-[10px] font-semibold tabular-nums text-muted-foreground shrink-0 px-1.5 py-0.5 rounded bg-muted/40 border border-border/40 flex items-center gap-1.5"
+            className="text-[11px] font-semibold tabular-nums text-muted-foreground shrink-0 px-1.5 py-0.5 rounded bg-muted/40 border border-border/40 flex items-center gap-1.5"
             title="Total desta refeição (primeira opção de cada grupo)"
           >
             <b className="text-foreground">{Math.round(mealM.kcal)} kcal</b>
@@ -580,18 +580,18 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                   <span className="text-sm font-bold text-primary truncate">{m.name || `Refeição ${mealIdx + 1}`}</span>
                   {m.time && <span className="text-xs text-muted-foreground tabular-nums shrink-0">{m.time}</span>}
                   {dayType !== "all" && (
-                    <span className={`text-[10px] font-semibold px-1.5 rounded border shrink-0 ${dayType === "training" ? "border-primary/40 text-primary" : "border-sky-500/40 text-sky-500"}`}>
+                    <span className={`text-[11px] font-semibold px-1.5 rounded border shrink-0 ${dayType === "training" ? "border-primary/40 text-primary" : "border-sky-500/40 text-sky-500"}`}>
                       {dayType === "training" ? "Treino" : "Descanso"}
                     </span>
                   )}
-                  {mealM.kcal > 0 && <span className="sm:hidden text-[10px] text-muted-foreground tabular-nums shrink-0">{Math.round(mealM.kcal)} kcal</span>}
+                  {mealM.kcal > 0 && <span className="sm:hidden text-[11px] text-muted-foreground tabular-nums shrink-0">{Math.round(mealM.kcal)} kcal</span>}
                 </span>
                 <span className={`text-xs truncate min-w-0 flex-1 ${foods.length ? "text-foreground/80" : "text-muted-foreground italic"}`}>
                   {foods.length ? foods.join(" · ") : "Sem alimentos ainda"}
                 </span>
               </button>
               {mealM.kcal > 0 && (
-                <span className="hidden sm:inline-flex text-[10px] font-semibold tabular-nums text-muted-foreground shrink-0 items-center gap-1.5" title="Total desta refeição (primeira opção de cada grupo)">
+                <span className="hidden sm:inline-flex text-[11px] font-semibold tabular-nums text-muted-foreground shrink-0 items-center gap-1.5" title="Total desta refeição (primeira opção de cada grupo)">
                   <b className="text-foreground">{Math.round(mealM.kcal)} kcal</b>
                   <span className="text-blue-500">{Math.round(mealM.protein)}p</span>
                   <span className="text-amber-500">{Math.round(mealM.carbs)}c</span>
@@ -599,7 +599,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                 </span>
               )}
               {cycleOn && (
-                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-500 shrink-0" title="Entra no ciclo de carboidratos">
+                <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-500 shrink-0" title="Entra no ciclo de carboidratos">
                   <TrendingUp className="w-3 h-3" /> ciclo
                 </span>
               )}
@@ -732,7 +732,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                           if (!cur.includes(kind)) cur.push(kind);
                           updMealField(mealIdx, { hiddenKinds: cur } as any);
                         }}
-                        className="text-[10px] flex items-center gap-1 text-muted-foreground hover:text-destructive opacity-70 hover:opacity-100"
+                        className="text-[11px] flex items-center gap-1 text-muted-foreground hover:text-destructive opacity-70 hover:opacity-100"
                       >
                         <Trash2 className="w-3 h-3" /> remover
                       </button>
@@ -759,7 +759,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                       return (
                         <div key={optIdx} className="relative focus-within:z-[60] bg-card rounded-lg border border-border/50 p-2 sm:p-2.5" data-testid={`option-${mealIdx}-${kind}-${optIdx}`}>
                           <div className="flex items-center gap-1.5 mb-1.5">
-                            <span className={`text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded ${cfg.bg} ${cfg.color} border ${cfg.border}`}>Op {optIdx + 1}</span>
+                            <span className={`text-[11px] font-bold shrink-0 px-1.5 py-0.5 rounded ${cfg.bg} ${cfg.color} border ${cfg.border}`}>Op {optIdx + 1}</span>
                             {/* O aluno não vê este título (vê "Opção principal", "Opção 2"…):
                                 o padrão "Opção N" fica escondido pra não repetir o selo. */}
                             <Input
@@ -773,7 +773,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                               <button
                                 type="button"
                                 onClick={() => reveal(notesKey)}
-                                className="shrink-0 text-[10px] text-muted-foreground hover:text-foreground px-1"
+                                className="shrink-0 text-[11px] text-muted-foreground hover:text-foreground px-1"
                                 title="Observação desta opção (o aluno vê)"
                                 data-testid={`option-notes-add-${mealIdx}-${kind}-${optIdx}`}
                               >
@@ -784,7 +784,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                               <button
                                 type="button"
                                 onClick={() => applyProportionalAdjust(mealIdx, kind, optIdx)}
-                                className="shrink-0 text-[9px] px-1.5 py-0.5 rounded border border-dashed border-primary/40 text-primary/80 hover:bg-primary/10 hover:text-primary flex items-center gap-1"
+                                className="shrink-0 text-[11px] px-1.5 py-0.5 rounded border border-dashed border-primary/40 text-primary/80 hover:bg-primary/10 hover:text-primary flex items-center gap-1"
                                 title="Calcula a gramagem de cada alimento desta opção proporcionalmente à Opção 1, batendo o mesmo total de kcal/macro"
                               >
                                 <Wand2 className="w-3 h-3" /> Ajustar p/ Op 1
@@ -817,7 +817,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                             {items.map((it: any, ii: number) => (
                               <div key={ii} className="relative focus-within:z-[70] bg-background rounded border border-border/40 px-2 py-1.5 space-y-1">
                                 {(it as any).optional && (
-                                  <span className="text-[9px] text-amber-500 font-bold uppercase tracking-wider">
+                                  <span className="text-[11px] text-amber-500 font-bold uppercase tracking-wider">
                                     ⚡ Opcional (não soma) — legado
                                   </span>
                                 )}
@@ -863,7 +863,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                                 {/* Substituição opcional anexada (máx. 1 por alimento) */}
                                 {it.substitution && (
                                   <div className="mt-1 ml-2 pl-2.5 border-l-2 border-dashed border-amber-500/40 space-y-1">
-                                    <span className="text-[9px] text-amber-500 font-bold uppercase tracking-wider">
+                                    <span className="text-[11px] text-amber-500 font-bold uppercase tracking-wider">
                                       ↳ 🔁 Substituição opcional (não soma)
                                     </span>
                                     <FoodRow
@@ -910,7 +910,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                           <button type="button" onClick={() => addItem(mealIdx, kind, optIdx)} className={`mt-1.5 text-[11px] flex items-center gap-1 px-1 ${cfg.color} opacity-60 hover:opacity-100`}><Plus className="w-3 h-3" /> alimento</button>
                           {(optM.kcal > 0 || optM.protein > 0 || optM.carbs > 0 || optM.fat > 0 || optM.fiber > 0) && (
                             <div className="mt-2 pt-2 border-t border-dashed border-border/40 flex items-center justify-between gap-2 flex-wrap">
-                              <div className="flex items-center gap-2 text-[10px] tabular-nums" title="Cálculo automático — visível apenas para o coach">
+                              <div className="flex items-center gap-2 text-[11px] tabular-nums" title="Cálculo automático — visível apenas para o coach">
                                 <span className="font-bold text-foreground">{Math.round(optM.kcal)} kcal</span>
                                 <span className="text-blue-500">{optM.protein.toFixed(1)}p</span>
                                 <span className="text-amber-500">{optM.carbs.toFixed(1)}c</span>
@@ -924,7 +924,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                               </div>
                               {delta && (
                                 <span
-                                  className={`text-[9px] px-1.5 py-0.5 rounded border font-bold uppercase tracking-wider ${sevCls[delta.severity]}`}
+                                  className={`text-[11px] px-1.5 py-0.5 rounded border font-bold uppercase tracking-wider ${sevCls[delta.severity]}`}
                                   title={`vs Op 1 — Δ kcal ${delta.kcal >= 0 ? "+" : ""}${delta.kcal} (${Math.round(delta.kcalPct*100)}%) · P ${delta.protein >= 0 ? "+" : ""}${delta.protein} · C ${delta.carbs >= 0 ? "+" : ""}${delta.carbs} · G ${delta.fat >= 0 ? "+" : ""}${delta.fat}`}
                                 >
                                   {sevLabel[delta.severity]}
@@ -945,7 +945,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
 
             {Array.isArray((m as any).hiddenKinds) && (m as any).hiddenKinds.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 pt-1">
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Macros ocultos:</span>
+                <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Macros ocultos:</span>
                 {((m as any).hiddenKinds as Array<"carb"|"protein"|"fat">).map((k) => (
                   <button
                     key={k}
@@ -954,7 +954,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                       const cur = ((m as any).hiddenKinds as string[]).filter((x) => x !== k);
                       updMealField(mealIdx, { hiddenKinds: cur } as any);
                     }}
-                    className="text-[10px] px-2 py-1 rounded border border-dashed border-border/60 text-muted-foreground hover:text-primary hover:border-primary inline-flex items-center gap-1"
+                    className="text-[11px] px-2 py-1 rounded border border-dashed border-border/60 text-muted-foreground hover:text-primary hover:border-primary inline-flex items-center gap-1"
                   >
                     <Plus className="w-3 h-3" /> {k === "carb" ? "Carbo" : k === "protein" ? "Proteína" : "Gordura"}
                   </button>
@@ -964,7 +964,7 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
 
             {showMealNotes ? (
               <div className="pt-1">
-                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Observação da refeição</Label>
+                <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Observação da refeição</Label>
                 <Textarea
                   autoFocus={!String((m as any).notes ?? "").trim()}
                   value={(m as any).notes || ""}
@@ -1046,9 +1046,9 @@ export function DietTab({ payload, setPayload, onOpenTemplateLibrary }: { payloa
                     className="w-full text-left bg-card border border-border rounded-lg p-3 hover:border-primary/50 transition-colors">
                     <div className="flex items-center justify-between mb-1">
                       <p className="text-sm font-semibold text-foreground">{t.name}</p>
-                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{t.kind}</span>
+                      <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{t.kind}</span>
                     </div>
-                    <div className="flex gap-2 text-[10px] text-muted-foreground">
+                    <div className="flex gap-2 text-[11px] text-muted-foreground">
                       <span>{Math.round(mm.kcal)} kcal</span>
                       <span>· {Math.round(mm.protein)}p</span>
                       <span>· {Math.round(mm.carbs)}c</span>
@@ -1077,15 +1077,15 @@ function QuantityFeedback({ it, showHousehold = false }: { it: any; showHousehol
 
   if (!linked) {
     if (!String(it.baseName || it.name || "").trim()) return null;
-    return <p className="pl-[3.9rem] sm:pl-1 text-[10px] text-muted-foreground">Alimento fora da tabela — não entra no cálculo de macros nem de fibra.</p>;
+    return <p className="pl-[3.9rem] sm:pl-1 text-[11px] text-muted-foreground">Alimento fora da tabela — não entra no cálculo de macros nem de fibra.</p>;
   }
   if (it.optional === true) {
-    return <p className="pl-[3.9rem] sm:pl-1 text-[10px] text-muted-foreground">Item opcional (legado) — não soma nos macros.</p>;
+    return <p className="pl-[3.9rem] sm:pl-1 text-[11px] text-muted-foreground">Item opcional (legado) — não soma nos macros.</p>;
   }
   if (!text) {
     const hints = quantityHintsFor(it);
     return (
-      <p className="pl-[3.9rem] sm:pl-1 text-[10px] text-muted-foreground">
+      <p className="pl-[3.9rem] sm:pl-1 text-[11px] text-muted-foreground">
         Digite g, kg, ml ou uma medida (uni, fatia, colher…){hints.length ? ` · cadastrado: ${hints.join(" · ")}` : ""}
       </p>
     );
@@ -1094,7 +1094,7 @@ function QuantityFeedback({ it, showHousehold = false }: { it: any; showHousehol
   const q = resolveQuantity(it, text);
   if (q.status === "unknown" || q.status === "no-weight") {
     return (
-      <p className="pl-[3.9rem] sm:pl-1 flex items-start gap-1 text-[10px] text-amber-600">
+      <p className="pl-[3.9rem] sm:pl-1 flex items-start gap-1 text-[11px] text-amber-600">
         <AlertCircle className="w-3 h-3 mt-px shrink-0" />
         <span>{q.hint}</span>
       </p>
@@ -1107,7 +1107,7 @@ function QuantityFeedback({ it, showHousehold = false }: { it: any; showHousehol
   // O que o aluno vai ver ao lado dos gramas (só com "Mostrar medidas caseiras ao aluno" ligado).
   const approx = showHousehold && !q.isUnit ? householdApprox(String(it.baseName || it.name || ""), q.grams) : null;
   return (
-    <p className="pl-[3.9rem] sm:pl-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] tabular-nums text-muted-foreground">
+    <p className="pl-[3.9rem] sm:pl-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] tabular-nums text-muted-foreground">
       <span className="inline-flex items-center gap-1 text-emerald-600 font-medium"><CheckCircle2 className="w-3 h-3" />{understood}</span>
       {approx && <span className="text-foreground/70" title="O aluno vê esta medida ao lado dos gramas">aluno vê {approx}</span>}
       <span>{Math.round(m.kcal)} kcal</span>
@@ -1197,7 +1197,7 @@ function FoodRow({
               <div className="flex gap-1 mt-1">
                 <select
                   aria-label="Versão do corte"
-                  className="h-6 min-w-0 flex-1 bg-background text-[10px] border border-border rounded px-1"
+                  className="h-6 min-w-0 flex-1 bg-background text-[11px] border border-border rounded px-1"
                   value={selectedFood.name}
                   onChange={(e) => {
                     const nextFood = TACO_DATA.find((food) => food.name === e.target.value);
@@ -1211,7 +1211,7 @@ function FoodRow({
           })()}
           {showSuggestions && (
             <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-popover border border-border rounded-md shadow-lg max-h-64 overflow-y-auto">
-              <div className="px-2 py-1 text-[9px] uppercase tracking-wider text-muted-foreground border-b border-border/50">
+              <div className="px-2 py-1 text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border/50">
                 Sugestões TACO — clique para usar ou continue digitando
               </div>
               {matches.map((taco) => {
@@ -1231,10 +1231,10 @@ function FoodRow({
                   >
                     <span className="flex-1 truncate">{taco.name}</span>
                     {taco.source === "industrial" && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-violet-500/10 text-violet-500 border border-violet-500/30" title={`Industrializado · ${taco.brand}`}>IND</span>
+                      <span className="text-[11px] px-1.5 py-0.5 rounded font-medium bg-violet-500/10 text-violet-500 border border-violet-500/30" title={`Industrializado · ${taco.brand}`}>IND</span>
                     )}
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${badgeCls}`}>{badgeLabel}</span>
-                    {typeof taco.cookFactor === "number" && taco.cookFactor !== 1 && <span className="text-[9px] text-muted-foreground">×{taco.cookFactor}</span>}
+                    <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium ${badgeCls}`}>{badgeLabel}</span>
+                    {typeof taco.cookFactor === "number" && taco.cookFactor !== 1 && <span className="text-[11px] text-muted-foreground">×{taco.cookFactor}</span>}
                   </button>
                 );
               })}
@@ -1242,7 +1242,7 @@ function FoodRow({
           )}
         </div>
         <div className="flex items-center gap-1.5 sm:w-[240px] sm:shrink-0">
-          <label className="sm:hidden text-[10px] text-muted-foreground shrink-0">Quantidade</label>
+          <label className="sm:hidden text-[11px] text-muted-foreground shrink-0">Quantidade</label>
           <Input
             aria-label="Quantidade"
             value={it.weight ?? ""}
@@ -1259,10 +1259,10 @@ function FoodRow({
             className="h-8 text-xs flex-1 min-w-0"
           />
           {it.isTaco && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/30 shrink-0" title="Vinculado à tabela TACO">TACO</span>
+            <span className="text-[11px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/30 shrink-0" title="Vinculado à tabela TACO">TACO</span>
           )}
           {it.isIndustrial && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-500 border border-violet-500/30 shrink-0" title="Alimento industrializado (rótulo do fabricante)">IND</span>
+            <span className="text-[11px] px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-500 border border-violet-500/30 shrink-0" title="Alimento industrializado (rótulo do fabricante)">IND</span>
           )}
           {menu}
         </div>

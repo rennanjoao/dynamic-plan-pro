@@ -1,4 +1,5 @@
 import { Suspense, useEffect } from "react";
+import { MotionConfig } from "framer-motion";
 import StudentActivityTracker from "@/components/StudentActivityTracker";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -69,6 +70,8 @@ function AuthCacheGuard() {
 const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
+      {/* "Reduzir movimento" do aparelho: animações do framer-motion viram só esmaecer. */}
+      <MotionConfig reducedMotion="user">
       <AuthCacheGuard />
       <TooltipProvider>
         <ConfirmProvider>
@@ -127,6 +130,7 @@ const App = () => {
           </BrowserRouter>
         </ConfirmProvider>
       </TooltipProvider>
+      </MotionConfig>
     </QueryClientProvider>
   );
 };

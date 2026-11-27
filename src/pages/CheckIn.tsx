@@ -566,7 +566,7 @@ export default function CheckIn() {
         <PreviewModeBar />
         <header className={`bg-background/95 backdrop-blur border-b border-border ${!previewAs ? "sticky top-0 z-20" : ""}`}>
           <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/student-area")}>
+            <Button aria-label="Voltar à área do aluno" variant="ghost" size="icon" onClick={() => navigate("/student-area")}>
               <ArrowLeft className="w-4 h-4" />
             </Button>
             <h1 className="text-base font-bold text-foreground">Check-in</h1>

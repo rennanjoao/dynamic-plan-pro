@@ -121,7 +121,7 @@ export function MacrosTab({
     <Card className="bg-card/60 border-border p-4">
       <p className="text-xs text-muted-foreground mb-3">Base calórica e macros. Servem de referência para ciclo de carbo.</p>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
-        <div><Label className="text-xs">Calorias <span className="text-[9px] text-muted-foreground">(auto)</span></Label><Input type="number" value={m.calories} onChange={(e) => upd("calories", Number(e.target.value) || 0)} className="mt-1 h-9 text-sm" /></div>
+        <div><Label className="text-xs">Calorias <span className="text-[11px] text-muted-foreground">(auto)</span></Label><Input type="number" value={m.calories} onChange={(e) => upd("calories", Number(e.target.value) || 0)} className="mt-1 h-9 text-sm" /></div>
         <div><Label className="text-xs">Proteína (g)</Label><Input type="number" value={m.protein} onChange={(e) => upd("protein", Number(e.target.value) || 0)} className="mt-1 h-9 text-sm" /></div>
         <div><Label className="text-xs">Carbo (g)</Label><Input type="number" value={m.carbs} onChange={(e) => upd("carbs", Number(e.target.value) || 0)} className="mt-1 h-9 text-sm" /></div>
         <div><Label className="text-xs">Gordura (g)</Label><Input type="number" value={m.fat} onChange={(e) => upd("fat", Number(e.target.value) || 0)} className="mt-1 h-9 text-sm" /></div>
@@ -147,7 +147,7 @@ export function MacrosTab({
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
               <Label className="text-xs font-semibold">Meta vs. dieta montada</Label>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Comparado com a Opção 1 de cada refeição.</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Comparado com a Opção 1 de cada refeição.</p>
               <div className="flex items-center gap-3 mt-1.5 text-[11px]">
                 <MacroDeltaBadge label="Carbo" value={macroDeltas.carbs} />
                 <MacroDeltaBadge label="Prot" value={macroDeltas.protein} />
@@ -155,7 +155,7 @@ export function MacrosTab({
                 <MacroDeltaBadge label="Fibras" value={fiberDelta} approx={(dayMacros.fiberUnknown || 0) > 0} />
               </div>
               {(dayMacros.fiberUnknown || 0) > 0 && (
-                <p className="text-[10px] text-amber-600 mt-1">
+                <p className="text-[11px] text-amber-600 mt-1">
                   * Fibra incompleta: {dayMacros.fiberUnknown} {dayMacros.fiberUnknown === 1 ? "alimento sem dado de fibra" : "alimentos sem dado de fibra"} na base. O valor real tende a ser maior.
                 </p>
               )}
@@ -186,7 +186,7 @@ export function MacrosTab({
         <div className="flex items-center justify-between gap-3 flex-wrap" data-testid="training-days">
           <div>
             <Label className="text-xs font-semibold">Dias de treino por semana</Label>
-            <p className="text-[10px] text-muted-foreground mt-0.5">
+            <p className="text-[11px] text-muted-foreground mt-0.5">
               {weekTrainingDays != null
                 ? "Contado da semana do Treino. Usado na média calórica semanal das refeições de treino/descanso."
                 : "Monte a semana no Treino para contar automaticamente (até lá vale o número salvo)."}
@@ -209,7 +209,7 @@ export function MacrosTab({
               <DayTypeTotalsCard title="Dia de descanso" totals={restTotals} accent="text-sky-500" borderClass="border-sky-500/30 bg-sky-500/5" />
             </div>
             <div className="flex items-center justify-between rounded-lg border border-border/40 bg-card/60 px-3 py-1.5">
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-[11px] text-muted-foreground">
                 Média calórica semanal ({trainingDays} treino · {7 - trainingDays} descanso)
               </span>
               <span className="text-xs font-bold text-foreground">{weeklyAvgDayTypeKcal} kcal/dia</span>
@@ -230,41 +230,41 @@ export function MacrosTab({
             <p className="text-[11px] text-muted-foreground">Variação percentual de carboidratos aplicada automaticamente nos dias de ciclo.</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-[10px] uppercase tracking-wider text-emerald-500">Dia Alto — + %</Label>
+                <Label className="text-[11px] uppercase tracking-wider text-emerald-500">Dia Alto — + %</Label>
                 <div className="flex items-center gap-2 mt-1">
                   <Input type="number" min={1} max={100} value={payload.carbCycleHighPct ?? 15} onChange={(e) => setPayload({ ...payload, carbCycleHighPct: Number(e.target.value) || 15 })} className="h-8 text-xs w-20" />
                   <span className="text-xs text-muted-foreground">%</span>
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-0.5">× {(1 + (payload.carbCycleHighPct ?? 15) / 100).toFixed(2)}</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">× {(1 + (payload.carbCycleHighPct ?? 15) / 100).toFixed(2)}</p>
               </div>
               <div>
-                <Label className="text-[10px] uppercase tracking-wider text-amber-500">Dia Off/Baixo — − %</Label>
+                <Label className="text-[11px] uppercase tracking-wider text-amber-500">Dia Off/Baixo — − %</Label>
                 <div className="flex items-center gap-2 mt-1">
                   <Input type="number" min={1} max={100} value={payload.carbCycleLowPct ?? 15} onChange={(e) => setPayload({ ...payload, carbCycleLowPct: Number(e.target.value) || 15 })} className="h-8 text-xs w-20" />
                   <span className="text-xs text-muted-foreground">%</span>
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-0.5">× {(1 - (payload.carbCycleLowPct ?? 15) / 100).toFixed(2)}</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">× {(1 - (payload.carbCycleLowPct ?? 15) / 100).toFixed(2)}</p>
               </div>
             </div>
 
             {/* Resumo por tipo de dia — carbo(g) e kcal, mais quantos dias de cada,
                 tudo recalculado a cada render a partir do payload atual. */}
             <div className="border-t border-border/40 pt-3">
-              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Resumo por dia</Label>
+              <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Resumo por dia</Label>
               <div className="grid grid-cols-3 gap-2 mt-1.5">
                 {CARB_LEVELS.map((lvl) => (
                   <div key={lvl} className={`rounded-lg border p-2 ${CARB_COLOR[lvl].bg} ${CARB_COLOR[lvl].border}`}>
-                    <p className={`text-[9px] font-bold uppercase tracking-wide ${CARB_COLOR[lvl].text}`}>{CARB_LABEL[lvl]}</p>
+                    <p className={`text-[11px] font-bold uppercase tracking-wide ${CARB_COLOR[lvl].text}`}>{CARB_LABEL[lvl]}</p>
                     <p className="text-sm font-bold text-foreground mt-0.5 leading-tight">
-                      {Math.round(carbForLevel(lvl))}<span className="text-[9px] font-normal text-muted-foreground">g carbo</span>
+                      {Math.round(carbForLevel(lvl))}<span className="text-[11px] font-normal text-muted-foreground">g carbo</span>
                     </p>
                     <p className="text-[11px] text-muted-foreground leading-tight">{kcalForLevel(lvl)} kcal</p>
-                    <p className="text-[9px] text-muted-foreground mt-1">{dayCounts[lvl]} {dayCounts[lvl] === 1 ? "dia" : "dias"}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">{dayCounts[lvl]} {dayCounts[lvl] === 1 ? "dia" : "dias"}</p>
                   </div>
                 ))}
               </div>
               <div className="flex items-center justify-between mt-2 rounded-lg border border-border/40 bg-card/60 px-3 py-1.5">
-                <span className="text-[10px] text-muted-foreground">Média semanal (7 dias)</span>
+                <span className="text-[11px] text-muted-foreground">Média semanal (7 dias)</span>
                 <span className="text-xs font-bold text-foreground">{weeklyAvgKcal} kcal/dia</span>
               </div>
             </div>
@@ -274,8 +274,8 @@ export function MacrosTab({
             <div className="border-t border-border/40 pt-3" data-testid="carb-week-summary">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div>
-                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Tipo de cada dia</Label>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                  <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Tipo de cada dia</Label>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
                     {dayCounts.high} Alto · {dayCounts.base} Base · {dayCounts.off} Baixo — edite na semana do Treino
                   </p>
                 </div>
@@ -290,8 +290,8 @@ export function MacrosTab({
                   const cur = normalizeCarb(payload.carbCycle?.[d.key]);
                   return (
                     <div key={d.key} className={`rounded-md border px-0.5 py-1 text-center ${CARB_COLOR[cur].bg} ${CARB_COLOR[cur].border}`}>
-                      <p className="text-[9px] uppercase text-muted-foreground">{d.label.slice(0, 3)}</p>
-                      <p className={`text-[10px] font-bold ${CARB_COLOR[cur].text}`}>{CARB_LABEL[cur]}</p>
+                      <p className="text-[11px] uppercase text-muted-foreground">{d.label.slice(0, 3)}</p>
+                      <p className={`text-[11px] font-bold ${CARB_COLOR[cur].text}`}>{CARB_LABEL[cur]}</p>
                     </div>
                   );
                 })}
@@ -314,11 +314,11 @@ function DayTypeTotalsCard({
 }) {
   return (
     <div className={`rounded-lg border p-2 ${borderClass}`}>
-      <p className={`text-[9px] font-bold uppercase tracking-wide ${accent}`}>{title}</p>
+      <p className={`text-[11px] font-bold uppercase tracking-wide ${accent}`}>{title}</p>
       <p className="text-sm font-bold text-foreground mt-0.5 leading-tight">
-        {Math.round(totals.kcal)}<span className="text-[9px] font-normal text-muted-foreground"> kcal</span>
+        {Math.round(totals.kcal)}<span className="text-[11px] font-normal text-muted-foreground"> kcal</span>
       </p>
-      <p className="text-[10px] text-muted-foreground leading-tight">
+      <p className="text-[11px] text-muted-foreground leading-tight">
         P {Math.round(totals.protein)}g · C {Math.round(totals.carbs)}g · G {Math.round(totals.fat)}g
       </p>
     </div>
@@ -477,7 +477,7 @@ function DistributeMacroDialog({
                         <span className="text-xs text-muted-foreground w-4">%</span>
                       </>
                     ) : (
-                      <span className="text-[10px] text-muted-foreground/50 italic">sem {KIND_MACRO_LABEL[kind].toLowerCase()}</span>
+                      <span className="text-[11px] text-muted-foreground/50 italic">sem {KIND_MACRO_LABEL[kind].toLowerCase()}</span>
                     )}
                   </div>
                 );

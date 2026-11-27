@@ -264,7 +264,7 @@ export const FitnessChatBot = ({ athleteContext, onOpen, proactiveMessage, whats
             >
               −
             </button>
-            <Button
+            <Button aria-label="Abrir assistente"
               onClick={handleOpen}
               className="w-14 h-14 rounded-full glow-primary shadow-2xl animate-glow-pulse"
               size="icon"
@@ -309,7 +309,7 @@ export const FitnessChatBot = ({ athleteContext, onOpen, proactiveMessage, whats
                   </p>
                 </div>
               </div>
-              <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)} className="rounded-xl w-8 h-8">
+              <Button aria-label="Fechar assistente" variant="ghost" size="icon" onClick={() => setIsOpen(false)} className="rounded-xl w-8 h-8">
                 <X className="w-4 h-4" />
               </Button>
             </div>
@@ -376,7 +376,7 @@ export const FitnessChatBot = ({ athleteContext, onOpen, proactiveMessage, whats
                   className="rounded-xl bg-secondary/30 border-border/20 text-sm"
                   disabled={isLoading}
                 />
-                <Button
+                <Button aria-label="Enviar mensagem"
                   type="submit"
                   size="icon"
                   className="rounded-xl shrink-0 glow-primary"

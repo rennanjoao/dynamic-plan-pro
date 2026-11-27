@@ -67,8 +67,8 @@ export function WeekStripEditor({
   return (
     <Card className="bg-card/40 border-border p-2.5" data-testid="week-strip">
       <div className="flex items-center justify-between mb-1.5 px-1 gap-2">
-        <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Semana</p>
-        <p className="text-[9px] text-muted-foreground text-right">
+        <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Semana</p>
+        <p className="text-[11px] text-muted-foreground text-right">
           Toque no dia para escolher o treino
           {showCarb ? " · no carbo para Alto · Base · Baixo" : (
             <>
@@ -101,7 +101,7 @@ export function WeekStripEditor({
                     title={`${DAY_LABEL[k]}: escolher treino`}
                     data-testid={`day-${k}`}
                   >
-                    <span className="text-[9px] uppercase text-muted-foreground tracking-wider">{ABBR[k]}</span>
+                    <span className="text-[11px] uppercase text-muted-foreground tracking-wider">{ABBR[k]}</span>
                     <span className={cn("text-[12px] font-bold leading-none", wk === "REST" ? "text-muted-foreground" : "text-foreground")}>{label}</span>
                   </button>
                 </PopoverTrigger>
@@ -146,7 +146,7 @@ export function WeekStripEditor({
                 onClick={() => onCycleCarb(k)}
                 title={`Carbo ${CARB_LABEL[carb]} — toque para alternar`}
                 className={cn(
-                  "text-[8px] font-bold uppercase tracking-wider px-1 py-px rounded border leading-none",
+                  "text-[11px] font-bold uppercase tracking-wider px-1 py-px rounded border leading-none",
                   carb === "high"
                     ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/40"
                     : "bg-muted/40 text-muted-foreground border-border/50",
@@ -198,7 +198,7 @@ export function WorkoutMenu({
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
             <ArrowUpDown className="w-4 h-4 mr-2" /> Inverter a ordem
-            {invertMode !== "off" && <span className="ml-auto text-[10px] text-primary">ligado</span>}
+            {invertMode !== "off" && <span className="ml-auto text-[11px] text-primary">ligado</span>}
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent className="w-64">
             <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">Mobilidade continua sempre antes.</DropdownMenuLabel>
@@ -206,7 +206,7 @@ export function WorkoutMenu({
               {INVERT_OPTIONS.map((o) => (
                 <DropdownMenuRadioItem key={o.value} value={o.value} className="flex-col items-start" data-testid={`invert-${letter}-${o.value}`}>
                   <span className="text-xs font-medium">{o.label}</span>
-                  <span className="text-[10px] text-muted-foreground">{o.hint}</span>
+                  <span className="text-[11px] text-muted-foreground">{o.hint}</span>
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
@@ -233,7 +233,7 @@ export function InvertBadge({ mode }: { mode: InvertMode }) {
   if (mode === "off") return null;
   return (
     <span
-      className="inline-flex items-center gap-0.5 rounded-full border border-primary/40 bg-primary/5 px-1.5 py-0.5 text-[10px] font-semibold text-primary shrink-0"
+      className="inline-flex items-center gap-0.5 rounded-full border border-primary/40 bg-primary/5 px-1.5 py-0.5 text-[11px] font-semibold text-primary shrink-0"
       title={`Inverte a ordem: ${INVERT_LABEL[mode].toLowerCase()}`}
       data-testid="invert-badge"
     >
@@ -273,7 +273,7 @@ export function ExerciseMenu({
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuItem onClick={onAlternatives}>
           <Repeat2 className="w-4 h-4 mr-2" /> Alternativas para a aluna
-          {substitutesCount > 0 && <span className="ml-auto text-[10px] text-primary">{substitutesCount}</span>}
+          {substitutesCount > 0 && <span className="ml-auto text-[11px] text-primary">{substitutesCount}</span>}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={onToMobility}><StretchHorizontal className="w-4 h-4 mr-2" /> Mover para mobilidade</DropdownMenuItem>
         <DropdownMenuItem onClick={() => onMove("up")} disabled={!canMoveUp}><ArrowUp className="w-4 h-4 mr-2" /> Subir</DropdownMenuItem>
@@ -310,7 +310,7 @@ export function RxInput({
 }) {
   return (
     <label className="block min-w-0">
-      <span className="md:hidden block text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">{RX_LABEL[field]}</span>
+      <span className="md:hidden block text-[11px] uppercase tracking-wide text-muted-foreground mb-0.5">{RX_LABEL[field]}</span>
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -376,14 +376,14 @@ export function CardioSection({
           <Card key={ci} className="bg-card/60 border-border p-3 space-y-2" data-testid={`cardio-${ci}`}>
             <div className="grid grid-cols-[1fr_1.4fr_auto] gap-2 items-end">
               <div>
-                <Label className="text-[10px] uppercase text-muted-foreground">Tipo</Label>
+                <Label className="text-[11px] uppercase text-muted-foreground">Tipo</Label>
                 <Select value={c.type || "Outro"} onValueChange={(v) => patch(ci, { type: v })}>
                   <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Tipo" /></SelectTrigger>
                   <SelectContent>{["AEJ", "LISS", "HIIT", "Caminhada", "Bicicleta", "Outro"].map((t) => <SelectItem key={t} value={t} className="text-xs">{t}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div>
-                <Label className="text-[10px] uppercase text-muted-foreground">Vinculado a</Label>
+                <Label className="text-[11px] uppercase text-muted-foreground">Vinculado a</Label>
                 <Select value={orphan ? "none" : link} onValueChange={(v) => patch(ci, cardioFromLink(v))}>
                   <SelectTrigger className="h-8 text-xs mt-1" data-testid={`cardio-link-${ci}`}><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -416,11 +416,11 @@ export function CardioSection({
             {orphan && <p className="text-[11px] text-amber-600">O treino deste aeróbico foi excluído — escolha outro vínculo.</p>}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label className="text-[10px] uppercase text-muted-foreground">Duração</Label>
+                <Label className="text-[11px] uppercase text-muted-foreground">Duração</Label>
                 <Input value={c.duration} onChange={(e) => patch(ci, { duration: e.target.value })} placeholder="40 min" className="h-8 text-base md:text-sm mt-1" />
               </div>
               <div>
-                <Label className="text-[10px] uppercase text-muted-foreground">Intensidade</Label>
+                <Label className="text-[11px] uppercase text-muted-foreground">Intensidade</Label>
                 <Select value={c.intensity || "Moderada"} onValueChange={(v) => patch(ci, { intensity: v })}>
                   <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>{["Leve", "Moderada", "Alta"].map((t) => <SelectItem key={t} value={t} className="text-xs">{t}</SelectItem>)}</SelectContent>

@@ -1,3 +1,4 @@
+import { ProtocolBuilderSkeleton } from "@/components/coach/CoachSkeletons";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
 const ProtocolHistoryDialog = lazyWithRetry(() => import("@/components/coach/ProtocolHistoryDialog"));
 /**
@@ -1002,7 +1003,7 @@ export default function ProtocolBuilder({ studentId, studentName, registerLeaveG
   // deixar TemplateLibraryDialog como o único ponto de salvar/atualizar
   // template, evitando duplicatas.
 
-  if (isLoading) return <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
+  if (isLoading) return <ProtocolBuilderSkeleton />;
 
   return (
     <div className="space-y-4">
@@ -1016,14 +1017,14 @@ export default function ProtocolBuilder({ studentId, studentName, registerLeaveG
         <Card className="bg-card/60 border-border p-3 sm:p-4" data-testid="protocol-top">
           <div className="flex flex-col sm:flex-row sm:items-end gap-2">
             <div className="flex-1 min-w-0">
-              <Label htmlFor="protocol-name" className="text-[10px] uppercase tracking-wider text-muted-foreground">Nome do protocolo</Label>
+              <Label htmlFor="protocol-name" className="text-[11px] uppercase tracking-wider text-muted-foreground">Nome do protocolo</Label>
               <Input id="protocol-name" value={name} onChange={(e) => setName(e.target.value)} className="mt-1 h-9 text-sm w-full" />
             </div>
             <div className="grid grid-cols-3 sm:flex sm:items-center gap-2">
               <Button
                 size="sm"
                 variant="outline"
-                className="h-11 sm:h-9 flex-col sm:flex-row gap-0.5 sm:gap-1.5 text-[10px] sm:text-xs px-1 sm:px-3"
+                className="h-11 sm:h-9 flex-col sm:flex-row gap-0.5 sm:gap-1.5 text-[11px] sm:text-xs px-1 sm:px-3"
                 onClick={() => window.open(`/student-area?previewAs=${studentId}&draftPreview=1`, "_blank")}
                 title="Ver como aluno"
               >
@@ -1034,7 +1035,7 @@ export default function ProtocolBuilder({ studentId, studentName, registerLeaveG
               <Button
                 size="sm"
                 variant="outline"
-                className="h-11 sm:h-9 flex-col sm:flex-row gap-0.5 sm:gap-1.5 text-[10px] sm:text-xs px-1 sm:px-3"
+                className="h-11 sm:h-9 flex-col sm:flex-row gap-0.5 sm:gap-1.5 text-[11px] sm:text-xs px-1 sm:px-3"
                 onClick={() => setHistoryOpen(true)}
                 title="Histórico: alterações enviadas ao aluno e versões publicadas"
                 data-testid="protocol-history"
@@ -1047,7 +1048,7 @@ export default function ProtocolBuilder({ studentId, studentName, registerLeaveG
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-11 sm:h-9 flex-col sm:flex-row gap-0.5 sm:gap-1.5 text-[10px] sm:text-xs px-1 sm:px-3"
+                    className="h-11 sm:h-9 flex-col sm:flex-row gap-0.5 sm:gap-1.5 text-[11px] sm:text-xs px-1 sm:px-3"
                     title="Mais ações"
                     data-testid="protocol-more-menu"
                   >
@@ -1160,7 +1161,7 @@ export default function ProtocolBuilder({ studentId, studentName, registerLeaveG
                       {o.label}
                       {o.v === "busy" && busyDirty && <span className="w-1.5 h-1.5 rounded-full bg-primary" aria-label="alterações não salvas" />}
                       {o.v === "busy" && !busyDirty && busyStatus && (
-                        <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">{busyStatus}</span>
+                        <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">{busyStatus}</span>
                       )}
                     </button>
                   ))}
@@ -1323,7 +1324,7 @@ export default function ProtocolBuilder({ studentId, studentName, registerLeaveG
                           {m.sugestao && <span className="block opacity-80">{m.sugestao}</span>}
                         </div>
                       ))}
-                      <p className="text-[10px] text-muted-foreground/80">Aplicado ao clicar em “Gerar Base” — você pode editar tudo depois.</p>
+                      <p className="text-[11px] text-muted-foreground/80">Aplicado ao clicar em “Gerar Base” — você pode editar tudo depois.</p>
                     </div>
                   )}
                   <Button
