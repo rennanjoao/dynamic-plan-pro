@@ -82,7 +82,7 @@ const VolumeGroupRow = memo(function VolumeGroupRow({ row }: { row: MuscleGroupV
         <span className="text-sm font-medium text-foreground">{row.label}</span>
         <div className="flex shrink-0 items-center gap-2">
           <span className="text-xs tabular-nums text-muted-foreground">{formatHse(row.hse)} HSE</span>
-          <Badge variant="outline" className={cn("border px-1.5 py-0 text-[10px] font-normal", meta.badgeClass)}>
+          <Badge variant="outline" className={cn("border px-1.5 py-0 text-[11px] font-normal", meta.badgeClass)}>
             {meta.label}
           </Badge>
         </div>
@@ -110,12 +110,12 @@ const VolumeGroupRow = memo(function VolumeGroupRow({ row }: { row: MuscleGroupV
               />
             )}
           </div>
-          <p className="mt-1 text-[10px] text-muted-foreground">
+          <p className="mt-1 text-[11px] text-muted-foreground">
             MV {landmark.mv} · MEV {landmark.mev} · MAV {landmark.mav[0]}–{landmark.mav[1]} · MRV {landmark.mrv}
           </p>
         </>
       ) : (
-        <p className="mt-1.5 text-[10px] text-muted-foreground">Landmark RP ainda não definido para este grupo.</p>
+        <p className="mt-1.5 text-[11px] text-muted-foreground">Landmark RP ainda não definido para este grupo.</p>
       )}
     </div>
   );
@@ -204,7 +204,7 @@ function WeeklyVolumeDashboardImpl({ workouts, weekDays, periodization }: Weekly
               {hasWarnings && (
                 <Badge
                   variant="outline"
-                  className="gap-1 border-amber-500/20 bg-amber-500/10 px-1.5 py-0 text-[10px] font-normal text-amber-500 shrink-0 ml-2"
+                  className="gap-1 border-amber-500/20 bg-amber-500/10 px-1.5 py-0 text-[11px] font-normal text-amber-500 shrink-0 ml-2"
                 >
                   <AlertTriangle className="h-3 w-3" />
                   {warningCount}
@@ -221,7 +221,7 @@ function WeeklyVolumeDashboardImpl({ workouts, weekDays, periodization }: Weekly
                     key={idx}
                     onClick={() => setActiveWeek(idx)}
                     className={cn(
-                      "px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-full border transition-all",
+                      "px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full border transition-all",
                       safeActiveWeek === idx
                         ? "bg-primary text-primary-foreground border-primary shadow-sm"
                         : "bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"

@@ -438,7 +438,7 @@ export function WorkoutsTab({
                     className="flex items-center gap-1.5 text-xs font-bold text-sky-500 whitespace-nowrap"
                   >
                     <StretchHorizontal className="w-3.5 h-3.5" /> Mobilidade pré-treino
-                    <span className="text-[10px] font-normal text-muted-foreground">({mobilityList.length})</span>
+                    <span className="text-[11px] font-normal text-muted-foreground">({mobilityList.length})</span>
                     <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", mobOpen[di] === false && "-rotate-90")} />
                   </button>
                   <div className="ml-auto">
@@ -464,9 +464,9 @@ export function WorkoutsTab({
                         placeholder="Ex: Mobilidade de quadril"
                       />
                     </div>
-                    <label className="block"><span className="md:hidden block text-[10px] uppercase text-muted-foreground mb-0.5">Séries</span>
+                    <label className="block"><span className="md:hidden block text-[11px] uppercase text-muted-foreground mb-0.5">Séries</span>
                       <Input value={ex.sets ?? ""} onChange={(e) => updEx(di, ei, { sets: e.target.value })} placeholder="Ex: 2" className="h-8 text-base md:text-sm" aria-label="Séries" /></label>
-                    <label className="block"><span className="md:hidden block text-[10px] uppercase text-muted-foreground mb-0.5">Tempo/Reps</span>
+                    <label className="block"><span className="md:hidden block text-[11px] uppercase text-muted-foreground mb-0.5">Tempo/Reps</span>
                       <Input value={ex.reps ?? ""} onChange={(e) => updEx(di, ei, { reps: e.target.value })} placeholder="Ex: 30s" className="h-8 text-base md:text-sm" aria-label="Tempo ou repetições" /></label>
                     <Input value={ex.notes ?? ""} onChange={(e) => updEx(di, ei, { notes: e.target.value })} placeholder="Obs" className="h-8 text-base md:text-sm col-span-2 md:col-span-1" />
                     <div className="flex items-center gap-0.5 justify-self-end col-span-2 md:col-span-1">
@@ -506,12 +506,12 @@ export function WorkoutsTab({
             {strengthList.length > 0 && (
               <div className="hidden md:grid gap-2 px-1 pb-1 grid-cols-[auto_1.8fr_0.7fr_0.6fr_0.6fr_0.6fr_1fr_auto]">
                 <span className="w-5"></span>
-                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Exercício</span>
-                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Séries</span>
-                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Reps</span>
-                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground cursor-help flex items-center gap-1" title="3010 = Excêntrico / Pausa / Concêntrico / Pausa">Cadência ⓘ</span>
-                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Descanso</span>
-                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Obs</span>
+                <span className="text-[11px] uppercase font-bold tracking-wider text-muted-foreground">Exercício</span>
+                <span className="text-[11px] uppercase font-bold tracking-wider text-muted-foreground">Séries</span>
+                <span className="text-[11px] uppercase font-bold tracking-wider text-muted-foreground">Reps</span>
+                <span className="text-[11px] uppercase font-bold tracking-wider text-muted-foreground cursor-help flex items-center gap-1" title="3010 = Excêntrico / Pausa / Concêntrico / Pausa">Cadência ⓘ</span>
+                <span className="text-[11px] uppercase font-bold tracking-wider text-muted-foreground">Descanso</span>
+                <span className="text-[11px] uppercase font-bold tracking-wider text-muted-foreground">Obs</span>
                 <span className="w-8"></span>
               </div>
             )}
@@ -633,7 +633,7 @@ export function WorkoutsTab({
                   <button
                     type="button"
                     onClick={() => replicateBaseConfig(di, strengthList)}
-                    className="col-span-3 md:col-start-2 md:col-span-6 justify-self-start inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
+                    className="col-span-3 md:col-start-2 md:col-span-6 justify-self-start inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
                     title="Copia séries, reps, cadência e descanso deste exercício para os demais de força do treino"
                   >
                     <CopyPlus className="w-3 h-3" /> Replicar configuração para os outros ⬇️

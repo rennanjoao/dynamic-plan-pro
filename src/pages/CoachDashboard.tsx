@@ -1,3 +1,4 @@
+import { ProtocolBuilderSkeleton, SectionSkeleton, StudentListSkeleton } from "@/components/coach/CoachSkeletons";
 import { ElitePrimeLogo } from "@/components/shared/ElitePrimeLogo";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
 /**
@@ -261,7 +262,7 @@ function CoachDashboardInner() {
           </div>
         </header>
         <main className="max-w-4xl mx-auto px-4 py-6">
-          <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
+          <Suspense fallback={view === "protocol" ? <ProtocolBuilderSkeleton /> : <SectionSkeleton />}>
             {view === "protocol" && (
               <ProtocolBuilder
                 key={selectedStudent.id}
@@ -429,7 +430,7 @@ function CoachDashboardInner() {
             </div>
 
             {isLoading ? (
-              <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+              <StudentListSkeleton />
             ) : filteredCount === 0 ? (
               <div className="text-center py-12">
                 <Users className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />

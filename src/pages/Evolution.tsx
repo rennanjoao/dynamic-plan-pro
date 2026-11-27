@@ -71,7 +71,7 @@ export default function Evolution() {
       <PreviewModeBar />
       <header className={`bg-background/95 backdrop-blur border-b border-border ${!previewAs ? "sticky top-0 z-20" : ""}`}>
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <Button aria-label="Voltar" variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <div className="flex-1">

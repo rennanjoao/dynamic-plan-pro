@@ -48,7 +48,7 @@ export default function PartnerArea() {
     <div className="min-h-screen bg-background pb-12">
       <header className="bg-card border-b border-border/50 px-4 py-4">
         <div className="max-w-3xl mx-auto flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/")}><ArrowLeft className="w-4 h-4" /></Button>
+          <Button aria-label="Voltar ao início" variant="ghost" size="icon" onClick={() => navigate("/")}><ArrowLeft className="w-4 h-4" /></Button>
           <div>
             <h1 className="text-base font-bold">Área de Parceria</h1>
             <p className="text-xs text-muted-foreground">Comissão de {formatRateBp(partner.commission_rate_bp)} sobre o valor pago</p>

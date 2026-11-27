@@ -135,7 +135,7 @@ export const InfoChatBot = () => {
             exit={{ scale: 0, opacity: 0 }}
             className="fixed bottom-6 right-6 z-50"
           >
-            <Button onClick={handleOpen} className="w-14 h-14 rounded-full glow-primary shadow-2xl animate-glow-pulse" size="icon">
+            <Button aria-label="Abrir chat" onClick={handleOpen} className="w-14 h-14 rounded-full glow-primary shadow-2xl animate-glow-pulse" size="icon">
               <MessageCircle className="w-6 h-6" />
             </Button>
           </motion.div>
@@ -164,7 +164,7 @@ export const InfoChatBot = () => {
                   </p>
                 </div>
               </div>
-              <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)} className="rounded-xl w-8 h-8">
+              <Button aria-label="Fechar chat" variant="ghost" size="icon" onClick={() => setIsOpen(false)} className="rounded-xl w-8 h-8">
                 <X className="w-4 h-4" />
               </Button>
             </div>
@@ -248,7 +248,7 @@ export const InfoChatBot = () => {
                   className="rounded-xl bg-secondary/30 border-border/20 text-sm"
                   disabled={isLoading}
                 />
-                <Button type="submit" size="icon" className="rounded-xl shrink-0 glow-primary" disabled={!input.trim() || isLoading}>
+                <Button aria-label="Enviar mensagem" type="submit" size="icon" className="rounded-xl shrink-0 glow-primary" disabled={!input.trim() || isLoading}>
                   {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 </Button>
               </form>

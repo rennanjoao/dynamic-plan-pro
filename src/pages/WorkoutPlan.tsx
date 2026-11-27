@@ -510,7 +510,7 @@ export default function WorkoutPlan() {
     <div className="min-h-screen bg-background">
       <PreviewModeBar />
       <header className={`bg-background border-b px-4 py-3 flex items-center gap-3 shadow-none ${!previewAs ? "sticky top-0 z-40" : ""}`}>
-        <Button variant="ghost" size="icon" onClick={() => navigate("/student-area")}>
+        <Button aria-label="Voltar à área do aluno" variant="ghost" size="icon" onClick={() => navigate("/student-area")}>
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div className="flex-1">

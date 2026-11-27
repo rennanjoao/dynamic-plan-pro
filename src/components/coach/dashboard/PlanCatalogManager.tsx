@@ -130,11 +130,11 @@ export function PlanCatalogManager({ coachId }: { coachId: string }) {
                   </p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  <Button size="icon" variant="ghost" onClick={() => startEdit(p)}>
+                  <Button aria-label="Editar plano" size="icon" variant="ghost" onClick={() => startEdit(p)}>
                     <Pencil className="w-3.5 h-3.5" />
                   </Button>
                   {p.is_active && (
-                    <Button size="icon" variant="ghost" onClick={() => remove(p)}>
+                    <Button aria-label="Desativar plano" size="icon" variant="ghost" onClick={() => remove(p)}>
                       <ShieldOff className="w-3.5 h-3.5" />
                     </Button>
                   )}

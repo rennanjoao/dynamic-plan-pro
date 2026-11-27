@@ -129,7 +129,7 @@ export default function DynamicRoutine() {
       <div className="min-h-screen bg-background flex flex-col">
         <PreviewModeBar />
         <header className={`bg-background/80 backdrop-blur border-b px-4 py-3 flex items-center gap-3 ${!previewAs ? "sticky top-0 z-10" : ""}`}>
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <Button aria-label="Voltar" variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
@@ -167,7 +167,7 @@ export default function DynamicRoutine() {
       {/* Header Fixo */}
       <PreviewModeBar />
       <header className={`bg-background/80 backdrop-blur border-b px-4 py-3 flex items-center gap-3 ${!previewAs ? "sticky top-0 z-10" : ""}`}>
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+        <Button aria-label="Voltar" variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div className="flex-1">

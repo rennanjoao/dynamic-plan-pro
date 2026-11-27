@@ -369,7 +369,7 @@ function ExerciseRow({
         {editMode && (
           <Popover>
             <PopoverTrigger asChild>
-              <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0">
+              <Button aria-label="Mais opções" size="icon" variant="ghost" className="h-7 w-7 shrink-0">
                 <MoreVertical className="w-4 h-4" />
               </Button>
             </PopoverTrigger>

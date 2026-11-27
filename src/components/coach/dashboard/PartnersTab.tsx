@@ -215,7 +215,7 @@ export function PartnersTab({ coachId }: { coachId: string | null }) {
                 <Badge variant="outline" className={c.status === "activated" || c.status === "used" ? STATUS_BADGE.paid : STATUS_BADGE.pending}>
                   {c.status === "activated" || c.status === "used" ? "Usado" : c.status === "void" ? "Revogado" : "Disponível"}
                 </Badge>
-                <Button size="icon" variant="ghost" onClick={() => {
+                <Button aria-label="Copiar código" size="icon" variant="ghost" onClick={() => {
                   navigator.clipboard?.writeText(c.code);
                   toast({ title: "Código copiado" });
                 }}><Copy className="w-4 h-4" /></Button>

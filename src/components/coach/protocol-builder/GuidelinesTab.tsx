@@ -51,7 +51,7 @@ export function GuidelinesTab({ payload, setPayload, coachId = null, onOpenTempl
       <div className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/20 px-3 py-2.5">
         <div>
           <p className="text-xs font-semibold">Mostrar a Diretriz de treino (Regra de Ouro) no Plano de Treino</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">Só controla a Diretriz de treino (e o destaque verde do card "Diretrizes"). Dieta, Organização da semana, Sono e Suplementos aparecem SEMPRE para o aluno na tela "Diretrizes & Suplementação".</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">Só controla a Diretriz de treino (e o destaque verde do card "Diretrizes"). Dieta, Organização da semana, Sono e Suplementos aparecem SEMPRE para o aluno na tela "Diretrizes & Suplementação".</p>
         </div>
         <Switch checked={showToStudent} onCheckedChange={setShowToStudent} />
       </div>
@@ -70,17 +70,17 @@ export function GuidelinesTab({ payload, setPayload, coachId = null, onOpenTempl
               <div className="min-w-0">
                 <p className="text-xs font-semibold"><span className="mr-1">{b.emoji}</span>{b.label}</p>
                 {!isOpen && preview && (
-                  <p className="text-[10px] text-muted-foreground truncate">{preview}{val.length > 80 ? "…" : ""}</p>
+                  <p className="text-[11px] text-muted-foreground truncate">{preview}{val.length > 80 ? "…" : ""}</p>
                 )}
                 {!isOpen && !preview && (
-                  <p className="text-[10px] text-muted-foreground italic">vazio</p>
+                  <p className="text-[11px] text-muted-foreground italic">vazio</p>
                 )}
               </div>
               <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform shrink-0", isOpen && "rotate-180")} />
             </button>
             {isOpen && (
               <div className="p-3 space-y-1">
-                {b.hint && <p className="text-[10px] text-muted-foreground">{b.hint}</p>}
+                {b.hint && <p className="text-[11px] text-muted-foreground">{b.hint}</p>}
                 <Textarea
                   value={val}
                   onChange={(e) => upd(b.k, e.target.value)}
@@ -267,7 +267,7 @@ function SupplementsSection({
         <div className="mt-2">
           {isHormone ? (
             <>
-              <Label className="text-[10px] text-muted-foreground">Dias da semana</Label>
+              <Label className="text-[11px] text-muted-foreground">Dias da semana</Label>
               <div className="flex flex-wrap gap-1 mt-1">
                 {WEEKDAYS.map((d) => (
                   <button
@@ -321,7 +321,7 @@ function SupplementsSection({
           />
         </div>
         <div className="mt-2">
-          <Label className="text-[10px] text-muted-foreground">Objetivo</Label>
+          <Label className="text-[11px] text-muted-foreground">Objetivo</Label>
           <Select
             value={(s as any).objective || "outro"}
             onValueChange={(v) => updSupp(si, { objective: v as any } as any)}
@@ -386,7 +386,7 @@ function SupplementsSection({
       </div>
 
       {supplements.length > 0 && (
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-[11px] text-muted-foreground">
           Por padrão, todos os itens entram nos botões de cópia do aluno — desmarque "Incluir na cotação/compra" nos que não precisam ser comprados agora.
         </p>
       )}
