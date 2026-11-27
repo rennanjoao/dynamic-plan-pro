@@ -92,6 +92,34 @@
       "when": 1795796239966,
       "tag": "0012_lgpd_consent_records",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795796431954,
+      "tag": "0013_lgpd_student_deletion",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1795796461325,
+      "tag": "0014_lgpd_former_coach_90_days",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1795796481117,
+      "tag": "0015_lgpd_remove_plaintext_passwords",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1795796512212,
+      "tag": "0016_service_contract",
+      "breakpoints": true
     }
   ]
 }

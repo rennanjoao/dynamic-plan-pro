@@ -707,6 +707,30 @@ export type Database = {
         }
         Relationships: []
       }
+      coach_contract_settings: {
+        Row: {
+          coach_id: string
+          company_name: string | null
+          document: string | null
+          instagram: string | null
+          updated_at: string
+        }
+        Insert: {
+          coach_id: string
+          company_name?: string | null
+          document?: string | null
+          instagram?: string | null
+          updated_at?: string
+        }
+        Update: {
+          coach_id?: string
+          company_name?: string | null
+          document?: string | null
+          instagram?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       coach_fatigue_alerts: {
         Row: {
           alert_type: string
@@ -1104,6 +1128,7 @@ export type Database = {
           critical_days: number | null
           deactivated_at: string | null
           deactivated_by: string | null
+          ended_at: string | null
           feedback_interval_days: number | null
           id: string
           is_exempt: boolean
@@ -1120,6 +1145,7 @@ export type Database = {
           critical_days?: number | null
           deactivated_at?: string | null
           deactivated_by?: string | null
+          ended_at?: string | null
           feedback_interval_days?: number | null
           id?: string
           is_exempt?: boolean
@@ -1136,6 +1162,7 @@ export type Database = {
           critical_days?: number | null
           deactivated_at?: string | null
           deactivated_by?: string | null
+          ended_at?: string | null
           feedback_interval_days?: number | null
           id?: string
           is_exempt?: boolean
@@ -1221,6 +1248,66 @@ export type Database = {
           text_shown?: string
           user_agent?: string | null
           user_id?: string
+          version?: string
+        }
+        Relationships: []
+      }
+      contract_acceptances: {
+        Row: {
+          accepted_at: string
+          coach_id: string | null
+          cpf: string
+          discount_note: string | null
+          duration_months: number | null
+          final_price_cents: number | null
+          guardian_cpf: string | null
+          guardian_name: string | null
+          id: string
+          list_price_cents: number | null
+          plan_name: string | null
+          plan_slug: string | null
+          stage: string
+          student_id: string | null
+          text_shown: string
+          user_agent: string | null
+          version: string
+        }
+        Insert: {
+          accepted_at?: string
+          coach_id?: string | null
+          cpf: string
+          discount_note?: string | null
+          duration_months?: number | null
+          final_price_cents?: number | null
+          guardian_cpf?: string | null
+          guardian_name?: string | null
+          id?: string
+          list_price_cents?: number | null
+          plan_name?: string | null
+          plan_slug?: string | null
+          stage?: string
+          student_id?: string | null
+          text_shown: string
+          user_agent?: string | null
+          version: string
+        }
+        Update: {
+          accepted_at?: string
+          coach_id?: string | null
+          cpf?: string
+          discount_note?: string | null
+          duration_months?: number | null
+          final_price_cents?: number | null
+          guardian_cpf?: string | null
+          guardian_name?: string | null
+          id?: string
+          list_price_cents?: number | null
+          plan_name?: string | null
+          plan_slug?: string | null
+          stage?: string
+          student_id?: string | null
+          text_shown?: string
+          user_agent?: string | null
           version?: string
         }
         Relationships: []
@@ -1571,7 +1658,7 @@ export type Database = {
           partner_id: string
           period_id: string | null
           status: string
-          student_id: string
+          student_id: string | null
           subscription_id: string | null
         }
         Insert: {
@@ -1586,7 +1673,7 @@ export type Database = {
           partner_id: string
           period_id?: string | null
           status?: string
-          student_id: string
+          student_id?: string | null
           subscription_id?: string | null
         }
         Update: {
@@ -1601,7 +1688,7 @@ export type Database = {
           partner_id?: string
           period_id?: string | null
           status?: string
-          student_id?: string
+          student_id?: string | null
           subscription_id?: string | null
         }
         Relationships: [
@@ -3125,6 +3212,9 @@ export type Database = {
         }
         Returns: undefined
       }
+      coach_access_expired: { Args: { _student: string }; Returns: boolean }
+      coach_can_see_student: { Args: { _student: string }; Returns: boolean }
+      contract_party_for_student: { Args: never; Returns: Json }
       derive_partner_coach: { Args: { p_partner_id: string }; Returns: string }
       get_checkin_streak: { Args: { p_student_id: string }; Returns: number }
       get_coach_by_invite_code: {
@@ -3194,7 +3284,9 @@ export type Database = {
         Returns: boolean
       }
       is_active_coach_of: { Args: { p_student_id: string }; Returns: boolean }
+      is_my_active_coach: { Args: { _coach: string }; Returns: boolean }
       is_privileged_request: { Args: never; Returns: boolean }
+      lgpd_delete_student_rows: { Args: { p_student: string }; Returns: Json }
       mark_daily_alert_read: {
         Args: { p_alert_id: string }
         Returns: undefined
