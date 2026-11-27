@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCorsHeaders } from "../_shared/cors.ts";
 import { groqChat, groqErrorMessage } from "../_shared/groq.ts";
+import { redactForAI } from "../_shared/aiPrivacy.ts";
 
 serve(async (req) => {
   const corsHeaders = buildCorsHeaders(req.headers.get("origin"));
@@ -96,8 +97,8 @@ Responda SOMENTE com um JSON válido, sem markdown, sem texto fora do JSON, exat
 Nunca invente dado que não esteja no contexto. Seja objetivo, técnico, em português.`;
 
     const userContent = JSON.stringify({
-      checkInAtual: { metrics: current.current_metrics, payload: current.payload, data: current.submitted_at },
-      checkInsAnteriores: previous ?? [],
+      checkInAtual: { metrics: current.current_metrics, payload: redactForAI(current.payload), data: current.submitted_at },
+      checkInsAnteriores: (previous ?? []).map((c) => ({ ...c, payload: redactForAI(c.payload) })),
       anamneseResumo: anam?.ai_summary ?? null,
       anamneseBaseline: anam?.baseline_metrics ?? null,
       aderenciaTreino14d: workoutAdherence,

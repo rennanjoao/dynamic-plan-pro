@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,8 @@ interface Props {
   userId: string;
   open: boolean;
   onClose: () => void;
+  /** Conteúdo extra no fim (ex.: privacidade do aluno). */
+  footer?: ReactNode;
 }
 
 interface SimpleProfileRow {
@@ -39,7 +41,7 @@ const FULL_NAME_MAX_LENGTH = 80;
  * O Coach tem seu próprio ProfileDialog mais completo (PIX, equipe, código
  * de convite etc).
  */
-export function SimpleProfileDialog({ userId, open, onClose }: Props) {
+export function SimpleProfileDialog({ userId, open, onClose, footer }: Props) {
   const qc = useQueryClient();
   const confirm = useConfirm();
   const { data, loading: fetching, error: fetchError, refetch } =
@@ -166,6 +168,7 @@ export function SimpleProfileDialog({ userId, open, onClose }: Props) {
             <div className="border-t border-border pt-3">
               <ChangePasswordButton variant="outline" className="w-full" />
             </div>
+            {footer}
           </div>
         )}
       </DialogContent>

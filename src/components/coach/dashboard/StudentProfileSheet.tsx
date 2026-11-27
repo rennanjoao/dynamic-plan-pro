@@ -27,6 +27,7 @@ import StudentCycleSummary from "@/components/coach/student-profile/StudentCycle
 import { useStudentCycleSummary } from "@/hooks/useStudentCycleSummary";
 import { waitingLabel } from "@/lib/coachPending";
 import { ProtocolPayloadSchema, type ProtocolPayload } from "@/lib/protocolSchema";
+import { CoachDeleteStudentSection } from "@/components/legal/CoachDeleteStudentSection";
 
 const EvolutionComparisonLazy = lazyWithRetry(() => import("@/components/coach/EvolutionComparison"));
 const AnamnesisViewerLazy = lazyWithRetry(() => import("@/components/anamnesis/AnamnesisViewer"));
@@ -195,6 +196,7 @@ export function StudentProfileSheet({
                   <StudentEngagementContent studentId={student.id} active={open && tab === "resumo"} />
                 </div>
               </details>
+              <CoachDeleteStudentSection studentId={student.id} studentName={student.name || "Aluno"} onDeleted={onClose} />
             </TabsContent>
 
             <TabsContent value="checkins" className="mt-0">

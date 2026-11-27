@@ -12,6 +12,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
+import { canReencode, reencodeImage } from "@/lib/imageSanitize";
 
 export const STUDENT_MEDIA_BUCKET = "student-media";
 const SIGNED_TTL_SECONDS = 600;
@@ -28,8 +29,10 @@ function safeName(name: string) {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 }
 
-async function upload(studentId: string, folder: "fotos" | "exames", file: File): Promise<string> {
+async function upload(studentId: string, folder: "fotos" | "exames", original: File): Promise<string> {
   if (!studentId) throw new Error("studentId ausente para upload");
+  // Imagens saem sem metadados (localização, aparelho). PDFs vão como estão.
+  const file = canReencode(original.type) ? await reencodeImage(original) : original;
   const path = `${studentId}/${folder}/${safeName(file.name)}`;
   const { error } = await supabase.storage
     .from(STUDENT_MEDIA_BUCKET)

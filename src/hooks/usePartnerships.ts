@@ -17,7 +17,7 @@ export interface PartnerProfile {
 
 export interface PartnerCommission {
   id: string;
-  student_id: string;
+  student_id: string | null; // NULL quando o aluno foi excluído (LGPD); a comissão fica guardada
   partner_id: string;
   coach_id: string;
   gross_amount_cents: number;
