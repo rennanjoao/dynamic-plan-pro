@@ -117,6 +117,16 @@ export const TACO_FOODS_MEASURED: TacoFood[] = [
   { name: "Frango coxa+sobrecoxa s/ pele (cozida)",  kcal: 213, p: 25.8, c: 0.0, g: 12.2, group: "protein", valuesArCooked: true },
   { name: "Frango coxa+sobrecoxa c/ pele (crua)",    kcal: 191, p: 16.0, c: 0.0, g: 14.1, group: "protein", cookFactor: 0.7 },
   { name: "Frango coxa+sobrecoxa c/ pele (assada)",  kcal: 282, p: 23.5, c: 0.0, g: 20.8, group: "protein", valuesArCooked: true },
+  // Miúdos de galinha (Rennan, 28/11/2026). Coração: TACO 4ª ed. (cru e grelhado; o cru inclui a gordura
+  // visível aderida) + TBCA/USDA (cozido em água, sem sal). Moela: TBCA/USDA. Sódio (mg/100 g): coração
+  // cru 88 · cozido 48 · grelhado 61; moela crua 69 · cozida 56 (o catálogo ainda não tem campo de sódio).
+  // Coração fica FORA de cookedTwins.ts: a gordura visível do cru não sobrevive ao preparo, então
+  // cru ÷ fator daria ~400 kcal no cozido. Os cozidos usam os valores MEDIDOS abaixo.
+  { name: "Coração de galinha (cru)",        kcal: 222, p: 12.6, c: 0.0, g: 18.6, fiber: 0.0, group: "protein", cookFactor: 0.55 }, // TACO 4ª ed.
+  { name: "Coração de galinha (cozido)",     kcal: 185, p: 26.4, c: 0.1, g: 7.9,  fiber: 0.0, group: "protein", valuesArCooked: true }, // TBCA/USDA · fator 0,55
+  { name: "Coração de galinha (grelhado)",   kcal: 207, p: 22.4, c: 0.6, g: 12.1, fiber: 0.0, group: "protein", valuesArCooked: true }, // TACO 4ª ed. · fator 0,60
+  { name: "Moela de galinha (crua)",         kcal: 94,  p: 17.7, c: 0.0, g: 2.1,  fiber: 0.0, group: "protein", cookFactor: 0.58 }, // TBCA/USDA · sem pele e sem gordura aparente
+  { name: "Moela de galinha (cozida)",       kcal: 154, p: 30.4, c: 0.0, g: 2.7,  fiber: 0.0, group: "protein", valuesArCooked: true }, // TBCA/USDA · cozida em água, sem sal e sem óleo
   { name: "Ovo de galinha inteiro (cru)",    kcal: 143, p: 13.0, c: 1.6,  g: 9.5,  group: "protein", cookFactor: 0.98, unitWeight: 50 , portions: [{ label: "1 unidade", grams: 50 }]},
   { name: "Ovo de galinha inteiro (cozido)", kcal: 146, p: 13.3, c: 0.6,  g: 9.5,  group: "protein", valuesArCooked: true, unitWeight: 50 },
   { name: "Ovo de galinha (frito s/ óleo)",  kcal: 146, p: 13.3, c: 0.6,  g: 9.5,  group: "protein", valuesArCooked: true, unitWeight: 50 },
@@ -187,6 +197,10 @@ export const TACO_FOODS_MEASURED: TacoFood[] = [
   { name: "Sardinha em lata (óleo/drenada)", kcal: 208, p: 24.6, c: 0.0,  g: 11.5, group: "protein", valuesArCooked: true , cookFactor: 1},
   { name: "Merluza / Pescada (crua)",        kcal: 81,  p: 16.7, c: 0.0,  g: 1.0,  group: "protein", cookFactor: 0.75 },
   { name: "Merluza (grelhada/assada)",       kcal: 108, p: 22.3, c: 0.0,  g: 1.3,  group: "protein", valuesArCooked: true },
+  // Panga (Rennan, 28/11/2026): TBCA/USDA. Cru = filé DRENADO (sem a água de glaciamento do congelado).
+  // Sódio (mg/100 g): cru 65 · cozido/grelhado 82.
+  { name: "Filé de panga (cru)",             kcal: 82,  p: 15.0, c: 0.0, g: 2.2,  fiber: 0.0, group: "protein", cookFactor: 0.75 }, // TBCA/USDA
+  { name: "Filé de panga (cozido/grelhado)", kcal: 108, p: 19.8, c: 0.0, g: 2.9,  fiber: 0.0, group: "protein", valuesArCooked: true }, // TBCA/USDA · sem óleo
   { name: "Camarão (cru)",                   kcal: 90,  p: 20.0, c: 0.0,  g: 1.0,  group: "protein", cookFactor: 0.75 },
 
   // ─── SUPLEMENTOS PROTÉICOS ───────────────────────────────────────────────────

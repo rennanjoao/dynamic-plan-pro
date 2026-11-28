@@ -372,6 +372,11 @@ function buildTemplateNotes(p: ProtocolPayload) {
         "Frango peito s/ pele (grelhado)":              { cookFactor: 1,    nota: "Use quando o peso informado já é cozido/grelhado." },
         "Frango peito s/ pele (desfiado)":              { cookFactor: 1 },
         "Frango coxa+sobrecoxa s/ pele (crua)":        { cookFactor: 0.70 },
+        "Coração de galinha (cru)":                     { cookFactor: 0.55 },
+        "Coração de galinha (cozido)":                  { cookFactor: 1 },
+        "Coração de galinha (grelhado)":                { cookFactor: 1 },
+        "Moela de galinha (crua)":                      { cookFactor: 0.58 },
+        "Moela de galinha (cozida)":                    { cookFactor: 1 },
       },
       proteinas_bovinas: {
         "Patinho (cru)":         { cookFactor: 0.65 },
@@ -402,6 +407,8 @@ function buildTemplateNotes(p: ProtocolPayload) {
         "Atum em lata (em óleo/drenado)":   { cookFactor: 1 },
         "Sardinha fresca (crua)":            { cookFactor: 0.75 },
         "Merluza / Pescada (crua)":          { cookFactor: 0.75 },
+        "Filé de panga (cru)":               { cookFactor: 0.75 },
+        "Filé de panga (cozido/grelhado)":   { cookFactor: 1 },
         "Camarão (cru)":                     { cookFactor: 0.75 },
       },
       proteinas_ovo: {

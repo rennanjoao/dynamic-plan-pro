@@ -19,6 +19,9 @@
  * Fora da lista (de propósito): cozidos que levam gordura no preparo (ovo frito, espinafre refogado),
  * enlatados (atum, sardinha), "Mandioquinha / Chuchu (cozido)", que não tem cru, e a goma de tapioca
  * hidratada (é hidratação, não cozimento; a linha medida, 130 kcal, já bate com o fator 2,75 do cru).
+ * Também fora: "Coração de galinha (cozido)" e "(grelhado)". O cru da TACO inclui a gordura visível
+ * aderida (18,6 g/100 g), que se perde no preparo; cru ÷ fator daria ~400 kcal/100 g no cozido. Os dois
+ * cozidos usam os valores medidos (TBCA/USDA e TACO).
  *
  * Chave = nome do cozido em minúsculas · valor = nome EXATO do cru em tacoFoods.ts.
  */
@@ -50,6 +53,7 @@ export const COOKED_TWINS: Record<string, string> = {
   "frango coxa+sobrecoxa s/ pele (cozida)": "Frango coxa+sobrecoxa s/ pele (crua)",
   "frango coxa+sobrecoxa c/ pele (assada)": "Frango coxa+sobrecoxa c/ pele (crua)",
   "ovo de galinha inteiro (cozido)": "Ovo de galinha inteiro (cru)",
+  "moela de galinha (cozida)": "Moela de galinha (crua)",
   "clara de ovo (cozida)": "Clara de ovo (crua/líquida)",
 
   // Carne bovina
@@ -83,6 +87,7 @@ export const COOKED_TWINS: Record<string, string> = {
   "tilápia (grelhada/assada)": "Tilápia / St. Peters (crua)",
   "salmão s/ pele (grelhado)": "Salmão s/ pele (cru)",
   "merluza (grelhada/assada)": "Merluza / Pescada (crua)",
+  "filé de panga (cozido/grelhado)": "Filé de panga (cru)",
 
   // Legumes e verduras (fator 1: o peso não muda, então o cozido tem os mesmos valores do cru)
   "brócolis (cozido/vapor)": "Brócolis (cru)",

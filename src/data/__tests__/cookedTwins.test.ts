@@ -19,7 +19,9 @@ const NO_TWIN = new Set([
   "Atum em lata (em água/drenado)",
   "Atum em lata (em óleo/drenado)",
   "Sardinha em lata (óleo/drenada)",
-  "Tapioca (goma hidratada/pronta)", // hidratação, não cozimento: a linha medida já bate com o fator 2,75
+  "Tapioca (goma hidratada/pronta)",
+  "Coração de galinha (cozido)", // o cru da TACO tem gordura visível que sai no preparo (ver cookedTwins.ts)
+  "Coração de galinha (grelhado)", // idem // hidratação, não cozimento: a linha medida já bate com o fator 2,75
 ]);
 
 describe("lista de gêmeos", () => {
