@@ -38,7 +38,7 @@ Deno.serve(async (req: Request) => {
       admin.from("profiles").select("full_name, team_name, cref, support_whatsapp").eq("user_id", coachId).maybeSingle(),
       admin.from("coach_contract_settings").select("document, company_name, instagram").eq("coach_id", coachId).maybeSingle(),
       admin.from("student_plan_catalog")
-        .select("slug, name, price_cents, duration_months")
+        .select("slug, name, price_cents, duration_months, kind")
         .eq("coach_id", coachId)
         .eq("is_active", true)
         .order("sort_order", { ascending: true }),

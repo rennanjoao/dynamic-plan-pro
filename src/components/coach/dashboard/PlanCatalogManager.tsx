@@ -11,8 +11,28 @@ import { useConfirm } from "@/components/ConfirmProvider";
 import { useStudentPlanCatalog, useSavePlan, useDeactivatePlan } from "@/hooks/useStudentPlans";
 import { formatCents, toCents, type StudentPlan } from "@/lib/studentPlans";
 
+type Kind = "coaching" | "access" | "one_off";
+
+const KIND_OPTIONS: { value: Kind; label: string; hint: string }[] = [
+  { value: "coaching", label: "Consultoria", hint: "Acompanhamento completo. Desconto de parceria vale no trimestral/semestral." },
+  { value: "access", label: "Só acesso", hint: "Mantém o app e os check-ins, sem alertas de acompanhamento para você." },
+  { value: "one_off", label: "Avulso", hint: "Cobrança única (ex.: ajuste pontual). Não muda o período do plano." },
+];
+const KIND_SHORT: Record<Kind, string> = { coaching: "Consultoria", access: "Só acesso", one_off: "Avulso" };
+
+/** Modelos prontos: o coach só confere e salva. */
+const PRESETS: { kind: Kind; name: string; amount: string; description: string }[] = [
+  { kind: "access", name: "Acesso à plataforma", amount: "69,90", description: "Continua usando o app e fazendo check-ins, sem ajustes nem acompanhamento." },
+  { kind: "one_off", name: "Ajuste pontual", amount: "250,00", description: "Um ajuste no treino e nas orientações, quando você quiser." },
+];
+
+function kindOf(p: { kind?: string | null }): Kind {
+  return p.kind === "access" || p.kind === "one_off" ? p.kind : "coaching";
+}
+
 interface PlanForm {
   id?: string;
+  kind: Kind;
   slug: string;
   name: string;
   amount: string;
@@ -24,6 +44,7 @@ interface PlanForm {
 
 const emptyForm: PlanForm = {
   id: undefined,
+  kind: "coaching",
   slug: "",
   name: "",
   amount: "",
@@ -52,9 +73,13 @@ export function PlanCatalogManager({ coachId }: { coachId: string }) {
   const [editing, setEditing] = useState<PlanForm | null>(null);
 
   const startNew = () => setEditing({ ...emptyForm });
+  const startPreset = (preset: (typeof PRESETS)[number]) =>
+    setEditing({ ...emptyForm, kind: preset.kind, name: preset.name, amount: preset.amount, description: preset.description });
+  const missingPresets = PRESETS.filter((pr) => !myPlans.some((p) => p.is_active && kindOf(p) === pr.kind));
   const startEdit = (p: StudentPlan) =>
     setEditing({
       id: p.id,
+      kind: kindOf(p),
       slug: p.slug,
       name: p.name,
       amount: (p.price_cents / 100).toFixed(2),
@@ -69,7 +94,7 @@ export function PlanCatalogManager({ coachId }: { coachId: string }) {
     if (!editing.name.trim()) return toast.error("Nome é obrigatório");
     const price_cents = toCents(editing.amount);
     if (!price_cents) return toast.error("Informe um valor válido");
-    const duration_months = Number(editing.duration_months) || 1;
+    const duration_months = editing.kind === "one_off" ? 1 : Number(editing.duration_months) || 1;
     try {
       await savePlan.mutateAsync({
         id: editing.id,
@@ -80,6 +105,7 @@ export function PlanCatalogManager({ coachId }: { coachId: string }) {
         description: editing.description.trim() || null,
         benefits: editing.benefits.split("\n").map((b) => b.trim()).filter(Boolean),
         is_active: editing.is_active,
+        kind: editing.kind,
       });
       toast.success("Plano salvo!");
       setEditing(null);
@@ -125,7 +151,8 @@ export function PlanCatalogManager({ coachId }: { coachId: string }) {
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">{p.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {formatCents(p.price_cents)} / {p.duration_months} {p.duration_months === 1 ? "mês" : "meses"}
+                    {KIND_SHORT[kindOf(p)]} · {formatCents(p.price_cents)}
+                    {kindOf(p) === "one_off" ? "" : ` / ${p.duration_months} ${p.duration_months === 1 ? "mês" : "meses"}`}
                     {!p.is_active && " · inativo"}
                   </p>
                 </div>
@@ -142,6 +169,18 @@ export function PlanCatalogManager({ coachId }: { coachId: string }) {
               </div>
             ))}
           </div>
+          {missingPresets.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[11px] font-medium text-muted-foreground">Sugestões</p>
+              <div className="flex flex-wrap gap-2">
+                {missingPresets.map((pr) => (
+                  <Button key={pr.kind} size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={() => startPreset(pr)}>
+                    <Plus className="w-3 h-3" aria-hidden="true" /> {pr.name} · R$ {pr.amount}{pr.kind === "access" ? "/mês" : ""}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
           <Button size="sm" onClick={startNew} className="w-full gap-1.5">
             <Plus className="w-3.5 h-3.5" /> Novo plano
           </Button>
@@ -156,6 +195,26 @@ export function PlanCatalogManager({ coachId }: { coachId: string }) {
           {editing && (
             <div className="space-y-3">
               <div>
+                <Label className="text-xs" id="plan-kind-label">Tipo</Label>
+                <div role="radiogroup" aria-labelledby="plan-kind-label" className="mt-1 grid grid-cols-3 gap-1 rounded-lg bg-muted p-1">
+                  {KIND_OPTIONS.map((k) => (
+                    <button
+                      key={k.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={editing.kind === k.value}
+                      onClick={() => setEditing({ ...editing, kind: k.value })}
+                      className={`rounded-md px-2 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                        editing.kind === k.value ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {k.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1 text-[11px] text-muted-foreground">{KIND_OPTIONS.find((k) => k.value === editing.kind)?.hint}</p>
+              </div>
+              <div>
                 <Label className="text-xs">Nome *</Label>
                 <Input
                   value={editing.name}
@@ -164,7 +223,7 @@ export function PlanCatalogManager({ coachId }: { coachId: string }) {
                   className="mt-1 h-9 text-sm"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className={`grid gap-3 ${editing.kind === "one_off" ? "grid-cols-1" : "grid-cols-2"}`}>
                 <div>
                   <Label className="text-xs">Valor (R$) *</Label>
                   <Input
@@ -174,16 +233,18 @@ export function PlanCatalogManager({ coachId }: { coachId: string }) {
                     className="mt-1 h-9 text-sm"
                   />
                 </div>
-                <div>
-                  <Label className="text-xs">Duração (meses)</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={editing.duration_months}
-                    onChange={(e) => setEditing({ ...editing, duration_months: e.target.value })}
-                    className="mt-1 h-9 text-sm"
-                  />
-                </div>
+                {editing.kind !== "one_off" && (
+                  <div>
+                    <Label className="text-xs">Duração (meses)</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={editing.duration_months}
+                      onChange={(e) => setEditing({ ...editing, duration_months: e.target.value })}
+                      className="mt-1 h-9 text-sm"
+                    />
+                  </div>
+                )}
               </div>
               <div>
                 <Label className="text-xs">Descrição</Label>

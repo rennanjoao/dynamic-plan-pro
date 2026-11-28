@@ -24,6 +24,8 @@ export interface StudentPlan {
   benefits: string[];
   is_active: boolean;
   sort_order: number;
+  /** coaching = consultoria; access = só acesso ao app; one_off = ajuste avulso. */
+  kind?: "coaching" | "access" | "one_off" | string | null;
 }
 
 /** Fallback usado se o catálogo do banco estiver indisponível. */

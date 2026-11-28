@@ -17,19 +17,21 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CreditCard, ChevronDown, Loader2, RefreshCw, Repeat, Clock, X } from "lucide-react";
 import { formatCents, toCents } from "@/lib/studentPlans";
-import { formatDatePtBR } from "@/lib/formatDate";
 import { useMyStudentSubscription, useStudentPlanCatalog } from "@/hooks/useStudentPlans";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ContractAccept } from "@/components/legal/ContractAccept";
-import { fetchMyCurrentAcceptance, hasAcceptedContract, recordPlanSilently } from "@/lib/serviceContract";
+import { usePlanCheckout } from "@/hooks/usePlanCheckout";
+import { fetchMyPlanQuotes, formatDay } from "@/lib/studentAccess";
+import type { CatalogPlanLike } from "@/lib/serviceContract";
 
-/** Pagamento esperando o aceite do contrato (um passo antes do checkout). */
-interface PendingContract {
-  body: Record<string, unknown>;
-  key: string;
-  plan: { slug: string; name: string; duration_months: number };
-  cents: number;
-  known: { cpf: string; guardianName?: string | null } | null;
+/** Plano mostrado ao aluno, já com o preço final dele (desconto de parceria incluído). */
+interface OfferPlan {
+  id: string;
+  slug: string;
+  name: string;
+  price_cents: number;
+  list_cents: number;
+  duration_months: number;
+  kind: string;
+  partner_applied: boolean;
 }
 
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
@@ -56,11 +58,15 @@ function daysUntil(dateStr: string): number {
 }
 
 /** Desconto do ciclo vs. o preço mensal equivalente do plano Mensal do catálogo. */
-function discountLabel(plan: { price_cents: number; duration_months: number }, basePlans: { price_cents: number; duration_months: number }[]): string | null {
-  const monthly = basePlans.find((p) => p.duration_months === 1);
-  if (!monthly || plan.duration_months <= 1) return null;
-  const baseRate = monthly.price_cents;
-  const planRate = plan.price_cents / plan.duration_months;
+function discountLabel(
+  plan: { list_cents: number; duration_months: number; kind: string },
+  basePlans: { list_cents: number; duration_months: number; kind: string }[],
+): string | null {
+  // Só consultoria se compara ao mensal (acesso ao app tem preço próprio).
+  const monthly = basePlans.find((p) => p.kind === "coaching" && p.duration_months === 1);
+  if (!monthly || plan.kind !== "coaching" || plan.duration_months <= 1) return null;
+  const baseRate = monthly.list_cents;
+  const planRate = plan.list_cents / plan.duration_months;
   const pct = Math.round((1 - planRate / baseRate) * 100);
   return pct > 0 ? `-${pct}%` : null;
 }
@@ -85,8 +91,6 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
   const { data: catalog = [] } = useStudentPlanCatalog(sub?.coach_id ?? null);
   const [open, setOpen] = useState(false);
   const [showPlans, setShowPlans] = useState(false);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [contractFor, setContractFor] = useState<PendingContract | null>(null);
   const [params, setParams] = useSearchParams();
   const qc = useQueryClient();
   const dismissKey = `student_plan_card_dismissed_${userId ?? "anon"}`;
@@ -158,50 +162,38 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
     };
   }, [qc, userId]);
 
+  // Preço final do aluno vem do servidor (desconto de parceria só no 1º pagamento).
+  const { data: quotes = null } = useQuery({
+    queryKey: ["my-plan-quotes", userId],
+    enabled: !!userId && !!pendingPlanCharge,
+    staleTime: 60_000,
+    queryFn: fetchMyPlanQuotes,
+  });
+
+  // Só os planos que o próprio coach cadastrou no "Meus Planos". Sem a regra
+  // do servidor, cai no catálogo (preço de tabela) como antes.
+  const ownCatalog = catalog.filter((p) => p.is_active && !!sub?.coach_id && p.coach_id === sub.coach_id);
+  const availablePlans: OfferPlan[] = quotes
+    ? quotes.filter((q) => q.kind !== "one_off").map((q) => ({
+        id: q.plan_id, slug: q.slug, name: q.name, price_cents: q.final_cents, list_cents: q.list_cents,
+        duration_months: q.duration_months, kind: q.kind, partner_applied: q.partner_applied,
+      }))
+    : ownCatalog
+        .filter((p) => p.kind !== "one_off")
+        .map((p) => ({
+          id: p.id, slug: p.slug, name: p.name, price_cents: p.price_cents, list_cents: p.price_cents,
+          duration_months: p.duration_months, kind: p.kind ?? "coaching", partner_applied: false,
+        }));
+  // Tabela do contrato: preços de tabela (o desconto aparece como linha própria).
+  const contractCatalog: CatalogPlanLike[] = quotes
+    ? quotes.map((q) => ({ slug: q.slug, name: q.name, price_cents: q.list_cents, duration_months: q.duration_months, kind: q.kind }))
+    : (ownCatalog.length ? ownCatalog : catalog);
+  const { busy, pay, contractDialog } = usePlanCheckout(userId, contractCatalog);
+
   if (!pendingPlanCharge) return null;
   // O aluno pode fechar o aviso da cobrança pendente; ele volta a aparecer
   // quando surgir uma nova cobrança (a chave é o id da cobrança).
   if (dismissedId === pendingPlanCharge.id) return null;
-
-  const openCheckout = async (body: Record<string, unknown>, key: string) => {
-    setBusy(key);
-    try {
-      const { data, error } = await supabase.functions.invoke("mercadopago-create-preference", { body });
-      if (error) throw error;
-      if (!data?.url) throw new Error(data?.error || "Não foi possível abrir o checkout");
-      qc.invalidateQueries({ queryKey: ["my-plan-charges", userId] });
-      window.location.href = data.url;
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao abrir o checkout");
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  // Antes de pagar: se ainda não aceitou o contrato deste plano/valor, mostra o
-  // aceite (CPF + "Li e aceito") e depois segue para o pagamento. Se não der
-  // para verificar, segue direto — nunca trava o pagamento.
-  const payWithContract = async (
-    body: Record<string, unknown>,
-    key: string,
-    plan: PendingContract["plan"] | null,
-    cents: number,
-  ) => {
-    if (!userId || !plan || !cents) return openCheckout(body, key);
-    setBusy(key);
-    const ok = await hasAcceptedContract(userId, plan.slug, cents);
-    if (ok !== false) { setBusy(null); return openCheckout(body, key); }
-    // Aceitou no cadastro? Registra o plano sozinho (sem passo a mais), exceto
-    // com desconto de parceria/promoção, que pede uma confirmação rápida.
-    const prior = await fetchMyCurrentAcceptance(userId);
-    const planCatalog = availablePlans.length ? availablePlans : catalog;
-    if (prior && await recordPlanSilently({ studentId: userId, prior, plan, finalCents: cents, catalog: planCatalog })) {
-      setBusy(null);
-      return openCheckout(body, key);
-    }
-    setBusy(null);
-    setContractFor({ body, key, plan, cents, known: prior?.cpf ? { cpf: prior.cpf, guardianName: prior.guardian_name } : null });
-  };
 
   const chargePlan = (() => {
     const slug = pendingPlanCharge.plan_slug ?? sub?.plan_slug ?? null;
@@ -211,15 +203,11 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
       slug,
       name: fromCatalog?.name ?? sub?.plan_name ?? "Plano",
       duration_months: fromCatalog?.duration_months ?? sub?.cycle_months ?? 1,
+      kind: fromCatalog?.kind ?? "coaching",
     };
   })();
 
   const status = sub ? (STATUS_LABEL[sub.status] ?? STATUS_LABEL.pending) : null;
-  // Só mostra pro aluno os planos que o próprio coach cadastrou no painel
-  // ("Meus Planos"). Planos padrão/legado (coach_id null) e o fallback
-  // hardcoded de useStudentPlanCatalog nunca aparecem aqui.
-  const availablePlans = catalog.filter((p) => p.is_active && !!sub?.coach_id && p.coach_id === sub.coach_id);
-
   // Aviso proativo de vencimento: só quando ainda não existe cobrança pendente
   // (senão o bloco de "Pagamento pendente" abaixo já cobre) e faltam 0-3 dias.
   const daysUntilDue = sub?.next_due_date ? daysUntil(sub.next_due_date) : null;
@@ -256,7 +244,7 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
               </p>
               {sub.next_due_date && (
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Próximo vencimento: {formatDatePtBR(sub.next_due_date)}
+                  Próximo vencimento: {formatDay(sub.next_due_date)}
                 </p>
               )}
             </>
@@ -302,7 +290,7 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
             <Button
               size="sm"
               disabled={busy === "pending"}
-              onClick={() => payWithContract({ finance_id: pendingPlanCharge.id }, "pending", chargePlan, toCents(Number(pendingPlanCharge.amount)))}
+              onClick={() => pay({ finance_id: pendingPlanCharge.id }, "pending", chargePlan, toCents(Number(pendingPlanCharge.amount)))}
             >
               {busy === "pending" ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : null}
               Pagar {formatCents(toCents(Number(pendingPlanCharge.amount)))}
@@ -320,7 +308,7 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
                 toast.error("Plano atual indisponível no catálogo. Fale com seu treinador.");
                 return;
               }
-              payWithContract({ plan_id: plan.id }, "renew", plan, plan.price_cents);
+              void pay({ plan_id: plan.id }, "renew", plan, plan.price_cents);
             }}
           >
             {busy === "renew" ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1" />}
@@ -347,20 +335,26 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-foreground truncate">{plan.name}</p>
                   <p className="text-[11px] text-muted-foreground">
+                    {plan.partner_applied && (
+                      <span className="mr-1 line-through opacity-70">{formatCents(plan.list_cents)}</span>
+                    )}
                     {formatCents(plan.price_cents)} · {plan.duration_months}{" "}
                     {plan.duration_months === 1 ? "mês" : "meses"}
-                    {discountLabel(plan, availablePlans) && (
+                    {plan.kind === "access" ? " · só acesso ao app" : null}
+                    {plan.partner_applied ? (
+                      <span className="ml-1 text-primary font-semibold">-10% parceria (1º pagamento)</span>
+                    ) : discountLabel(plan, availablePlans) ? (
                       <span className="ml-1 text-primary font-semibold">
                         {discountLabel(plan, availablePlans)}
                       </span>
-                    )}
+                    ) : null}
                   </p>
                 </div>
                 <Button
                   size="sm"
                   variant={plan.slug === sub?.plan_slug ? "outline" : "default"}
                   disabled={busy === plan.id}
-                  onClick={() => payWithContract({ plan_id: plan.id }, plan.id, plan, plan.price_cents)}
+                  onClick={() => pay({ plan_id: plan.id }, plan.id, plan, plan.price_cents)}
                 >
                   {busy === plan.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Contratar"}
                 </Button>
@@ -384,9 +378,9 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
                   <p className="font-medium text-foreground truncate">{c.description}</p>
                   <p className="text-muted-foreground">
                     {c.paid_at
-                      ? `Pago em ${formatDatePtBR(c.paid_at)}`
+                      ? `Pago em ${formatDay(c.paid_at)}`
                       : c.due_date
-                        ? `Vence em ${formatDatePtBR(c.due_date)}`
+                        ? `Vence em ${formatDay(c.due_date)}`
                         : "Sem vencimento"}
                     {c.source && ` · ${SOURCE_LABEL[c.source] ?? c.source}`}
                     {c.card_installments && c.card_installments > 1 && ` · ${c.card_installments}x`}
@@ -400,26 +394,7 @@ export function StudentPlanCard({ userId }: { userId: string | null | undefined 
           )}
         </div>
       )}
-      <Dialog open={!!contractFor} onOpenChange={(o) => { if (!o) setContractFor(null); }}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Antes de pagar</DialogTitle>
-            <DialogDescription>Confirme seu CPF e aceite o contrato do plano.</DialogDescription>
-          </DialogHeader>
-          {contractFor && userId && (
-            <ContractAccept
-              studentId={userId}
-              plan={contractFor.plan}
-              finalCents={contractFor.cents}
-              catalog={availablePlans.length ? availablePlans : catalog}
-              confirmLabel="Aceitar e pagar"
-              known={contractFor.known}
-              onAccepted={() => { const c = contractFor; setContractFor(null); void openCheckout(c.body, c.key); }}
-              onUnavailable={() => { const c = contractFor; setContractFor(null); void openCheckout(c.body, c.key); }}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      {contractDialog}
     </Card>
   );
 }

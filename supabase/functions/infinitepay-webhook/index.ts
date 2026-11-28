@@ -89,18 +89,9 @@ Deno.serve(async (req) => {
       return ok(cors, { error: "falha ao atualizar" });
     }
 
-    if (finance.subscription_id) {
-      await admin
-        .from("student_subscriptions")
-        .update({
-          status: "active",
-          payment_method: method,
-          payment_source: "gateway",
-          provider: "infinitepay",
-          external_transaction_id: transactionNsu ?? null,
-        })
-        .eq("id", finance.subscription_id);
-    }
+    // Plano, vencimento e comissão: regra única do banco (idempotente).
+    const { error: applyErr } = await admin.rpc("apply_paid_charge", { p_finance_id: finance.id });
+    if (applyErr) console.error("apply_paid_charge falhou", applyErr.message);
 
     return ok(cors, { confirmed: true });
   } catch (e) {

@@ -39,7 +39,7 @@ export function StudentRow({
     return `${prefix}: há ${d} dias`;
   })();
 
-  const feedbackStatusClass = student.awaitingFirstProtocol
+  const feedbackStatusClass = student.awaitingFirstProtocol || student.accessOnly
     ? "text-muted-foreground hover:bg-accent"
     : `${STATUS_TEXT[student.alertLevel || "ok"]} ${student.alertLevel === "critical" ? "font-medium" : ""} hover:bg-accent`;
 
@@ -86,14 +86,23 @@ export function StudentRow({
             <Private as="span" className="text-sm font-semibold text-foreground truncate">{safeName}</Private>
             <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
           </button>
-          <AlertBadge
-            level={student.alertLevel || "ok"}
-            daysSinceLastFeedback={student.daysSinceLastFeedback}
-            warningDays={student.warningDays}
-            criticalDays={student.criticalDays}
-            lastFeedback={student.lastFeedback}
-            awaitingFirstProtocol={student.awaitingFirstProtocol}
-          />
+          {student.accessOnly ? (
+            <span
+              className="text-xs font-semibold px-2 py-0.5 rounded-full border border-border bg-muted text-muted-foreground"
+              title="Plano só de acesso: faz check-ins, mas sem alertas de acompanhamento"
+            >
+              Só acesso
+            </span>
+          ) : (
+            <AlertBadge
+              level={student.alertLevel || "ok"}
+              daysSinceLastFeedback={student.daysSinceLastFeedback}
+              warningDays={student.warningDays}
+              criticalDays={student.criticalDays}
+              lastFeedback={student.lastFeedback}
+              awaitingFirstProtocol={student.awaitingFirstProtocol}
+            />
+          )}
           <ClinicalSignalBadge signal={student.clinicalSignal} />
           <InsightBadge situacao={student.insightSituacao} />
         </div>

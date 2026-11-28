@@ -13,7 +13,6 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCorsHeaders } from "../_shared/cors.ts";
-import { addMonths } from "../_shared/mercadopago.ts";
 
 const APP_URL = Deno.env.get("APP_URL") || "https://app.eliteprimehub.com.br";
 const MP_API = "https://api.mercadopago.com";
@@ -63,6 +62,7 @@ Deno.serve(async (req) => {
         return json({ error: "Não autorizado" }, 403, cors);
       }
       if (data.status === "paid") return json({ error: "Cobrança já paga" }, 400, cors);
+      if (data.status === "canceled") return json({ error: "Cobrança cancelada" }, 400, cors);
       finance = data;
     } else {
       if (!planId) return json({ error: "Informe plan_id ou finance_id" }, 400, cors);
@@ -94,77 +94,23 @@ Deno.serve(async (req) => {
         return json({ error: "Plano não pertence ao seu treinador" }, 403, cors);
       }
 
-      // Assinatura vigente (pode não existir na primeira contratação).
-      const { data: sub } = await admin
-        .from("student_subscriptions")
-        .select("*")
-        .eq("student_id", studentId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      let subscriptionId = sub?.id ?? null;
-      if (!subscriptionId) {
-        // Primeira contratação: assinatura PENDENTE, ativada só pelo webhook.
-        const today = new Date().toISOString().slice(0, 10);
-        const { data: created, error: subErr } = await admin
-          .from("student_subscriptions")
-          .insert({
-            student_id: studentId,
-            coach_id: coachId,
-            plan_slug: plan.slug,
-            plan_name: plan.name,
-            price_cents: plan.price_cents,
-            cycle_months: plan.duration_months,
-            started_on: today,
-            next_due_date: addMonths(today, plan.duration_months),
-            status: "pending",
-            provider: "mercadopago",
-          })
-          .select("id")
-          .single();
-        if (subErr) return json({ error: "Falha ao criar assinatura" }, 500, cors);
-        subscriptionId = created.id;
+      // Cobrança + contrato pela regra única do banco (create_plan_charge):
+      // preço do "Meus Planos", desconto de parceria só no 1º pagamento de
+      // trimestral/semestral, no máximo uma cobrança de plano aberta e o
+      // contrato ativo só muda quando o pagamento confirmar.
+      const { data: financeId, error: chargeErr } = await admin.rpc("create_plan_charge", {
+        p_student: studentId,
+        p_plan_slug: plan.slug,
+        p_due_date: null,
+        p_source: "gateway",
+        p_provider: "mercadopago",
+      });
+      if (chargeErr || !financeId) {
+        console.error("[mp-create-preference] create_plan_charge", chargeErr?.message);
+        return json({ error: "Falha ao criar cobrança" }, 500, cors);
       }
-
-      // Regra: no máximo uma cobrança pendente por aluno — cancela qualquer
-      // pendência anterior (inclusive as geradas manualmente pelo coach, que
-      // nascem sem "provider" definido), não só as já criadas via Mercado
-      // Pago. Sem isso, duas pendências ficam abertas ao mesmo tempo e o
-      // painel do coach só mostra uma (a de vencimento mais próximo) —
-      // a outra fica invisível, com risco real de cobrança duplicada.
-      await admin
-        .from("coach_finances")
-        .update({ status: "canceled" })
-        .eq("student_id", studentId)
-        .eq("status", "pending");
-
-      const dueDate = new Date().toISOString().slice(0, 10);
-      const { data: charge, error: chargeErr } = await admin
-        .from("coach_finances")
-        .insert({
-          coach_id: coachId,
-          student_id: studentId,
-          description: `Plano ${plan.name}`,
-          amount: plan.price_cents / 100,
-          amount_cents: plan.price_cents,
-          status: "pending",
-          due_date: dueDate,
-          provider: "mercadopago",
-          source: "gateway",
-          plan_slug: plan.slug,
-          plan_cycle_months: plan.duration_months,
-          plan_name_snapshot: plan.name,
-          subscription_id: subscriptionId,
-        })
-        .select("*")
-        .single();
-      if (chargeErr || !charge) return json({ error: "Falha ao criar cobrança" }, 500, cors);
-
-      await admin
-        .from("student_subscriptions")
-        .update({ current_charge_id: charge.id })
-        .eq("id", subscriptionId);
+      const { data: charge } = await admin.from("coach_finances").select("*").eq("id", financeId).maybeSingle();
+      if (!charge) return json({ error: "Falha ao criar cobrança" }, 500, cors);
 
       finance = charge;
     }

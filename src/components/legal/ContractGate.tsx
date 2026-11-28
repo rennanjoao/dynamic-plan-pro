@@ -22,7 +22,7 @@ export function ContractGate({ userId, sub, onDone, known }: {
   useEffect(() => {
     let cancelled = false;
     sb.from("student_plan_catalog")
-      .select("slug, name, price_cents, duration_months")
+      .select("*")
       .eq("coach_id", sub.coach_id)
       .eq("is_active", true)
       .then(({ data }: { data: CatalogPlanLike[] | null }) => { if (!cancelled) setCatalog(data ?? []); });
@@ -35,7 +35,7 @@ export function ContractGate({ userId, sub, onDone, known }: {
         <div className="space-y-2 text-center">
           <FileSignature className="w-10 h-10 text-primary mx-auto" aria-hidden="true" />
           <h1 className="text-xl font-bold text-foreground">Contrato do seu plano</h1>
-          <p className="text-sm text-muted-foreground">{known ? "Confirme o plano e o desconto aplicado. É só uma vez." : "É rapidinho: confirme seu CPF e aceite. Só precisa fazer uma vez."}</p>
+          <p className="text-sm text-muted-foreground">{known ? "Confira o plano, o valor e as regras e aceite. É só um toque." : "É rapidinho: confirme seu CPF e aceite. Só precisa fazer uma vez."}</p>
         </div>
         {catalog && (
           <ContractAccept

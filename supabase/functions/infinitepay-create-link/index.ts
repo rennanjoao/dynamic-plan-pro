@@ -75,6 +75,8 @@ Deno.serve(async (req) => {
             ? (Number(checkJson?.installments) || null)
             : null,
         }).eq("id", finance.id).neq("status", "paid");
+        // Plano, vencimento e comissão: regra única do banco (idempotente).
+        await admin.rpc("apply_paid_charge", { p_finance_id: finance.id });
       }
       return new Response(JSON.stringify({ paid: !!paid }), {
         headers: { ...cors, "Content-Type": "application/json" },

@@ -1,686 +1,298 @@
-import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { sb } from "@/integrations/supabase/untyped";
+/**
+ * FinancesTab — Financeiro do coach.
+ *
+ * Uma linha por aluno: plano, situação (em dia, atrasado, pausado, liberado,
+ * isento, vitalícia), uma ação principal (Cobrar ou Receber) e um menu "⋯".
+ * Preço, desconto de parceria, vencimento, bloqueio e ativação do plano são
+ * regras do banco (ver src/lib/studentAccess.ts); aqui só mostramos e chamamos.
+ */
+import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, DollarSign, Calendar, AlertTriangle, CheckCircle2, Users, Wallet, ShieldOff, ShieldCheck, Eye, Copy } from "lucide-react";
-import { useCoachFinances } from "@/hooks/useCoachFinances";
+import { DollarSign, Calendar, AlertTriangle, Lock, MoreHorizontal, Plus, HandCoins } from "lucide-react";
+import { sb } from "@/integrations/supabase/untyped";
+import { useCoachFinances, type FinanceRecord } from "@/hooks/useCoachFinances";
 import { usePlatformBilling, worstPlatformStatus } from "@/hooks/usePlatformBilling";
 import type { StudentLite } from "@/hooks/useCoachStudents";
 import { queryKeys } from "@/lib/queryKeys";
-import { formatDatePtBR } from "@/lib/formatDate";
 import { useConfirm } from "@/components/ConfirmProvider";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { StatCard } from "./dashboardUtils";
 import { useStudentPlanCatalog, useCoachSubscriptions } from "@/hooks/useStudentPlans";
 import { PlanCatalogManager } from "./PlanCatalogManager";
-import { centsToAmount, formatCents, nextDueDate } from "@/lib/studentPlans";
 import { computeFinanceMetrics } from "@/lib/coachFinanceMetrics";
 import { Private } from "@/components/coach/PrivacyMode";
-import { PARTNER_PLAN_PRICING, previewFinalPrice, type PartnerPlanSlug } from "@/lib/partnerPricing";
+import { parseDateOnly } from "@/lib/dateOnly";
+import {
+  accessPriority, describeAccess, fallbackAccessState, fetchCoachAccessOverview, formatBRL,
+  type AccessState, type AccessTone,
+} from "@/lib/studentAccess";
+import { ChargeDialog, GrantAccessDialog, ReceiveDialog } from "./FinanceDialogs";
+import { chargeCents } from "@/lib/financeActions";
 
-import { isPastDue, localDateKey, parseDateOnly } from "@/lib/dateOnly";
-function isPartnerPlan(slug: unknown): slug is PartnerPlanSlug {
-  return typeof slug === "string" && slug in PARTNER_PLAN_PRICING;
-}
-
-const PAYMENT_METHODS: { value: string; label: string }[] = [
-  { value: "pix_plataforma", label: "PIX (pela plataforma)" },
-  { value: "pix", label: "PIX fora da plataforma" },
-  { value: "cartao", label: "Cartão" },
-  { value: "dinheiro", label: "Dinheiro" },
-  { value: "transferencia", label: "Transferência" },
-  { value: "outro", label: "Outro" },
-];
+const TONE_CLASS: Record<AccessTone, string> = {
+  ok: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-400",
+  warn: "bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-400",
+  danger: "bg-red-500/10 text-red-700 border-red-500/30 dark:text-red-400",
+  info: "bg-sky-500/10 text-sky-700 border-sky-500/30 dark:text-sky-400",
+  muted: "bg-muted text-muted-foreground border-border",
+};
 
 function isSameMonth(dateStr: string | null | undefined) {
   if (!dateStr) return false;
-  const d = new Date(dateStr);
+  const d = parseDateOnly(dateStr);
   const now = new Date();
-  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  return !!d && d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+}
+
+/** "R$ 1.250" — valores redondos nos cartões de resumo. */
+function brlRound(reais: number): string {
+  return reais.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).replace(/\u00a0/g, " ");
+}
+
+const isPlanCharge = (f: FinanceRecord) => f.charge_kind !== "one_off";
+const byDue = (a: FinanceRecord, b: FinanceRecord) =>
+  (parseDateOnly(a.due_date)?.getTime() ?? Infinity) - (parseDateOnly(b.due_date)?.getTime() ?? Infinity);
+
+interface Row {
+  student: StudentLite;
+  state: AccessState;
+  open: FinanceRecord[];
+  planName: string | null;
+  planPrice: number | null;
+  accessOnly: boolean;
 }
 
 export function FinancesTab({ coachId, students }: { coachId: string; students: StudentLite[] }) {
   const { data: finances = [], isLoading } = useCoachFinances(coachId);
   const { data: platformCharges = [] } = usePlatformBilling(coachId);
   const platformStatus = worstPlatformStatus(platformCharges);
+  const { data: planCatalog = [] } = useStudentPlanCatalog(coachId);
+  const { data: subscriptions = [] } = useCoachSubscriptions(coachId);
+  const { data: overview = null, isLoading: loadingOverview } = useQuery({
+    queryKey: ["coach-access-overview", coachId],
+    enabled: !!coachId,
+    queryFn: fetchCoachAccessOverview,
+  });
   const qc = useQueryClient();
   const confirm = useConfirm();
 
-  const [editingFinance, setEditingFinance] = useState<{ id: string; due_date: string } | null>(null);
-  const [quickBilling, setQuickBilling] = useState<{ student_id: string; student_name: string } | null>(null);
-  const [quickForm, setQuickForm] = useState({ description: "Mensalidade", amount: "", due_date: "", plan_slug: "" });
-  // Seleção inline na coluna "Plano". Só guarda o que o coach mudou explicitamente;
-  // sem alteração, cai no plano atual da assinatura (rowPlan(...) abaixo).
-  const [rowPlanSlug, setRowPlanSlug] = useState<Record<string, string>>({});
-  const [savingDueDate, setSavingDueDate] = useState(false);
-  const [creatingBilling, setCreatingBilling] = useState(false);
-  const [payDialog, setPayDialog] = useState<{ id: string; studentId: string | null; planSlug: string | null } | null>(null);
-  const [payMethod, setPayMethod] = useState("pix_plataforma");
-  const [savingPayment, setSavingPayment] = useState(false);
-  const [busyCheckout, setBusyCheckout] = useState<string | null>(null);
-  const [busyRestore, setBusyRestore] = useState<string | null>(null);
+  const [chargeFor, setChargeFor] = useState<StudentLite | null>(null);
+  const [receiveFor, setReceiveFor] = useState<string | null>(null);
+  const [grantFor, setGrantFor] = useState<{ student: StudentLite; current: string | null } | null>(null);
 
-  /** Reexibe, no painel principal do aluno, uma cobrança que ele havia ocultado. */
-  const restoreBillingAlert = async (financeId: string) => {
-    setBusyRestore(financeId);
-    try {
-      const { error } = await sb.rpc("restore_billing_alert", { p_finance_id: financeId });
-      if (error) throw error;
-      toast.success("Cobrança voltará a aparecer no painel do aluno.");
-    } catch (e) {
-      toast.error("Não foi possível reexibir: " + (e instanceof Error ? e.message : "erro desconhecido"));
-    } finally {
-      setBusyRestore(null);
-    }
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: queryKeys.coachFinances(coachId) });
+    qc.invalidateQueries({ queryKey: queryKeys.coachStudentSubscriptions() });
+    qc.invalidateQueries({ queryKey: ["coach-access-overview", coachId] });
+    qc.invalidateQueries({ queryKey: ["coach-priority-queue", coachId] });
+    qc.invalidateQueries({ queryKey: queryKeys.coachStudentsLite(coachId) });
   };
 
-  const { data: planCatalog = [] } = useStudentPlanCatalog(coachId);
-  const { data: subscriptions = [] } = useCoachSubscriptions(coachId);
+  // Planos que o coach cobra: os dele; sem nenhum próprio, os padrão.
+  const chargePlans = useMemo(() => {
+    const own = planCatalog.filter((p) => p.coach_id === coachId && p.is_active);
+    return own.length ? own : planCatalog.filter((p) => p.is_active);
+  }, [planCatalog, coachId]);
 
-  // Alunos com origem em influenciadora — usado só para exibir a prévia do desconto.
-  const { data: attributions = [] } = useQuery({
-    queryKey: ["coach-partner-attributions", coachId],
-    enabled: !!coachId,
-    queryFn: async () => {
-      const { data } = await sb
-        .from("partner_attributions")
-        .select("student_id, partner_id")
-        .eq("coach_id", coachId);
-      return (data ?? []) as { student_id: string; partner_id: string }[];
-    },
-  });
-  const attributedStudents = new Set(attributions.map((a) => a.student_id));
-  const subByStudent = new Map(
-    subscriptions
-      .filter((s) => ["active", "pending", "overdue"].includes(s.status))
-      .map((s) => [s.student_id, s]),
-  );
-  const selectedPlan = planCatalog.find((p) => p.slug === quickForm.plan_slug) ?? null;
+  const rows: Row[] = useMemo(() => {
+    const subByStudent = new Map(
+      subscriptions.filter((s) => ["active", "pending", "overdue"].includes(s.status)).map((s) => [s.student_id, s]),
+    );
+    return students
+      .map((student) => {
+        const open = finances.filter((f) => f.student_id === student.id && f.status === "pending" && Number(f.amount) > 0).sort(byDue);
+        const plan = open.find(isPlanCharge) ?? null;
+        const sub = subByStudent.get(student.id) ?? null;
+        const state = overview?.get(student.id) ?? fallbackAccessState({
+          isExempt: student.isExempt,
+          pendingDue: plan?.due_date ?? null,
+          pendingCents: plan ? chargeCents(plan) : null,
+          sub,
+        });
+        const paidPlan = sub && sub.status !== "pending" ? sub : null;
+        return {
+          student,
+          state,
+          open,
+          planName: paidPlan?.plan_name ?? state.plan_name ?? null,
+          planPrice: paidPlan?.price_cents ?? null,
+          accessOnly: state.plan_kind === "access",
+        };
+      })
+      .sort((a, b) => accessPriority(a.state) - accessPriority(b.state) || a.student.name.localeCompare(b.student.name, "pt-BR"));
+  }, [students, finances, subscriptions, overview]);
 
-  const activeStudents = students.filter((s) => !s.isExempt);
-  const rowPlan = (studentId: string) => rowPlanSlug[studentId] ?? subByStudent.get(studentId)?.plan_slug ?? "none";
-
-  const togglePaid = async (id: string, currentlyPaid: boolean, method?: string) => {
-    try {
-      const { error } = await sb.from("coach_finances").update({
-        status: currentlyPaid ? "pending" : "paid",
-        paid_at: currentlyPaid ? null : new Date().toISOString(),
-        payment_method: currentlyPaid ? null : (method ?? null),
-      }).eq("id", id);
-      if (error) throw error;
-      qc.invalidateQueries({ queryKey: queryKeys.coachFinances(coachId) });
-      qc.invalidateQueries({ queryKey: ["coach-priority-queue", coachId] });
-      toast.success(currentlyPaid ? "Marcado como pendente" : "Marcado como pago");
-    } catch (e) {
-      toast.error("Erro ao atualizar status: " + (e instanceof Error ? e.message : "erro desconhecido"));
-    }
-  };
-
-  const confirmPayment = async () => {
-    if (!payDialog || savingPayment) return;
-    setSavingPayment(true);
-    await togglePaid(payDialog.id, false, payMethod);
-
-    // Ativação com plano de parceria: preço final e comissão são calculados no backend.
-    if (payDialog.studentId && isPartnerPlan(payDialog.planSlug)) {
-      const { data, error } = await supabase.functions.invoke("confirm-student-activation", {
-        body: {
-          studentId: payDialog.studentId,
-          planSlug: payDialog.planSlug,
-          startedOn: localDateKey(),
-          paymentMethod: payMethod,
-        },
-      });
-      if (error) {
-        toast.error("Pagamento salvo, mas a ativação do plano falhou. Tente novamente.");
-      } else {
-        const created = (data as { commissionCreated?: boolean } | null)?.commissionCreated;
-        if (created) toast.success("Comissão da influenciadora gerada.");
-        qc.invalidateQueries({ queryKey: queryKeys.coachStudentSubscriptions(coachId) });
-        qc.invalidateQueries({ queryKey: queryKeys.partnerCommissions(coachId, null, false) });
-      }
-    }
-
-    setSavingPayment(false);
-    setPayDialog(null);
-    setPayMethod("pix_plataforma");
-  };
-
-  const toggleExempt = async (studentId: string, nextExempt: boolean) => {
-    try {
-      const { error } = await sb.from("coach_students")
-        .update({ is_exempt: nextExempt })
-        .eq("coach_id", coachId).eq("student_id", studentId);
-      if (error) throw error;
-      qc.invalidateQueries({ queryKey: queryKeys.coachStudentsLite(coachId) });
-      qc.invalidateQueries({ queryKey: queryKeys.coachFinances(coachId) });
-      qc.invalidateQueries({ queryKey: ["coach-priority-queue", coachId] });
-      toast.success(nextExempt ? "Aluno isento de cobranças" : "Isenção removida");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao atualizar isenção");
-    }
-  };
-
-  /** Gera o link de checkout do Mercado Pago para uma cobrança existente. */
-  /**
-   * Primeira vez que se cobra essa pendência: sincroniza o valor com o plano
-   * selecionado na linha (se mudou), gera o link no Mercado Pago e copia —
-   * nunca abre aba, o link é pro aluno, não pro coach conferir aqui.
-   */
-  const generateMercadoPagoLink = async (financeId: string, studentId: string) => {
-    setBusyCheckout(financeId);
-    try {
-      const slug = rowPlan(studentId);
-      const plan = slug !== "none" ? planCatalog.find((p) => p.slug === slug) : null;
-      const activeF = finances.find((f) => f.id === financeId);
-      if (plan && activeF && activeF.plan_slug !== plan.slug) {
-        const { error: syncErr } = await supabase
-          .from("coach_finances")
-          .update({
-            description: `Plano ${plan.name}`,
-            amount: centsToAmount(plan.price_cents),
-            amount_cents: plan.price_cents,
-            plan_slug: plan.slug,
-            plan_cycle_months: plan.duration_months,
-            plan_name_snapshot: plan.name,
-            // Limpa o link antigo: se não limpar aqui, a edge function vai
-            // reaproveitar o link (e o preço) de antes da troca de plano.
-            checkout_url: null,
-            mercado_pago_preference_id: null,
-          })
-          .eq("id", financeId)
-          .eq("status", "pending");
-        if (syncErr) throw syncErr;
-      }
-
-      const { data, error } = await supabase.functions.invoke("mercadopago-create-preference", {
-        body: { finance_id: financeId },
-      });
-      if (error) throw error;
-      if (!data?.url) throw new Error(data?.error || "Não foi possível gerar o link");
-      await navigator.clipboard.writeText(data.url).catch(() => undefined);
-      qc.invalidateQueries({ queryKey: queryKeys.coachFinances(coachId) });
-      toast.success("Cobrança criada e link copiado — envie pro aluno.");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao gerar link");
-    } finally {
-      setBusyCheckout(null);
-    }
-  };
-
-  /** Link já foi gerado antes: só copia de novo, sem chamar a MP nem criar nada. */
-  const copyMercadoPagoLink = async (url: string) => {
-    await navigator.clipboard.writeText(url).catch(() => undefined);
-    toast.success("Link copiado.");
-  };
-
-  const deleteFinance = async (id: string) => {
-    if (!(await confirm({ title: "Remover registro", description: "Remover registro financeiro?", destructive: true, confirmLabel: "Remover" }))) return;
-    try {
-      // Se essa cobrança tinha uma assinatura vinculada, ela ficou marcada
-      // "pending" quando a cobrança foi criada — sem isso aqui, apagar a
-      // cobrança sem receber deixava a assinatura travada em pending pra
-      // sempre (o aluno continuava aparecendo com "plano" na coluna, mesmo
-      // sem nenhuma cobrança real por trás).
-      const target = finances.find((f) => f.id === id);
-      const { error } = await supabase.from("coach_finances").delete().eq("id", id);
-      if (error) throw error;
-
-      if (target?.subscription_id) {
-        if ((target.cycle_number ?? 1) <= 1) {
-          // Primeira contratação, nunca chegou a ser paga: sem histórico
-          // pra preservar, apaga a assinatura junto.
-          await supabase.from("student_subscriptions").delete().eq("id", target.subscription_id).eq("status", "pending");
-        } else {
-          // Era uma renovação: existia um período ativo antes dessa
-          // tentativa. Volta pro estado anterior em vez de ficar travado.
-          await supabase.from("student_subscriptions").update({ status: "active" }).eq("id", target.subscription_id).eq("status", "pending");
-        }
-      }
-
-      qc.invalidateQueries({ queryKey: queryKeys.coachFinances(coachId) });
-      qc.invalidateQueries({ queryKey: queryKeys.coachStudentSubscriptions() });
-    } catch (e) {
-      toast.error("Erro ao remover: " + (e instanceof Error ? e.message : "erro desconhecido"));
-    }
-  };
-
-  const updateDueDate = async () => {
-    if (!editingFinance || savingDueDate) return;
-    setSavingDueDate(true);
-    try {
-      const { error } = await supabase.from("coach_finances")
-        .update({ due_date: editingFinance.due_date || null })
-        .eq("id", editingFinance.id);
-      if (error) throw error;
-      qc.invalidateQueries({ queryKey: queryKeys.coachFinances(coachId) });
-      setEditingFinance(null);
-      toast.success("Data de vencimento atualizada!");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao atualizar vencimento");
-    } finally {
-      setSavingDueDate(false);
-    }
-  };
-
-  /**
-   * Cria a cobrança do aluno. Quando um plano do catálogo é escolhido, também
-   * cria/atualiza o contrato (student_subscriptions) com nome e preço CONGELADOS.
-   * Sem plano, o comportamento legado (cobrança avulsa) é preservado.
-   */
-  const createQuickBilling = async () => {
-    if (!quickBilling || creatingBilling) return;
-    setCreatingBilling(true);
-    try {
-      const startISO = quickForm.due_date || localDateKey();
-      let subscriptionId: string | null = null;
-      let cycleMonths: number | null = null;
-      let cycleNumber: number | null = null;
-      let amount = Number(quickForm.amount || 0);
-      let amountCents: number | null = null;
-      let description = quickForm.description || "Mensalidade";
-
-      if (selectedPlan) {
-        // Renovação sem duplicar: se já existe cobrança pendente do plano, aborta.
-        const existingPending = finances.find(
-          (f) => f.student_id === quickBilling.student_id && f.status === "pending",
-        );
-        if (existingPending) {
-          throw new Error("Este aluno já tem uma cobrança pendente. Receba ou remova antes de gerar a próxima.");
-        }
-
-        cycleMonths = selectedPlan.duration_months;
-        amountCents = selectedPlan.price_cents;
-        amount = centsToAmount(selectedPlan.price_cents);
-        description = `Plano ${selectedPlan.name}`;
-
-        const current = subByStudent.get(quickBilling.student_id);
-        if (current) {
-          subscriptionId = current.id;
-          const { data: paidCount } = await sb
-            .from("coach_finances")
-            .select("id", { count: "exact", head: false })
-            .eq("subscription_id", current.id);
-          cycleNumber = ((paidCount?.length as number | undefined) ?? 0) + 1;
-          const { error: upErr } = await sb.from("student_subscriptions").update({
-            plan_slug: selectedPlan.slug,
-            plan_name: selectedPlan.name,
-            price_cents: selectedPlan.price_cents,
-            cycle_months: selectedPlan.duration_months,
-            next_due_date: nextDueDate(startISO, selectedPlan.duration_months),
-            status: "pending",
-          }).eq("id", current.id);
-          if (upErr) throw upErr;
-        } else {
-          cycleNumber = 1;
-          const { data: created, error: subErr } = await sb.from("student_subscriptions").insert({
-            student_id: quickBilling.student_id,
-            coach_id: coachId,
-            plan_slug: selectedPlan.slug,
-            plan_name: selectedPlan.name,
-            price_cents: selectedPlan.price_cents,
-            cycle_months: selectedPlan.duration_months,
-            started_on: startISO,
-            next_due_date: nextDueDate(startISO, selectedPlan.duration_months),
-            status: "pending",
-          }).select("id").single();
-          if (subErr) throw subErr;
-          subscriptionId = created.id as string;
-        }
-      }
-
-      const { data: charge, error } = await sb.from("coach_finances").insert({
-        coach_id: coachId,
-        student_id: quickBilling.student_id,
-        description,
-        amount,
-        due_date: quickForm.due_date || null,
-        status: "pending",
-        subscription_id: subscriptionId,
-        plan_slug: selectedPlan?.slug ?? null,
-        plan_cycle_months: cycleMonths,
-        cycle_number: cycleNumber,
-        amount_cents: amountCents,
-        source: "manual",
-      }).select("id").single();
-      if (error) throw error;
-
-      if (subscriptionId && charge?.id) {
-        await sb.from("student_subscriptions").update({ current_charge_id: charge.id }).eq("id", subscriptionId);
-      }
-
-      qc.invalidateQueries({ queryKey: queryKeys.coachFinances(coachId) });
-      qc.invalidateQueries({ queryKey: queryKeys.coachStudentSubscriptions(coachId) });
-      toast.success(`Cobrança criada para ${quickBilling.student_name}. O aluno receberá o alerta.`);
-      setQuickBilling(null);
-      setQuickForm({ description: "Mensalidade", amount: "", due_date: "", plan_slug: "" });
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao criar cobrança");
-    } finally {
-      setCreatingBilling(false);
-    }
-  };
-
-  // Cards escopados ao mês corrente (receita por paid_at, pendências por due_date).
-  // "Atrasado" NÃO é escopado por mês: dívida vencida continua contando mesmo depois que o mês vira.
-  // Fórmulas centralizadas — consideram só cobranças de ALUNOS.
-  // A assinatura da plataforma (platform_billing_charges) nunca entra aqui.
   const metrics = computeFinanceMetrics(finances, { inMonth: isSameMonth });
-  const totalReceita  = metrics.receitaRecebida;
-  const totalPendente = metrics.receitaPrevista;
-  const totalAtrasado = metrics.atrasado;
+  const pausedCount = rows.filter((r) => r.state.blocked).length;
+  const receiveRow = rows.find((r) => r.student.id === receiveFor) ?? null;
+
+  const toggleExempt = async (row: Row) => {
+    const next = !row.student.isExempt;
+    const partner = row.state.exempt_reason === "partner";
+    if (!next && !(await confirm({
+      title: partner ? "Remover vitalícia" : "Remover isenção",
+      description: partner
+        ? `${row.student.name} é parceira e está vitalícia. Sem a isenção, ela passa a ser cobrada como os outros alunos.`
+        : `${row.student.name} volta a ser cobrado(a) normalmente.`,
+      confirmLabel: "Remover",
+      destructive: true,
+    }))) return;
+    const { error } = await sb.from("coach_students")
+      .update({ is_exempt: next, exempt_reason: next ? "manual" : null })
+      .eq("coach_id", coachId).eq("student_id", row.student.id);
+    if (error) { toast.error("Não foi possível atualizar a isenção."); return; }
+    toast.success(next ? "Aluno isento de cobranças." : "Isenção removida.");
+    refresh();
+  };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {platformStatus && (
-        <div className={`rounded-xl border px-4 py-3 flex items-start gap-3 ${
+        <div role="status" className={`rounded-xl border px-4 py-3 flex items-start gap-3 ${
           platformStatus === "blocked"
             ? "border-red-200 bg-red-50 text-red-700 dark:bg-red-950/20 dark:border-red-900 dark:text-red-400"
             : "border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:border-amber-900 dark:text-amber-400"
         }`}>
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
           <div className="min-w-0">
             <p className="text-xs font-bold">
               {platformStatus === "blocked" ? "Assinatura da plataforma bloqueada" : "Assinatura da plataforma pendente"}
             </p>
             <p className="text-[11px] mt-0.5 opacity-90">
-              {platformCharges
-                .map((c) => `${c.period} — R$ ${Number(c.amount).toFixed(2)}`)
-                .join(" · ")}
+              {platformCharges.map((c) => `${c.period} — ${formatBRL(Math.round(Number(c.amount) * 100))}`).join(" · ")}
             </p>
           </div>
         </div>
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard label="Receita (Pago)"  value={`R$ ${totalReceita.toFixed(0)}`}  icon={<DollarSign className="w-4 h-4" />}   accent="#10B981" />
-        <StatCard label="Pendente"         value={`R$ ${totalPendente.toFixed(0)}`} icon={<Calendar className="w-4 h-4" />}     accent="#F59E0B" />
-        <StatCard label="Atrasado"         value={`R$ ${totalAtrasado.toFixed(0)}`} icon={<AlertTriangle className="w-4 h-4" />} accent="#EF4444" />
-        <StatCard label="Alunos ativos"    value={activeStudents.length}            icon={<Users className="w-4 h-4" />}        accent="#3B82F6" />
+        <StatCard label="Recebido no mês" value={brlRound(metrics.receitaRecebida)} icon={<DollarSign className="w-4 h-4" />} accent="#10B981" />
+        <StatCard label="A receber no mês" value={brlRound(metrics.receitaPrevista)} icon={<Calendar className="w-4 h-4" />} accent="#F59E0B" />
+        <StatCard label="Em atraso" value={brlRound(metrics.atrasado)} icon={<AlertTriangle className="w-4 h-4" />} accent="#EF4444" />
+        <StatCard label="Acesso pausado" value={overview ? pausedCount : "—"} icon={<Lock className="w-4 h-4" />} accent="#64748B" />
       </div>
 
-      <div className="flex items-center justify-between mt-6">
-        <h3 className="text-sm font-semibold text-foreground">Alunos Ativos & Mensalidades</h3>
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">Alunos</h3>
+          <p className="text-xs text-muted-foreground">
+            Quem não paga tem 7 dias de tolerância; no 8º dia o app pausa e mostra os planos para pagar.
+          </p>
+        </div>
         <PlanCatalogManager coachId={coachId} />
       </div>
-      <p className="text-xs text-muted-foreground -mt-4 mb-2">
-        Use "Gerar Cobrança" na linha de cada aluno — com plano do catálogo ou "sem plano" pra caso avulso.
-      </p>
 
-      {isLoading ? (
-        <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+      {isLoading || loadingOverview ? (
+        <div className="space-y-2" aria-busy="true" aria-label="Carregando alunos">
+          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
+        </div>
       ) : students.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-8">Nenhum aluno ativo para faturar.</p>
       ) : (
-        <div className="rounded-xl border overflow-hidden bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-xs">Aluno</TableHead>
-                <TableHead className="text-xs">Plano</TableHead>
-                <TableHead className="text-xs">Ativação (Anamnese)</TableHead>
-                <TableHead className="text-xs">Vencimento Atual</TableHead>
-                <TableHead className="text-xs">Status</TableHead>
-                <TableHead className="text-xs text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {students.map((student) => {
-                const activeFinance = finances
-                  .filter((f) => f.student_id === student.id && f.status === "pending")
-                  .sort((a, b) => (parseDateOnly(a.due_date)?.getTime() ?? 0) - (parseDateOnly(b.due_date)?.getTime() ?? 0))[0];
+        <div className="rounded-xl border border-border bg-card divide-y divide-border overflow-hidden">
+          <div className="hidden md:grid grid-cols-[minmax(0,1.5fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_auto] gap-4 px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground bg-muted/40">
+            <span>Aluno</span><span>Plano</span><span>Situação</span><span className="w-[148px] text-right">Ação</span>
+          </div>
+          {rows.map((row) => {
+            const badge = describeAccess(row.state);
+            const openCents = row.open.reduce((s, f) => s + chargeCents(f), 0);
+            const exempt = row.state.reason === "exempt" || row.student.isExempt;
+            return (
+              <div key={row.student.id}
+                className="grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1.5fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_auto] items-center gap-x-4 gap-y-1.5 px-4 py-3">
+                <div className="min-w-0 flex items-center gap-2">
+                  <p className="text-sm font-semibold text-foreground truncate"><Private>{row.student.name}</Private></p>
+                  {row.accessOnly && (
+                    <span className="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded border border-border text-muted-foreground" title="Plano só de acesso: sem alertas de acompanhamento">
+                      Só acesso
+                    </span>
+                  )}
+                </div>
 
-                const isOverdue = activeFinance?.status === "pending" && isPastDue(activeFinance.due_date);
+                <div className="row-start-2 md:row-start-auto min-w-0 text-xs text-muted-foreground truncate">
+                  {row.planName
+                    ? <>{row.planName}{row.planPrice ? ` · ${formatBRL(row.planPrice)}` : ""}</>
+                    : "Sem plano"}
+                </div>
 
-                return (
-                  <TableRow key={student.id}>
-                    <TableCell className="text-sm font-semibold">
-                      <div className="flex items-center gap-2">
-                        <Private>{student.name}</Private>
-                        {student.isExempt && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-sky-100 text-sky-700 border-sky-200">Isento</span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      <Select
-                        value={rowPlan(student.id)}
-                        onValueChange={(v) => setRowPlanSlug((prev) => ({ ...prev, [student.id]: v }))}
-                      >
-                        <SelectTrigger className="h-7 text-xs w-[150px]">
-                          <SelectValue placeholder="Sem plano" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Sem plano</SelectItem>
-                          {planCatalog.map((p) => (
-                            <SelectItem key={p.slug} value={p.slug}>
-                              {p.name} · {formatCents(p.price_cents)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {student.lastAnamnesis ? formatDatePtBR(student.lastAnamnesis) : "Aguardando"}
-                    </TableCell>
-                    <TableCell className="text-xs font-medium">
-                      {student.isExempt ? "—" : activeFinance?.due_date ? formatDatePtBR(activeFinance.due_date) : "Sem pendências"}
-                    </TableCell>
-                    <TableCell>
-                      {student.isExempt ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-muted text-muted-foreground">Sem cobrança</span>
-                      ) : activeFinance ? (
-                        <button
-                          onClick={() => { setPayMethod("pix_plataforma"); setPayDialog({ id: activeFinance.id, studentId: student.id, planSlug: activeFinance.plan_slug ?? null }); }}
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors hover:opacity-80 ${
-                            isOverdue ? "bg-red-100 text-red-700 border-red-200" : "bg-amber-100 text-amber-700 border-amber-200"
-                          }`}
-                        >
-                          {isOverdue ? "Atrasado" : "Pendente"}
-                        </button>
-                      ) : (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-100 text-emerald-700 border-emerald-200">Em dia</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end items-center gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-sky-500"
-                        onClick={() => toggleExempt(student.id, !student.isExempt)}
-                        title={student.isExempt ? "Remover isenção" : "Marcar como isento"}>
-                        {student.isExempt ? <ShieldCheck className="w-4 h-4" /> : <ShieldOff className="w-4 h-4" />}
+                <div className="row-start-3 md:row-start-auto min-w-0 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${TONE_CLASS[badge.tone]}`}>{badge.label}</span>
+                  {badge.detail && <span className="text-[11px] text-muted-foreground">{badge.detail}</span>}
+                  {openCents > 0 && <span className="text-[11px] font-medium text-foreground">{formatBRL(openCents)} em aberto</span>}
+                </div>
+
+                <div className="row-span-3 md:row-span-1 col-start-2 md:col-start-auto row-start-1 md:row-start-auto flex items-center justify-end gap-1 md:w-[148px]">
+                  {row.open.length > 0 ? (
+                    <Button size="sm" className="h-8 gap-1.5" onClick={() => setReceiveFor(row.student.id)}>
+                      <HandCoins className="w-3.5 h-3.5" aria-hidden="true" /> Receber
+                    </Button>
+                  ) : !exempt ? (
+                    <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => setChargeFor(row.student)}>
+                      <Plus className="w-3.5 h-3.5" aria-hidden="true" /> Cobrar
+                    </Button>
+                  ) : null}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Mais opções para ${row.student.name}`}>
+                        <MoreHorizontal className="w-4 h-4" />
                       </Button>
-                      {student.isExempt ? null : activeFinance ? (
-                        <div className="flex justify-end gap-1">
-                          {activeFinance.checkout_url ? (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                              onClick={() => copyMercadoPagoLink(activeFinance.checkout_url!)}
-                              title="Cobrado — copiar link de novo"
-                            >
-                              <Copy className="w-4 h-4" />
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-primary"
-                              disabled={busyCheckout === activeFinance.id}
-                              onClick={() => generateMercadoPagoLink(activeFinance.id, student.id)}
-                              title="Cobrar via Mercado Pago"
-                            >
-                              <Wallet className="w-4 h-4" />
-                            </Button>
-                          )}
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
-                            onClick={() => setEditingFinance({ id: activeFinance.id, due_date: activeFinance.due_date || "" })} title="Alterar Data">
-                            <Calendar className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-amber-500"
-                            disabled={busyRestore === activeFinance.id}
-                            onClick={() => restoreBillingAlert(activeFinance.id)}
-                            title="Reexibir cobrança no painel do aluno">
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-emerald-500"
-                            onClick={() => { setPayMethod("pix_plataforma"); setPayDialog({ id: activeFinance.id, studentId: student.id, planSlug: activeFinance.plan_slug ?? null }); }} title="Marcar como Pago">
-                            <CheckCircle2 className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                            onClick={() => deleteFinance(activeFinance.id)} title="Excluir">
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
-                          onClick={() => {
-                            const slug = rowPlan(student.id);
-                            setQuickBilling({ student_id: student.id, student_name: student.name });
-                            setQuickForm({ description: "Mensalidade", amount: "", due_date: "", plan_slug: slug === "none" ? "" : slug });
-                          }}>
-                          <Plus className="w-3 h-3" /> Gerar Cobrança
-                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      {!exempt && (
+                        <DropdownMenuItem onSelect={() => setChargeFor(row.student)}>Nova cobrança</DropdownMenuItem>
                       )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                      {!exempt && (
+                        <DropdownMenuItem onSelect={() => setGrantFor({ student: row.student, current: row.state.granted_until ?? null })}>
+                          {row.state.granted_until ? "Alterar liberação de acesso" : "Liberar acesso até…"}
+                        </DropdownMenuItem>
+                      )}
+                      {!exempt && <DropdownMenuSeparator />}
+                      <DropdownMenuItem onSelect={() => void toggleExempt(row)}>
+                        {exempt ? (row.state.exempt_reason === "partner" ? "Remover vitalícia (parceira)" : "Remover isenção") : "Isentar de cobrança"}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      <Dialog open={!!quickBilling} onOpenChange={(open) => !open && setQuickBilling(null)}>
-        <DialogContent className="sm:max-w-[380px]">
-          <DialogHeader>
-            <DialogTitle>Gerar Cobrança</DialogTitle>
-            <p className="text-xs text-muted-foreground mt-1">Para: <strong>{quickBilling?.student_name}</strong></p>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div>
-              <Label className="text-xs">Plano do aluno</Label>
-              <Select
-                value={quickForm.plan_slug || "none"}
-                onValueChange={(v) => setQuickForm({ ...quickForm, plan_slug: v === "none" ? "" : v })}
-              >
-                <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="Cobrança avulsa" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Cobrança avulsa (sem plano)</SelectItem>
-                  {planCatalog.map((p) => (
-                    <SelectItem key={p.slug} value={p.slug}>
-                      {p.name} — {formatCents(p.price_cents)} / {p.duration_months} {p.duration_months === 1 ? "mês" : "meses"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {selectedPlan?.benefits?.length ? (
-                <ul className="mt-2 space-y-0.5 text-[11px] text-muted-foreground">
-                  {selectedPlan.benefits.map((b) => <li key={b}>• {b}</li>)}
-                </ul>
-              ) : null}
-            </div>
-            {!selectedPlan && (
-              <div>
-                <Label className="text-xs">Descrição</Label>
-                <Input value={quickForm.description} onChange={(e) => setQuickForm({ ...quickForm, description: e.target.value })} className="mt-1 h-9 text-sm" />
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Valor (R$)</Label>
-                <Input
-                  type="number"
-                  value={selectedPlan ? (selectedPlan.price_cents / 100).toFixed(2) : quickForm.amount}
-                  disabled={!!selectedPlan}
-                  onChange={(e) => setQuickForm({ ...quickForm, amount: e.target.value })}
-                  placeholder="0,00"
-                  className="mt-1 h-9 text-sm"
-                />
-              </div>
-              <div>
-                <Label className="text-xs">Vencimento</Label>
-                <Input type="date" value={quickForm.due_date} onChange={(e) => setQuickForm({ ...quickForm, due_date: e.target.value })} className="mt-1 h-9 text-sm" />
-              </div>
-            </div>
-            <p className="text-[11px] text-muted-foreground bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-              O aluno verá um alerta de cobrança no painel dele assim que a data de vencimento se aproximar.
-            </p>
-            <Button onClick={createQuickBilling} disabled={creatingBilling} className="w-full">
-              {creatingBilling ? "Criando..." : "Criar Cobrança"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {isLoading ? null : overview === null && students.length > 0 && (
+        <p className="text-[11px] text-muted-foreground">
+          Situação de acesso indisponível no momento; mostrando só as cobranças.
+        </p>
+      )}
 
-      <Dialog open={!!editingFinance} onOpenChange={(open) => !open && setEditingFinance(null)}>
-        <DialogContent className="sm:max-w-[300px]">
-          <DialogHeader><DialogTitle>Alterar Vencimento</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div>
-              <Label className="text-xs">Nova Data de Vencimento</Label>
-              <Input
-                type="date"
-                value={editingFinance?.due_date || ""}
-                onChange={(e) => setEditingFinance((prev) => prev ? { ...prev, due_date: e.target.value } : null)}
-                className="mt-1 h-9"
-              />
-            </div>
-            <Button onClick={updateDueDate} disabled={savingDueDate} className="w-full">
-              {savingDueDate ? "Salvando..." : "Salvar Alteração"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!payDialog} onOpenChange={(open) => !open && setPayDialog(null)}>
-        <DialogContent className="sm:max-w-[320px]">
-          <DialogHeader><DialogTitle>Registrar pagamento</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            {payDialog && isPartnerPlan(payDialog.planSlug) && payDialog.studentId && (() => {
-              const attributed = attributedStudents.has(payDialog.studentId);
-              const preview = previewFinalPrice(payDialog.planSlug as PartnerPlanSlug, attributed);
-              return (
-                <div className="rounded-lg border border-border/60 bg-muted/40 px-3 py-2 text-[11px] space-y-0.5">
-                  <p className="font-semibold text-foreground">
-                    {PARTNER_PLAN_PRICING[payDialog.planSlug as PartnerPlanSlug].name} · {formatCents(preview.final_price_cents)}
-                  </p>
-                  {preview.plan_discount_bp > 0 && (
-                    <p className="text-muted-foreground">Desconto do plano: {preview.plan_discount_bp / 100}%</p>
-                  )}
-                  {preview.partner_applied ? (
-                    <p className="text-purple-500 font-medium">
-                      Indicação de influenciadora: +{preview.partner_discount_bp / 100}% de desconto
-                    </p>
-                  ) : attributed ? (
-                    <p className="text-muted-foreground">Indicado por influenciadora (plano sem desconto adicional)</p>
-                  ) : null}
-                  <p className="text-muted-foreground">Valor final e comissão são confirmados pelo sistema.</p>
-                </div>
-              );
-            })()}
-            <div>
-              <Label className="text-xs">Forma de pagamento</Label>
-              <Select value={payMethod} onValueChange={setPayMethod}>
-                <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {PAYMENT_METHODS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button onClick={confirmPayment} disabled={savingPayment} className="w-full">
-              {savingPayment ? "Salvando..." : "Confirmar pagamento"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ChargeDialog
+        open={!!chargeFor}
+        onOpenChange={(o) => { if (!o) setChargeFor(null); }}
+        student={chargeFor}
+        plans={chargePlans}
+        coachId={coachId}
+        onDone={refresh}
+      />
+      <ReceiveDialog
+        open={!!receiveRow && receiveRow.open.length > 0}
+        onOpenChange={(o) => { if (!o) setReceiveFor(null); }}
+        studentName={receiveRow?.student.name ?? ""}
+        charges={receiveRow?.open ?? []}
+        onChanged={refresh}
+      />
+      <GrantAccessDialog
+        open={!!grantFor}
+        onOpenChange={(o) => { if (!o) setGrantFor(null); }}
+        student={grantFor?.student ?? null}
+        current={grantFor?.current ?? null}
+        coachId={coachId}
+        onDone={refresh}
+      />
     </div>
   );
 }

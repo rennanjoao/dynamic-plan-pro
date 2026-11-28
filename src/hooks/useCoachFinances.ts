@@ -17,6 +17,13 @@ export interface FinanceRecord {
   plan_slug?: string | null;
   subscription_id?: string | null;
   cycle_number?: number | null;
+  amount_cents?: number | null;
+  /** coaching | access | one_off (null = cobrança antiga). */
+  charge_kind?: string | null;
+  list_price_cents?: number | null;
+  discount_cents?: number | null;
+  discount_note?: string | null;
+  plan_name_snapshot?: string | null;
 }
 
 export function useCoachFinances(coachId: string | null) {

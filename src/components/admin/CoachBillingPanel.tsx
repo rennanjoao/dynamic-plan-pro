@@ -39,7 +39,19 @@ type CoachRow = {
   unit_price: number;
   amount: number;
   status: "paid" | "pending" | "blocked";
+  /** Vitalício (coach parceiro) ou em período de teste: não é cobrado. */
+  free: null | "lifetime" | "trial";
+  trial_ends_at: string | null;
 };
+
+/** Mesma regra do acesso do coach: 2099+ = vitalício; data futura = em teste. */
+function freeReason(trialEndsAt: string | null | undefined): CoachRow["free"] {
+  if (!trialEndsAt) return null;
+  const d = new Date(trialEndsAt);
+  if (Number.isNaN(d.getTime())) return null;
+  if (d.getFullYear() >= 2099) return "lifetime";
+  return d > new Date() ? "trial" : null;
+}
 
 function isBlocked(blocked_until?: string | null): boolean {
   if (!blocked_until) return false;
@@ -104,7 +116,7 @@ const CoachBillingPanel = () => {
 
       const { data: profiles, error: profErr } = await supabase
         .from("profiles")
-        .select("user_id, full_name, email, notification_email, blocked_until")
+        .select("user_id, full_name, email, notification_email, blocked_until, trial_ends_at")
         .in("user_id", coachIds);
       if (profErr) throw profErr;
 
@@ -147,6 +159,7 @@ const CoachBillingPanel = () => {
             ? loaded.overrides[p.user_id]
             : loaded.price_per_student;
         const status: CoachRow["status"] = blocked ? "blocked" : paid ? "paid" : "pending";
+        const free = freeReason(p.trial_ends_at);
         return {
           user_id: p.user_id,
           full_name: p.full_name,
@@ -155,8 +168,10 @@ const CoachBillingPanel = () => {
           blocked_until: p.blocked_until,
           active_students: active,
           unit_price,
-          amount: active * unit_price,
+          amount: free ? 0 : active * unit_price,
           status,
+          free,
+          trial_ends_at: p.trial_ends_at ?? null,
         };
       });
 
@@ -423,10 +438,14 @@ const CoachBillingPanel = () => {
                     {fmtBRL(r.amount)}
                   </TableCell>
                   <TableCell className="text-center">
-                    {r.status === "paid" && (
+                    {r.free === "lifetime" && r.status !== "blocked" && <Badge variant="secondary">Vitalício</Badge>}
+                    {r.free === "trial" && r.status !== "blocked" && (
+                      <Badge variant="secondary">Em teste até {new Date(r.trial_ends_at!).toLocaleDateString("pt-BR")}</Badge>
+                    )}
+                    {!r.free && r.status === "paid" && (
                       <Badge className="bg-green-600 hover:bg-green-600">Pago</Badge>
                     )}
-                    {r.status === "pending" && (
+                    {!r.free && r.status === "pending" && (
                       <Badge className="bg-yellow-500 hover:bg-yellow-500 text-black">
                         Pendente
                       </Badge>
@@ -437,7 +456,7 @@ const CoachBillingPanel = () => {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      {r.status === "paid" ? (
+                      {r.free ? null : r.status === "paid" ? (
                         <Button
                           size="sm"
                           variant="outline"

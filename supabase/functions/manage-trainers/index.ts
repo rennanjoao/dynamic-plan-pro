@@ -52,6 +52,9 @@ function generateToken(length = 32): string {
   return token;
 }
 
+// Mesmo valor que o painel do admin usa para "vitalício".
+const LIFETIME_TRIAL_ENDS_AT = "2099-12-31T23:59:59Z";
+
 serve(async (req) => {
   const corsHeaders = buildCorsHeaders(req.headers.get("origin"));
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -110,7 +113,7 @@ serve(async (req) => {
 
       const { data: invite } = await adminClient
         .from("coach_invites")
-        .select("id, email, expires_at, used_at")
+        .select("id, email, expires_at, used_at, lifetime")
         .eq("token", token)
         .maybeSingle();
 
@@ -118,7 +121,7 @@ serve(async (req) => {
       if (invite.used_at) return new Response(JSON.stringify({ valid: false, reason: "Token já utilizado" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       if (new Date(invite.expires_at) < new Date()) return new Response(JSON.stringify({ valid: false, reason: "Token expirado" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-      return new Response(JSON.stringify({ valid: true, invite_id: invite.id, email: invite.email }), {
+      return new Response(JSON.stringify({ valid: true, invite_id: invite.id, email: invite.email, lifetime: invite.lifetime === true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -134,6 +137,17 @@ serve(async (req) => {
       }
       if (!invite.email) throw new Error("Convite não possui e-mail vinculado");
 
+      // Reserva o convite ANTES de criar a conta: dois cadastros ao mesmo tempo
+      // com o mesmo link não criam duas contas.
+      const { data: claimed } = await adminClient
+        .from("coach_invites")
+        .update({ used_at: new Date().toISOString() })
+        .eq("id", invite.id)
+        .is("used_at", null)
+        .select("id")
+        .maybeSingle();
+      if (!claimed) throw new Error("Token inválido ou expirado");
+
       // 1. Cria usuário
       const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
         email: invite.email,
@@ -141,13 +155,19 @@ serve(async (req) => {
         email_confirm: true,
         user_metadata: { full_name: fullName },
       });
-      if (createError) throw createError;
+      if (createError) {
+        // Libera o convite para nova tentativa (ex.: senha fraca, e-mail já usado).
+        await adminClient.from("coach_invites").update({ used_at: null }).eq("id", invite.id);
+        throw createError;
+      }
 
       // 2. Define Role
       await adminClient.from("user_roles").insert({ user_id: newUser.user.id, role: "coach" });
       
-      // 3. Define Profile com 30 dias de trial
-      const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      // 3. Define Profile: convite de coach parceiro = vitalício; senão 30 dias de teste.
+      const trialEndsAt = invite.lifetime === true
+        ? LIFETIME_TRIAL_ENDS_AT
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
       await adminClient.from("profiles").upsert({
         user_id: newUser.user.id,
         full_name: fullName,
@@ -157,8 +177,8 @@ serve(async (req) => {
         trial_ends_at: trialEndsAt
       });
 
-      // 4. Invalida Token
-      await adminClient.from("coach_invites").update({ used_at: new Date().toISOString() }).eq("id", invite.id);
+      // 4. Convite já foi marcado como usado na reserva acima.
+      await adminClient.from("coach_invites").update({ used_by: newUser.user.id }).eq("id", invite.id);
 
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -237,7 +257,8 @@ serve(async (req) => {
 
     // ── GENERATE COACH INVITE (WITH RESEND EMAIL) ──
     if (action === "generate-coach-invite") {
-      const { email, expiresInDays = 7, note = "" } = body;
+      const { email, expiresInDays = 7, note = "", lifetime = false } = body;
+      const isLifetime = lifetime === true;
       if (!email) throw new Error("O e-mail do coach é obrigatório");
 
       const token = generateToken(32);
@@ -245,7 +266,7 @@ serve(async (req) => {
 
       const { data, error } = await adminClient
         .from("coach_invites")
-        .insert({ email, token, created_by: user!.id, expires_at: expiresAt, note: note || null })
+        .insert({ email, token, created_by: user!.id, expires_at: expiresAt, note: note || null, lifetime: isLifetime })
         .select()
         .single();
 
@@ -272,12 +293,12 @@ serve(async (req) => {
               html: `
                 <div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;background:#0a0a0a;color:#fff;border-radius:12px;">
                   <h2 style="color:#fff;margin:0 0 12px;">Você foi convidado para ser Coach no Elite Prime <span style="color:#E11D48;">Hub</span></h2>
-                  <p style="color:#cbd5e1;line-height:1.55;">Clique no botão abaixo para criar sua conta e iniciar seu período de teste de <strong>30 dias</strong>:</p>
+                  <p style="color:#cbd5e1;line-height:1.55;">Clique no botão abaixo para criar sua conta${isLifetime ? " de <strong>coach parceiro</strong>, com acesso vitalício à plataforma" : " e iniciar seu período de teste de <strong>30 dias</strong>"}:</p>
                   <p style="margin:24px 0;">
                     <a href="${inviteLink}" style="display:inline-block;padding:12px 22px;background:#E11D48;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Aceitar Convite</a>
                   </p>
                   <p style="color:#94a3b8;font-size:12px;">Ou copie e cole este link no navegador:<br/>${inviteLink}</p>
-                  <p style="color:#64748b;font-size:11px;margin-top:24px;">Este convite expira em ${expiresInDays} dia(s) e só pode ser usado uma vez.</p>
+                  <p style="color:#64748b;font-size:11px;margin-top:24px;">Este link vale por ${expiresInDays} dia(s) e só pode ser usado uma vez.</p>
                 </div>
               `,
             }),

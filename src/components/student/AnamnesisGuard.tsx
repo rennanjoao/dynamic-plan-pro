@@ -8,7 +8,9 @@ import { hasCurrentConsent } from "@/lib/consent";
 import { isMinor } from "@/lib/age";
 import { ConsentGate } from "@/components/legal/ConsentGate";
 import { ContractGate, type ContractGateSub } from "@/components/legal/ContractGate";
-import { fetchMyCurrentAcceptance, hasAcceptedContract, recordPlanSilently } from "@/lib/serviceContract";
+import { fetchKnownSigner, fetchMyCurrentAcceptance, hasAcceptedContract, recordPlanSilently } from "@/lib/serviceContract";
+import { fetchMyAccessStatus, type AccessState } from "@/lib/studentAccess";
+import { StudentAccessBlockedScreen } from "@/components/student/StudentAccessBlockedScreen";
 
 const ANA_DONE_KEY = (uid: string) => `anamnesis_done_${uid}`;
 function readAnamnesisDone(uid: string): boolean | undefined {
@@ -31,6 +33,8 @@ export const AnamnesisGuard = ({ children }: { children: React.ReactNode }) => {
   // Contrato do plano: só bloqueia quando há plano vigente e o servidor CONFIRMA
   // que falta o aceite desta versão/valor.
   const [contractNeeded, setContractNeeded] = useState<{ userId: string; sub: ContractGateSub; known: { cpf: string; guardianName?: string | null } | null } | null>(null);
+  // Acesso pausado por atraso (> 7 dias): só quando o servidor CONFIRMA.
+  const [accessBlocked, setAccessBlocked] = useState<{ userId: string; state: AccessState } | null>(null);
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const previewAs = searchParams.get("previewAs");
@@ -93,7 +97,7 @@ export const AnamnesisGuard = ({ children }: { children: React.ReactNode }) => {
                 let silent = false;
                 if (prior) {
                   const { data: cat } = await sb.from("student_plan_catalog")
-                    .select("slug, name, price_cents, duration_months")
+                    .select("*")
                     .eq("coach_id", s.coach_id).eq("is_active", true);
                   silent = await recordPlanSilently({
                     studentId: userId, prior,
@@ -102,7 +106,9 @@ export const AnamnesisGuard = ({ children }: { children: React.ReactNode }) => {
                   });
                 }
                 if (!cancelled && !silent) {
-                  setContractNeeded({ userId, sub: s, known: prior?.cpf ? { cpf: prior.cpf, guardianName: prior.guardian_name } : null });
+                  // Texto mudou (versão nova)? Pede um novo aceite sem pedir o CPF de novo.
+                  const known = prior?.cpf ? { cpf: prior.cpf, guardianName: prior.guardian_name } : await fetchKnownSigner(userId);
+                  if (!cancelled) setContractNeeded({ userId, sub: s, known });
                 }
               }
             }
@@ -113,6 +119,10 @@ export const AnamnesisGuard = ({ children }: { children: React.ReactNode }) => {
         // caso de falha de rede — ver src/lib/coachAccessStatus.ts.
         const blocked = await fetchCoachBlocked(userId);
         if (!cancelled) setCoachBlocked(blocked);
+        if (!blocked && ana?.submitted_at) {
+          const access = await fetchMyAccessStatus();
+          if (!cancelled && access?.blocked) setAccessBlocked({ userId, state: access });
+        }
       } catch {
         if (!cancelled) setCoachBlocked(false);
       } finally {
@@ -156,6 +166,16 @@ export const AnamnesisGuard = ({ children }: { children: React.ReactNode }) => {
           </p>
         </div>
       </div>
+    );
+  }
+
+  if (accessBlocked && location.pathname !== "/anamnesis") {
+    return (
+      <StudentAccessBlockedScreen
+        userId={accessBlocked.userId}
+        state={accessBlocked.state}
+        onUnblocked={() => setAccessBlocked(null)}
+      />
     );
   }
 
