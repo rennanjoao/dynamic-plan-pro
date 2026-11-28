@@ -57,6 +57,14 @@ serve(async (req) => {
       });
     }
 
+    // Aluno só com "acesso à plataforma": sem alertas de acompanhamento.
+    const { data: muted } = await admin.rpc("student_alerts_muted", { p_coach: coachId, p_student: studentId });
+    if (muted === true) {
+      return new Response(JSON.stringify({ ok: true, skipped: "access_only_plan" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const since28 = new Date(Date.now() - 28 * DAY).toISOString();
     const [{ data: sessions }, { data: sets }] = await Promise.all([
       admin.from("workout_sessions")

@@ -14,7 +14,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCorsHeaders } from "../_shared/cors.ts";
 import {
-  addMonths,
   amountsMatch,
   mapPaymentMethod,
   mapPaymentStatus,
@@ -156,37 +155,11 @@ Deno.serve(async (req) => {
       return ok(cors, { idempotent: true });
     }
 
-    // Assinatura só é atualizada AGORA (troca/renovação/primeira contratação).
-    if (finance.subscription_id) {
-      const { data: sub } = await admin
-        .from("student_subscriptions")
-        .select("id, plan_slug, cycle_months, next_due_date")
-        .eq("id", finance.subscription_id)
-        .maybeSingle();
-
-      const cycle = finance.plan_cycle_months ?? sub?.cycle_months ?? 1;
-      const today = new Date().toISOString().slice(0, 10);
-      const base =
-        sub?.next_due_date && sub.next_due_date > today && finance.plan_slug === sub.plan_slug
-          ? sub.next_due_date
-          : today;
-
-      await admin
-        .from("student_subscriptions")
-        .update({
-          plan_slug: finance.plan_slug ?? sub?.plan_slug,
-          plan_name: finance.plan_name_snapshot ?? undefined,
-          price_cents: expectedCents,
-          cycle_months: cycle,
-          status: "active",
-          next_due_date: addMonths(base, cycle),
-          payment_method: method,
-          payment_source: "gateway",
-          provider: "mercadopago",
-          external_transaction_id: paymentId,
-        })
-        .eq("id", finance.subscription_id);
-    }
+    // Plano, vencimento e comissão da parceira: regra única do banco
+    // (apply_paid_charge), a mesma do pagamento registrado pelo coach.
+    // Idempotente: reenvio do webhook não estende o plano duas vezes.
+    const { error: applyErr } = await admin.rpc("apply_paid_charge", { p_finance_id: finance.id });
+    if (applyErr) console.error("mp-webhook: apply_paid_charge", applyErr.message);
 
     return ok(cors, { confirmed: true });
   } catch (e) {

@@ -108,6 +108,20 @@ serve(async (req: Request) => {
       });
     }
 
+    // Aluno só com "acesso à plataforma": o check-in continua salvo (o aluno
+    // atualiza os dados dele), mas não vira alerta nem e-mail para o coach.
+    if (body.kind === "checkin") {
+      const { data: muted } = await admin.rpc("student_alerts_muted", {
+        p_coach: link.coach_id,
+        p_student: user.id,
+      });
+      if (muted === true) {
+        return new Response(JSON.stringify({ ok: true, skipped: "access_only_plan" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     const { data: coachProfile } = await admin
       .from("profiles")
       .select("full_name, email, notification_email")

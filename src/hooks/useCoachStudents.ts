@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/integrations/supabase/untyped";
 import type { Goal } from "@/utils/macros";
 import { getClinicalSignal, type ClinicalSignal } from "@/lib/checkInSchema";
 import type { CoachInsightSituacao } from "@/lib/coachInsights";
@@ -59,6 +60,11 @@ export interface StudentStatus {
   awaitingFirstProtocol: boolean;
   /** Check-in(s) do aluno ainda sem resposta do coach; null se está tudo respondido. */
   awaitingReply: AwaitingReply | null;
+  /**
+   * Plano "só acesso à plataforma": o aluno continua com o app e os check-ins,
+   * mas não gera alertas de acompanhamento (atraso, resposta, sinal clínico).
+   */
+  accessOnly?: boolean;
 }
 
 export interface PagedStudentsResult {
@@ -196,7 +202,7 @@ export function useCoachStudentsPaged(
       if (!links || links.length === 0) return { rows: [] as StudentStatus[] };
       const ids = links.map((l) => l.student_id);
 
-      const [{ data: sProfiles }, { data: profiles }, { data: lastCi }, { data: protoRows }] = await Promise.all([
+      const [{ data: sProfiles }, { data: profiles }, { data: lastCi }, { data: protoRows }, { data: accessSubs }] = await Promise.all([
         supabase.from("student_profiles").select("user_id, full_name").in("user_id", ids),
         supabase.from("profiles").select("user_id, full_name, email").in("user_id", ids),
         supabase
@@ -216,7 +222,16 @@ export function useCoachStudentsPaged(
           .eq("coach_id", coachId)
           .eq("is_template", false)
           .order("created_at", { ascending: true }), // o primeiro da lista por aluno = 1º protocolo salvo
+        // Plano só de acesso (sem a coluna ainda, a consulta falha e ninguém é silenciado).
+        sb
+          .from("student_subscriptions")
+          .select("student_id")
+          .eq("coach_id", coachId)
+          .in("student_id", ids)
+          .in("status", ["active", "pending", "overdue"])
+          .eq("plan_kind", "access"),
       ]);
+      const accessOnlyIds = new Set(((accessSubs ?? []) as { student_id: string }[]).map((r) => r.student_id));
 
 
       // O "último check-in" mede o atraso DO ALUNO, então usa somente
@@ -277,6 +292,7 @@ export function useCoachStudentsPaged(
         // Referência pra contar dias: último check-in ou, na falta dele, a
         // primeira abertura do protocolo pelo aluno.
         const referenceDate = lastFeedback ?? firstOpenedAt;
+        const accessOnly = accessOnlyIds.has(sid);
 
         const name =
           sp?.full_name ||
@@ -291,7 +307,7 @@ export function useCoachStudentsPaged(
           lastFeedback,
           lastWorkout: null,
           lastMeal: null,
-          alertLevel: awaitingFirstProtocol ? "ok" : getAlertLevel(referenceDate, warning, critical),
+          alertLevel: awaitingFirstProtocol || accessOnly ? "ok" : getAlertLevel(referenceDate, warning, critical),
           awaitingFirstProtocol,
           daysInactive: awaitingFirstProtocol ? 0 : daysSince(referenceDate),
           daysSinceLastFeedback: awaitingFirstProtocol ? 0 : daysSince(referenceDate),
@@ -302,9 +318,10 @@ export function useCoachStudentsPaged(
           warningDays: warning,
           criticalDays: critical,
           weightTrend: { deltaKg: null, direction: null, isStagnant: false },
-          clinicalSignal: getClinicalSignal(lastCiPayloadByStudent.get(sid) ?? null),
+          clinicalSignal: accessOnly ? null : getClinicalSignal(lastCiPayloadByStudent.get(sid) ?? null),
           insightSituacao: null,
-          awaitingReply: awaitingByStudent.get(sid) ?? null,
+          awaitingReply: accessOnly ? null : awaitingByStudent.get(sid) ?? null,
+          accessOnly,
         };
       });
 

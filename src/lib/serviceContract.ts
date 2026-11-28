@@ -6,7 +6,7 @@ import { formatCents } from "@/lib/studentPlans";
 import { formatBirthDate } from "@/lib/age";
 
 /** Mudou o texto? Troque a versão: quem já aceitou a anterior aceita de novo. */
-export const CONTRACT_VERSION = "2026-11-27";
+export const CONTRACT_VERSION = "2026-11-28";
 
 /** CNPJ da Elite Prime Hub (dona da plataforma e prestadora da consultoria do Rennan). */
 export const PLATFORM_CNPJ = "68650322000110";
@@ -28,11 +28,24 @@ export interface ContractParty {
   partner_code?: string | null;
 }
 
+export type PlanKind = "coaching" | "access" | "one_off";
+
 export interface CatalogPlanLike {
   slug: string;
   name: string;
   price_cents: number;
   duration_months: number;
+  /** coaching = consultoria; access = só acesso ao app; one_off = ajuste avulso. */
+  kind?: PlanKind | string | null;
+}
+
+export function planKindOf(p: { kind?: string | null } | null | undefined): PlanKind {
+  return p?.kind === "access" || p?.kind === "one_off" ? p.kind : "coaching";
+}
+
+/** Plano mensal de consultoria: base de comparação dos descontos. */
+function coachingMonthly(catalog: CatalogPlanLike[]): CatalogPlanLike | null {
+  return catalog.find((p) => planKindOf(p) === "coaching" && p.duration_months === 1) ?? null;
 }
 
 export interface PlanPricing {
@@ -48,6 +61,7 @@ export interface PlanPricing {
   discounts: { label: string; cents: number }[];
   /** Desconto além do desconto do próprio plano (parceria/promoção). */
   extraDiscountCents: number;
+  kind: PlanKind;
 }
 
 /**
@@ -62,17 +76,19 @@ export function buildPlanPricing(
   partnerCode?: string | null,
 ): PlanPricing {
   const months = Math.max(1, plan.duration_months);
-  const monthly = catalog.find((p) => p.duration_months === 1) ?? null;
+  const monthly = coachingMonthly(catalog);
   const catalogPlan = catalog.find((p) => p.slug === plan.slug) ?? null;
+  const kind = planKindOf(catalogPlan ?? (plan as { kind?: string | null }));
   const planCents = catalogPlan?.price_cents ?? finalCents;
-  const listCents = monthly ? Math.max(monthly.price_cents * months, planCents) : planCents;
+  // Só a consultoria se compara ao mensal; acesso e ajuste avulso têm preço próprio.
+  const listCents = monthly && kind === "coaching" ? Math.max(monthly.price_cents * months, planCents) : planCents;
   const discounts: PlanPricing["discounts"] = [];
   const planDiscount = listCents - planCents;
   if (planDiscount > 0) discounts.push({ label: `Desconto do plano ${plan.name}`, cents: planDiscount });
   const extra = planCents - finalCents;
   if (extra > 0) {
     const code = (partnerCode ?? "").trim();
-    discounts.push({ label: code ? `Desconto de parceria (código ${code})` : "Desconto promocional", cents: extra });
+    discounts.push({ label: code ? `Desconto de parceria (código ${code}, só no 1º pagamento)` : "Desconto promocional", cents: extra });
   }
   return {
     planSlug: plan.slug,
@@ -80,9 +96,10 @@ export function buildPlanPricing(
     months,
     listCents: Math.max(listCents, finalCents),
     finalCents,
-    monthlyCents: monthly?.price_cents ?? null,
+    monthlyCents: kind === "coaching" ? monthly?.price_cents ?? null : null,
     discounts,
     extraDiscountCents: Math.max(0, extra),
+    kind,
   };
 }
 
@@ -161,9 +178,17 @@ function formatInstagram(v: string | null | undefined): string | null {
 
 /** "Mensal: R$ 350,00 por mês" / "Trimestral (3 meses): R$ 892,50 (R$ 297,50 por mês, 15% de desconto)". */
 export function planTableLines(catalog: CatalogPlanLike[]): string[] {
-  const sorted = [...catalog].sort((a, b) => a.duration_months - b.duration_months);
-  const monthly = sorted.find((p) => p.duration_months === 1);
+  const order: Record<PlanKind, number> = { coaching: 0, access: 1, one_off: 2 };
+  const sorted = [...catalog].sort((a, b) => order[planKindOf(a)] - order[planKindOf(b)] || a.duration_months - b.duration_months);
+  const monthly = coachingMonthly(sorted);
   return sorted.map((p) => {
+    const kind = planKindOf(p);
+    if (kind === "one_off") return `${p.name}: ${brl(p.price_cents)} por ajuste (avulso, não muda o período do plano)`;
+    if (kind === "access") {
+      return p.duration_months === 1
+        ? `${p.name}: ${brl(p.price_cents)} por mês (só acesso ao app)`
+        : `${p.name} (${p.duration_months} meses): ${brl(p.price_cents)} (só acesso ao app)`;
+    }
     if (p.duration_months === 1) return `${p.name}: ${brl(p.price_cents)} por mês`;
     const perMonth = Math.round(p.price_cents / p.duration_months);
     const pct = monthly ? Math.round((1 - perMonth / monthly.price_cents) * 100) : 0;
@@ -208,8 +233,10 @@ export function renderContract(i: ContractInput): ContractSection[] {
     insta ? `pelo Instagram ${insta}` : null,
   ]);
   const cat = i.catalog ?? [];
-  const catMonthly = [...cat].find((c) => c.duration_months === 1) ?? null;
-  const catHasDiscount = !!catMonthly && cat.some((c) => c.duration_months > 1 && c.price_cents < catMonthly.price_cents * c.duration_months);
+  const catMonthly = coachingMonthly(cat);
+  const catHasDiscount = !!catMonthly && cat.some((c) => planKindOf(c) === "coaching" && c.duration_months > 1 && c.price_cents < catMonthly.price_cents * c.duration_months);
+  const offersAccess = p ? p.kind === "access" || cat.some((c) => planKindOf(c) === "access") : cat.some((c) => planKindOf(c) === "access");
+  const offersOneOff = cat.some((c) => planKindOf(c) === "one_off") || p?.kind === "one_off";
 
   const table = planTableLines(cat);
   const planLines = p
@@ -218,7 +245,7 @@ export function renderContract(i: ContractInput): ContractSection[] {
         `Preço cheio: ${brl(p.listCents)}.`,
         ...p.discounts.map((d) => `${d.label}: - ${brl(d.cents)}.`),
         `Valor final: ${brl(p.finalCents)}, pago pelo meio escolhido no pagamento.`,
-        "Descontos de parceria ou promoção só valem quando aparecem acima, para este plano.",
+        "Descontos de parceria ou promoção só valem quando aparecem acima, para este plano. O desconto de parceria vale só no primeiro pagamento; as renovações seguem a tabela.",
       ]
     : [
         "O plano escolhido, o valor final e eventual desconto de parceria (com o código usado) são mostrados e registrados no app no momento do pagamento, de acordo com esta tabela.",
@@ -226,7 +253,7 @@ export function renderContract(i: ContractInput): ContractSection[] {
   const priceLines = [
     ...(table.length ? [`Valores dos planos na data do aceite: ${table.join("; ")}.`] : []),
     ...planLines,
-    "Em caso de atraso: multa de 2%, juros de 1% ao mês e correção pelo IPCA. Depois de 10 dias de atraso, o acompanhamento pode ser suspenso, com aviso prévio, até a regularização.",
+    "Em caso de atraso: multa de 2%, juros de 1% ao mês e correção pelo IPCA. O aviso de pagamento aparece no app a partir do vencimento; depois de 7 dias de atraso, o acesso ao app fica pausado até a regularização.",
   ];
   const priceItems = priceLines.map((t, k) => `7.${k + 1} ${t}`);
 
@@ -261,6 +288,12 @@ export function renderContract(i: ContractInput): ContractSection[] {
         "1.1 Consultoria em treinamento físico a distância: avaliação inicial pelo app (anamnese, fotos e informações do CONTRATANTE), programa de treino individualizado e periodizado, acompanhamento e ajustes durante o plano.",
         "1.2 Alimentação: o CONTRATADO dá orientações gerais de alimentação saudável ligadas aos treinos. Elas não são prescrição de dieta nem de suplementos e não substituem o acompanhamento de um nutricionista.",
         "1.3 O serviço não inclui atendimento médico, fisioterapêutico, psicológico ou nutricional, nem diagnóstico ou tratamento de doenças.",
+        ...(offersAccess
+          ? ["1.4 No plano de acesso à plataforma, o CONTRATANTE continua com o app, o último programa publicado e os check-ins para registrar a evolução, sem análise dos check-ins, ajustes ou acompanhamento."]
+          : []),
+        ...(offersOneOff
+          ? [`${offersAccess ? "1.5" : "1.4"} O ajuste pontual é um serviço avulso: uma revisão do programa, paga à parte, que não muda o período do plano.`]
+          : []),
       ],
     },
     {
@@ -379,6 +412,22 @@ export async function fetchMyCurrentAcceptance(studentId: string): Promise<Accep
     .maybeSingle();
   if (error) return null;
   return (data ?? null) as AcceptanceRow | null;
+}
+
+/**
+ * CPF (e responsável) do último aceite, de qualquer versão: só para não pedir
+ * o CPF de novo quando o texto do contrato muda. O aceite em si é sempre novo.
+ */
+export async function fetchKnownSigner(studentId: string): Promise<{ cpf: string; guardianName?: string | null } | null> {
+  const { data, error } = await sb
+    .from("contract_acceptances")
+    .select("cpf, guardian_name")
+    .eq("student_id", studentId)
+    .order("accepted_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data?.cpf) return null;
+  return { cpf: data.cpf as string, guardianName: (data.guardian_name as string | null) ?? null };
 }
 
 /** Contrato antes do login (anamnese): dados públicos do coach + tabela de planos. */

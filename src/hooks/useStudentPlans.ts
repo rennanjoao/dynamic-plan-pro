@@ -58,6 +58,7 @@ export interface PlanFormInput {
   benefits: string[];
   is_active: boolean;
   sort_order?: number;
+  kind?: "coaching" | "access" | "one_off";
 }
 
 /** Cria ou atualiza um plano próprio do coach. */
@@ -75,6 +76,7 @@ export function useSavePlan(coachId: string) {
         benefits: plan.benefits,
         is_active: plan.is_active,
         sort_order: plan.sort_order ?? 0,
+        ...(plan.kind ? { kind: plan.kind } : {}),
       };
       if (plan.id) {
         const { error } = await sb.from("student_plan_catalog").update(row).eq("id", plan.id).eq("coach_id", coachId);

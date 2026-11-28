@@ -27,7 +27,7 @@ describe("preço, descontos e valor final", () => {
   it("trimestral com código de parceiro: dois descontos, com o código", () => {
     const p = buildPlanPricing(catalog[1], 80325, catalog, "JOAO10");
     expect(p.discounts.map((d) => d.cents)).toEqual([15750, 8925]);
-    expect(p.discounts[1].label).toBe("Desconto de parceria (código JOAO10)");
+    expect(p.discounts[1].label).toBe("Desconto de parceria (código JOAO10, só no 1º pagamento)");
     expect(p.finalCents).toBe(80325);
   });
   it("desconto extra separado do desconto do plano", () => {
@@ -66,7 +66,7 @@ describe("texto do contrato", () => {
     expect(text).toMatch(/pertence ao próprio CONTRATADO/);
     expect(text).toContain("CPF n.º 529.982.247-25");
     expect(text).toMatch(/Preço cheio: R\$ 1\.050,00/);
-    expect(text).toMatch(/Desconto de parceria \(código JOAO10\): - R\$ 89,25/);
+    expect(text).toMatch(/Desconto de parceria \(código JOAO10, só no 1º pagamento\): - R\$ 89,25/);
     expect(text).toMatch(/Valores dos planos na data do aceite: Mensal: R\$ 350,00 por mês; Trimestral \(3 meses\): R\$ 892,50 \(R\$ 297,50 por mês, 15% de desconto\)/);
     expect(text).toMatch(/Valor final: R\$ 803,25/);
     expect(text).toMatch(/plano mensal \(R\$ 350,00 por mês\)/);
@@ -146,5 +146,53 @@ describe("migração do contrato", () => {
   it("o aceite fica guardado na exclusão de dados", () => {
     expect(sql).toMatch(/'contract_acceptances',/);
     expect(sql).toMatch(/student_id\s+uuid REFERENCES auth\.users\(id\) ON DELETE SET NULL/);
+  });
+});
+
+describe("planos só de acesso e ajuste avulso", () => {
+  const full = [
+    { slug: "acesso", name: "Acesso à plataforma", price_cents: 6990, duration_months: 1, kind: "access" },
+    ...catalog,
+    { slug: "ajuste", name: "Ajuste pontual", price_cents: 25000, duration_months: 1, kind: "one_off" },
+  ];
+
+  it("o mensal de referência é o de consultoria, não o de acesso", () => {
+    const p = buildPlanPricing(catalog[1], 89250, full);
+    expect(p.listCents).toBe(105000);
+    expect(p.monthlyCents).toBe(35000);
+  });
+
+  it("plano de acesso não ganha 'desconto do plano' contra o mensal", () => {
+    const p = buildPlanPricing(full[0], 6990, full);
+    expect(p.kind).toBe("access");
+    expect(p.listCents).toBe(6990);
+    expect(p.discounts).toEqual([]);
+    expect(p.monthlyCents).toBeNull();
+  });
+
+  it("tabela de valores descreve acesso e avulso sem confundir com consultoria", () => {
+    const t = contractToText(CONTRACT_TITLE, renderContract({ party, catalog: full, pricing: null, student: { name: "Ana", cpf: "52998224725" } }));
+    expect(t).toMatch(/Mensal: R\$ 350,00 por mês; Trimestral \(3 meses\)/);
+    expect(t).toMatch(/Acesso à plataforma: R\$ 69,90 por mês \(só acesso ao app\)/);
+    expect(t).toMatch(/Ajuste pontual: R\$ 250,00 por ajuste \(avulso, não muda o período do plano\)/);
+    expect(t).toMatch(/1\.4 No plano de acesso à plataforma/);
+    expect(t).toMatch(/1\.5 O ajuste pontual é um serviço avulso/);
+  });
+
+  it("sem planos de acesso/avulso, o objeto não muda", () => {
+    const t = contractToText(CONTRACT_TITLE, renderContract({ party, catalog, pricing: null, student: { name: "Ana", cpf: "52998224725" } }));
+    expect(t).not.toMatch(/1\.4/);
+  });
+
+  it("regra de atraso: aviso desde o vencimento e pausa depois de 7 dias", () => {
+    const t = contractToText(CONTRACT_TITLE, renderContract({ party, catalog, pricing: null, student: { name: "Ana", cpf: "52998224725" } }));
+    expect(t).toMatch(/depois de 7 dias de atraso, o acesso ao app fica pausado até a regularização/);
+    expect(t).not.toMatch(/10 dias de atraso/);
+  });
+
+  it("desconto de parceria avisa que vale só no 1º pagamento", () => {
+    const pricing = buildPlanPricing(catalog[1], 80325, catalog, "JOAO10");
+    const t = contractToText(CONTRACT_TITLE, renderContract({ party, catalog, pricing, student: { name: "Ana", cpf: "52998224725" } }));
+    expect(t).toMatch(/O desconto de parceria vale só no primeiro pagamento; as renovações seguem a tabela\./);
   });
 });

@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -44,6 +45,8 @@ interface CoachInvite {
   used_at: string | null;
   note: string | null;
   created_at: string;
+  /** Convite de coach parceiro: conta nasce vitalícia (sem cobrança da plataforma). */
+  lifetime?: boolean;
 }
 
 interface ManageTrainersResponse {
@@ -75,7 +78,7 @@ export const TrainerManagement = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [invites, setInvites] = useState<CoachInvite[]>([]);
   const [inviteLoading, setInviteLoading] = useState(false);
-  const [newInvite, setNewInvite] = useState({ email: "", expiresInDays: 30, note: "" });
+  const [newInvite, setNewInvite] = useState({ email: "", expiresInDays: 30, note: "", lifetime: false });
   const [newTrainer, setNewTrainer] = useState({
     email: "",
     password: "",
@@ -137,12 +140,13 @@ export const TrainerManagement = () => {
           action: "generate-coach-invite", 
           email: newInvite.email, 
           expiresInDays: newInvite.expiresInDays, 
-          note: newInvite.note 
+          note: newInvite.note,
+          lifetime: newInvite.lifetime,
         },
       });
       if (error || data?.error) throw new Error(data?.error || "Erro ao gerar convite");
       toast.success("Convite gerado e enviado por e-mail!");
-      setNewInvite({ email: "", expiresInDays: 30, note: "" });
+      setNewInvite({ email: "", expiresInDays: 30, note: "", lifetime: false });
       loadInvites();
     } catch (e: unknown) {
       toast.error(getErrorMessage(e, "Erro ao gerar convite"));
@@ -408,8 +412,9 @@ export const TrainerManagement = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-xs">Trial Expira em (dias)</Label>
+                  <Label className="text-xs" htmlFor="invite-days">Link válido por (dias)</Label>
                   <Input
+                    id="invite-days"
                     type="number" min={1} max={90}
                     value={newInvite.expiresInDays}
                     onChange={(e) => setNewInvite({ ...newInvite, expiresInDays: Number(e.target.value) || 30 })}
@@ -425,6 +430,15 @@ export const TrainerManagement = () => {
                     className="mt-1 h-9 text-sm"
                   />
                 </div>
+              </div>
+              <div className="flex items-start justify-between gap-3 rounded-lg border border-border px-3 py-2">
+                <div>
+                  <Label htmlFor="invite-lifetime" className="text-xs font-semibold">Coach parceiro (vitalício)</Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    {newInvite.lifetime ? "A conta nasce sem cobrança da plataforma, até você mudar." : "Desligado: a conta começa com 30 dias de teste."}
+                  </p>
+                </div>
+                <Switch id="invite-lifetime" checked={newInvite.lifetime} onCheckedChange={(v) => setNewInvite({ ...newInvite, lifetime: v })} />
               </div>
               <Button onClick={handleGenerateInvite} disabled={inviteLoading} className="w-full gap-2">
                 {inviteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
@@ -476,7 +490,8 @@ export const TrainerManagement = () => {
                       </div>
                       <p className="text-muted-foreground">
                         {inv.email && <span className="block mb-1 text-foreground font-medium">{inv.email}</span>}
-                        Expira: {fmtDate(inv.expires_at)}
+                        {inv.lifetime && <span className="mr-1 font-semibold text-primary">Coach parceiro (vitalício) ·</span>}
+                        Link válido até: {fmtDate(inv.expires_at)}
                         {inv.note ? ` · ${inv.note}` : ""}
                       </p>
                     </div>
@@ -624,7 +639,8 @@ function TrainerRow({ trainer, onDelete, onUpdateEmail, onUpdateCode, onUpdateTr
               if (planType === "lifetime") val = "2099-12-31T23:59:59Z";
               else if (planType === "trial") {
                 if (!trialDate) { toast.error("Selecione a data limite do Trial"); return; }
-                val = new Date(trialDate).toISOString();
+                // Fim do dia escolhido no horário de Brasília (antes virava o dia anterior).
+                val = new Date(`${trialDate}T23:59:59-03:00`).toISOString();
               }
               onUpdateTrial(trainer.id, val);
               setEditingPlan(false);
